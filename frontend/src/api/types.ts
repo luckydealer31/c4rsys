@@ -231,3 +231,33 @@ export type Rental = RentalSummary & {
 };
 
 export type Warning = { code: string; amounts?: Record<string, string> };
+
+export type OrderAmounts = { charged: string; paid: string; to_pay: string; overpaid: string };
+
+export type Order = {
+  id: string;
+  number: number;
+  client_id: string | null;
+  is_internal: boolean;
+  state: "open" | "ready_to_close" | "closed" | "cancelled" | "terminated";
+  responsible_employment_id: string | null;
+  created_at: string;
+  closed_at: string | null;
+  version: number;
+  operations: { type: string; id: string; state: string; finished: boolean }[];
+  closing_conditions: { operation: string; id: string; condition: string }[];
+  amounts: Record<string, OrderAmounts>;
+};
+
+export type Payment = {
+  id: string;
+  number: number;
+  cash_account_id: string;
+  client_id: string | null;
+  amount: string;
+  currency: string;
+  state: string;
+  method: string;
+  posted_at: string | null;
+  allocations: { order_id: string; amount: string; purpose: string; state: string }[];
+};

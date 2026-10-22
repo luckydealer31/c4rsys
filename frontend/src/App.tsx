@@ -11,7 +11,7 @@ import { RegisterPage } from "./pages/auth/RegisterPage";
 import { CompaniesPage } from "./pages/companies/CompaniesPage";
 import { ClientPage, ClientsPage } from "./pages/clients/ClientsPage";
 import { FinancePage } from "./pages/finance/FinancePage";
-import { Placeholder } from "./pages/Placeholder";
+import { OrderPage, OrdersPage } from "./pages/orders/OrdersPage";
 import { IssuePage } from "./pages/rentals/IssuePage";
 import { RentalPage } from "./pages/rentals/RentalPage";
 import { RentalsPage } from "./pages/rentals/RentalsPage";
@@ -80,7 +80,8 @@ export function App() {
         <Route path="rentals" element={<RentalsPage />} />
         <Route path="rentals/new" element={<IssuePage />} />
         <Route path="rentals/:id" element={<RentalPage />} />
-        <Route path="orders" element={<Placeholder section="orders" />} />
+        <Route path="orders" element={<OrdersPage />} />
+        <Route path="orders/:id" element={<OrderPage />} />
         <Route path="vehicles" element={<VehiclesPage />} />
         <Route path="vehicles/:id" element={<VehiclePage />} />
         <Route path="clients" element={<ClientsPage />} />

@@ -253,7 +253,7 @@ export function IssuePage() {
 }
 
 /** Finding the client being served (client.find, § 6.2.2) by phone, email or name. */
-function ClientFinder({ onPick }: { onPick: (client: Client) => void }) {
+export function ClientFinder({ onPick }: { onPick: (client: Client) => void }) {
   const { t } = useTranslation();
   const company = useCompany();
   const [text, setText] = useState("");

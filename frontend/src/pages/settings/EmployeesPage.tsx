@@ -12,7 +12,7 @@ import { formatMoment } from "../../time";
 import { useLocations } from "./LocationsPage";
 import { cleanRights, RightsEditor } from "./RightsEditor";
 
-function useEmployees() {
+export function useEmployees() {
   const company = useCompany();
   return useApi<{ employees: Employee[] }>(
     ["employees", company.public_id],

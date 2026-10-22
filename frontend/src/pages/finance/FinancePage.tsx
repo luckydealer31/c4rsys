@@ -1,14 +1,19 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router";
 
 import { useApi } from "../../api/queries";
-import type { CashAccount } from "../../api/types";
+import type { CashAccount, Client } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
-import { useCan, useCompany } from "../../layout/CompanyShell";
-import { currencies } from "../../time";
+import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
+import { currencies, formatMoment } from "../../time";
+import { clientName } from "../clients/ClientsPage";
+import { useOrders } from "../orders/OrdersPage";
+import { ClientFinder } from "../rentals/IssuePage";
 import { useLocations } from "../settings/LocationsPage";
+import { CashReceipt, usePayments } from "./CashReceipt";
 
 export function useCashAccounts() {
   const company = useCompany();
@@ -18,14 +23,121 @@ export function useCashAccounts() {
   );
 }
 
-/** Finance: cash desks and accounts (§ 17.2.5, § 22.1.7). Payments come with part 5. */
+/** Finance: cash desks and accounts (§ 17.2.5, § 22.1.7), cash receipt and payments. */
 export function FinancePage() {
   const { t } = useTranslation();
+  const can = useCan();
   return (
     <div className="page">
       <h1>{t("nav.finance")}</h1>
+      {can("finance.payment.receive") ? <Receipt /> : null}
+      <PaymentsList />
       <CashAccountsEditor />
     </div>
+  );
+}
+
+/** Receipt outside an order card: the client, then one of the client's open orders or none. */
+function Receipt() {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const company = useCompany();
+  const orders = useOrders();
+  const [client, setClient] = useState<Client | null>(null);
+  const [orderId, setOrderId] = useState("");
+  const open = (orders.data?.orders ?? []).filter(
+    (o) => o.client_id === client?.id && (o.state === "open" || o.state === "ready_to_close"),
+  );
+  const order = open.find((o) => o.id === orderId) ?? null;
+
+  async function refresh() {
+    for (const key of [["payments", company.public_id], ["orders", company.public_id]]) {
+      await queryClient.invalidateQueries({ queryKey: key });
+    }
+  }
+
+  return (
+    <>
+      <Card title={t("payments.receive_title")}>
+        {client ? (
+          <>
+            <p>
+              <strong>{clientName(client)}</strong>{" "}
+              <button type="button" className="secondary" onClick={() => setClient(null)}>
+                {t("rentals.change_client")}
+              </button>
+            </p>
+            <Field label={t("payments.order")}>
+              <select value={orderId} onChange={(e) => setOrderId(e.target.value)}>
+                <option value="">{t("payments.without_order")}</option>
+                {open.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    № {o.number}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </>
+        ) : (
+          <ClientFinder onPick={setClient} />
+        )}
+      </Card>
+      {client ? <CashReceipt key={`${client.id}-${orderId}`} clientId={client.id} order={order} onDone={refresh} /> : null}
+    </>
+  );
+}
+
+function PaymentsList() {
+  const { t, i18n } = useTranslation();
+  const company = useCompany();
+  const payments = usePayments();
+  const accounts = useCashAccounts();
+  const orders = useOrders();
+  const accountName = new Map((accounts.data?.cash_accounts ?? []).map((a) => [a.id, a.name]));
+  const orderNumber = new Map((orders.data?.orders ?? []).map((o) => [o.id, o.number]));
+  const items = payments.data?.payments ?? [];
+  return (
+    <Card title={t("payments.title")}>
+      {payments.isLoading ? <Loading /> : null}
+      {!payments.isLoading && items.length === 0 ? <p className="muted">{t("payments.none")}</p> : null}
+      {items.length ? (
+        <table>
+          <thead>
+            <tr>
+              <th>{t("payments.number")}</th>
+              <th>{t("payments.when")}</th>
+              <th>{t("payments.account")}</th>
+              <th>{t("payments.amount", { currency: "" })}</th>
+              <th>{t("payments.orders")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((p) => (
+              <tr key={p.id}>
+                <td>№ {p.number}</td>
+                <td>{formatMoment(p.posted_at, company.timezone ?? "UTC", i18n.language)}</td>
+                <td>{accountName.get(p.cash_account_id) ?? "—"}</td>
+                <td>
+                  {p.amount} {p.currency}
+                </td>
+                <td>
+                  {p.allocations.length
+                    ? p.allocations.map((a) => (
+                        <div key={a.order_id}>
+                          <Link to={companyPath(company, `/orders/${a.order_id}`)}>
+                            № {orderNumber.get(a.order_id) ?? "…"}
+                          </Link>{" "}
+                          · {a.amount}
+                        </div>
+                      ))
+                    : t("payments.unallocated")}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : null}
+    </Card>
   );
 }
 
