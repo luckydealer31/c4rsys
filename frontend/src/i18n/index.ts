@@ -8,9 +8,11 @@ import th from "./locales/th.json";
 // ТЗ § 2.7.1: MVP languages; device language is used when a translation is connected,
 // otherwise English. A language saved in the profile takes priority after login (§ 2.7.4, T02).
 export const SUPPORTED_LANGUAGES = ["en", "ru", "th"] as const;
+// Thai has keys only at stage 1 (STAGE1_PLAN) and is not offered yet; it falls back to English.
+export const UI_LANGUAGES = ["en", "ru"] as const;
 
 const deviceLanguage = (navigator.language || "en").slice(0, 2);
-const initial = (SUPPORTED_LANGUAGES as readonly string[]).includes(deviceLanguage)
+const initial = (UI_LANGUAGES as readonly string[]).includes(deviceLanguage)
   ? deviceLanguage
   : "en";
 
