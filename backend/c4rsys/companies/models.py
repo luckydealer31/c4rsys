@@ -136,3 +136,91 @@ class Employment(models.Model):
 
     def __str__(self) -> str:
         return f"employment {self.id}"
+
+
+WEEKDAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+
+
+def schedule_24_7() -> dict[str, list[dict[str, str]]]:
+    """Weekly schedule open around the clock, the default of a new location (§ 22.1.6)."""
+    return {day: [{"from": "00:00", "to": "24:00"}] for day in WEEKDAYS}
+
+
+class Location(models.Model):
+    """Place of accounting of the company (§ 4.1.2, § 4.1.4).
+
+    The state «draft / active» is not stored: it follows from the time zone and the readiness of
+    contexts (§ 4.4.3–4.4.4), see services.location_state. Deactivation (§ 4.4.1) comes later.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="locations")
+    name = models.CharField(max_length=200)
+    timezone = models.CharField(max_length=64, blank=True, default="")
+    address = models.CharField(max_length=500, blank=True, default="")
+    created_at = models.DateTimeField(default=now)
+    updated_at = models.DateTimeField(auto_now=True)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "location"
+        constraints = [
+            models.UniqueConstraint(fields=["company", "id"], name="location_company_id_uniq"),
+            models.CheckConstraint(condition=~Q(name=""), name="location_name_not_empty"),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class ActivityContext(models.Model):
+    """Direction of work in a location (§ 4.1.6–4.1.8). At most one of each type (§ 4.1.7).
+
+    `location` is additionally bound to the same company by a composite foreign key (migration).
+    Without its own schedule the context inherits the schedule of the location (§ 4.2.3).
+    """
+
+    class Type(models.TextChoices):
+        RENTAL = "rental"
+        SERVICE = "service"
+        WAREHOUSE = "warehouse"
+
+    class State(models.TextChoices):
+        ENABLED = "enabled"
+        DISABLED = "disabled"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    location = models.ForeignKey(Location, on_delete=models.PROTECT, related_name="contexts")
+    type = models.CharField(max_length=20, choices=Type.choices)
+    state = models.CharField(max_length=20, choices=State.choices, default=State.ENABLED)
+    created_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "activity_context"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "id"], name="activity_context_company_id_uniq"
+            ),
+            models.UniqueConstraint(fields=["location", "type"], name="activity_context_type_uniq"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.type}@{self.location_id}"
+
+
+class LocationSchedule(models.Model):
+    """Weekly schedule and date exceptions of a location (§ 4.2.3, § 22.1.6)."""
+
+    location = models.OneToOneField(
+        Location, on_delete=models.PROTECT, primary_key=True, related_name="schedule"
+    )
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    weekly = models.JSONField(default=schedule_24_7)
+    exceptions = models.JSONField(default=list)
+
+    class Meta:
+        db_table = "location_schedule"
+
+    def __str__(self) -> str:
+        return f"schedule {self.location_id}"
