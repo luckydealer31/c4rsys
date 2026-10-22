@@ -1,0 +1,54 @@
+# PROPOSAL: the CI service is not chosen yet (O12). This workflow works if the repository is
+# hosted on GitHub; on another host the same steps are repeated by scripts/check.sh.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: postgres:18.6
+        env:
+          POSTGRES_DB: c4rsys
+          POSTGRES_USER: c4rsys
+          POSTGRES_PASSWORD: c4rsys_ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U c4rsys -d c4rsys"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgres://c4rsys:c4rsys_ci@localhost:5432/c4rsys
+      DJANGO_DEBUG: "1"
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: mypy .
+      - run: pytest
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test

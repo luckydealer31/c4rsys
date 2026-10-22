@@ -1,0 +1,5 @@
+# Runtime dependencies. Ranges are intentional until the first install on a machine
+# with registry access; then freeze exact versions (see README, "Lock versions").
+Django>=6.1.2,<6.2
+psycopg[binary]>=3.2,<4
+dj-database-url>=2.2,<4

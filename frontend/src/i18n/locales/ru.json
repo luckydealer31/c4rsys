@@ -1,0 +1,9 @@
+{
+  "health": {
+    "checking": "Проверяем сервер…",
+    "ok": "Сервер и база данных доступны",
+    "unavailable": "Сервер недоступен"
+  },
+  "settings": { "language": "Язык" },
+  "languages": { "en": "English", "ru": "Русский", "th": "ไทย" }
+}
