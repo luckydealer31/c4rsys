@@ -155,7 +155,8 @@ class Location(models.Model):
     """Place of accounting of the company (§ 4.1.2, § 4.1.4).
 
     The state «draft / active» is not stored: it follows from the time zone and the readiness of
-    contexts (§ 4.4.3–4.4.4), see services.location_state. Deactivation (§ 4.4.1) comes later.
+    contexts (§ 4.4.3–4.4.4), see locations.location_state. A deactivated location (§ 4.4.1)
+    keeps its history and accepts no new operations until it is restored.
     """
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
@@ -163,6 +164,7 @@ class Location(models.Model):
     name = models.CharField(max_length=200)
     timezone = models.CharField(max_length=64, blank=True, default="")
     address = models.CharField(max_length=500, blank=True, default="")
+    deactivated_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(default=now)
     updated_at = models.DateTimeField(auto_now=True)
     version = models.PositiveIntegerField(default=1)

@@ -91,10 +91,10 @@ def issue(ctx: CommandContext, request: IssueRequest) -> tuple[Rental, Inspectio
         raise errors.validation_error("issue_location_id", code="LOCATION_UNKNOWN")
     if not location.active:
         raise errors.business_rule("LOCATION_NOT_ACTIVE", field="issue_location_id")
-    if request.planned_return_location_id is not None and not locations.location_exists(
-        company_id, request.planned_return_location_id
-    ):
-        raise errors.validation_error("planned_return_location_id", code="LOCATION_UNKNOWN")
+    if request.planned_return_location_id is not None:
+        locations.require_usable(
+            company_id, request.planned_return_location_id, "planned_return_location_id"
+        )
     client = parties.get_client(company_id, request.client_id)
     tariff = tariffs.tariffs_for_vehicle(card).filter(pk=request.tariff_id).first()
     terms = tariffs.vehicle_terms(tariff, card) if tariff else None

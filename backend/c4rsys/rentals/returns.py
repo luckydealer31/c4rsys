@@ -96,8 +96,7 @@ def accept_return(ctx: CommandContext, request: ReturnRequest) -> tuple[Rental, 
     if request.actual_end <= rental.actual_start:
         raise errors.validation_error("actual_end", code="PERIOD_INVALID")
     location_id = acceptance_location(rental, request.place_kind, request.return_location_id)
-    if not locations.location_exists(company_id, location_id):
-        raise errors.validation_error("return_location_id", code="LOCATION_UNKNOWN")
+    locations.require_usable(company_id, location_id, "return_location_id")
 
     before = {"state": rental.state, "actual_end": None}
     rental.actual_end = request.actual_end

@@ -4,7 +4,7 @@ from typing import Any
 from uuid import UUID
 
 from django.http import HttpRequest, JsonResponse
-from django.views.decorators.http import require_http_methods
+from django.views.decorators.http import require_http_methods, require_POST
 
 from c4rsys.accounts.middleware import require_user
 from c4rsys.companies import access, locations, services
@@ -220,13 +220,25 @@ def location_list(request: HttpRequest, cmp: str) -> JsonResponse:
     return run_and_respond(request, "location.create", actor, payload, handler)
 
 
-@require_http_methods(["GET", "PATCH"])
+@require_http_methods(["GET", "PATCH", "DELETE"])
 def location_detail(request: HttpRequest, cmp: str, location_id: UUID) -> JsonResponse:
     if request.method == "GET":
         user, session = require_user(request)
         context = services.resolve_company(user, cmp, session.id)
         location = locations.get_location(context.company.id, location_id)
         return JsonResponse({"location": _location_payload(location)})
+
+    if request.method == "DELETE":
+        # Only a location without history (decision 23.10.2026); otherwise LOCATION_HAS_HISTORY.
+        context, actor = _settings_actor(request, cmp)
+        locations.get_location(context.company.id, location_id)
+
+        def delete(ctx: CommandContext) -> CommandResult:
+            locations.delete_location(ctx, context.company.id, location_id)
+            return CommandResult(200, {"deleted": str(location_id)})
+
+        target = {"location_id": str(location_id)}
+        return run_and_respond(request, "location.delete", actor, target, delete)
 
     context, actor = _settings_actor(request, cmp)
     locations.get_location(context.company.id, location_id)
@@ -248,7 +260,11 @@ def location_detail(request: HttpRequest, cmp: str, location_id: UUID) -> JsonRe
         location = locations.get_location(context.company.id, location_id)
         return CommandResult(200, {"location": _location_payload(location)})
 
-    payload = {"location_id": str(location_id), **changes, "expected_version": expected_version}
+    payload: dict[str, Any] = {
+        "location_id": str(location_id),
+        **changes,
+        "expected_version": expected_version,
+    }
     return run_and_respond(request, "location.update", actor, payload, handler)
 
 
@@ -270,3 +286,63 @@ def location_contexts(request: HttpRequest, cmp: str, location_id: UUID) -> Json
 
     payload = {"location_id": str(location_id), "type": context_type}
     return run_and_respond(request, "location.add_context", actor, payload, handler)
+
+
+def _location_state_command(
+    request: HttpRequest, cmp: str, location_id: UUID, deactivate: bool
+) -> JsonResponse:
+    """§ 4.4.1: deactivation and restoration of a location, each journaled."""
+    context, actor = _settings_actor(request, cmp)
+    locations.get_location(context.company.id, location_id)
+    expected_version = get_int(parse_json(request), "expected_version")
+    action = locations.deactivate_location if deactivate else locations.restore_location
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        action(ctx, context.company.id, location_id, expected_version)
+        location = locations.get_location(context.company.id, location_id)
+        return CommandResult(200, {"location": _location_payload(location)})
+
+    payload = {"location_id": str(location_id), "expected_version": expected_version}
+    name = "location.deactivate" if deactivate else "location.restore"
+    return run_and_respond(request, name, actor, payload, handler)
+
+
+@require_POST
+def location_deactivate(request: HttpRequest, cmp: str, location_id: UUID) -> JsonResponse:
+    return _location_state_command(request, cmp, location_id, deactivate=True)
+
+
+@require_POST
+def location_restore(request: HttpRequest, cmp: str, location_id: UUID) -> JsonResponse:
+    return _location_state_command(request, cmp, location_id, deactivate=False)
+
+
+def _context_state_command(
+    request: HttpRequest, cmp: str, location_id: UUID, context_id: UUID, enabled: bool
+) -> JsonResponse:
+    """§ 4.4.2: a context is switched off without deletion and switched on again."""
+    context, actor = _settings_actor(request, cmp)
+    locations.get_location(context.company.id, location_id)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        locations.set_context_enabled(ctx, context.company.id, location_id, context_id, enabled)
+        location = locations.get_location(context.company.id, location_id)
+        return CommandResult(200, {"location": _location_payload(location)})
+
+    payload = {"location_id": str(location_id), "context_id": str(context_id)}
+    name = "location.enable_context" if enabled else "location.disable_context"
+    return run_and_respond(request, name, actor, payload, handler)
+
+
+@require_POST
+def context_disable(
+    request: HttpRequest, cmp: str, location_id: UUID, context_id: UUID
+) -> JsonResponse:
+    return _context_state_command(request, cmp, location_id, context_id, enabled=False)
+
+
+@require_POST
+def context_enable(
+    request: HttpRequest, cmp: str, location_id: UUID, context_id: UUID
+) -> JsonResponse:
+    return _context_state_command(request, cmp, location_id, context_id, enabled=True)

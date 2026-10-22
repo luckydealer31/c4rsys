@@ -257,3 +257,102 @@ def test_context_must_belong_to_location_of_same_company(owner: Client, cmp: str
         ActivityContext.objects.create(
             company=other, location=Location.objects.get(), type="rental"
         )
+
+
+def _version(owner: Client, cmp: str, location_id: str) -> int:
+    version: int = owner.get(f"/api/c/{cmp}/locations/{location_id}").json()["location"]["version"]
+    return version
+
+
+def test_empty_location_is_deleted_with_its_contexts(owner: Client, cmp: str) -> None:
+    # Decision 23.10.2026: a location without history may be deleted.
+    location_id = _create_location(owner, cmp, contexts=["service"]).json()["location"]["id"]
+
+    response = owner.delete(
+        f"/api/c/{cmp}/locations/{location_id}", headers={"Idempotency-Key": "d"}
+    )
+
+    assert response.status_code == 200, response.content
+    assert not Location.objects.exists()
+    assert not ActivityContext.objects.exists()
+    deleted = AuditEvent.objects.get(action="location.deleted")
+    assert deleted.before is not None and deleted.before["contexts"] == ["service"]
+
+
+def test_location_referred_to_by_a_cash_account_is_not_deleted(owner: Client, cmp: str) -> None:
+    location_id = _create_location(owner, cmp).json()["location"]["id"]
+    post(
+        owner,
+        f"/api/c/{cmp}/cash-accounts",
+        {"name": "Desk", "type": "cash", "currency": "THB", "location_id": location_id},
+        headers={"Idempotency-Key": "c"},
+    )
+
+    response = owner.delete(
+        f"/api/c/{cmp}/locations/{location_id}", headers={"Idempotency-Key": "d"}
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "LOCATION_HAS_HISTORY"
+    assert Location.objects.count() == 1
+
+
+def test_empty_location_is_deactivated_and_restored(owner: Client, cmp: str) -> None:
+    # § 4.4.1, § 4.4.3: nothing unfinished; each action is journaled.
+    location_id = _create_location(owner, cmp, contexts=["rental"]).json()["location"]["id"]
+    base = f"/api/c/{cmp}/locations/{location_id}"
+
+    off = post(
+        owner, f"{base}/deactivate", {"expected_version": 1}, headers={"Idempotency-Key": "a"}
+    )
+    assert off.status_code == 200, off.content
+    assert off.json()["location"]["state"] == "deactivated"
+    added = _add_context(owner, cmp, location_id, "warehouse", "x-9")
+    assert added.json()["error"]["code"] == "LOCATION_DEACTIVATED"
+    again = post(
+        owner, f"{base}/deactivate", {"expected_version": 2}, headers={"Idempotency-Key": "b"}
+    )
+    assert again.json()["error"]["code"] == "LOCATION_ALREADY_DEACTIVATED"
+
+    on = post(owner, f"{base}/restore", {"expected_version": 2}, headers={"Idempotency-Key": "c"})
+    assert on.status_code == 200
+    assert on.json()["location"]["state"] == "draft"
+    actions = list(
+        AuditEvent.objects.filter(object_id=location_id).values_list("action", flat=True)
+    )
+    assert "location.deactivated" in actions and "location.restored" in actions
+
+
+def test_context_is_switched_off_and_on_and_journaled(owner: Client, cmp: str) -> None:
+    # § 4.4.2.
+    location = _create_location(owner, cmp, contexts=["service"]).json()["location"]
+    path = f"/api/c/{cmp}/locations/{location['id']}/contexts/{location['contexts'][0]['id']}"
+
+    off = post(owner, f"{path}/disable", {}, headers={"Idempotency-Key": "a"})
+    assert off.json()["location"]["contexts"][0]["state"] == "disabled"
+    twice = post(owner, f"{path}/disable", {}, headers={"Idempotency-Key": "b"})
+    assert twice.json()["error"]["code"] == "CONTEXT_ALREADY_IN_STATE"
+    on = post(owner, f"{path}/enable", {}, headers={"Idempotency-Key": "c"})
+    assert on.json()["location"]["contexts"][0]["state"] == "enabled"
+    assert AuditEvent.objects.filter(action="location.context_disabled").count() == 1
+    assert AuditEvent.objects.filter(action="location.context_enabled").count() == 1
+
+
+def test_only_settings_holder_deactivates_or_deletes(owner: Client, cmp: str) -> None:
+    location_id = _create_location(owner, cmp).json()["location"]["id"]
+    stranger = Client()
+    named_user(stranger, "s@example.com")
+
+    deleted = stranger.delete(
+        f"/api/c/{cmp}/locations/{location_id}", headers={"Idempotency-Key": "d"}
+    )
+    off = post(
+        stranger,
+        f"/api/c/{cmp}/locations/{location_id}/deactivate",
+        {"expected_version": 1},
+        headers={"Idempotency-Key": "a"},
+    )
+
+    assert deleted.status_code == 404
+    assert off.status_code == 404
+    assert Location.objects.filter(deactivated_at__isnull=True).count() == 1

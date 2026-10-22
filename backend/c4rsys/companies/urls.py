@@ -8,6 +8,16 @@ urlpatterns = [
     path("c/<str:cmp>/locations", views.location_list),
     path("c/<str:cmp>/locations/<uuid:location_id>", views.location_detail),
     path("c/<str:cmp>/locations/<uuid:location_id>/contexts", views.location_contexts),
+    path("c/<str:cmp>/locations/<uuid:location_id>/deactivate", views.location_deactivate),
+    path("c/<str:cmp>/locations/<uuid:location_id>/restore", views.location_restore),
+    path(
+        "c/<str:cmp>/locations/<uuid:location_id>/contexts/<uuid:context_id>/disable",
+        views.context_disable,
+    ),
+    path(
+        "c/<str:cmp>/locations/<uuid:location_id>/contexts/<uuid:context_id>/enable",
+        views.context_enable,
+    ),
     path("c/<str:cmp>/employees", staff_views.employee_list),
     path("c/<str:cmp>/permission-catalog", staff_views.permission_catalog),
     path("c/<str:cmp>/employees/invitations", staff_views.invitation_create),

@@ -52,7 +52,7 @@ async function csrfToken(): Promise<string> {
 }
 
 export type RequestOptions = {
-  method?: "GET" | "POST" | "PATCH" | "PUT";
+  method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   body?: unknown;
   idempotencyKey?: string;
   /** Requests the interface makes by itself do not extend the session (§ 24.4.2). */

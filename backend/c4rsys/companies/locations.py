@@ -1,11 +1,12 @@
 """Locations, their activity contexts and schedules (ТЗ гл. 4, § 22.1.5–22.1.6)."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
 from django.db import IntegrityError, transaction
-from django.db.models import QuerySet
+from django.db.models import ProtectedError, QuerySet, RestrictedError
 from django.utils import timezone
 
 from c4rsys.companies import readiness
@@ -17,6 +18,21 @@ from c4rsys.platform.commands import CommandContext
 class State:
     DRAFT = "draft"
     ACTIVE = "active"
+    DEACTIVATED = "deactivated"
+
+
+# (company_id, location_id, context_type or None for the whole location) -> codes of what is not
+# finished there. Each module reports its own operations and assets (§ 4.4.1–4.4.2).
+Blockers = Callable[[UUID, UUID, str | None], list[str]]
+_blockers: list[Blockers] = []
+
+
+def register_blockers(check: Blockers) -> None:
+    _blockers.append(check)
+
+
+def blockers(company_id: UUID, location_id: UUID, context_type: str | None = None) -> list[str]:
+    return [code for check in _blockers for code in check(company_id, location_id, context_type)]
 
 
 def context_ready(context: ActivityContext) -> bool:
@@ -27,7 +43,10 @@ def context_ready(context: ActivityContext) -> bool:
 
 
 def location_state(location: Location, contexts: list[ActivityContext]) -> str:
-    """Active with a time zone and at least one ready context, otherwise draft (§ 4.4.3–4.4.4)."""
+    """Active with a time zone and at least one ready context, otherwise draft (§ 4.4.3–4.4.4);
+    deactivated by an explicit action (§ 4.4.1)."""
+    if location.deactivated_at is not None:
+        return State.DEACTIVATED
     if location.timezone and any(context_ready(c) for c in contexts):
         return State.ACTIVE
     return State.DRAFT
@@ -119,11 +138,9 @@ def add_context(
 ) -> ActivityContext:
     """At most one context of each type per location (§ 4.1.7). The context gets its own
     immutable ID (§ 4.1.8) and inherits the location schedule (§ 4.2.3)."""
-    location = (
-        Location.objects.select_for_update().filter(company_id=company_id, pk=location_id).first()
-    )
-    if location is None:
-        raise errors.not_found()
+    location = _lock(company_id, location_id)
+    if location.deactivated_at is not None:
+        raise errors.business_rule("LOCATION_DEACTIVATED")
     if ActivityContext.objects.filter(location=location, type=context_type).exists():
         raise errors.business_rule("CONTEXT_ALREADY_EXISTS", field="type")
     try:
@@ -138,6 +155,111 @@ def add_context(
         object_type="activity_context",
         object_id=context.id,
         after={"location": str(location.id), "type": context.type, "state": context.state},
+    )
+    return context
+
+
+def _lock(company_id: UUID, location_id: UUID) -> Location:
+    location = (
+        Location.objects.select_for_update().filter(company_id=company_id, pk=location_id).first()
+    )
+    if location is None:
+        raise errors.not_found()
+    return location
+
+
+def deactivate_location(
+    ctx: CommandContext, company_id: UUID, location_id: UUID, expected_version: int
+) -> Location:
+    """§ 4.4.1: unfinished operations and vehicles of the location block deactivation; the
+    history and links stay. Rentals block until they are returned and formalized (decision
+    23.10.2026); cash accounts do not block."""
+    location = _lock(company_id, location_id)
+    if location.version != expected_version:
+        raise errors.version_conflict()
+    if location.deactivated_at is not None:
+        raise errors.business_rule("LOCATION_ALREADY_DEACTIVATED")
+    found = blockers(company_id, location_id)
+    if found:
+        raise errors.business_rule("LOCATION_HAS_UNFINISHED", blockers=found)
+    location.deactivated_at = timezone.now()
+    location.version += 1
+    location.save(update_fields=["deactivated_at", "version", "updated_at"])
+    ctx.audit(
+        "location.deactivated",
+        object_type="location",
+        object_id=location.id,
+        after={"deactivated_at": location.deactivated_at.isoformat()},
+    )
+    return location
+
+
+def restore_location(
+    ctx: CommandContext, company_id: UUID, location_id: UUID, expected_version: int
+) -> Location:
+    location = _lock(company_id, location_id)
+    if location.version != expected_version:
+        raise errors.version_conflict()
+    if location.deactivated_at is None:
+        raise errors.business_rule("LOCATION_NOT_DEACTIVATED")
+    before = location.deactivated_at.isoformat()
+    location.deactivated_at = None
+    location.version += 1
+    location.save(update_fields=["deactivated_at", "version", "updated_at"])
+    ctx.audit(
+        "location.restored",
+        object_type="location",
+        object_id=location.id,
+        before={"deactivated_at": before},
+        after={"deactivated_at": None},
+    )
+    return location
+
+
+def delete_location(ctx: CommandContext, company_id: UUID, location_id: UUID) -> None:
+    """A location without history may be deleted (decision 23.10.2026): nothing refers to it —
+    no operations, vehicles, cash accounts, tariffs or rights. With history it is only
+    deactivated (§ 4.4.1). The references themselves decide: the database refuses the delete."""
+    location = _lock(company_id, location_id)
+    contexts = sorted(location.contexts.values_list("type", flat=True))
+    before = {**snapshot(location), "contexts": contexts}
+    try:
+        with transaction.atomic():
+            LocationSchedule.objects.filter(location=location).delete()
+            ActivityContext.objects.filter(location=location).delete()
+            location.delete()
+    except (ProtectedError, RestrictedError, IntegrityError) as exc:
+        raise errors.business_rule("LOCATION_HAS_HISTORY") from exc
+    ctx.audit("location.deleted", object_type="location", object_id=location_id, before=before)
+
+
+def set_context_enabled(
+    ctx: CommandContext, company_id: UUID, location_id: UUID, context_id: UUID, enabled: bool
+) -> ActivityContext:
+    """§ 4.4.2: a context is switched off without deletion while it has no unfinished
+    operations; it is switched on again by a separate action. Vehicles keep their location."""
+    location = _lock(company_id, location_id)
+    context = ActivityContext.objects.filter(location=location, pk=context_id).first()
+    if context is None:
+        raise errors.not_found()
+    target = ActivityContext.State.ENABLED if enabled else ActivityContext.State.DISABLED
+    if context.state == target:
+        raise errors.business_rule("CONTEXT_ALREADY_IN_STATE", state=target)
+    if enabled and location.deactivated_at is not None:
+        raise errors.business_rule("LOCATION_DEACTIVATED")
+    if not enabled:
+        found = blockers(company_id, location_id, context.type)
+        if found:
+            raise errors.business_rule("CONTEXT_HAS_UNFINISHED", blockers=found)
+    before = context.state
+    context.state = target
+    context.save(update_fields=["state"])
+    ctx.audit(
+        "location.context_enabled" if enabled else "location.context_disabled",
+        object_type="activity_context",
+        object_id=context.id,
+        before={"state": before},
+        after={"location": str(location.id), "type": context.type, "state": target},
     )
     return context
 
@@ -164,6 +286,16 @@ def enabled_context_types(company_id: UUID, location_id: UUID) -> set[str]:
 
 def location_exists(company_id: UUID, location_id: UUID) -> bool:
     return Location.objects.filter(company_id=company_id, pk=location_id).exists()
+
+
+def require_usable(company_id: UUID, location_id: UUID, field: str) -> None:
+    """A location that new operations and vehicles may refer to: it exists and is not
+    deactivated (§ 4.4.1)."""
+    location = Location.objects.filter(company_id=company_id, pk=location_id).first()
+    if location is None:
+        raise errors.validation_error(field, code="LOCATION_UNKNOWN")
+    if location.deactivated_at is not None:
+        raise errors.business_rule("LOCATION_DEACTIVATED", field=field)
 
 
 @dataclass(frozen=True)

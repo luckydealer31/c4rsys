@@ -46,7 +46,7 @@ export type Location = {
   name: string;
   timezone: string | null;
   address: string;
-  state: "draft" | "active";
+  state: "draft" | "active" | "deactivated";
   version: number;
   schedule: { weekly: Record<string, { from: string; to: string }[]>; exceptions: unknown[] };
   contexts: { id: string; type: ContextType; state: string; ready: boolean }[];

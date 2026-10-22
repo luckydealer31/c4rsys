@@ -55,8 +55,7 @@ def create_vehicle(ctx: CommandContext, company: Company, data: NewVehicle) -> V
     """A new global vehicle with its VHL ID and the company's own card in the garage, bound to a
     location (§ 8.1.3). Only the name is required (§ 8.1.10). The usage contexts are the
     applicable contexts existing in the company at creation (§ 8.5.1)."""
-    if not locations.location_exists(company.id, data.location_id):
-        raise errors.validation_error("location_id", code="LOCATION_UNKNOWN")
+    locations.require_usable(company.id, data.location_id, "location_id")
     now = timezone.now()
     vehicle = Vehicle(created_at=now)
     vehicle.public_id = allocate_public_id("VHL", entity_type="vehicle", entity_id=vehicle.id)
@@ -275,3 +274,14 @@ def move_to_location(
         after={"accounting_location": str(location_id)},
         reason=reason,
     )
+
+
+def location_blockers(company_id: UUID, location_id: UUID, context_type: str | None) -> list[str]:
+    """Vehicles are moved to other locations before the location is deactivated (§ 4.4.1); they
+    do not block switching off a context (§ 4.4.2)."""
+    if context_type is not None:
+        return []
+    present = VehicleCard.objects.filter(
+        company_id=company_id, accounting_location_id=location_id, state=VehicleCard.State.ACTIVE
+    ).exists()
+    return ["vehicles_in_location"] if present else []

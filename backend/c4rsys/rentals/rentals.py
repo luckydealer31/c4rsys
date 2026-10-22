@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from django.db.models import Max, QuerySet
+from django.db.models import Max, Q, QuerySet
 from django.utils import timezone
 
 from c4rsys.finance.charges import charge_ids_for_source
@@ -125,3 +125,27 @@ def history_for_order(company_id: UUID, order_id: UUID) -> list[tuple[str, str]]
     for rental in Rental.objects.filter(company_id=company_id, order_id=order_id):
         objects += history_objects(rental)
     return objects
+
+
+def location_blockers(company_id: UUID, location_id: UUID, context_type: str | None) -> list[str]:
+    """Rentals that block deactivating a location or switching off its rental context: booked or
+    issued there or planned to return there, and returned there or from there without completed
+    formalization (§ 4.4.1–4.4.2, decision 23.10.2026)."""
+    if context_type not in (None, "rental"):
+        return []
+    unfinished = Rental.objects.filter(company_id=company_id).filter(
+        Q(
+            state__in=(Rental.State.BOOKED, Rental.State.ACTIVE),
+            issue_location_id=location_id,
+        )
+        | Q(
+            state__in=(Rental.State.BOOKED, Rental.State.ACTIVE),
+            planned_return_location_id=location_id,
+        )
+        | Q(
+            state=Rental.State.RETURNED,
+            formalization_completed_at__isnull=True,
+        )
+        & (Q(issue_location_id=location_id) | Q(return_location_id=location_id))
+    )
+    return ["rentals_not_finished"] if unfinished.exists() else []
