@@ -182,3 +182,79 @@ def record_control_versions(ctx: CommandContext, order: Order, reason: str) -> N
     payment and at closing (§ 13.6.8). Each module writes its own."""
     for writer in _control_writers:
         writer(ctx, order.company_id, order.id, reason)
+
+
+# --- Closing (§ 12.1.9, § 12.2.3, § 23.6.5) ---------------------------------------------------
+
+# Operation type -> permission of its section needed to close an order containing it.
+_section_permissions: dict[str, str] = {}
+
+
+def register_section_permission(operation_type: str, permission: str) -> None:
+    _section_permissions[operation_type] = permission
+
+
+def section_permission(operation_type: str) -> str | None:
+    return _section_permissions.get(operation_type)
+
+
+def ensure_open(company_id: UUID, order_id: UUID) -> None:
+    """While the order is closed its operations do not change (§ 12.2.3)."""
+    state = (
+        Order.objects.filter(company_id=company_id, pk=order_id)
+        .values_list("state", flat=True)
+        .first()
+    )
+    if state != Order.State.OPEN:
+        raise errors.business_rule("ORDER_CLOSED", order_id=str(order_id))
+
+
+def close_order(
+    ctx: CommandContext,
+    company_id: UUID,
+    order_id: UUID,
+    expected_version: int,
+    *,
+    may_close_with_debt: bool,
+) -> Order:
+    """All operations finished (§ 12.1.9); debt needs a separate permission (§ 12.1.9, § 23.6.5);
+    the current calculation is kept as a control version (§ 13.6.8). Debt and overpayment stay
+    with the client after closing (§ 6.7.2)."""
+    order = Order.objects.select_for_update().filter(company_id=company_id, pk=order_id).first()
+    if order is None:
+        raise errors.not_found()
+    if order.version != expected_version:
+        raise errors.version_conflict()
+    if order.state != Order.State.OPEN:
+        raise errors.business_rule("ORDER_CLOSED")
+    unmet = closing_conditions(operations_of(order))
+    if unmet:
+        raise errors.business_rule("ORDER_NOT_READY_TO_CLOSE", conditions=unmet)
+    amounts = amounts_of(order)
+    debt = {c: m.balance for c, m in amounts.items() if m.balance > 0}
+    if debt and not may_close_with_debt:
+        raise errors.business_rule("ORDER_HAS_DEBT", debt={c: str(v) for c, v in debt.items()})
+
+    record_control_versions(ctx, order, "closing")
+    now = timezone.now()
+    order.state = Order.State.CLOSED
+    order.closed_at = now
+    order.closed_by_user_id = ctx.actor.user_id
+    order.version += 1
+    order.save(update_fields=["state", "closed_at", "closed_by_user_id", "version", "updated_at"])
+    ctx.audit(
+        "order.closed",
+        object_type="order",
+        object_id=order.id,
+        before={"state": Order.State.OPEN},
+        after={
+            "state": order.state,
+            "closed_at": now,
+            "amounts": {
+                c: {"charged": m.charged, "paid": m.paid, "balance": m.balance}
+                for c, m in amounts.items()
+            },
+            "with_debt": bool(debt),
+        },
+    )
+    return order

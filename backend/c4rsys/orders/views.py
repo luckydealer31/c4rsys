@@ -5,15 +5,17 @@ from typing import Any
 from uuid import UUID
 
 from django.http import HttpRequest, JsonResponse
-from django.views.decorators.http import require_GET
+from django.views.decorators.http import require_GET, require_POST
 
 from c4rsys.accounts.middleware import require_user
 from c4rsys.companies import access
 from c4rsys.companies import services as companies
+from c4rsys.companies.views import run_and_respond
 from c4rsys.orders import services
 from c4rsys.orders.models import Order
 from c4rsys.platform import errors
-from c4rsys.platform.commands import Actor
+from c4rsys.platform.commands import Actor, CommandContext, CommandResult
+from c4rsys.platform.http import get_int, parse_json
 from c4rsys.platform.models import Currency
 from c4rsys.platform.money import round_money
 
@@ -95,3 +97,41 @@ def order_detail(request: HttpRequest, cmp: str, order_id: UUID) -> JsonResponse
     if not _visible(actor, operations):
         raise errors.not_found()
     return JsonResponse({"order": _payload(order, operations)})
+
+
+@require_POST
+def order_close(request: HttpRequest, cmp: str, order_id: UUID) -> JsonResponse:
+    """§ 12.1.9, § 23.6.5: order.close and the section right of every operation in its location;
+    with debt also order.close_with_debt."""
+    context, actor = _actor(request, cmp)
+    order = services.get_order(context.company.id, order_id)
+    operations = services.operations_of(order)
+    if not _visible(actor, operations):
+        raise errors.not_found()
+    resolver = access.RightsResolver()
+    places = {op.location_id for op in operations}
+    if not all(resolver.has_permission(actor, "order.close", location_id=x) for x in places):
+        raise errors.permission_denied("order.close")
+    for op in operations:
+        needed = services.section_permission(op.type)
+        if needed is None or not resolver.has_permission(actor, needed, location_id=op.location_id):
+            raise errors.business_rule(
+                "ORDER_SECTION_PERMISSION_MISSING", operation=op.type, permission=needed
+            )
+    may_close_with_debt = all(
+        resolver.has_permission(actor, "order.close_with_debt", location_id=x) for x in places
+    )
+    expected_version = get_int(parse_json(request), "expected_version")
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        closed = services.close_order(
+            ctx,
+            context.company.id,
+            order_id,
+            expected_version,
+            may_close_with_debt=may_close_with_debt,
+        )
+        return CommandResult(200, {"order": _payload(closed, services.operations_of(closed))})
+
+    payload = {"order_id": str(order_id), "expected_version": expected_version}
+    return run_and_respond(request, "order.close", actor, payload, handler)

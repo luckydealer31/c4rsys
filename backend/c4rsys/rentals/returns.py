@@ -19,6 +19,7 @@ from c4rsys.finance.models import ChargeEntry
 from c4rsys.fleet import services as fleet
 from c4rsys.inspections import services as inspections
 from c4rsys.inspections.models import Inspection
+from c4rsys.orders import services as orders
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
 from c4rsys.rentals import pricing
@@ -87,6 +88,7 @@ def accept_return(ctx: CommandContext, request: ReturnRequest) -> tuple[Rental, 
     rental = Rental.objects.select_for_update().get(pk=found.pk)
     if rental.version != request.expected_version:
         raise errors.version_conflict()
+    orders.ensure_open(rental.company_id, rental.order_id)
     if rental.state != Rental.State.ACTIVE:
         raise errors.business_rule("RENTAL_NOT_ACTIVE", state=rental.state)
     if request.actual_end > now:
@@ -166,6 +168,7 @@ def save_return_readings(
 ) -> Inspection:
     """Readings entered later into the draft of the return inspection (§ 14.5.5)."""
     card = fleet.lock_card(rental.company_id, rental.vehicle_card_id)
+    orders.ensure_open(rental.company_id, rental.order_id)
     locked = Inspection.objects.select_for_update().get(pk=inspection.pk)
     saved = inspections.save_draft(
         ctx,

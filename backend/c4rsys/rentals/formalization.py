@@ -13,6 +13,7 @@ from django.utils import timezone
 from c4rsys.fleet import services as fleet
 from c4rsys.inspections import services as inspections
 from c4rsys.inspections.models import Inspection
+from c4rsys.orders import services as orders
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
 from c4rsys.rentals.models import Rental
@@ -44,6 +45,7 @@ def complete(
     rental = Rental.objects.select_for_update().get(pk=found.pk)
     if rental.version != expected_version:
         raise errors.version_conflict()
+    orders.ensure_open(rental.company_id, rental.order_id)
     if rental.state != Rental.State.RETURNED:
         raise errors.business_rule("RENTAL_NOT_RETURNED", state=rental.state)
     if rental.formalization_completed_at is not None:
