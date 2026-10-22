@@ -203,7 +203,7 @@ def test_client_must_belong_to_same_company(owner: Client, card: ClientCard) -> 
         )
 
 
-@pytest.mark.django_db(transaction=True)
+@pytest.mark.django_db(transaction=True, serialized_rollback=True)
 def test_concurrent_orders_get_distinct_consecutive_numbers(owner: Client, cmp: str) -> None:
     # Real PostgreSQL: the counter row lock serialises concurrent commands.
     card = _client_card(owner, cmp)

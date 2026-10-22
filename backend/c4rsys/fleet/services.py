@@ -246,3 +246,11 @@ def rental_readiness(card: VehicleCard) -> dict[str, Any]:
     if "rental" not in allowed_contexts(card):
         missing.append("rental_not_allowed")
     return {"ready": not missing, "missing": missing}
+
+
+def lock_card(company_id: UUID, card_id: UUID) -> VehicleCard:
+    """Locks the card first in a command (lock order: vehicle → rental → order → cash desk)."""
+    card = VehicleCard.objects.select_for_update().filter(company_id=company_id, pk=card_id).first()
+    if card is None:
+        raise errors.not_found()
+    return card

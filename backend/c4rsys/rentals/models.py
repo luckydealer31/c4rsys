@@ -1,5 +1,7 @@
 """Rental tariffs (ТЗ § 13.1–13.2)."""
 
+from django.contrib.postgres.constraints import ExclusionConstraint
+from django.contrib.postgres.fields import DateTimeRangeField, RangeOperators
 from django.db import models
 from django.db.models import Q
 from django.utils.timezone import now
@@ -167,3 +169,77 @@ class TariffVehicleTerms(models.Model):
 
     def __str__(self) -> str:
         return f"{self.tariff_id}:{self.vehicle_card_id}"
+
+
+class Rental(models.Model):
+    """A rental of a vehicle (ТЗ гл. 14). Stage 1: issue without a booking.
+
+    `actual_period` is [actual_start, actual_end); open while the vehicle is with the client. The
+    database excludes two non-cancelled rentals of one vehicle with overlapping periods, so two
+    concurrent issues cannot both succeed (§ 14.6, acceptance criterion 5). Links to the order,
+    vehicle, client, tariff and location are bound to the same company by composite foreign keys.
+    """
+
+    class State(models.TextChoices):
+        BOOKED = "booked"
+        ACTIVE = "active"
+        RETURNED = "returned"
+        CANCELLED = "cancelled"
+        ANNULLED = "annulled"
+
+    class PlaceKind(models.TextChoices):
+        LOCATION = "location"
+        OTHER = "other"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    order = models.ForeignKey("orders.Order", on_delete=models.PROTECT, related_name="+")
+    vehicle_card = models.ForeignKey(
+        "fleet.VehicleCard", on_delete=models.PROTECT, related_name="+"
+    )
+    client = models.ForeignKey("parties.ClientCard", on_delete=models.PROTECT, related_name="+")
+    tariff = models.ForeignKey(Tariff, on_delete=models.PROTECT, related_name="+")
+    tariff_snapshot = models.JSONField()
+    calc_timezone = models.CharField(max_length=64)
+    issue_location = models.ForeignKey(Location, on_delete=models.PROTECT, related_name="+")
+    issue_place_kind = models.CharField(max_length=10, choices=PlaceKind.choices)
+    issue_place_note = models.CharField(max_length=500, blank=True, default="")
+    planned_end = models.DateTimeField(null=True, blank=True)
+    actual_start = models.DateTimeField()
+    actual_end = models.DateTimeField(null=True, blank=True)
+    actual_period = DateTimeRangeField()
+    state = models.CharField(max_length=10, choices=State.choices)
+    formalization_completed_at = models.DateTimeField(null=True, blank=True)
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+    updated_at = models.DateTimeField(auto_now=True)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "rental"
+        constraints = [
+            models.UniqueConstraint(fields=["company", "id"], name="rental_company_id_uniq"),
+            ExclusionConstraint(
+                name="rental_vehicle_no_overlap",
+                expressions=[
+                    ("vehicle_card", RangeOperators.EQUAL),
+                    ("actual_period", RangeOperators.OVERLAPS),
+                ],
+                condition=Q(state__in=["active", "returned"]),
+            ),
+            models.CheckConstraint(
+                condition=Q(issue_place_kind="location") | ~Q(issue_place_note=""),
+                name="rental_other_place_described",
+            ),
+            models.CheckConstraint(
+                condition=Q(actual_end__isnull=True) | Q(actual_end__gt=models.F("actual_start")),
+                name="rental_end_after_start",
+            ),
+            models.CheckConstraint(
+                condition=~Q(state="active") | Q(actual_end__isnull=True),
+                name="rental_active_has_no_end",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"rental {self.id}"

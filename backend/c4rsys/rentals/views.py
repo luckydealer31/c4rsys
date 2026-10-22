@@ -1,5 +1,7 @@
 """HTTP API of the tariff catalog (ТЗ § 13.1–13.2, § 22.1.8, § 23.4.4)."""
 
+from datetime import UTC, datetime
+from decimal import Decimal, InvalidOperation
 from typing import Any
 from uuid import UUID
 
@@ -7,14 +9,15 @@ from django.http import HttpRequest, JsonResponse
 from django.views.decorators.http import require_http_methods, require_POST
 
 from c4rsys.accounts.middleware import require_user
+from c4rsys.companies import access, locations
 from c4rsys.companies import services as companies
 from c4rsys.companies.views import run_and_respond
 from c4rsys.fleet import services as fleet
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
-from c4rsys.rentals import tariffs
-from c4rsys.rentals.models import Tariff
+from c4rsys.rentals import issue, rentals, tariffs
+from c4rsys.rentals.models import Rental, Tariff
 
 NAME_MAX = 150
 
@@ -197,3 +200,178 @@ def tariff_vehicle_terms(
 
     payload = {"tariff_id": str(tariff_id), "vehicle_card_id": str(card_id), **terms.as_dict()}
     return run_and_respond(request, "tariff.set_vehicle_terms", actor, payload, handler)
+
+
+# --- Rentals (§ 14.4) -----------------------------------------------------------------------------
+
+
+def _moment(data: dict[str, Any], key: str, *, required: bool) -> datetime | None:
+    """An ISO 8601 moment with its offset; stored in UTC (§ 4.2.2)."""
+    value = data.get(key)
+    if value in (None, ""):
+        if required:
+            raise errors.validation_error(key, code="FIELD_REQUIRED")
+        return None
+    if not isinstance(value, str):
+        raise errors.validation_error(key, code="DATETIME_INVALID")
+    try:
+        moment = datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise errors.validation_error(key, code="DATETIME_INVALID") from exc
+    if moment.tzinfo is None:
+        raise errors.validation_error(key, code="DATETIME_WITHOUT_OFFSET")
+    return moment
+
+
+def _uuid(data: dict[str, Any], key: str, code: str = "FIELD_REQUIRED") -> UUID:
+    value = data.get(key)
+    if value in (None, ""):
+        raise errors.business_rule(code, field=key)
+    try:
+        return UUID(str(value))
+    except ValueError as exc:
+        raise errors.validation_error(key) from exc
+
+
+def _reading(data: dict[str, Any], key: str, code: str, places: int) -> Decimal:
+    """Odometer and fuel are required for the issue (§ 14.4.3); fuel is a number from the panel
+    without a scale (§ 13.5.1)."""
+    value = data.get(key)
+    if value in (None, ""):
+        raise errors.business_rule(code, field=key)
+    if isinstance(value, bool) or not isinstance(value, str | int):
+        raise errors.validation_error(key, code="NUMBER_INVALID")
+    try:
+        number = Decimal(str(value).strip())
+    except InvalidOperation as exc:
+        raise errors.validation_error(key, code="NUMBER_INVALID") from exc
+    exponent = number.as_tuple().exponent
+    if not number.is_finite() or number < 0 or (isinstance(exponent, int) and -exponent > places):
+        raise errors.validation_error(key, code="NUMBER_INVALID", max_places=places)
+    return number
+
+
+def _utc(moment: datetime | None) -> str | None:
+    """Moments are answered in UTC, the same right after a command and on later reads; the
+    interface shows them in the location's time zone (§ 4.2.2)."""
+    return moment.astimezone(UTC).isoformat() if moment else None
+
+
+def _rental_payload(rental: Rental) -> dict[str, Any]:
+    return {
+        "id": str(rental.id),
+        "order_id": str(rental.order_id),
+        "vehicle_card_id": str(rental.vehicle_card_id),
+        "client_id": str(rental.client_id),
+        "tariff_id": str(rental.tariff_id),
+        "state": rental.state,
+        "issue_location_id": str(rental.issue_location_id),
+        "issue_place_kind": rental.issue_place_kind,
+        "issue_place_note": rental.issue_place_note,
+        "calc_timezone": rental.calc_timezone,
+        "actual_start": _utc(rental.actual_start),
+        "planned_end": _utc(rental.planned_end),
+        "actual_end": _utc(rental.actual_end),
+        "tariff_snapshot": rental.tariff_snapshot,
+        "calculation": rentals.current_calculation(rental),
+        "version": rental.version,
+    }
+
+
+@require_POST
+def rental_issue(request: HttpRequest, cmp: str) -> JsonResponse:
+    """Issue without a booking (§ 14.4.4). Permissions in the scope of the issue location and its
+    rental context: rental.issue; marking the inspection as conducted also needs
+    inspection.conduct; adding to an existing order needs order.edit (decisions 22.10.2026)."""
+    context, actor = _actor(request, cmp)
+    data = parse_json(request)
+    location_id = _uuid(data, "issue_location_id")
+    location = locations.location_info(context.company.id, location_id)
+    if location is None:
+        raise errors.validation_error("issue_location_id", code="LOCATION_UNKNOWN")
+    conducted = data.get("inspection_conducted", False)
+    if not isinstance(conducted, bool):
+        raise errors.validation_error("inspection_conducted")
+    order_id = UUID(str(data["order_id"])) if data.get("order_id") else None
+    resolver = access.RightsResolver()
+    needed = ["rental.issue"]
+    if conducted:
+        needed.append("inspection.conduct")
+    for permission in needed:
+        if not resolver.has_permission(
+            actor, permission, location_id=location.id, context_id=location.rental_context_id
+        ):
+            raise errors.permission_denied(permission)
+    if order_id is not None and not resolver.has_permission(
+        actor, "order.edit", location_id=location.id
+    ):
+        raise errors.permission_denied("order.edit")
+
+    place_kind = get_str(data, "place_kind", max_length=10, required=False) or "location"
+    if place_kind not in Rental.PlaceKind.values:
+        raise errors.validation_error("place_kind")
+    place_note = get_str(data, "place_note", max_length=500, required=False)
+    if place_kind == Rental.PlaceKind.OTHER and not place_note:
+        raise errors.validation_error("place_note", code="FIELD_REQUIRED")
+    actual_start = _moment(data, "actual_start", required=True)
+    if actual_start is None:
+        raise errors.validation_error("actual_start", code="FIELD_REQUIRED")
+    request_data = issue.IssueRequest(
+        vehicle_card_id=_uuid(data, "vehicle_card_id"),
+        client_id=_uuid(data, "client_id", "CLIENT_REQUIRED"),
+        tariff_id=_uuid(data, "tariff_id", "TARIFF_REQUIRED"),
+        issue_location_id=location.id,
+        place_kind=place_kind,
+        place_note=place_note if place_kind == Rental.PlaceKind.OTHER else "",
+        actual_start=actual_start,
+        odometer=_reading(data, "odometer", "ODOMETER_REQUIRED", 1),
+        fuel=_reading(data, "fuel", "FUEL_REQUIRED", 2),
+        inspection_conducted=conducted,
+        planned_end=_moment(data, "planned_end", required=False),
+        order_id=order_id,
+    )
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        rental, inspection, created_order = issue.issue(ctx, request_data)
+        return CommandResult(
+            201,
+            {
+                "rental": _rental_payload(rental),
+                "inspection_id": str(inspection.id),
+                "order_created": created_order,
+                # Policies of a new company (§ 14.3.6): client debt and documents only warn.
+                "warnings": [],
+            },
+        )
+
+    payload = {
+        k: (str(v) if isinstance(v, UUID | Decimal | datetime) else v)
+        for k, v in request_data.__dict__.items()
+    }
+    return run_and_respond(request, "rental.issue", actor, payload, handler)
+
+
+def _rental_visible(actor: Actor, rental: Rental) -> bool:
+    return access.RightsResolver().has_permission(
+        actor, "rental.view", location_id=rental.issue_location_id
+    )
+
+
+@require_http_methods(["GET"])
+def rental_list(request: HttpRequest, cmp: str) -> JsonResponse:
+    context, actor = _actor(request, cmp)
+    items = [
+        _rental_payload(r)
+        for r in rentals.rentals_of(context.company.id)[:100]
+        if _rental_visible(actor, r)
+    ]
+    return JsonResponse({"rentals": items})
+
+
+@require_http_methods(["GET"])
+def rental_detail(request: HttpRequest, cmp: str, rental_id: UUID) -> JsonResponse:
+    context, actor = _actor(request, cmp)
+    rental = rentals.get_rental(context.company.id, rental_id)
+    if not _rental_visible(actor, rental):
+        raise errors.not_found()
+    return JsonResponse({"rental": _rental_payload(rental)})

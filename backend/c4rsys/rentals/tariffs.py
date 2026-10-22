@@ -436,3 +436,19 @@ def tariffs_for_vehicle(card: VehicleCard) -> QuerySet[Tariff]:
     return available_at(card.company_id, card.accounting_location_id).filter(
         vehicle_terms__vehicle_card=card
     )
+
+
+def rental_snapshot(tariff: Tariff, terms: TariffVehicleTerms) -> dict[str, Any]:
+    """The tariff and its terms for the vehicle as agreed at issue (§ 13.6.1). The rental is
+    calculated from this snapshot; later catalog changes do not touch it."""
+    return {
+        "tariff_id": str(tariff.id),
+        "tariff_version": tariff.version,
+        **snapshot(tariff),
+        "currency_minor_units": tariff.currency.minor_units,
+        "vehicle_terms": {**terms_of(terms).as_dict(), "mileage_unit": terms.mileage_unit},
+    }
+
+
+def vehicle_terms(tariff: Tariff, card: VehicleCard) -> TariffVehicleTerms | None:
+    return TariffVehicleTerms.objects.filter(tariff=tariff, vehicle_card=card).first()

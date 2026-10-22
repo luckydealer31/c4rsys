@@ -164,3 +164,34 @@ def enabled_context_types(company_id: UUID, location_id: UUID) -> set[str]:
 
 def location_exists(company_id: UUID, location_id: UUID) -> bool:
     return Location.objects.filter(company_id=company_id, pk=location_id).exists()
+
+
+@dataclass(frozen=True)
+class LocationInfo:
+    id: UUID
+    timezone: str
+    active: bool
+    rental_context_id: UUID | None
+
+
+def location_info(company_id: UUID, location_id: UUID) -> LocationInfo | None:
+    """What an operation needs to know about a location: its time zone, whether it accepts new
+    operations (§ 4.4.3) and its rental context."""
+    location = locations_of(company_id).filter(pk=location_id).first()
+    if location is None:
+        return None
+    contexts = list(location.contexts.all())
+    rental = next(
+        (
+            c
+            for c in contexts
+            if c.type == ActivityContext.Type.RENTAL and c.state == ActivityContext.State.ENABLED
+        ),
+        None,
+    )
+    return LocationInfo(
+        id=location.id,
+        timezone=location.timezone,
+        active=location_state(location, contexts) == State.ACTIVE,
+        rental_context_id=rental.id if rental else None,
+    )

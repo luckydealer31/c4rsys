@@ -12,4 +12,7 @@ urlpatterns = [
         "c/<str:cmp>/tariffs/<uuid:tariff_id>/vehicles/<uuid:card_id>",
         views.tariff_vehicle_terms,
     ),
+    path("c/<str:cmp>/rentals", views.rental_list),
+    path("c/<str:cmp>/rentals/issue", views.rental_issue),
+    path("c/<str:cmp>/rentals/<uuid:rental_id>", views.rental_detail),
 ]

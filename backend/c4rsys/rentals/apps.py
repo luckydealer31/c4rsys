@@ -10,6 +10,8 @@ class RentalsConfig(AppConfig):
 
     def ready(self) -> None:
         from c4rsys.companies import readiness
-        from c4rsys.rentals import tariffs
+        from c4rsys.orders import services as orders
+        from c4rsys.rentals import rentals, tariffs
 
         readiness.register("rental", tariffs.rental_conditions_met)
+        orders.register_operations(rentals.operations_for_order)
