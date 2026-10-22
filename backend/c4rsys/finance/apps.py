@@ -14,3 +14,4 @@ class FinanceConfig(AppConfig):
 
         orders.register_charged(charges.charged_for_order)
         orders.register_paid(payments.paid_for_order)
+        orders.register_history(payments.history_for_order)

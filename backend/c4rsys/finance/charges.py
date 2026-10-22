@@ -74,3 +74,11 @@ def charged_for_order(company_id: UUID, order_id: UUID) -> dict[str, Decimal]:
         .annotate(total=Sum("amount"))
     )
     return {r["currency_id"]: r["total"] for r in rows}
+
+
+def charge_ids_for_source(source_type: str, source_id: UUID) -> list[UUID]:
+    return list(
+        ChargeEntry.objects.filter(source_type=source_type, source_id=source_id).values_list(
+            "id", flat=True
+        )
+    )

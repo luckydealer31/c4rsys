@@ -258,3 +258,21 @@ def close_order(
         },
     )
     return order
+
+
+# --- History (§ 23.10, screens «История») ----------------------------------------------------
+
+HistoryProvider = Callable[[UUID, UUID], list[tuple[str, str]]]
+_history_providers: list[HistoryProvider] = []
+
+
+def register_history(provider: HistoryProvider) -> None:
+    _history_providers.append(provider)
+
+
+def history_objects(order: Order) -> list[tuple[str, str]]:
+    """The order and the objects of its operations and money, as journaled objects."""
+    objects = [("order", str(order.id))]
+    for provider in _history_providers:
+        objects.extend(provider(order.company_id, order.id))
+    return objects

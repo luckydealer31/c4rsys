@@ -10,7 +10,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_http_methods, require_POST
 
 from c4rsys.accounts.middleware import require_user
-from c4rsys.companies import access, locations
+from c4rsys.companies import access, history, locations
 from c4rsys.companies import services as companies
 from c4rsys.companies.views import run_and_respond
 from c4rsys.finance import payments
@@ -580,3 +580,14 @@ def rental_complete_formalization(request: HttpRequest, cmp: str, rental_id: UUI
 
     payload = {"rental_id": str(rental_id), "expected_version": expected_version}
     return run_and_respond(request, "rental.complete_formalization", actor, payload, handler)
+
+
+@require_http_methods(["GET"])
+def rental_history(request: HttpRequest, cmp: str, rental_id: UUID) -> JsonResponse:
+    """History tab of the rental: time, author, action, before / after (§ 23.10, § 24.4.5)."""
+    context, actor = _actor(request, cmp)
+    rental = rentals.get_rental(context.company.id, rental_id)
+    if not _rental_visible(actor, rental):
+        raise errors.not_found()
+    events = history.object_history(context.company.id, rentals.history_objects(rental))
+    return JsonResponse({"history": history.payload(events)})

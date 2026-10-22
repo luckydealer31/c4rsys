@@ -167,3 +167,13 @@ def client_balance(company_id: UUID, client_id: UUID) -> dict[str, Decimal]:
 
 def client_debt(company_id: UUID, client_id: UUID) -> dict[str, Decimal]:
     return {c: -v for c, v in client_balance(company_id, client_id).items() if v < 0}
+
+
+def history_for_order(company_id: UUID, order_id: UUID) -> list[tuple[str, str]]:
+    """Payments allocated to the order, as journaled objects."""
+    ids = (
+        PaymentAllocation.objects.filter(company_id=company_id, order_id=order_id)
+        .values_list("money_movement_id", flat=True)
+        .distinct()
+    )
+    return [("money_movement", str(i)) for i in ids]

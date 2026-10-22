@@ -7,6 +7,8 @@ from uuid import UUID
 from django.db.models import Max, QuerySet
 from django.utils import timezone
 
+from c4rsys.finance.charges import charge_ids_for_source
+from c4rsys.inspections.models import Inspection
 from c4rsys.orders.services import OperationSummary
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
@@ -105,3 +107,21 @@ def record_control_versions(
             object_id=rental.id,
             after={"seq": seq, "reason": reason, "base_amount": result.base_amount},
         )
+
+
+def history_objects(rental: Rental) -> list[tuple[str, str]]:
+    """The rental, its inspections and its charges as journaled objects (§ 23.10)."""
+    objects = [("rental", str(rental.id))]
+    objects += [
+        ("inspection", str(i))
+        for i in Inspection.objects.filter(rental_id=rental.id).values_list("id", flat=True)
+    ]
+    objects += [("charge_entry", str(c)) for c in charge_ids_for_source("rental_base", rental.id)]
+    return objects
+
+
+def history_for_order(company_id: UUID, order_id: UUID) -> list[tuple[str, str]]:
+    objects: list[tuple[str, str]] = []
+    for rental in Rental.objects.filter(company_id=company_id, order_id=order_id):
+        objects += history_objects(rental)
+    return objects

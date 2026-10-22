@@ -1,5 +1,6 @@
 """HTTP API of employees, their rights and invitations (ТЗ § 5.1, гл. 23)."""
 
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -9,7 +10,7 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 
 from c4rsys.accounts import services as accounts
 from c4rsys.accounts.middleware import require_user
-from c4rsys.companies import access, services, staff
+from c4rsys.companies import access, history, services, staff
 from c4rsys.companies.models import Employment, Invitation
 from c4rsys.companies.views import run_and_respond
 from c4rsys.platform import errors
@@ -276,3 +277,39 @@ def invitation_decline(request: HttpRequest, invitation_id: UUID) -> JsonRespons
     return run_and_respond(
         request, "invitation.decline", actor, {"invitation_id": str(invitation_id)}, handler
     )
+
+
+def _moment(value: str, field: str) -> datetime | None:
+    if not value:
+        return None
+    try:
+        moment = datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise errors.validation_error(field, code="DATETIME_INVALID") from exc
+    if moment.tzinfo is None:
+        raise errors.validation_error(field, code="DATETIME_WITHOUT_OFFSET")
+    return moment
+
+
+@require_GET
+def employee_journal(request: HttpRequest, cmp: str, employment_id: UUID) -> JsonResponse:
+    """Journal of the employee's actions in this company with filters by period, section and
+    action (§ 23.10.1–23.10.2). A separate permission; money details of financial actions are
+    shown only to holders of a finance right (§ 23.10.3, decision 22.10.2026)."""
+    context, actor = _company_actor(request, cmp, "employee.journal.view")
+    if not history.employment_exists(context.company.id, employment_id):
+        raise errors.not_found()
+    resolver = access.RightsResolver()
+    show_financial = any(
+        resolver.has_permission(actor, p)
+        for p in ("finance.payment.receive", "finance.cash_account.manage")
+    )
+    events = history.employee_journal(
+        context.company.id,
+        employment_id,
+        since=_moment(request.GET.get("from", ""), "from"),
+        until=_moment(request.GET.get("to", ""), "to"),
+        section=request.GET.get("section", "")[:40],
+        action=request.GET.get("action", "")[:100],
+    )
+    return JsonResponse({"journal": history.payload(events, show_financial=show_financial)})

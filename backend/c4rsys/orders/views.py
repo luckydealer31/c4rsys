@@ -8,7 +8,7 @@ from django.http import HttpRequest, JsonResponse
 from django.views.decorators.http import require_GET, require_POST
 
 from c4rsys.accounts.middleware import require_user
-from c4rsys.companies import access
+from c4rsys.companies import access, history
 from c4rsys.companies import services as companies
 from c4rsys.companies.views import run_and_respond
 from c4rsys.orders import services
@@ -135,3 +135,14 @@ def order_close(request: HttpRequest, cmp: str, order_id: UUID) -> JsonResponse:
 
     payload = {"order_id": str(order_id), "expected_version": expected_version}
     return run_and_respond(request, "order.close", actor, payload, handler)
+
+
+@require_GET
+def order_history(request: HttpRequest, cmp: str, order_id: UUID) -> JsonResponse:
+    """History tab of the order: the order, its rentals, inspections, charges and payments."""
+    context, actor = _actor(request, cmp)
+    order = services.get_order(context.company.id, order_id)
+    if not _visible(actor, services.operations_of(order)):
+        raise errors.not_found()
+    events = history.object_history(context.company.id, services.history_objects(order))
+    return JsonResponse({"history": history.payload(events)})
