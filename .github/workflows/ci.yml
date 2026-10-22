@@ -62,6 +62,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: ./scripts/e2e.sh
+      # T20: the same scenario on the test server build (Caddy, gunicorn, DEBUG off).
+      - run: ./scripts/e2e.sh prod
       - if: failure()
         uses: actions/upload-artifact@v4
         with:

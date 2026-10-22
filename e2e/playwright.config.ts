@@ -7,7 +7,7 @@ export default defineConfig({
   workers: 1,
   reporter: [["list"], ["html", { open: "never", outputFolder: "playwright-report" }]],
   use: {
-    baseURL: "http://localhost:5173",
+    baseURL: process.env.BASE_URL ?? "http://localhost:5173",
     locale: "ru-RU",
     timezoneId: "Asia/Bangkok",
     actionTimeout: 30_000,

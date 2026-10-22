@@ -1,0 +1,29 @@
+# Local check of the test server build (./scripts/e2e.sh prod): no published ports, plain HTTP
+# on :80 inside the network, codes in the log so the browser test can read them.
+services:
+  backend:
+    environment:
+      DJANGO_SECRET_KEY: local-check-only-not-a-secret
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
+      DJANGO_SECURE_SSL_REDIRECT: "0"
+      C4R_MAIL_MODE: console
+      C4R_ALLOW_CONSOLE_MAIL: "1"
+  web:
+    environment:
+      C4R_SITE_ADDRESS: ":80"
+    ports: !reset []
+  e2e:
+    image: mcr.microsoft.com/playwright:v1.55.0-noble
+    profiles: ["e2e"]
+    network_mode: "service:web"
+    working_dir: /e2e
+    environment:
+      COMPOSE_PROJECT: c4rsys-prodcheck
+      BASE_URL: http://localhost
+      CI: ${CI:-}
+    volumes:
+      - ./e2e:/e2e
+      - /e2e/node_modules
+      - ./frontend/src/i18n/locales:/locales:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: sh -c "npm ci --no-audit --no-fund && npx playwright test"

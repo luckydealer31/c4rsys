@@ -113,11 +113,32 @@ X_FRAME_OPTIONS = "DENY"
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     SECURE_SSL_REDIRECT = env_bool("DJANGO_SECURE_SSL_REDIRECT", default=True)
+    # The container health check calls the server directly over HTTP.
+    SECURE_REDIRECT_EXEMPT = [r"^api/health$"]
     SECURE_HSTS_SECONDS = int(os.environ.get("DJANGO_HSTS_SECONDS", "0"))
 
-# One-time codes: "console" writes them to the backend log (development). The provider for the
-# test server is OPEN (docs/stage1/EMAIL_PROVIDER.md); Django's EMAIL_BACKEND is not used.
+# One-time codes and invitations: "console" writes them to the backend log (development only);
+# "email" sends them through the default mailer. The test server uses Amazon SES through
+# django-anymail (decision on T20, 23.10.2026); another provider is a change of settings only.
 C4R_MAIL_MODE = os.environ.get("C4R_MAIL_MODE", "console")
+if C4R_MAIL_MODE not in ("console", "email"):
+    raise ImproperlyConfigured("C4R_MAIL_MODE must be console or email")
+if C4R_MAIL_MODE == "console" and not DEBUG and not env_bool("C4R_ALLOW_CONSOLE_MAIL", False):
+    # Codes in the log are acceptable only on a developer's machine.
+    raise ImproperlyConfigured("C4R_MAIL_MODE=console needs DJANGO_DEBUG or C4R_ALLOW_CONSOLE_MAIL")
+MAILERS = {
+    "default": {
+        "BACKEND": os.environ.get(
+            "DJANGO_MAIL_BACKEND", "django.core.mail.backends.locmem.EmailBackend"
+        ),
+    },
+}
+DEFAULT_FROM_EMAIL = os.environ.get("C4R_MAIL_FROM", "c4rsys <no-reply@c4rsys.com>")
+ANYMAIL = {
+    "AMAZON_SES_CLIENT_PARAMS": {"region_name": os.environ.get("AWS_SES_REGION", "ap-southeast-2")},
+}
+# Address of the interface in invitation messages.
+C4R_PUBLIC_URL = os.environ.get("C4R_PUBLIC_URL", "http://localhost:5173")
 
 LOGGING = {
     "version": 1,

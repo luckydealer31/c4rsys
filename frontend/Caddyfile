@@ -1,0 +1,20 @@
+# C4R_SITE_ADDRESS: "test.c4rsys.com" gets HTTPS automatically; ":80" serves plain HTTP
+# (a local check, or a server where another web server already terminates HTTPS).
+{$C4R_SITE_ADDRESS::80} {
+	encode zstd gzip
+
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+}

@@ -1,0 +1,57 @@
+# Test server of stage 1 (T20): one server, Docker Compose (A11). Settings and secrets come
+# from .env.prod next to this file (template: deploy/env.prod.example); it is never committed.
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+name: c4rsys-test
+
+services:
+  db:
+    image: postgres:18.6
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: c4rsys
+      POSTGRES_USER: c4rsys
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.prod}
+    volumes:
+      - db_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U c4rsys -d c4rsys"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    env_file:
+      - path: .env.prod
+        required: false
+    environment:
+      DATABASE_URL: postgres://c4rsys:${POSTGRES_PASSWORD}@db:5432/c4rsys
+      DJANGO_DEBUG: "0"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    environment:
+      C4R_SITE_ADDRESS: ${C4R_SITE_ADDRESS:-:80}
+    ports:
+      - "${C4R_HTTP_BIND:-80}:80"
+      - "${C4R_HTTPS_BIND:-443}:443"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  db_data:
+  caddy_data:
+  caddy_config:
