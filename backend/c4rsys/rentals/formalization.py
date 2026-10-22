@@ -1,0 +1,63 @@
+"""Completion of the rental formalization (ТЗ § 14.5.6–14.5.7, § 10.3.3, § 14.3.6).
+
+Formalization is complete when the vehicle is returned, the return inspection is saved with the
+odometer and fuel, the required documents are present and inspection conflicts are settled.
+At stage 1 a new company requires no documents (§ 14.3.6) and no inspections, so no document or
+inspection conflict can arise. Debt does not prevent completion (§ 14.5.7).
+"""
+
+from uuid import UUID
+
+from django.utils import timezone
+
+from c4rsys.fleet import services as fleet
+from c4rsys.inspections import services as inspections
+from c4rsys.inspections.models import Inspection
+from c4rsys.platform import errors
+from c4rsys.platform.commands import CommandContext
+from c4rsys.rentals.models import Rental
+
+
+def missing_conditions(rental: Rental) -> list[str]:
+    """Unmet conditions of the formalization of a returned rental."""
+    missing = []
+    by_kind = {i.kind: i for i in inspections.of_rental(rental.id)}
+    for kind in (Inspection.Kind.ISSUE, Inspection.Kind.RETURN):
+        record = by_kind.get(kind)
+        if (
+            record is None
+            or record.state != Inspection.State.SAVED
+            or record.odometer_value is None
+            or record.fuel_value is None
+        ):
+            missing.append(f"{kind}_inspection_not_saved")
+    return missing
+
+
+def complete(
+    ctx: CommandContext, company_id: UUID, rental_id: UUID, expected_version: int
+) -> Rental:
+    found = Rental.objects.filter(company_id=company_id, pk=rental_id).first()
+    if found is None:
+        raise errors.not_found()
+    fleet.lock_card(company_id, found.vehicle_card_id)  # lock order: vehicle → rental
+    rental = Rental.objects.select_for_update().get(pk=found.pk)
+    if rental.version != expected_version:
+        raise errors.version_conflict()
+    if rental.state != Rental.State.RETURNED:
+        raise errors.business_rule("RENTAL_NOT_RETURNED", state=rental.state)
+    if rental.formalization_completed_at is not None:
+        raise errors.business_rule("FORMALIZATION_ALREADY_COMPLETED")
+    missing = missing_conditions(rental)
+    if missing:
+        raise errors.business_rule("FORMALIZATION_INCOMPLETE", missing=missing)
+    rental.formalization_completed_at = timezone.now()
+    rental.version += 1
+    rental.save(update_fields=["formalization_completed_at", "version", "updated_at"])
+    ctx.audit(
+        "rental.formalization_completed",
+        object_type="rental",
+        object_id=rental.id,
+        after={"formalization_completed_at": rental.formalization_completed_at},
+    )
+    return rental

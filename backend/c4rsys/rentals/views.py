@@ -19,7 +19,7 @@ from c4rsys.inspections.models import Inspection
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
-from c4rsys.rentals import issue, rentals, returns, tariffs
+from c4rsys.rentals import formalization, issue, rentals, returns, tariffs
 from c4rsys.rentals.models import Rental, Tariff
 
 NAME_MAX = 150
@@ -324,6 +324,13 @@ def _rental_payload(rental: Rental) -> dict[str, Any]:
         "return_place_note": rental.return_place_note,
         "overdue": overdue,  # § 14.5.8: the planned end is not moved by a delay
         "inspections": _inspections_payload(rental),
+        # § 14.5.6: returned, formalization completed and settlement are separate states.
+        "formalization": {
+            "completed_at": _utc(rental.formalization_completed_at),
+            "missing": formalization.missing_conditions(rental)
+            if rental.state == Rental.State.RETURNED and not rental.formalization_completed_at
+            else [],
+        },
         "actual_start": _utc(rental.actual_start),
         "planned_end": _utc(rental.planned_end),
         "actual_end": _utc(rental.actual_end),
@@ -538,3 +545,26 @@ def inspection_save(request: HttpRequest, cmp: str, inspection_id: UUID) -> Json
         "inspection_conducted": conducted,
     }
     return run_and_respond(request, "inspection.save", actor, payload, handler)
+
+
+@require_POST
+def rental_complete_formalization(request: HttpRequest, cmp: str, rental_id: UUID) -> JsonResponse:
+    """§ 14.5.6–14.5.7. rental.complete_formalization in the issue or the acceptance location
+    (decision 22.10.2026)."""
+    context, actor = _actor(request, cmp)
+    rental = rentals.get_rental(context.company.id, rental_id)
+    resolver = access.RightsResolver()
+    places = {rental.issue_location_id, rental.return_location_id} - {None}
+    if not any(
+        resolver.has_permission(actor, "rental.complete_formalization", location_id=x)
+        for x in places
+    ):
+        raise errors.permission_denied("rental.complete_formalization")
+    expected_version = get_int(parse_json(request), "expected_version")
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        done = formalization.complete(ctx, context.company.id, rental_id, expected_version)
+        return CommandResult(200, {"rental": _rental_payload(done)})
+
+    payload = {"rental_id": str(rental_id), "expected_version": expected_version}
+    return run_and_respond(request, "rental.complete_formalization", actor, payload, handler)
