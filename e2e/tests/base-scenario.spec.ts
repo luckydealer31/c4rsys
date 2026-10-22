@@ -93,6 +93,7 @@ test("base example from registration to closing survives a restart", async ({ pa
   const location = card(page, t("locations.create_title"));
   await location.getByLabel(t("locations.name")).fill("Пхукет");
   await location.getByLabel(t("companies.timezone")).selectOption("Asia/Bangkok");
+  await location.getByRole("checkbox", { name: t("contexts.rental") }).check();
   await location.getByRole("button", { name: t("locations.create") }).click();
   await expect(page.getByRole("heading", { name: "Пхукет" })).toBeVisible();
 

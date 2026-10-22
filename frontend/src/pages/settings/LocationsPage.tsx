@@ -65,23 +65,21 @@ function CreateLocation() {
   const [name, setName] = useState("");
   const [timezone, setTimezone] = useState(company.timezone ?? "");
   const [address, setAddress] = useState("");
-  const create = useCommand<Record<string, string>, { location: Location }>(
+  // Nothing is chosen in advance (decision 23.10.2026); any combination or none (§ 4.1.1, § 4.1.3).
+  const [contexts, setContexts] = useState<ContextType[]>([]);
+  const create = useCommand<Record<string, unknown>, { location: Location }>(
     `/c/${company.public_id}/locations`,
-  );
-  const addContext = useCommand<{ id: string; type: string }, unknown>(
-    (body) => `/c/${company.public_id}/locations/${body.id}/contexts`,
   );
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    const body: Record<string, string> = { name, address };
+    const body: Record<string, unknown> = { name, address, contexts };
     if (timezone) body.timezone = timezone;
     const result = await create.run(body);
     if (result) {
-      // At the initial setup one rental context is assigned (§ 4.2.3, STAGE1_SCREENS step 2).
-      await addContext.run({ id: result.location.id, type: "rental" });
       setName("");
       setAddress("");
+      setContexts([]);
       await refresh();
     }
   }
@@ -107,8 +105,23 @@ function CreateLocation() {
             <input value={address} onChange={(e) => setAddress(e.target.value)} />
           </Field>
         </div>
-        <p className="muted small">{t("locations.rental_context_added")}</p>
-        <ErrorMessage error={create.error ?? addContext.error} />
+        <div className="field">
+          <span>{t("locations.contexts")}</span>
+          {CONTEXT_TYPES.map((type) => (
+            <label key={type} style={{ marginRight: 16 }}>
+              <input
+                type="checkbox"
+                checked={contexts.includes(type)}
+                onChange={() =>
+                  setContexts(contexts.includes(type) ? contexts.filter((c) => c !== type) : [...contexts, type])
+                }
+              />{" "}
+              {t(`contexts.${type}`)}
+            </label>
+          ))}
+          <p className="muted small">{t("locations.contexts_hint")}</p>
+        </div>
+        <ErrorMessage error={create.error} />
         <div className="actions">
           <button type="submit" disabled={!name.trim() || create.pending}>
             {t("locations.create")}

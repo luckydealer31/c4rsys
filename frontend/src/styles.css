@@ -68,8 +68,8 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
 .muted { color: var(--muted); }
 .small { font-size: 0.875rem; }
 
-label.field { display: block; }
-label.field > span { display: block; font-size: 0.875rem; color: var(--muted); margin-bottom: 4px; }
+.field { display: block; }
+.field > span { display: block; font-size: 0.875rem; color: var(--muted); margin-bottom: 4px; }
 input, select, textarea {
   width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px;
   background: var(--surface); color: var(--text); font: inherit;

@@ -150,6 +150,28 @@ def test_one_context_of_each_type_per_location(owner: Client, cmp: str) -> None:
     assert ActivityContext.objects.count() == 1
 
 
+@pytest.mark.parametrize("kinds", [["service"], ["warehouse"], ["service", "warehouse"], []])
+def test_contexts_are_chosen_at_creation_without_rental(
+    owner: Client, cmp: str, kinds: list[str]
+) -> None:
+    # § 4.1.1, § 4.1.3: any combination of contexts or none; rental is not imposed.
+    response = _create_location(owner, cmp, contexts=kinds)
+
+    assert response.status_code == 201, response.content
+    created = sorted(c["type"] for c in response.json()["location"]["contexts"])
+    assert created == sorted(kinds)
+    assert AuditEvent.objects.filter(action="location.context_added").count() == len(kinds)
+
+
+@pytest.mark.parametrize("kinds", [["taxi"], ["rental", "rental"], "rental"])
+def test_invalid_contexts_at_creation_create_nothing(owner: Client, cmp: str, kinds: Any) -> None:
+    response = _create_location(owner, cmp, contexts=kinds)
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "CONTEXT_TYPE_INVALID"
+    assert Location.objects.count() == 0
+
+
 def test_unknown_context_type_is_rejected(owner: Client, cmp: str) -> None:
     location_id = _create_location(owner, cmp).json()["location"]["id"]
 

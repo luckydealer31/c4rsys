@@ -194,13 +194,29 @@ def location_list(request: HttpRequest, cmp: str) -> JsonResponse:
         timezone=timezone,
         address=get_str(data, "address", max_length=ADDRESS_MAX, required=False),
     )
+    # Contexts chosen at creation, any combination or none (§ 4.1.1, § 4.1.3); created in the
+    # same command, so a location never remains without the contexts that were asked for.
+    context_types = data.get("contexts", [])
+    if (
+        not isinstance(context_types, list)
+        or any(c not in ActivityContext.Type.values for c in context_types)
+        or len(set(context_types)) != len(context_types)
+    ):
+        raise errors.validation_error("contexts", code="CONTEXT_TYPE_INVALID")
 
     def handler(ctx: CommandContext) -> CommandResult:
         created = locations.create_location(ctx, context.company, new)
+        for context_type in context_types:
+            locations.add_context(ctx, context.company.id, created.id, context_type)
         location = locations.get_location(context.company.id, created.id)
         return CommandResult(201, {"location": _location_payload(location)})
 
-    payload = {"name": new.name, "timezone": new.timezone, "address": new.address}
+    payload = {
+        "name": new.name,
+        "timezone": new.timezone,
+        "address": new.address,
+        "contexts": context_types,
+    }
     return run_and_respond(request, "location.create", actor, payload, handler)
 
 

@@ -227,7 +227,7 @@ pairs.update({
  "locations.name": ("Name", "Название"),
  "locations.timezone_hint": ("By default the company time zone.", "По умолчанию — пояс компании."),
  "locations.address": ("Address (optional)", "Адрес (необязательно)"),
- "locations.rental_context_added": ("A rental context is added to the new location; others can be added later.", "Новой локации добавляется контекст аренды; другие можно добавить позже."),
+ "locations.contexts_hint": ("You may choose none and add contexts later; without a context the location stays a draft.", "Можно ничего не выбирать и добавить контексты позже; без контекста локация остаётся черновиком."),
  "locations.create": ("Create location", "Создать локацию"),
  "locations.state_draft": ("Draft", "Черновик"),
  "locations.state_active": ("Active", "Активна"),
@@ -326,7 +326,7 @@ pairs.update({
 })
 for key, (en, ru) in {
  "profile": (("Company profile", "Профиль компании"), ("Confirm the time zone.", "Подтвердите часовой пояс.")),
- "location": (("Location and rental", "Локация и аренда"), ("A location with a time zone and a rental context.", "Локация с часовым поясом и контекстом аренды.")),
+ "location": (("Location and rental", "Локация и аренда"), ("A location with a time zone; for rentals tick the «Rental» context.", "Локация с часовым поясом; для аренды отметьте контекст «Аренда».")),
  "finance": (("Currency and cash desk", "Валюта и касса"), ("Choose the main currency; add a cash desk.", "Выберите основную валюту; добавьте кассу.")),
  "tariff": (("Tariff", "Тариф"), ("A daily rental tariff.", "Суточный тариф аренды.")),
  "vehicle": (("Vehicle", "ТС"), ("A vehicle with the tariff and its terms.", "ТС с тарифом и его условиями.")),
