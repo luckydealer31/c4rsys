@@ -7,4 +7,9 @@ urlpatterns = [
     path("c/<str:cmp>/tariffs/<uuid:tariff_id>", views.tariff_detail),
     path("c/<str:cmp>/tariffs/<uuid:tariff_id>/archive", views.tariff_archive),
     path("c/<str:cmp>/tariffs/<uuid:tariff_id>/restore", views.tariff_restore),
+    path("c/<str:cmp>/tariffs/<uuid:tariff_id>/vehicles", views.tariff_vehicles),
+    path(
+        "c/<str:cmp>/tariffs/<uuid:tariff_id>/vehicles/<uuid:card_id>",
+        views.tariff_vehicle_terms,
+    ),
 ]

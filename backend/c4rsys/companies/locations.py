@@ -140,3 +140,27 @@ def add_context(
         after={"location": str(location.id), "type": context.type, "state": context.state},
     )
     return context
+
+
+# --- For other modules -------------------------------------------------------------------------
+
+
+def context_types_in_company(company_id: UUID) -> set[str]:
+    """Types of the enabled contexts that exist in any location of the company."""
+    return set(
+        ActivityContext.objects.filter(
+            company_id=company_id, state=ActivityContext.State.ENABLED
+        ).values_list("type", flat=True)
+    )
+
+
+def enabled_context_types(company_id: UUID, location_id: UUID) -> set[str]:
+    return set(
+        ActivityContext.objects.filter(
+            company_id=company_id, location_id=location_id, state=ActivityContext.State.ENABLED
+        ).values_list("type", flat=True)
+    )
+
+
+def location_exists(company_id: UUID, location_id: UUID) -> bool:
+    return Location.objects.filter(company_id=company_id, pk=location_id).exists()

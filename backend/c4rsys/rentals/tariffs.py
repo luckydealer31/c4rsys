@@ -10,10 +10,11 @@ from django.utils import timezone
 
 from c4rsys.companies import access
 from c4rsys.companies.models import Company, Location
+from c4rsys.fleet.models import VehicleCard
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext
 from c4rsys.platform.models import Currency
-from c4rsys.rentals.models import Tariff, TariffLocation, TariffRange
+from c4rsys.rentals.models import Tariff, TariffLocation, TariffRange, TariffVehicleTerms
 from c4rsys.rentals.pricing import PriceRange
 
 RATE_PLACES = 4
@@ -279,3 +280,159 @@ def set_archived(ctx: CommandContext, tariff: Tariff, *, archived: bool) -> Tari
         after={"state": target},
     )
     return tariff
+
+
+# --- Terms of a tariff for a vehicle (§ 13.1.6, § 13.4.1, § 22.1.8) -------------------------
+
+
+@dataclass(frozen=True)
+class VehicleTerms:
+    mileage_mode: str
+    included_per_unit: Decimal | None
+    overage_price: Decimal | None
+    deposit_required: bool
+    deposit_amount: Decimal | None
+    deposit_hold_days: int | None
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "mileage": {
+                "mode": self.mileage_mode,
+                "included_per_unit": _text(self.included_per_unit),
+                "overage_price": _text(self.overage_price),
+            },
+            "deposit": {
+                "required": self.deposit_required,
+                "amount": _text(self.deposit_amount),
+                "hold_days": self.deposit_hold_days,
+            },
+        }
+
+
+def _text(value: Decimal | None) -> str | None:
+    return None if value is None else str(value)
+
+
+def _decimal(value: Any, field: str, places: int) -> Decimal:
+    """A positive decimal string or integer (no JSON floats)."""
+    if isinstance(value, bool) or not isinstance(value, str | int):
+        raise errors.validation_error(field, code="AMOUNT_INVALID")
+    try:
+        number = Decimal(str(value).strip())
+    except InvalidOperation as exc:
+        raise errors.validation_error(field, code="AMOUNT_INVALID") from exc
+    if not number.is_finite() or number <= 0:
+        raise errors.validation_error(field, code="AMOUNT_INVALID")
+    exponent = number.as_tuple().exponent
+    if isinstance(exponent, int) and -exponent > places:
+        raise errors.validation_error(field, code="AMOUNT_TOO_PRECISE", max_places=places)
+    return number
+
+
+def parse_vehicle_terms(data: dict[str, Any]) -> VehicleTerms:
+    """Mileage «unlimited» or «included» with the included distance per tariff unit and the price
+    of each unit over; deposit «not required» or «required» with a fixed amount and an optional
+    hold term in days (decision 22.10.2026). Both choices are explicit."""
+    mileage = data.get("mileage")
+    deposit = data.get("deposit")
+    if not isinstance(mileage, dict) or mileage.get("mode") not in (
+        TariffVehicleTerms.MileageMode.values
+    ):
+        raise errors.validation_error("mileage.mode", code="CHOICE_REQUIRED")
+    if not isinstance(deposit, dict) or not isinstance(deposit.get("required"), bool):
+        raise errors.validation_error("deposit.required", code="CHOICE_REQUIRED")
+    included = mileage["mode"] == TariffVehicleTerms.MileageMode.INCLUDED
+    required = bool(deposit["required"])
+    hold = deposit.get("hold_days")
+    if hold is not None and (isinstance(hold, bool) or not isinstance(hold, int) or hold < 1):
+        raise errors.validation_error("deposit.hold_days", code="RANGE_BOUND_INVALID")
+    if not required and (deposit.get("amount") is not None or hold is not None):
+        raise errors.validation_error("deposit.amount", code="DEPOSIT_NOT_REQUIRED")
+    if not included and (
+        mileage.get("included_per_unit") is not None or mileage.get("overage_price") is not None
+    ):
+        raise errors.validation_error("mileage.included_per_unit", code="MILEAGE_UNLIMITED")
+    return VehicleTerms(
+        mileage_mode=str(mileage["mode"]),
+        included_per_unit=_decimal(mileage.get("included_per_unit"), "mileage.included_per_unit", 1)
+        if included
+        else None,
+        overage_price=_decimal(mileage.get("overage_price"), "mileage.overage_price", RATE_PLACES)
+        if included
+        else None,
+        deposit_required=required,
+        deposit_amount=_decimal(deposit.get("amount"), "deposit.amount", RATE_PLACES)
+        if required
+        else None,
+        deposit_hold_days=hold if required else None,
+    )
+
+
+def terms_of(record: TariffVehicleTerms) -> VehicleTerms:
+    return VehicleTerms(
+        mileage_mode=record.mileage_mode,
+        included_per_unit=record.included_per_unit,
+        overage_price=record.overage_price,
+        deposit_required=record.deposit_required,
+        deposit_amount=record.deposit_amount,
+        deposit_hold_days=record.deposit_hold_days,
+    )
+
+
+def terms_payload(record: TariffVehicleTerms) -> dict[str, Any]:
+    return {
+        "vehicle_card_id": str(record.vehicle_card_id),
+        "mileage_unit": record.mileage_unit,
+        "currency": record.tariff.currency_id,
+        "version": record.version,
+        **terms_of(record).as_dict(),
+    }
+
+
+def set_vehicle_terms(
+    ctx: CommandContext, tariff: Tariff, card: VehicleCard, terms: VehicleTerms
+) -> TariffVehicleTerms:
+    """Assigns the tariff to the vehicle or replaces its terms. New terms apply to new rentals
+    only; created rentals keep their snapshot (§ 13.1.6)."""
+    record = (
+        TariffVehicleTerms.objects.select_for_update()
+        .filter(tariff=tariff, vehicle_card=card)
+        .first()
+    )
+    before = None if record is None else terms_of(record).as_dict()
+    if record is None:
+        record = TariffVehicleTerms(
+            company_id=tariff.company_id,
+            tariff=tariff,
+            vehicle_card=card,
+            created_at=timezone.now(),
+        )
+    else:
+        record.version += 1
+    record.mileage_mode = terms.mileage_mode
+    record.included_per_unit = terms.included_per_unit
+    record.overage_price = terms.overage_price
+    record.mileage_unit = card.odometer_unit
+    record.deposit_required = terms.deposit_required
+    record.deposit_amount = terms.deposit_amount
+    record.deposit_hold_days = terms.deposit_hold_days
+    record.save()
+    ctx.audit(
+        "tariff.vehicle_terms_set",
+        object_type="tariff",
+        object_id=tariff.id,
+        before=before,
+        after={"vehicle_card": str(card.id), **terms.as_dict()},
+    )
+    return record
+
+
+def tariffs_for_vehicle(card: VehicleCard) -> QuerySet[Tariff]:
+    """Tariffs to choose from when issuing the vehicle (§ 13.1.2): assigned to it with terms,
+    active and available in its accounting location. An archived tariff drops out without
+    removing its terms (decision 22.10.2026); restoring it brings it back."""
+    if card.accounting_location_id is None:
+        return Tariff.objects.none()
+    return available_at(card.company_id, card.accounting_location_id).filter(
+        vehicle_terms__vehicle_card=card
+    )

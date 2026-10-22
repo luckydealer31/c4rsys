@@ -9,6 +9,7 @@ from django.views.decorators.http import require_http_methods, require_POST
 from c4rsys.accounts.middleware import require_user
 from c4rsys.companies import services as companies
 from c4rsys.companies.views import run_and_respond
+from c4rsys.fleet import services as fleet
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
@@ -161,3 +162,38 @@ def tariff_archive(request: HttpRequest, cmp: str, tariff_id: UUID) -> JsonRespo
 @require_POST
 def tariff_restore(request: HttpRequest, cmp: str, tariff_id: UUID) -> JsonResponse:
     return _set_archived(request, cmp, tariff_id, archived=False)
+
+
+# --- Terms for vehicles (§ 13.1.2, § 13.1.6, § 13.4.1) ----------------------------------------
+
+
+@require_http_methods(["GET"])
+def tariff_vehicles(request: HttpRequest, cmp: str, tariff_id: UUID) -> JsonResponse:
+    context, actor = _actor(request, cmp)
+    tariff = _get_visible(context, actor, tariff_id)
+    items = [
+        tariffs.terms_payload(t)
+        for t in tariff.vehicle_terms.select_related("tariff").order_by("created_at")
+    ]
+    return JsonResponse({"vehicles": items})
+
+
+@require_http_methods(["PUT"])
+def tariff_vehicle_terms(
+    request: HttpRequest, cmp: str, tariff_id: UUID, card_id: UUID
+) -> JsonResponse:
+    """Assigning a tariff to a vehicle is a change of the tariff: it needs tariff.edit
+    (decision 22.10.2026)."""
+    context, actor = _actor(request, cmp)
+    _get_visible(context, actor, tariff_id)
+    card = fleet.get_card(context.company.id, card_id)
+    terms = tariffs.parse_vehicle_terms(parse_json(request))
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        locked = Tariff.objects.select_for_update().get(company=context.company, pk=tariff_id)
+        _require(actor, "tariff.edit", tariffs.availability_of(locked))
+        record = tariffs.set_vehicle_terms(ctx, locked, card, terms)
+        return CommandResult(200, {"terms": tariffs.terms_payload(record)})
+
+    payload = {"tariff_id": str(tariff_id), "vehicle_card_id": str(card_id), **terms.as_dict()}
+    return run_and_respond(request, "tariff.set_vehicle_terms", actor, payload, handler)

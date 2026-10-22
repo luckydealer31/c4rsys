@@ -108,3 +108,62 @@ class TariffLocation(models.Model):
 
     def __str__(self) -> str:
         return f"{self.tariff_id}@{self.location_id}"
+
+
+class TariffVehicleTerms(models.Model):
+    """Assignment of a tariff to a vehicle with its own mileage and deposit terms (§ 13.1.2,
+    § 13.1.6, § 13.4.1). Both choices are explicit (§ 22.1.8). Mileage values are in the
+    vehicle's odometer unit, money in the tariff's currency. Rentals keep a snapshot (§ 13.6.1).
+    """
+
+    class MileageMode(models.TextChoices):
+        UNLIMITED = "unlimited"
+        INCLUDED = "included"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    tariff = models.ForeignKey(Tariff, on_delete=models.PROTECT, related_name="vehicle_terms")
+    vehicle_card = models.ForeignKey(
+        "fleet.VehicleCard", on_delete=models.PROTECT, related_name="+"
+    )
+    mileage_mode = models.CharField(max_length=10, choices=MileageMode.choices)
+    included_per_unit = models.DecimalField(max_digits=12, decimal_places=1, null=True, blank=True)
+    overage_price = models.DecimalField(max_digits=20, decimal_places=4, null=True, blank=True)
+    mileage_unit = models.CharField(max_length=2)
+    deposit_required = models.BooleanField()
+    deposit_amount = models.DecimalField(max_digits=20, decimal_places=4, null=True, blank=True)
+    deposit_hold_days = models.PositiveIntegerField(null=True, blank=True)
+    created_at = models.DateTimeField(default=now)
+    updated_at = models.DateTimeField(auto_now=True)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "tariff_vehicle_terms"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tariff", "vehicle_card"], name="tariff_vehicle_terms_uniq"
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(mileage_mode="unlimited")
+                    & Q(included_per_unit__isnull=True)
+                    & Q(overage_price__isnull=True)
+                )
+                | (
+                    Q(mileage_mode="included") & Q(included_per_unit__gt=0) & Q(overage_price__gt=0)
+                ),
+                name="tariff_vehicle_terms_mileage_consistent",
+            ),
+            models.CheckConstraint(
+                condition=(Q(deposit_required=True) & Q(deposit_amount__gt=0))
+                | (
+                    Q(deposit_required=False)
+                    & Q(deposit_amount__isnull=True)
+                    & Q(deposit_hold_days__isnull=True)
+                ),
+                name="tariff_vehicle_terms_deposit_consistent",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.tariff_id}:{self.vehicle_card_id}"
