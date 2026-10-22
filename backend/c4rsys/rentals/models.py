@@ -205,6 +205,17 @@ class Rental(models.Model):
     issue_place_kind = models.CharField(max_length=10, choices=PlaceKind.choices)
     issue_place_note = models.CharField(max_length=500, blank=True, default="")
     planned_end = models.DateTimeField(null=True, blank=True)
+    # Any location of the company may be named at issue, without rights there (decision 22.10).
+    planned_return_location = models.ForeignKey(
+        Location, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    return_location = models.ForeignKey(
+        Location, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    return_place_kind = models.CharField(
+        max_length=10, choices=PlaceKind.choices, blank=True, default=""
+    )
+    return_place_note = models.CharField(max_length=500, blank=True, default="")
     actual_start = models.DateTimeField()
     actual_end = models.DateTimeField(null=True, blank=True)
     actual_period = DateTimeRangeField()
@@ -238,6 +249,16 @@ class Rental(models.Model):
             models.CheckConstraint(
                 condition=~Q(state="active") | Q(actual_end__isnull=True),
                 name="rental_active_has_no_end",
+            ),
+            # § 14.5.1: a returned rental has its actual end and place of acceptance.
+            models.CheckConstraint(
+                condition=~Q(state="returned")
+                | (
+                    Q(actual_end__isnull=False)
+                    & Q(return_location__isnull=False)
+                    & ~Q(return_place_kind="")
+                ),
+                name="rental_returned_has_end_and_place",
             ),
         ]
 

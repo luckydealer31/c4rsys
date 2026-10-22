@@ -6,6 +6,7 @@ from typing import Any
 from uuid import UUID
 
 from django.http import HttpRequest, JsonResponse
+from django.utils import timezone
 from django.views.decorators.http import require_http_methods, require_POST
 
 from c4rsys.accounts.middleware import require_user
@@ -13,10 +14,12 @@ from c4rsys.companies import access, locations
 from c4rsys.companies import services as companies
 from c4rsys.companies.views import run_and_respond
 from c4rsys.fleet import services as fleet
+from c4rsys.inspections import services as inspections
+from c4rsys.inspections.models import Inspection
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
-from c4rsys.rentals import issue, rentals, tariffs
+from c4rsys.rentals import issue, rentals, returns, tariffs
 from c4rsys.rentals.models import Rental, Tariff
 
 NAME_MAX = 150
@@ -257,7 +260,51 @@ def _utc(moment: datetime | None) -> str | None:
     return moment.astimezone(UTC).isoformat() if moment else None
 
 
+def _optional_uuid(data: dict[str, Any], key: str) -> UUID | None:
+    value = data.get(key)
+    if value in (None, ""):
+        return None
+    try:
+        return UUID(str(value))
+    except ValueError as exc:
+        raise errors.validation_error(key) from exc
+
+
+def _optional_reading(data: dict[str, Any], key: str, places: int) -> Decimal | None:
+    if data.get(key) in (None, ""):
+        return None
+    return _reading(data, key, "FIELD_REQUIRED", places)
+
+
+def _inspections_payload(rental: Rental) -> dict[str, Any]:
+    """Issue and return readings with the fuel comparison of § 13.5.1: the values and whether
+    they differ, without converting the difference into money."""
+    by_kind = {i.kind: i for i in inspections.of_rental(rental.id)}
+    issued, returned = by_kind.get("issue"), by_kind.get("return")
+
+    def view(item: Any) -> dict[str, Any] | None:
+        if item is None:
+            return None
+        return {
+            "id": str(item.id),
+            "state": item.state,
+            "check_status": item.check_status,
+            "odometer": str(item.odometer_value) if item.odometer_value is not None else None,
+            "fuel": str(item.fuel_value) if item.fuel_value is not None else None,
+        }
+
+    fuel_differs = None
+    if issued and returned and issued.fuel_value is not None and returned.fuel_value is not None:
+        fuel_differs = issued.fuel_value != returned.fuel_value
+    return {"issue": view(issued), "return": view(returned), "fuel_differs": fuel_differs}
+
+
 def _rental_payload(rental: Rental) -> dict[str, Any]:
+    overdue = (
+        rental.state == Rental.State.ACTIVE
+        and rental.planned_end is not None
+        and rental.planned_end < timezone.now()
+    )
     return {
         "id": str(rental.id),
         "order_id": str(rental.order_id),
@@ -269,6 +316,14 @@ def _rental_payload(rental: Rental) -> dict[str, Any]:
         "issue_place_kind": rental.issue_place_kind,
         "issue_place_note": rental.issue_place_note,
         "calc_timezone": rental.calc_timezone,
+        "planned_return_location_id": str(rental.planned_return_location_id)
+        if rental.planned_return_location_id
+        else None,
+        "return_location_id": str(rental.return_location_id) if rental.return_location_id else None,
+        "return_place_kind": rental.return_place_kind or None,
+        "return_place_note": rental.return_place_note,
+        "overdue": overdue,  # § 14.5.8: the planned end is not moved by a delay
+        "inspections": _inspections_payload(rental),
         "actual_start": _utc(rental.actual_start),
         "planned_end": _utc(rental.planned_end),
         "actual_end": _utc(rental.actual_end),
@@ -329,6 +384,7 @@ def rental_issue(request: HttpRequest, cmp: str) -> JsonResponse:
         inspection_conducted=conducted,
         planned_end=_moment(data, "planned_end", required=False),
         order_id=order_id,
+        planned_return_location_id=_optional_uuid(data, "planned_return_location_id"),
     )
 
     def handler(ctx: CommandContext) -> CommandResult:
@@ -375,3 +431,110 @@ def rental_detail(request: HttpRequest, cmp: str, rental_id: UUID) -> JsonRespon
     if not _rental_visible(actor, rental):
         raise errors.not_found()
     return JsonResponse({"rental": _rental_payload(rental)})
+
+
+# --- Return (§ 14.5) ----------------------------------------------------------------------
+
+
+def _require_at(actor: Actor, location_id: UUID, conducted: bool) -> None:
+    """Acceptance and later readings need rental.accept_return in the location of acceptance;
+    marking the inspection as conducted also needs inspection.conduct (decisions 22.10.2026)."""
+    location = locations.location_info(actor.company_id, location_id) if actor.company_id else None
+    context_id = location.rental_context_id if location else None
+    resolver = access.RightsResolver()
+    needed = ["rental.accept_return"] + (["inspection.conduct"] if conducted else [])
+    for permission in needed:
+        if not resolver.has_permission(
+            actor, permission, location_id=location_id, context_id=context_id
+        ):
+            raise errors.permission_denied(permission)
+
+
+def _flag(data: dict[str, Any], key: str) -> bool:
+    value = data.get(key, False)
+    if not isinstance(value, bool):
+        raise errors.validation_error(key)
+    return value
+
+
+@require_POST
+def rental_return(request: HttpRequest, cmp: str, rental_id: UUID) -> JsonResponse:
+    context, actor = _actor(request, cmp)
+    rental = rentals.get_rental(context.company.id, rental_id)
+    data = parse_json(request)
+    place_kind = get_str(data, "place_kind", max_length=10, required=False) or "location"
+    if place_kind not in Rental.PlaceKind.values:
+        raise errors.validation_error("place_kind")
+    place_note = get_str(data, "place_note", max_length=500, required=False)
+    if place_kind == Rental.PlaceKind.OTHER and not place_note:
+        raise errors.validation_error("place_note", code="FIELD_REQUIRED")
+    location_id = _uuid(data, "return_location_id")
+    returns.acceptance_location(rental, place_kind, location_id)
+    conducted = _flag(data, "inspection_conducted")
+    odometer = _optional_reading(data, "odometer", 1)
+    fuel = _optional_reading(data, "fuel", 2)
+    _require_at(actor, location_id, conducted and odometer is not None and fuel is not None)
+    actual_end = _moment(data, "actual_end", required=True)
+    if actual_end is None:
+        raise errors.validation_error("actual_end", code="FIELD_REQUIRED")
+    request_data = returns.ReturnRequest(
+        rental_id=rental.id,
+        actual_end=actual_end,
+        return_location_id=location_id,
+        place_kind=place_kind,
+        place_note=place_note if place_kind == Rental.PlaceKind.OTHER else "",
+        odometer=odometer,
+        fuel=fuel,
+        inspection_conducted=conducted,
+        expected_version=get_int(data, "expected_version"),
+    )
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        returned, inspection = returns.accept_return(ctx, request_data)
+        return CommandResult(
+            200,
+            {
+                "rental": _rental_payload(returned),
+                "inspection_id": str(inspection.id),
+                "inspection_state": inspection.state,
+            },
+        )
+
+    payload = {
+        k: (str(v) if isinstance(v, UUID | Decimal | datetime) else v)
+        for k, v in request_data.__dict__.items()
+    }
+    return run_and_respond(request, "rental.accept_return", actor, payload, handler)
+
+
+@require_POST
+def inspection_save(request: HttpRequest, cmp: str, inspection_id: UUID) -> JsonResponse:
+    """Readings of a return entered later into the draft (§ 14.5.5)."""
+    context, actor = _actor(request, cmp)
+    inspection = Inspection.objects.filter(company=context.company, pk=inspection_id).first()
+    if inspection is None or inspection.rental_id is None:
+        raise errors.not_found()
+    rental = rentals.get_rental(context.company.id, inspection.rental_id)
+    data = parse_json(request)
+    conducted = _flag(data, "inspection_conducted")
+    location_id = rental.return_location_id or rental.issue_location_id
+    _require_at(actor, location_id, conducted)
+    odometer = _reading(data, "odometer", "ODOMETER_REQUIRED", 1)
+    fuel = _reading(data, "fuel", "FUEL_REQUIRED", 2)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        saved = returns.save_return_readings(
+            ctx, rental, inspection, odometer=odometer, fuel=fuel, conducted=conducted
+        )
+        refreshed = rentals.get_rental(context.company.id, rental.id)
+        return CommandResult(
+            200, {"inspection_id": str(saved.id), "rental": _rental_payload(refreshed)}
+        )
+
+    payload = {
+        "inspection_id": str(inspection_id),
+        "odometer": str(odometer),
+        "fuel": str(fuel),
+        "inspection_conducted": conducted,
+    }
+    return run_and_respond(request, "inspection.save", actor, payload, handler)

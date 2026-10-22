@@ -147,12 +147,12 @@ def test_amounts_charged_paid_and_balance(
 
     amounts = owner.get(f"/api/c/{cmp}/orders/{order_id}").json()["order"]["amounts"]
     assert amounts == {
-        "THB": {"charged": "2000.00", "paid": "1500.00", "to_pay": "500.00", "overpaid": "0"}
+        "THB": {"charged": "2000.00", "paid": "1500.00", "to_pay": "500.00", "overpaid": "0.00"}
     }
 
     services.register_paid(lambda c, o: {"THB": Decimal("1000.00")})
     amounts = owner.get(f"/api/c/{cmp}/orders/{order_id}").json()["order"]["amounts"]
-    assert amounts["THB"]["to_pay"] == "0" and amounts["THB"]["overpaid"] == "500.00"
+    assert amounts["THB"]["to_pay"] == "0.00" and amounts["THB"]["overpaid"] == "500.00"
 
 
 def test_visibility_follows_locations_of_operations(

@@ -17,8 +17,10 @@ Minute, hour and month units and the fixed day boundary come at stage 2.
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 from typing import Any
+
+from c4rsys.platform.money import round_money
 
 DAY = timedelta(hours=24)
 
@@ -129,11 +131,6 @@ def _units(terms: TariffTerms, billable: timedelta) -> int:
         whole, rest = divmod(billable, DAY)
         return int(whole) + (1 if rest else 0)
     raise PricingError("TARIFF_UNIT_NOT_SUPPORTED")
-
-
-def round_money(amount: Decimal, minor_units: int) -> Decimal:
-    """Nearest value; a half goes away from zero (§ 17.1.7)."""
-    return amount.quantize(Decimal(1).scaleb(-minor_units), rounding=ROUND_HALF_UP)
 
 
 def calculate(

@@ -1,5 +1,6 @@
 """HTTP API of orders: reading (ТЗ § 12.2.3–12.2.4, § 23.6). Closing comes with T16."""
 
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -13,6 +14,8 @@ from c4rsys.orders import services
 from c4rsys.orders.models import Order
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor
+from c4rsys.platform.models import Currency
+from c4rsys.platform.money import round_money
 
 LIST_LIMIT = 100
 
@@ -31,6 +34,21 @@ def _visible(actor: Actor, operations: list[services.OperationSummary]) -> bool:
     if not located:
         return resolver.has_permission(actor, "order.view")
     return any(resolver.has_permission(actor, "order.view", location_id=x) for x in located)
+
+
+def _money(currency: str, money: services.Money) -> dict[str, str]:
+    """Amounts shown with the minor units of the currency (§ 17.1.7)."""
+    places = Currency.objects.get(code=currency).minor_units
+
+    def text(value: Decimal) -> str:
+        return str(round_money(value, places))
+
+    return {
+        "charged": text(money.charged),
+        "paid": text(money.paid),
+        "to_pay": text(max(money.balance, Decimal(0))),
+        "overpaid": text(max(-money.balance, Decimal(0))),
+    }
 
 
 def _payload(order: Order, operations: list[services.OperationSummary]) -> dict[str, Any]:
@@ -52,12 +70,7 @@ def _payload(order: Order, operations: list[services.OperationSummary]) -> dict[
         ],
         "closing_conditions": services.closing_conditions(operations),
         "amounts": {
-            currency: {
-                "charged": str(m.charged),
-                "paid": str(m.paid),
-                "to_pay": str(max(m.balance, 0)),
-                "overpaid": str(max(-m.balance, 0)),
-            }
+            currency: _money(currency, m)
             for currency, m in sorted(services.amounts_of(order).items())
         },
     }

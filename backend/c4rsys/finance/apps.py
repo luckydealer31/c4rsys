@@ -7,3 +7,9 @@ class FinanceConfig(AppConfig):
     name = "c4rsys.finance"
     label = "finance"
     default_auto_field = "django.db.models.BigAutoField"
+
+    def ready(self) -> None:
+        from c4rsys.finance import charges
+        from c4rsys.orders import services as orders
+
+        orders.register_charged(charges.charged_for_order)

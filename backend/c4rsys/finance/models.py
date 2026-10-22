@@ -48,3 +48,35 @@ class CashAccount(models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+
+class ChargeEntry(models.Model):
+    """An accrual to a client in an order, append-only (§ 12.2.4, § 17.2.6). The current charge
+    of a source (for example the base cost of a rental) is the sum of its entries; a recalculation
+    adds the difference as a new entry instead of changing an old one (§ 24.4.6)."""
+
+    class SourceType(models.TextChoices):
+        RENTAL_BASE = "rental_base"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    order = models.ForeignKey("orders.Order", on_delete=models.PROTECT, related_name="+")
+    client = models.ForeignKey("parties.ClientCard", on_delete=models.PROTECT, related_name="+")
+    source_type = models.CharField(max_length=30, choices=SourceType.choices)
+    source_id = models.UUIDField()
+    amount = models.DecimalField(max_digits=20, decimal_places=4)
+    currency = models.ForeignKey(Currency, on_delete=models.PROTECT, related_name="+")
+    reason = models.CharField(max_length=60)
+    calculation = models.JSONField(default=dict)
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "charge_entry"
+        indexes = [
+            models.Index(fields=["company", "order"], name="charge_entry_order_idx"),
+            models.Index(fields=["source_type", "source_id"], name="charge_entry_source_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.source_type}:{self.amount} {self.currency_id}"

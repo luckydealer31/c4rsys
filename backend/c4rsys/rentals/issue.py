@@ -41,6 +41,7 @@ class IssueRequest:
     inspection_conducted: bool
     planned_end: datetime | None = None
     order_id: UUID | None = None
+    planned_return_location_id: UUID | None = None
 
 
 def _check_vehicle(card: VehicleCard, request: IssueRequest) -> None:
@@ -90,6 +91,10 @@ def issue(ctx: CommandContext, request: IssueRequest) -> tuple[Rental, Inspectio
         raise errors.validation_error("issue_location_id", code="LOCATION_UNKNOWN")
     if not location.active:
         raise errors.business_rule("LOCATION_NOT_ACTIVE", field="issue_location_id")
+    if request.planned_return_location_id is not None and not locations.location_exists(
+        company_id, request.planned_return_location_id
+    ):
+        raise errors.validation_error("planned_return_location_id", code="LOCATION_UNKNOWN")
     client = parties.get_client(company_id, request.client_id)
     tariff = tariffs.tariffs_for_vehicle(card).filter(pk=request.tariff_id).first()
     terms = tariffs.vehicle_terms(tariff, card) if tariff else None
@@ -125,6 +130,7 @@ def issue(ctx: CommandContext, request: IssueRequest) -> tuple[Rental, Inspectio
                 issue_place_kind=request.place_kind,
                 issue_place_note=request.place_note,
                 planned_end=request.planned_end,
+                planned_return_location_id=request.planned_return_location_id,
                 actual_start=request.actual_start,
                 actual_period=(request.actual_start, None),
                 state=Rental.State.ACTIVE,
@@ -174,6 +180,9 @@ def issue(ctx: CommandContext, request: IssueRequest) -> tuple[Rental, Inspectio
             "place_note": request.place_note,
             "actual_start": request.actual_start,
             "planned_end": request.planned_end,
+            "planned_return_location": str(request.planned_return_location_id)
+            if request.planned_return_location_id
+            else None,
             "calc_timezone": location.timezone,
             "inspection": str(inspection.id),
         },

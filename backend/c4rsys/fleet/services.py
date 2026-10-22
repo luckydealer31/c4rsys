@@ -254,3 +254,24 @@ def lock_card(company_id: UUID, card_id: UUID) -> VehicleCard:
     if card is None:
         raise errors.not_found()
     return card
+
+
+def move_to_location(
+    ctx: CommandContext, card: VehicleCard, location_id: UUID, reason: str
+) -> None:
+    """Changes the accounting location after an event that moves it, for example a return from
+    rental accepted in another location (§ 8.5.4). The change is kept in the history."""
+    if card.accounting_location_id == location_id:
+        return
+    before = card.accounting_location_id
+    card.accounting_location_id = location_id
+    card.version += 1
+    card.save(update_fields=["accounting_location", "version", "updated_at"])
+    ctx.audit(
+        "vehicle.location_changed",
+        object_type="vehicle_card",
+        object_id=card.id,
+        before={"accounting_location": str(before) if before else None},
+        after={"accounting_location": str(location_id)},
+        reason=reason,
+    )

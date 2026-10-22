@@ -11,13 +11,13 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from c4rsys.platform.money import round_money
 from c4rsys.rentals.pricing import (
     Interval,
     PriceRange,
     PricingError,
     TariffTerms,
     calculate,
-    round_money,
     terms_from_snapshot,
 )
 
