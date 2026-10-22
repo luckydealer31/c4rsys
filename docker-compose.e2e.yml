@@ -1,0 +1,31 @@
+# End-to-end checks (T19). Used with docker-compose.yml under its own project name, so the
+# e2e database is separate from the development one:
+#   docker compose -p c4rsys-e2e -f docker-compose.yml -f docker-compose.e2e.yml ...
+# The browser runs in its own container on the network of the frontend, so the page opens at
+# http://localhost:5173 as in development. The Docker socket lets the test read the server log
+# (development mail codes, decision 23.10.2026) and restart containers (acceptance criterion 8).
+services:
+  db:
+    ports: !reset []
+  backend:
+    image: c4rsys-backend
+    ports: !reset []
+  frontend:
+    image: c4rsys-frontend
+    ports: !reset []
+  e2e:
+    image: mcr.microsoft.com/playwright:v1.55.0-noble
+    profiles: ["e2e"]
+    network_mode: "service:frontend"
+    working_dir: /e2e
+    environment:
+      COMPOSE_PROJECT: c4rsys-e2e
+      CI: ${CI:-}
+    volumes:
+      - ./e2e:/e2e
+      - /e2e/node_modules
+      - ./frontend/src/i18n/locales:/locales:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: sh -c "npm ci --no-audit --no-fund && npx playwright test"
+    depends_on:
+      - frontend
