@@ -130,3 +130,66 @@ export type JournalEntry = {
   reason: string;
   result: string;
 };
+
+export type PriceRange = { from: number; to: number | null; rate: string };
+
+export type Tariff = {
+  id: string;
+  version: number;
+  name: string;
+  currency: string;
+  unit: string;
+  day_mode: string | null;
+  all_locations: boolean;
+  locations: string[];
+  ranges: PriceRange[];
+  state: "active" | "archived";
+};
+
+export type VehicleTerms = {
+  vehicle_card_id: string;
+  mileage_unit: string;
+  currency: string;
+  version: number;
+  mileage: { mode: "unlimited" | "included"; included_per_unit: string | null; overage_price: string | null };
+  deposit: { required: boolean; amount: string | null; hold_days: number | null };
+};
+
+export type Vehicle = {
+  id: string;
+  vehicle_id: string;
+  name: string;
+  relation: string;
+  location_id: string | null;
+  odometer_unit: "km" | "mi";
+  contexts: string[];
+  state: string;
+  version: number;
+  odometer: { value: string; unit: string; measured_at: string } | null;
+  rental_readiness: { ready: boolean; missing: string[] };
+};
+
+export type ClientContact = { kind: "phone" | "email"; value: string };
+
+export type Client = {
+  id: string;
+  version: number;
+  kind: "person" | "company";
+  first_name: string;
+  last_name: string;
+  middle_name: string;
+  birth_date: string | null;
+  company_name: string;
+  contacts: ClientContact[];
+};
+
+export type RentalSummary = {
+  id: string;
+  order_id: string;
+  vehicle_card_id: string;
+  client_id: string;
+  state: string;
+  issue_location_id: string;
+  actual_start: string;
+  actual_end: string | null;
+};
