@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     "c4rsys.finance",
     "c4rsys.fleet",
     "c4rsys.parties",
+    "c4rsys.orders",
     "c4rsys.rentals",
 ]
 

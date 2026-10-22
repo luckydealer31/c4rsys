@@ -109,3 +109,21 @@ class Currency(models.Model):
 
     def __str__(self) -> str:
         return self.code
+
+
+class CompanyCounter(models.Model):
+    """Sequential numbers inside a company (orders § 12.1.1, payments § 12.2.5). A number is
+    taken in the command's transaction, so a rolled-back command does not consume it."""
+
+    company_id = models.UUIDField()
+    kind = models.CharField(max_length=20)
+    last_value = models.BigIntegerField(default=0)
+
+    class Meta:
+        db_table = "company_counter"
+        constraints = [
+            models.UniqueConstraint(fields=["company_id", "kind"], name="company_counter_uniq"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.company_id}:{self.kind}={self.last_value}"
