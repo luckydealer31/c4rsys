@@ -34,17 +34,19 @@ ALLOWED_HOSTS = [
     if h.strip()
 ]
 
-# The custom user model (accounts.UserAccount) must be added in T02
-# BEFORE django.contrib.auth or any app with a user foreign key is migrated for the first time.
+# The personal account is c4rsys.accounts.UserAccount with its own server-side sessions;
+# django.contrib.auth and django.contrib.sessions are intentionally not installed.
 INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.staticfiles",
     "c4rsys.platform",
+    "c4rsys.accounts",
 ]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "c4rsys.platform.middleware.ApiMiddleware",
+    "c4rsys.accounts.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -79,12 +81,25 @@ USE_I18N = True
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-# Cookies and transport security (A08). Server-side sessions are implemented in T02.
-SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = "Lax"
+# Cookies and transport security (A08). The session cookie is set by c4rsys.accounts.middleware.
 CSRF_COOKIE_SAMESITE = "Lax"
-SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
+
+# Passwords and backup codes are stored as Argon2id hashes (ТЗ § 24.4.3).
+PASSWORD_HASHERS = [
+    "django.contrib.auth.hashers.Argon2PasswordHasher",
+    "django.contrib.auth.hashers.PBKDF2PasswordHasher",
+]
+# Technical password policy of c4rsys, accepted by the customer on 22.10.2026:
+# at least 8 characters, not a common password, not digits only.
+AUTH_PASSWORD_VALIDATORS = [
+    {
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+        "OPTIONS": {"min_length": 8},
+    },
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+]
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = "DENY"
 if not DEBUG:
@@ -92,12 +107,9 @@ if not DEBUG:
     SECURE_SSL_REDIRECT = env_bool("DJANGO_SECURE_SSL_REDIRECT", default=True)
     SECURE_HSTS_SECONDS = int(os.environ.get("DJANGO_HSTS_SECONDS", "0"))
 
-# Development: one-time codes are printed to the console instead of being emailed.
-# TODO(T02): Django 6.1 deprecates EMAIL_BACKEND in favour of MAILERS (removal in Django 2028);
-# configure mail via MAILERS when the mail layer is implemented.
-EMAIL_BACKEND = os.environ.get(
-    "DJANGO_EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend"
-)
+# One-time codes: "console" writes them to the backend log (development). The provider for the
+# test server is OPEN (docs/stage1/EMAIL_PROVIDER.md); Django's EMAIL_BACKEND is not used.
+C4R_MAIL_MODE = os.environ.get("C4R_MAIL_MODE", "console")
 
 LOGGING = {
     "version": 1,
