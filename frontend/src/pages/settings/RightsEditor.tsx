@@ -1,10 +1,15 @@
 import { useTranslation } from "react-i18next";
 
 import type { Location, PermissionCatalog, RightSpec } from "../../api/types";
+import { useCashAccounts } from "../finance/FinancePage";
+
+// Permissions whose action is limited by cash accounts (§ 23.1.11, § 23.7.2).
+const CASH_PERMISSIONS = ["finance.payment.receive", "finance.cash_account.manage"];
 
 /** Rights as assignments: a ready set or a personal addition / restriction, each with its own
- * scope — the whole company or selected locations (§ 23.1.1–23.1.2, § 23.1.13). Contexts and cash
- * accounts are «all» here; narrower lists are available through the API. */
+ * scope — the whole company or selected locations (§ 23.1.1–23.1.2, § 23.1.13) and, for finance
+ * rights, all cash accounts of the company or selected ones, independent of locations
+ * (§ 23.1.11–23.1.12). Contexts are «all» here; narrower lists are available through the API. */
 export function RightsEditor({
   value,
   onChange,
@@ -17,6 +22,12 @@ export function RightsEditor({
   locations: Location[];
 }) {
   const { t } = useTranslation();
+  const accounts = useCashAccounts().data?.cash_accounts ?? [];
+
+  function permissionsOf(row: RightSpec): string[] {
+    if (row.type !== "set") return row.permission ? [row.permission] : [];
+    return catalog.sets.find((set) => set.code === row.set)?.permissions ?? [];
+  }
 
   function update(index: number, changes: Partial<RightSpec>) {
     onChange(value.map((row, i) => (i === index ? { ...row, ...changes } : row)));
@@ -37,6 +48,14 @@ export function RightsEditor({
     const current = row.locations === "all" ? [] : row.locations;
     const next = current.includes(id) ? current.filter((x) => x !== id) : [...current, id];
     update(index, { locations: next.length ? next : "all" });
+  }
+
+  function toggleAccount(index: number, id: string) {
+    const row = value[index];
+    if (!row) return;
+    const current = row.cash_accounts === "all" ? [] : row.cash_accounts;
+    const next = current.includes(id) ? current.filter((x) => x !== id) : [...current, id];
+    update(index, { cash_accounts: next.length ? next : "all" });
   }
 
   return (
@@ -103,6 +122,38 @@ export function RightsEditor({
                 ))
               : null}
           </div>
+          {permissionsOf(row).some((code) => CASH_PERMISSIONS.includes(code)) ? (
+            <div className="small" style={{ marginTop: 8 }}>
+              {t("rights.cash_accounts")}:{" "}
+              <label>
+                <input
+                  type="checkbox"
+                  checked={row.cash_accounts === "all"}
+                  onChange={() => update(index, { cash_accounts: row.cash_accounts === "all" ? [] : "all" })}
+                />{" "}
+                {t("rights.all_cash_accounts")}
+              </label>
+              {row.cash_accounts !== "all"
+                ? accounts
+                    .filter((a) => a.state === "active" || (row.cash_accounts !== "all" && row.cash_accounts.includes(a.id)))
+                    .map((account) => (
+                      <label key={account.id} style={{ marginLeft: 12 }}>
+                        <input
+                          type="checkbox"
+                          checked={row.cash_accounts !== "all" && row.cash_accounts.includes(account.id)}
+                          onChange={() => toggleAccount(index, account.id)}
+                        />{" "}
+                        {account.name} · {account.currency}
+                      </label>
+                    ))
+                : null}
+              {row.cash_accounts !== "all" ? (
+                <div className="muted" style={{ marginTop: 4 }}>
+                  {t("rights.cash_accounts_hint")}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           <div className="actions" style={{ marginTop: 8 }}>
             <button
               type="button"
@@ -138,10 +189,13 @@ export function RightsEditor({
   );
 }
 
-/** A row without an incomplete location list (an emptied list means the whole company). */
+/** A row without an incomplete list: an emptied list of locations means the whole company, an
+ * emptied list of cash accounts means all of them. */
 export function cleanRights(value: RightSpec[]): RightSpec[] {
   return value.map((row) => ({
     ...row,
     locations: row.locations === "all" || row.locations.length === 0 ? "all" : row.locations,
+    cash_accounts:
+      row.cash_accounts === "all" || row.cash_accounts.length === 0 ? "all" : row.cash_accounts,
   }));
 }

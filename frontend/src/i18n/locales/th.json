@@ -529,6 +529,9 @@
   },
   "rights": {
     "add": "Add rights",
+    "all_cash_accounts": "All of the company",
+    "cash_accounts": "Cash desks and accounts",
+    "cash_accounts_hint": "Only the ticked ones; if none is ticked, all of them.",
     "kind": "Kind",
     "kind_deny": "Personal restriction",
     "kind_grant": "Personal addition",
