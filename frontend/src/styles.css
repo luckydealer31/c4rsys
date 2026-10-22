@@ -118,3 +118,6 @@ th { font-size: 0.85rem; color: var(--muted); font-weight: 600; }
 .code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1.1rem;
   letter-spacing: 0.08em; }
 @media print { .topbar, .actions { display: none; } }
+dl.facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; }
+dl.facts dt { color: var(--muted, #666); }
+dl.facts dd { margin: 0; }

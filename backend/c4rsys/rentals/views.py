@@ -22,7 +22,7 @@ from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
 from c4rsys.platform.models import Currency
 from c4rsys.platform.money import round_money
-from c4rsys.rentals import formalization, issue, rentals, returns, setup, tariffs
+from c4rsys.rentals import formalization, issue, pricing, rentals, returns, setup, tariffs
 from c4rsys.rentals.models import Rental, Tariff
 
 NAME_MAX = 150
@@ -600,3 +600,66 @@ def company_readiness(request: HttpRequest, cmp: str) -> JsonResponse:
     if not access.RightsResolver().has_permission(actor, "company.settings"):
         raise errors.permission_denied("company.settings")
     return JsonResponse(setup.readiness(context.company))
+
+
+@require_POST
+def rental_quote(request: HttpRequest, cmp: str) -> JsonResponse:
+    """Preliminary calculation before the issue is confirmed (§ 13.6.6, STAGE1_SCREENS): the
+    current tariff of the vehicle, the planned period. A read: nothing is posted."""
+    context, actor = _actor(request, cmp)
+    resolver = access.RightsResolver()
+    if not any(resolver.has_permission(actor, p) for p in ("rental.issue", "rental.view")):
+        raise errors.permission_denied("rental.issue")
+    data = parse_json(request)
+    card = fleet.get_card(context.company.id, _uuid(data, "vehicle_card_id"))
+    tariff = (
+        tariffs.tariffs_for_vehicle(card)
+        .filter(pk=_uuid(data, "tariff_id", "TARIFF_REQUIRED"))
+        .first()
+    )
+    terms = tariffs.vehicle_terms(tariff, card) if tariff else None
+    if tariff is None or terms is None:
+        raise errors.business_rule("TARIFF_NOT_AVAILABLE", field="tariff_id")
+    start = _moment(data, "actual_start", required=True)
+    end = _moment(data, "planned_end", required=True)
+    if start is None or end is None or end < start:
+        raise errors.validation_error("planned_end", code="PERIOD_INVALID")
+    tariff = Tariff.objects.select_related("currency").get(pk=tariff.pk)
+    snapshot = tariffs.rental_snapshot(tariff, terms)
+    result = pricing.calculate(pricing.terms_from_snapshot(snapshot), start, end)
+    return JsonResponse(
+        {
+            "calculation": {
+                "kind": "preliminary",
+                "billable_minutes": int(result.billable.total_seconds() // 60),
+                "units": result.units,
+                "rate": str(result.rate) if result.rate is not None else None,
+                "base_amount": str(result.base_amount),
+                "currency": result.currency,
+            },
+            "vehicle_terms": snapshot["vehicle_terms"],
+            "warnings": _debt_warning(context.company.id, _uuid(data, "client_id"))
+            if data.get("client_id")
+            else [],
+        }
+    )
+
+
+@require_http_methods(["GET"])
+def vehicle_tariffs(request: HttpRequest, cmp: str, card_id: UUID) -> JsonResponse:
+    """Tariffs to choose from when issuing this vehicle (§ 13.1.2)."""
+    context, actor = _actor(request, cmp)
+    resolver = access.RightsResolver()
+    if not any(resolver.has_permission(actor, p) for p in ("rental.issue", "tariff.view")):
+        raise errors.permission_denied("rental.issue")
+    card = fleet.get_card(context.company.id, card_id)
+    items = [
+        {
+            "id": str(t.id),
+            "name": t.name,
+            "currency": t.currency_id,
+            "ranges": tariffs.snapshot(t)["ranges"],
+        }
+        for t in tariffs.tariffs_for_vehicle(card).order_by("name")
+    ]
+    return JsonResponse({"tariffs": items})

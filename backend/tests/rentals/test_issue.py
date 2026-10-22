@@ -390,3 +390,29 @@ def test_concurrent_issues_of_one_vehicle_50_times(owner: Client) -> None:
         assert sorted(outcomes) == ["OK", "VEHICLE_NOT_AVAILABLE"], (attempt, outcomes)
         assert Rental.objects.filter(vehicle_card_id=UUID(vehicle), state="active").count() == 1
     assert VehicleCard.objects.count() == 50
+
+
+def test_preliminary_calculation_before_issue(owner: Client, s: Scenario) -> None:
+    # § 13.6.6: the preliminary calculation and warnings are shown before confirming.
+    body = {
+        "vehicle_card_id": s.vehicle,
+        "tariff_id": s.tariff,
+        "client_id": s.client,
+        "actual_start": ISSUE_AT.isoformat(),
+        "planned_end": (ISSUE_AT + timedelta(days=2, minutes=1)).isoformat(),
+    }
+
+    quote = post(owner, f"/api/c/{s.cmp}/rentals/quote", body).json()
+
+    assert quote["calculation"] == {
+        "kind": "preliminary",
+        "billable_minutes": 2881,
+        "units": 3,
+        "rate": "1000.0000",
+        "base_amount": "3000.00",
+        "currency": "THB",
+    }
+    assert quote["warnings"] == []
+    assert not Rental.objects.exists()
+    tariffs = owner.get(f"/api/c/{s.cmp}/vehicles/{s.vehicle}/tariffs").json()["tariffs"]
+    assert [t["id"] for t in tariffs] == [s.tariff]

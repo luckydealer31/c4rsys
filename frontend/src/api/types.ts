@@ -193,3 +193,41 @@ export type RentalSummary = {
   actual_start: string;
   actual_end: string | null;
 };
+
+export type Calculation = {
+  kind: "current" | "actual" | "preliminary";
+  end?: string;
+  billable_minutes: number;
+  units: number;
+  rate: string | null;
+  base_amount: string;
+  currency: string;
+};
+
+export type InspectionView = {
+  id: string;
+  state: "draft" | "saved" | "invalid";
+  check_status: string;
+  odometer: string | null;
+  fuel: string | null;
+};
+
+export type Rental = RentalSummary & {
+  tariff_id: string;
+  issue_place_kind: "location" | "other";
+  issue_place_note: string;
+  calc_timezone: string;
+  planned_end: string | null;
+  planned_return_location_id: string | null;
+  return_location_id: string | null;
+  return_place_kind: "location" | "other" | null;
+  return_place_note: string;
+  overdue: boolean;
+  inspections: { issue: InspectionView | null; return: InspectionView | null; fuel_differs: boolean | null };
+  formalization: { completed_at: string | null; missing: string[] };
+  tariff_snapshot: { name: string; currency: string; ranges: PriceRange[] };
+  calculation: Calculation;
+  version: number;
+};
+
+export type Warning = { code: string; amounts?: Record<string, string> };

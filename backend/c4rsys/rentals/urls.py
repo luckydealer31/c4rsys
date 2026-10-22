@@ -15,6 +15,8 @@ urlpatterns = [
     ),
     path("c/<str:cmp>/rentals", views.rental_list),
     path("c/<str:cmp>/rentals/issue", views.rental_issue),
+    path("c/<str:cmp>/rentals/quote", views.rental_quote),
+    path("c/<str:cmp>/vehicles/<uuid:card_id>/tariffs", views.vehicle_tariffs),
     path("c/<str:cmp>/rentals/<uuid:rental_id>", views.rental_detail),
     path("c/<str:cmp>/rentals/<uuid:rental_id>/return", views.rental_return),
     path("c/<str:cmp>/rentals/<uuid:rental_id>/history", views.rental_history),
