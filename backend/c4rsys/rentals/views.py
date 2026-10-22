@@ -13,12 +13,15 @@ from c4rsys.accounts.middleware import require_user
 from c4rsys.companies import access, locations
 from c4rsys.companies import services as companies
 from c4rsys.companies.views import run_and_respond
+from c4rsys.finance import payments
 from c4rsys.fleet import services as fleet
 from c4rsys.inspections import services as inspections
 from c4rsys.inspections.models import Inspection
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
+from c4rsys.platform.models import Currency
+from c4rsys.platform.money import round_money
 from c4rsys.rentals import formalization, issue, rentals, returns, tariffs
 from c4rsys.rentals.models import Rental, Tariff
 
@@ -402,8 +405,8 @@ def rental_issue(request: HttpRequest, cmp: str) -> JsonResponse:
                 "rental": _rental_payload(rental),
                 "inspection_id": str(inspection.id),
                 "order_created": created_order,
-                # Policies of a new company (§ 14.3.6): client debt and documents only warn.
-                "warnings": [],
+                # Policies of a new company (§ 14.3.6): client debt only warns (§ 14.3.5).
+                "warnings": _debt_warning(rental.company_id, rental.client_id),
             },
         )
 
@@ -412,6 +415,15 @@ def rental_issue(request: HttpRequest, cmp: str) -> JsonResponse:
         for k, v in request_data.__dict__.items()
     }
     return run_and_respond(request, "rental.issue", actor, payload, handler)
+
+
+def _debt_warning(company_id: UUID, client_id: UUID) -> list[dict[str, Any]]:
+    debt = payments.client_debt(company_id, client_id)
+    if not debt:
+        return []
+    places = {c.code: c.minor_units for c in Currency.objects.filter(code__in=debt)}
+    amounts = {c: str(round_money(v, places[c])) for c, v in sorted(debt.items())}
+    return [{"code": "CLIENT_HAS_DEBT", "amounts": amounts}]
 
 
 def _rental_visible(actor: Actor, rental: Rental) -> bool:

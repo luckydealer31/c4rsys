@@ -165,3 +165,20 @@ def display_state(order: Order, operations: list[OperationSummary]) -> str:
     if order.state == Order.State.OPEN and not closing_conditions(operations):
         return "ready_to_close"
     return order.state
+
+
+# --- Control versions of the calculation (§ 13.6.8) ------------------------------------------
+
+ControlVersionWriter = Callable[[CommandContext, UUID, UUID, str], None]
+_control_writers: list[ControlVersionWriter] = []
+
+
+def register_control_version(writer: ControlVersionWriter) -> None:
+    _control_writers.append(writer)
+
+
+def record_control_versions(ctx: CommandContext, order: Order, reason: str) -> None:
+    """Immutable versions of the current calculation of every operation of the order, kept at
+    payment and at closing (§ 13.6.8). Each module writes its own."""
+    for writer in _control_writers:
+        writer(ctx, order.company_id, order.id, reason)

@@ -80,3 +80,96 @@ class ChargeEntry(models.Model):
 
     def __str__(self) -> str:
         return f"{self.source_type}:{self.amount} {self.currency_id}"
+
+
+class MoneyMovement(models.Model):
+    """An actual receipt or payout of money, an independent record (§ 17.2.11) with a number
+    sequential inside the company (§ 12.2.5). Separate from charges (§ 17.2.6). A posted
+    movement is not changed; corrections and refunds are separate records (§ 12.2.5)."""
+
+    class Direction(models.TextChoices):
+        IN = "in"
+        OUT = "out"
+
+    class State(models.TextChoices):
+        EXPECTED = "expected"
+        POSTED = "posted"
+        FAILED = "failed"
+        CANCELLED = "cancelled"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    number = models.PositiveBigIntegerField()
+    cash_account = models.ForeignKey(CashAccount, on_delete=models.PROTECT, related_name="+")
+    direction = models.CharField(max_length=3, choices=Direction.choices)
+    amount = models.DecimalField(max_digits=20, decimal_places=4)
+    currency = models.ForeignKey(Currency, on_delete=models.PROTECT, related_name="+")
+    client = models.ForeignKey(
+        "parties.ClientCard", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    state = models.CharField(max_length=10, choices=State.choices)
+    method = models.CharField(max_length=10)
+    note = models.CharField(max_length=500, blank=True, default="")
+    posted_at = models.DateTimeField(null=True, blank=True)
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "money_movement"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "id"], name="money_movement_company_id_uniq"
+            ),
+            models.UniqueConstraint(
+                fields=["company", "number"], name="money_movement_company_number_uniq"
+            ),
+            models.CheckConstraint(
+                condition=Q(amount__gt=0), name="money_movement_amount_positive"
+            ),
+            models.CheckConstraint(
+                condition=~Q(state="posted") | Q(posted_at__isnull=False),
+                name="money_movement_posted_has_time",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"payment {self.number}"
+
+
+class PaymentAllocation(models.Model):
+    """Part of a receipt assigned to an order (§ 12.2.5, § 14.7.3). Active allocations of a
+    movement never exceed its amount (checked by the command under the movement's lock). A change
+    is a new record; the replaced one stays cancelled in the history (§ 17.2.15)."""
+
+    class Purpose(models.TextChoices):
+        ORDER_PAYMENT = "order_payment"
+        DEPOSIT = "deposit"
+
+    class State(models.TextChoices):
+        ACTIVE = "active"
+        CANCELLED = "cancelled"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    money_movement = models.ForeignKey(
+        MoneyMovement, on_delete=models.PROTECT, related_name="allocations"
+    )
+    order = models.ForeignKey("orders.Order", on_delete=models.PROTECT, related_name="+")
+    purpose = models.CharField(max_length=20, choices=Purpose.choices)
+    amount = models.DecimalField(max_digits=20, decimal_places=4)
+    currency = models.ForeignKey(Currency, on_delete=models.PROTECT, related_name="+")
+    state = models.CharField(max_length=10, choices=State.choices, default=State.ACTIVE)
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "payment_allocation"
+        constraints = [
+            models.CheckConstraint(condition=Q(amount__gt=0), name="payment_allocation_positive"),
+        ]
+        indexes = [
+            models.Index(fields=["company", "order", "state"], name="payment_allocation_order_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.amount} {self.currency_id} → {self.order_id}"

@@ -264,3 +264,36 @@ class Rental(models.Model):
 
     def __str__(self) -> str:
         return f"rental {self.id}"
+
+
+class RentalCalculation(models.Model):
+    """An immutable control version of the rental calculation, kept at payment and closing
+    (§ 13.6.8). Recalculations while typing do not create versions. Append-only (trigger)."""
+
+    class Reason(models.TextChoices):
+        PAYMENT = "payment"
+        CLOSING = "closing"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    rental = models.ForeignKey(Rental, on_delete=models.PROTECT, related_name="calculations")
+    seq = models.PositiveIntegerField()
+    reason = models.CharField(max_length=20, choices=Reason.choices)
+    kind = models.CharField(max_length=10)  # current or actual (§ 13.6.7)
+    inputs = models.JSONField()
+    billable_minutes = models.PositiveIntegerField()
+    units = models.PositiveIntegerField()
+    rate = models.DecimalField(max_digits=20, decimal_places=4, null=True, blank=True)
+    base_amount = models.DecimalField(max_digits=20, decimal_places=4)
+    currency = models.CharField(max_length=3)
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "rental_calculation"
+        constraints = [
+            models.UniqueConstraint(fields=["rental", "seq"], name="rental_calculation_seq_uniq"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.reason} #{self.seq}: {self.base_amount} {self.currency}"
