@@ -14,18 +14,9 @@ from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext
 from c4rsys.platform.models import Currency
 from c4rsys.rentals.models import Tariff, TariffLocation, TariffRange
+from c4rsys.rentals.pricing import PriceRange
 
 RATE_PLACES = 4
-
-
-@dataclass(frozen=True)
-class PriceRange:
-    from_units: int
-    to_units: int | None
-    rate: Decimal
-
-    def as_dict(self) -> dict[str, Any]:
-        return {"from": self.from_units, "to": self.to_units, "rate": str(self.rate)}
 
 
 def _positive_int(value: Any, field: str) -> int:
