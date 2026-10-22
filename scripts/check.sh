@@ -5,7 +5,7 @@ set -eu
 cd "$(dirname "$0")/.."
 
 echo "== backend"
-docker compose run --rm backend sh -c "ruff check . && ruff format --check . && mypy . && pytest"
+docker compose run --rm backend sh -c "ruff check . && ruff format --check . && mypy . && python manage.py makemigrations --check --dry-run && pytest"
 
 echo "== frontend"
 docker compose run --rm --no-deps frontend sh -c "npm run typecheck && npm run lint && npm test"

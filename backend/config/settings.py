@@ -34,7 +34,7 @@ ALLOWED_HOSTS = [
     if h.strip()
 ]
 
-# T00: no business models yet. The custom user model (accounts.UserAccount) must be added in T02
+# The custom user model (accounts.UserAccount) must be added in T02
 # BEFORE django.contrib.auth or any app with a user foreign key is migrated for the first time.
 INSTALLED_APPS = [
     "django.contrib.contenttypes",
@@ -44,6 +44,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "c4rsys.platform.middleware.ApiMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
