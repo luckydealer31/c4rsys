@@ -319,6 +319,8 @@ class RightsResolver:
     Without a location the check asks whether the permission is granted anywhere in the company
     and not denied for the whole company; with a location (and context) the assignment's scope must
     cover it. With a cash account (`resource_id`) the account must be in the assignment's scope.
+    `whole_company` asks for the permission in every location of the company, present and future
+    (§ 23.1.9): an assignment for the whole company and no denial anywhere.
     """
 
     def has_permission(
@@ -329,6 +331,7 @@ class RightsResolver:
         location_id: UUID | None = None,
         context_id: UUID | None = None,
         resource_id: UUID | None = None,
+        whole_company: bool = False,
     ) -> bool:
         if actor.company_id is None or actor.employment_id is None:
             return False
@@ -357,6 +360,10 @@ class RightsResolver:
             and _in_scope(a, location_id, context_id)
             and (account is None or _covers_account(a, account))
         ]
+        if whole_company:
+            if any(a.kind == Kind.DENY for a in covering):
+                return False
+            return any(a.kind != Kind.DENY and a.all_locations for a in covering)
         located = location_id is not None or account is not None
         # A denial limited to some locations does not remove the permission elsewhere.
         if any(a.kind == Kind.DENY and (located or a.all_locations) for a in covering):

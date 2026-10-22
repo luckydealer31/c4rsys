@@ -38,6 +38,7 @@ class PermissionResolver(Protocol):
         location_id: UUID | None = None,
         context_id: UUID | None = None,
         resource_id: UUID | None = None,
+        whole_company: bool = False,
     ) -> bool: ...
 
 
@@ -49,6 +50,7 @@ def require_permission(
     location_id: UUID | None = None,
     context_id: UUID | None = None,
     resource_id: UUID | None = None,
+    whole_company: bool = False,
 ) -> None:
     if actor.company_id is None:
         raise errors.permission_denied(permission)
@@ -58,6 +60,7 @@ def require_permission(
         location_id=location_id,
         context_id=context_id,
         resource_id=resource_id,
+        whole_company=whole_company,
     )
     if not allowed:
         raise errors.permission_denied(permission)

@@ -19,10 +19,6 @@ def register(context_type: str, check: ReadinessCheck) -> None:
     _checks[context_type] = check
 
 
-def unregister(context_type: str) -> None:
-    _checks.pop(context_type, None)
-
-
 def module_conditions_met(context_type: str, company_id: UUID, location_id: UUID) -> bool:
     # TODO(spec): readiness of a warehouse context is not defined in § 4.3.1.
     check = _checks.get(context_type)

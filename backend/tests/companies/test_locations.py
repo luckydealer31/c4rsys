@@ -2,6 +2,7 @@
 
 from collections.abc import Iterator
 from typing import Any
+from unittest import mock
 
 import pytest
 from django.db import IntegrityError, transaction
@@ -26,10 +27,11 @@ def cmp(owner: Client) -> str:
 
 @pytest.fixture
 def rental_conditions_met() -> Iterator[None]:
-    """Stands for the rental module conditions of § 4.3.1 (current tariff), which arrive in T07."""
-    readiness.register(ActivityContext.Type.RENTAL, lambda company_id, location_id: True)
-    yield
-    readiness.unregister(ActivityContext.Type.RENTAL)
+    """Stands for the rental module conditions of § 4.3.1 (a current tariff, tested in rentals)."""
+    with mock.patch.dict(
+        readiness._checks, {ActivityContext.Type.RENTAL: lambda company_id, location_id: True}
+    ):
+        yield
 
 
 def _create_location(client: Client, cmp: str, key: str = "l-1", **data: Any) -> Any:

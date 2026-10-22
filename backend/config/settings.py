@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     "c4rsys.accounts",
     "c4rsys.companies",
     "c4rsys.finance",
+    "c4rsys.rentals",
 ]
 
 MIDDLEWARE = [
