@@ -7,7 +7,7 @@ from django.http import HttpRequest, JsonResponse
 from django.views.decorators.http import require_http_methods
 
 from c4rsys.accounts.middleware import require_user
-from c4rsys.companies import locations, services
+from c4rsys.companies import access, locations, services
 from c4rsys.companies.models import ActivityContext, Company, Location
 from c4rsys.platform import errors
 from c4rsys.platform.access import require_permission
@@ -20,7 +20,7 @@ LOCATION_NAME_MAX = 200
 ADDRESS_MAX = 500
 
 
-def _run(
+def run_and_respond(
     request: HttpRequest, command: str, actor: Actor, payload: dict[str, Any], handler: Handler
 ) -> JsonResponse:
     return respond(
@@ -87,7 +87,7 @@ def companies(request: HttpRequest) -> JsonResponse:
         "timezone": new.timezone,
         "main_currency": new.main_currency,
     }
-    return _run(
+    return run_and_respond(
         request, "company.create", Actor(user_id=user.id, session_id=session.id), payload, handler
     )
 
@@ -100,7 +100,7 @@ def company(request: HttpRequest, cmp: str) -> JsonResponse:
         return JsonResponse({"company": _company_payload(context.company, context)})
 
     actor = services.company_actor(user, context, session.id)
-    require_permission(services.PositionAuthorityResolver(), actor, "company.settings")
+    require_permission(access.RightsResolver(), actor, "company.settings")
 
     data = parse_json(request)
     expected_version = get_int(data, "expected_version")
@@ -118,7 +118,7 @@ def company(request: HttpRequest, cmp: str) -> JsonResponse:
         updated = services.update_profile(ctx, context.company.id, changes, expected_version)
         return CommandResult(200, {"company": _company_payload(updated, context)})
 
-    return _run(
+    return run_and_respond(
         request,
         "company.update_profile",
         actor,
@@ -157,7 +157,7 @@ def _settings_actor(request: HttpRequest, cmp: str) -> tuple[services.CompanyCon
     user, session = require_user(request)
     context = services.resolve_company(user, cmp, session.id)
     actor = services.company_actor(user, context, session.id)
-    require_permission(services.PositionAuthorityResolver(), actor, "company.settings")
+    require_permission(access.RightsResolver(), actor, "company.settings")
     return context, actor
 
 
@@ -189,7 +189,7 @@ def location_list(request: HttpRequest, cmp: str) -> JsonResponse:
         return CommandResult(201, {"location": _location_payload(location)})
 
     payload = {"name": new.name, "timezone": new.timezone, "address": new.address}
-    return _run(request, "location.create", actor, payload, handler)
+    return run_and_respond(request, "location.create", actor, payload, handler)
 
 
 @require_http_methods(["GET", "PATCH"])
@@ -221,7 +221,7 @@ def location_detail(request: HttpRequest, cmp: str, location_id: UUID) -> JsonRe
         return CommandResult(200, {"location": _location_payload(location)})
 
     payload = {"location_id": str(location_id), **changes, "expected_version": expected_version}
-    return _run(request, "location.update", actor, payload, handler)
+    return run_and_respond(request, "location.update", actor, payload, handler)
 
 
 @require_http_methods(["POST"])
@@ -241,4 +241,4 @@ def location_contexts(request: HttpRequest, cmp: str, location_id: UUID) -> Json
         return CommandResult(201, {"location": _location_payload(location)})
 
     payload = {"location_id": str(location_id), "type": context_type}
-    return _run(request, "location.add_context", actor, payload, handler)
+    return run_and_respond(request, "location.add_context", actor, payload, handler)

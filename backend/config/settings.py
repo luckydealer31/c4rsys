@@ -38,6 +38,7 @@ ALLOWED_HOSTS = [
 # django.contrib.auth and django.contrib.sessions are intentionally not installed.
 INSTALLED_APPS = [
     "django.contrib.contenttypes",
+    "django.contrib.postgres",
     "django.contrib.staticfiles",
     "c4rsys.platform",
     "c4rsys.accounts",

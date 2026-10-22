@@ -418,3 +418,21 @@ def confirm_critical(user: UserAccount, action: str, token: str, code: str) -> N
         )
     if outcome.result != otp.CodeCheck.OK:
         raise outcome.error()
+
+
+# --- Lookups for other modules ----------------------------------------------------------------
+
+
+def find_active_user(public_id: str) -> UserAccount | None:
+    """Active account by its USR ID (§ 2.1.4)."""
+    return UserAccount.objects.filter(public_id=public_id, state=UserAccount.State.ACTIVE).first()
+
+
+def find_user_by_email(email: str) -> UserAccount | None:
+    """Active account with this confirmed email."""
+    owner = _email_owner(email)
+    return owner if owner and owner.state == UserAccount.State.ACTIVE else None
+
+
+def confirmed_emails(user: UserAccount) -> list[str]:
+    return list(user.contacts.filter(kind=LoginContact.Kind.EMAIL).values_list("value", flat=True))

@@ -4,6 +4,7 @@ Ownership of a share and work in the company are separate relations (§ 3.3.3): 
 owner rights (§ 3.3.4), working authority comes from a position through employment.
 """
 
+from django.contrib.postgres.fields import ArrayField
 from django.db import models
 from django.db.models import Q
 from django.utils.timezone import now
@@ -121,7 +122,11 @@ class Employment(models.Model):
     started_at = models.DateTimeField(null=True, blank=True)
     work_email = models.CharField(max_length=254, blank=True, default="")
     work_phone = models.CharField(max_length=40, blank=True, default="")
+    # Data the user chose to give the company on acceptance; first and last name always (§ 5.1.7).
+    shares_middle_name = models.BooleanField(default=False)
+    shares_email = models.BooleanField(default=False)
     created_at = models.DateTimeField(default=now)
+    version = models.PositiveIntegerField(default=1)
 
     class Meta:
         db_table = "employment"
@@ -224,3 +229,203 @@ class LocationSchedule(models.Model):
 
     def __str__(self) -> str:
         return f"schedule {self.location_id}"
+
+
+class Permission(models.Model):
+    """System catalog of permissions, seeded from companies.permissions."""
+
+    code = models.CharField(max_length=60, primary_key=True)
+    section = models.CharField(max_length=30)
+
+    class Meta:
+        db_table = "permission"
+
+    def __str__(self) -> str:
+        return self.code
+
+
+class PermissionSet(models.Model):
+    """Ready-made set of permissions. System sets have no company (§ 23.1.5, § 23.1.14)."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(
+        Company, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    code = models.CharField(max_length=40, blank=True, default="")
+    name = models.CharField(max_length=150, blank=True, default="")
+    is_system = models.BooleanField(default=False)
+    permissions = models.ManyToManyField(Permission, through="PermissionSetItem", related_name="+")
+
+    class Meta:
+        db_table = "permission_set"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["code"],
+                condition=Q(is_system=True),
+                name="permission_set_system_code_uniq",
+            ),
+            models.CheckConstraint(
+                condition=Q(is_system=False) | Q(company__isnull=True),
+                name="permission_set_system_has_no_company",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return self.code or self.name
+
+
+class PermissionSetItem(models.Model):
+    permission_set = models.ForeignKey(PermissionSet, on_delete=models.CASCADE, related_name="+")
+    permission = models.ForeignKey(Permission, on_delete=models.PROTECT, related_name="+")
+
+    class Meta:
+        db_table = "permission_set_item"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["permission_set", "permission"], name="permission_set_item_uniq"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.permission_set_id}:{self.permission_id}"
+
+
+class PermissionAssignment(models.Model):
+    """One grant of access to an employee with its own scope (§ 23.1.1, § 23.1.13).
+
+    * `set` — a permission set; `permissions` is the copy of its codes at the moment of
+      assignment (§ 23.1.3).
+    * `grant` / `deny` — personal addition or restriction of single permissions (§ 23.1.2).
+
+    Assignments are not deleted: a revoked one keeps who granted and who revoked it (§ 23.3.3).
+    """
+
+    class Kind(models.TextChoices):
+        SET = "set"
+        GRANT = "grant"
+        DENY = "deny"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    employment = models.ForeignKey(Employment, on_delete=models.PROTECT, related_name="assignments")
+    kind = models.CharField(max_length=10, choices=Kind.choices)
+    permission_set = models.ForeignKey(
+        PermissionSet, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    permissions = ArrayField(models.CharField(max_length=60))
+    all_locations = models.BooleanField(default=True)
+    all_contexts = models.BooleanField(default=True)
+    locations = models.ManyToManyField(Location, through="AssignmentLocation", related_name="+")
+    contexts = models.ManyToManyField(
+        ActivityContext, through="AssignmentContext", related_name="+"
+    )
+    granted_by_user_id = models.UUIDField()
+    granted_at = models.DateTimeField(default=now)
+    revoked_by_user_id = models.UUIDField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "permission_assignment"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "id"], name="permission_assignment_company_id_uniq"
+            ),
+            models.CheckConstraint(
+                condition=Q(kind="set", permission_set__isnull=False)
+                | (~Q(kind="set") & Q(permission_set__isnull=True)),
+                name="permission_assignment_set_matches_kind",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["employment", "revoked_at"], name="perm_assignment_active_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.kind} {self.id}"
+
+
+class AssignmentLocation(models.Model):
+    """Selected location of an assignment whose scope is not the whole company (§ 23.1.9)."""
+
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    assignment = models.ForeignKey(PermissionAssignment, on_delete=models.PROTECT, related_name="+")
+    location = models.ForeignKey(Location, on_delete=models.PROTECT, related_name="+")
+
+    class Meta:
+        db_table = "permission_assignment_location"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["assignment", "location"], name="permission_assignment_location_uniq"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.assignment_id}@{self.location_id}"
+
+
+class AssignmentContext(models.Model):
+    """Selected context of an assignment with a concrete list of contexts (§ 23.1.10)."""
+
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    assignment = models.ForeignKey(PermissionAssignment, on_delete=models.PROTECT, related_name="+")
+    context = models.ForeignKey(ActivityContext, on_delete=models.PROTECT, related_name="+")
+
+    class Meta:
+        db_table = "permission_assignment_context"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["assignment", "context"], name="permission_assignment_context_uniq"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.assignment_id}@{self.context_id}"
+
+
+class Invitation(models.Model):
+    """Invitation of an employee (§ 2.5.1–2.5.2, § 5.1.1, § 5.1.3).
+
+    The target is a user found by ID or confirmed email, or an email without a profile yet; a user
+    who registers with that email sees the invitation without a new one (§ 5.1.3). `offered` holds
+    the offered rights; they become assignments on acceptance.
+    """
+
+    class State(models.TextChoices):
+        PENDING = "pending"
+        ACCEPTED = "accepted"
+        DECLINED = "declined"
+        CANCELLED = "cancelled"
+        EXPIRED = "expired"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    employment = models.ForeignKey(Employment, on_delete=models.PROTECT, related_name="invitations")
+    target_user_id = models.UUIDField(null=True, blank=True)
+    target_email = models.CharField(max_length=254, blank=True, default="")
+    state = models.CharField(max_length=20, choices=State.choices, default=State.PENDING)
+    offered = models.JSONField(default=dict)
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+    expires_at = models.DateTimeField()
+    decided_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "invitation"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(target_user_id__isnull=False) | ~Q(target_email=""),
+                name="invitation_has_target",
+            ),
+            models.UniqueConstraint(
+                fields=["employment"],
+                condition=Q(state="pending"),
+                name="invitation_one_pending_per_card",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["target_user_id", "state"], name="invitation_target_user_idx"),
+            models.Index(fields=["target_email", "state"], name="invitation_target_email_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"invitation {self.id}"

@@ -147,16 +147,23 @@ def resolve_company(user: UserAccount, public_id: str, session_id: UUID | None) 
     """The company from the address is the active one only with current employment of the user.
 
     A passed ID gives no authority. A missing company and a company without the user's employment
-    get the same NOT_FOUND (§ 2.8.1); the attempt is journaled as a security event.
+    get the same NOT_FOUND (§ 2.8.1); the attempt is journaled as a security event. A blocked
+    employee loses access at once (§ 23.3.8).
     """
     normalized = normalize_public_id(public_id)
     employment = None
     if normalized is not None:
         employment = (
             Employment.objects.select_related("company", "position")
-            .filter(company__public_id=normalized, user=user, state=Employment.State.ACTIVE)
+            .filter(
+                company__public_id=normalized,
+                user=user,
+                state__in=[Employment.State.ACTIVE, Employment.State.BLOCKED],
+            )
             .first()
         )
+    if employment is not None and employment.state == Employment.State.BLOCKED:
+        raise errors.ApiError("EMPLOYMENT_BLOCKED", status=403)
     if employment is None:
         AuditEvent.objects.create(
             actor_user_id=user.id,
@@ -177,30 +184,6 @@ def company_actor(user: UserAccount, context: CompanyContext, session_id: UUID |
         employment_id=context.employment.id,
         session_id=session_id,
     )
-
-
-class PositionAuthorityResolver:
-    """Permission check of T03: the director with top authority may do everything in the company
-    (§ 3.1.4). Permission sets, scopes and overrides come with the full resolver of T05; until
-    then every other employee is refused."""
-
-    def has_permission(
-        self,
-        actor: Actor,
-        permission: str,
-        *,
-        location_id: UUID | None = None,
-        context_id: UUID | None = None,
-        resource_id: UUID | None = None,
-    ) -> bool:
-        if actor.company_id is None or actor.employment_id is None:
-            return False
-        return Employment.objects.filter(
-            pk=actor.employment_id,
-            company_id=actor.company_id,
-            state=Employment.State.ACTIVE,
-            position__is_top_authority=True,
-        ).exists()
 
 
 # --- Profile (§ 3.1.6, § 22.1.4, § 22.1.7) --------------------------------------------------
