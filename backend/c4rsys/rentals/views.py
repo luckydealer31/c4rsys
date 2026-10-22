@@ -22,7 +22,7 @@ from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
 from c4rsys.platform.models import Currency
 from c4rsys.platform.money import round_money
-from c4rsys.rentals import formalization, issue, rentals, returns, tariffs
+from c4rsys.rentals import formalization, issue, rentals, returns, setup, tariffs
 from c4rsys.rentals.models import Rental, Tariff
 
 NAME_MAX = 150
@@ -591,3 +591,12 @@ def rental_history(request: HttpRequest, cmp: str, rental_id: UUID) -> JsonRespo
         raise errors.not_found()
     events = history.object_history(context.company.id, rentals.history_objects(rental))
     return JsonResponse({"history": history.payload(events)})
+
+
+@require_http_methods(["GET"])
+def company_readiness(request: HttpRequest, cmp: str) -> JsonResponse:
+    """Final check of the initial setup (§ 22.1.12), for those who manage company settings."""
+    context, actor = _actor(request, cmp)
+    if not access.RightsResolver().has_permission(actor, "company.settings"):
+        raise errors.permission_denied("company.settings")
+    return JsonResponse(setup.readiness(context.company))

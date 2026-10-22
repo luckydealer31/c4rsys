@@ -409,3 +409,30 @@ def test_invitation_flow_is_journaled(owner: Client, cmp: str) -> None:
     assert {"employment.created", "invitation.sent", "invitation.accepted"} <= actions
     accepted = AuditEvent.objects.get(action="invitation.accepted")
     assert accepted.company_id == Employment.objects.get(position__code="").company_id
+
+
+def test_company_answer_lists_own_permissions(owner: Client, cmp: str) -> None:
+    # The interface hides actions without the right; the server still checks them.
+    driver, _ = _hire(owner, cmp, "driver@example.com", [{"type": "set", "set": "driver"}])
+    accountant, _ = _hire(owner, cmp, "acc@example.com", [{"type": "set", "set": "accountant"}])
+
+    assert set(owner.get(f"/api/c/{cmp}").json()["permissions"]) == set(PERMISSIONS)
+    assert driver.get(f"/api/c/{cmp}").json()["permissions"] == []
+    assert accountant.get(f"/api/c/{cmp}").json()["permissions"] == [
+        "client.find",
+        "finance.payment.receive",
+        "order.view",
+        "rental.view",
+    ]
+
+
+def test_permission_catalog_for_the_rights_editor(owner: Client, cmp: str) -> None:
+    body = owner.get(f"/api/c/{cmp}/permission-catalog").json()
+
+    assert [s["code"] for s in body["sets"]] == [
+        "company_admin",
+        "rental_manager",
+        "driver",
+        "accountant",
+    ]
+    assert "order.close_with_debt" in body["permissions"]

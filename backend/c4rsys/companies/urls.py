@@ -9,6 +9,7 @@ urlpatterns = [
     path("c/<str:cmp>/locations/<uuid:location_id>", views.location_detail),
     path("c/<str:cmp>/locations/<uuid:location_id>/contexts", views.location_contexts),
     path("c/<str:cmp>/employees", staff_views.employee_list),
+    path("c/<str:cmp>/permission-catalog", staff_views.permission_catalog),
     path("c/<str:cmp>/employees/invitations", staff_views.invitation_create),
     path(
         "c/<str:cmp>/employees/invitations/<uuid:invitation_id>/cancel",

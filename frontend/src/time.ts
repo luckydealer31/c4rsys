@@ -58,3 +58,8 @@ export function fromLocalInput(value: string, timeZone: string): string {
   instant = asUtc - offset(instant);
   return new Date(instant).toISOString();
 }
+
+/** ISO 4217 codes known to the browser; the server checks them against its reference. */
+export function currencies(): string[] {
+  return Intl.supportedValuesOf?.("currency") ?? ["THB", "USD", "EUR", "RUB"];
+}

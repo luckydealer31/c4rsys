@@ -9,6 +9,7 @@ from django.views.decorators.http import require_http_methods
 from c4rsys.accounts.middleware import require_user
 from c4rsys.companies import access, locations, services
 from c4rsys.companies.models import ActivityContext, Company, Location
+from c4rsys.companies.permissions import PERMISSIONS
 from c4rsys.platform import errors
 from c4rsys.platform.access import require_permission
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult, Handler, run_command
@@ -96,10 +97,21 @@ def companies(request: HttpRequest) -> JsonResponse:
 def company(request: HttpRequest, cmp: str) -> JsonResponse:
     user, session = require_user(request)
     context = services.resolve_company(user, cmp, session.id)
-    if request.method == "GET":
-        return JsonResponse({"company": _company_payload(context.company, context)})
-
     actor = services.company_actor(user, context, session.id)
+    if request.method == "GET":
+        return JsonResponse(
+            {
+                "company": _company_payload(context.company, context),
+                # For the interface to hide unavailable actions; the server still checks every
+                # action (STAGE1_SCREENS «Права»). A permission counts if granted anywhere.
+                "permissions": sorted(
+                    code
+                    for code in PERMISSIONS
+                    if access.RightsResolver().has_permission(actor, code)
+                ),
+            }
+        )
+
     require_permission(access.RightsResolver(), actor, "company.settings")
 
     data = parse_json(request)

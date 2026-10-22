@@ -8,16 +8,29 @@ import type { Company, User } from "../api/types";
 import { ErrorMessage, Loading } from "../components/ui";
 import { AccountBar } from "./AccountBar";
 
-const CompanyContext = createContext<Company | null>(null);
+type ActiveCompany = { company: Company; permissions: Set<string> };
+
+const CompanyContext = createContext<ActiveCompany | null>(null);
+
+function useActive(): ActiveCompany {
+  const active = useContext(CompanyContext);
+  if (!active) throw new Error("Used outside of a company page");
+  return active;
+}
 
 /** The active company of the page. Operations happen only in its context (§ 3.3.8). */
 export function useCompany(): Company {
-  const company = useContext(CompanyContext);
-  if (!company) throw new Error("useCompany outside of a company page");
-  return company;
+  return useActive().company;
 }
 
-export function companyPath(company: Company, path = ""): string {
+/** Whether the employee has a permission somewhere in the company. Only hides actions in the
+ * interface; the server checks every action (STAGE1_SCREENS). */
+export function useCan(): (permission: string) => boolean {
+  const { permissions } = useActive();
+  return (permission) => permissions.has(permission);
+}
+
+export function companyPath(company: Pick<Company, "public_id">, path = ""): string {
   return `/c/${company.public_id}${path}`;
 }
 
@@ -35,7 +48,10 @@ export function CompanyShell({ user }: { user: User }) {
   const { cmp = "" } = useParams();
   const company = useQuery({
     queryKey: ["company", cmp],
-    queryFn: async () => (await api<{ company: Company }>(`/c/${cmp}`)).company,
+    queryFn: async () => {
+      const body = await api<{ company: Company; permissions: string[] }>(`/c/${cmp}`);
+      return { company: body.company, permissions: new Set(body.permissions) };
+    },
     retry: false,
   });
 
@@ -44,7 +60,7 @@ export function CompanyShell({ user }: { user: User }) {
       <AccountBar user={user}>
         {company.data ? (
           <>
-            <span className="company">{company.data.display_name}</span>
+            <span className="company">{company.data.company.display_name}</span>
             <nav className="nav menu">
               {MENU.map(([key, path]) => (
                 <NavLink key={key} to={`/c/${cmp}${path}`}>

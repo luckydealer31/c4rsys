@@ -12,6 +12,7 @@ from c4rsys.accounts import services as accounts
 from c4rsys.accounts.middleware import require_user
 from c4rsys.companies import access, history, services, staff
 from c4rsys.companies.models import Employment, Invitation
+from c4rsys.companies.permissions import PERMISSIONS, SYSTEM_SETS
 from c4rsys.companies.views import run_and_respond
 from c4rsys.platform import errors
 from c4rsys.platform.access import require_permission
@@ -313,3 +314,17 @@ def employee_journal(request: HttpRequest, cmp: str, employment_id: UUID) -> Jso
         action=request.GET.get("action", "")[:100],
     )
     return JsonResponse({"journal": history.payload(events, show_financial=show_financial)})
+
+
+@require_GET
+def permission_catalog(request: HttpRequest, cmp: str) -> JsonResponse:
+    """System sets and permissions of the stage, for the rights editor (§ 23.1.14)."""
+    _company_actor(request, cmp, *EMPLOYEE_VIEW_PERMISSIONS)
+    return JsonResponse(
+        {
+            "sets": [
+                {"code": code, "permissions": list(codes)} for code, codes in SYSTEM_SETS.items()
+            ],
+            "permissions": list(PERMISSIONS),
+        }
+    )

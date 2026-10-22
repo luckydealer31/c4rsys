@@ -29,6 +29,7 @@ export function AccountBar({ user, children }: { user: User; children?: ReactNod
       {children}
       <span className="spacer" />
       <Link to="/companies">{t("nav.my_companies")}</Link>
+      <Link to="/invitations">{t("nav.invitations")}</Link>
       <Link to="/profile">
         {user.first_name || user.last_name
           ? `${user.first_name} ${user.last_name}`.trim()

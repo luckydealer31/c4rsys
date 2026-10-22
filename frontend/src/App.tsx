@@ -4,11 +4,18 @@ import { useMe, useProfilePreferences } from "./auth";
 import { Loading } from "./components/ui";
 import { AccountBar } from "./layout/AccountBar";
 import { CompanyShell } from "./layout/CompanyShell";
+import { InvitationsPage } from "./pages/account/InvitationsPage";
 import { ProfilePage } from "./pages/account/ProfilePage";
 import { LoginPage } from "./pages/auth/LoginPage";
 import { RegisterPage } from "./pages/auth/RegisterPage";
 import { CompaniesPage } from "./pages/companies/CompaniesPage";
+import { FinancePage } from "./pages/finance/FinancePage";
 import { Placeholder } from "./pages/Placeholder";
+import { CompanyProfilePage } from "./pages/settings/CompanyProfilePage";
+import { EmployeePage, EmployeesPage } from "./pages/settings/EmployeesPage";
+import { LocationsPage } from "./pages/settings/LocationsPage";
+import { SettingsPage } from "./pages/settings/SettingsPage";
+import { SetupPage } from "./pages/setup/SetupPage";
 
 export function App() {
   const me = useMe();
@@ -52,15 +59,29 @@ export function App() {
           </>
         }
       />
+      <Route
+        path="/invitations"
+        element={
+          <>
+            <AccountBar user={user} />
+            <InvitationsPage user={user} />
+          </>
+        }
+      />
       <Route path="/c/:cmp" element={<CompanyShell user={user} />}>
         <Route index element={<Navigate to="rentals" replace />} />
-        <Route path="setup" element={<Placeholder section="setup" />} />
+        <Route path="setup" element={<SetupPage />} />
         <Route path="rentals" element={<Placeholder section="rentals" />} />
         <Route path="orders" element={<Placeholder section="orders" />} />
         <Route path="vehicles" element={<Placeholder section="garage" />} />
         <Route path="clients" element={<Placeholder section="clients" />} />
-        <Route path="finance" element={<Placeholder section="finance" />} />
-        <Route path="settings" element={<Placeholder section="settings" />} />
+        <Route path="finance" element={<FinancePage />} />
+        <Route path="settings" element={<SettingsPage />} />
+        <Route path="settings/company" element={<CompanyProfilePage />} />
+        <Route path="settings/locations" element={<LocationsPage />} />
+        <Route path="settings/tariffs" element={<Placeholder section="tariffs" />} />
+        <Route path="settings/employees" element={<EmployeesPage />} />
+        <Route path="settings/employees/:id" element={<EmployeePage />} />
       </Route>
       <Route
         path="*"
