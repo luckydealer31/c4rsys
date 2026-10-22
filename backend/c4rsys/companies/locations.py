@@ -218,7 +218,7 @@ def restore_location(
 
 def delete_location(ctx: CommandContext, company_id: UUID, location_id: UUID) -> None:
     """A location without history may be deleted (decision 23.10.2026): nothing refers to it —
-    no operations, vehicles, cash accounts, tariffs or rights. With history it is only
+    no operations, vehicles, tariffs or rights. With history it is only
     deactivated (§ 4.4.1). The references themselves decide: the database refuses the delete."""
     location = _lock(company_id, location_id)
     contexts = sorted(location.contexts.values_list("type", flat=True))

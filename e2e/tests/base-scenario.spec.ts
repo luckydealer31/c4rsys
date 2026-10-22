@@ -102,7 +102,6 @@ test("base example from registration to closing survives a restart", async ({ pa
   await desk.getByLabel(t("cash.name")).fill("Касса Пхукет");
   await desk.getByLabel(t("cash.type")).selectOption("cash");
   await desk.getByLabel(t("cash.currency")).selectOption("THB");
-  await desk.getByLabel(t("cash.scope")).selectOption({ label: "Пхукет" });
   await desk.getByRole("button", { name: t("cash.create") }).click();
   await expect(card(page, t("cash.title")).locator("input[value='Касса Пхукет']")).toBeVisible();
 

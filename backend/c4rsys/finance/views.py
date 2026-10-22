@@ -31,7 +31,6 @@ def _account_payload(account: CashAccount) -> dict[str, Any]:
         "name": account.name,
         "type": account.type,
         "currency": account.currency_id,
-        "location_id": str(account.location_id) if account.location_id else None,
         "state": account.state,
         "version": account.version,
     }
@@ -74,21 +73,15 @@ def account_list(request: HttpRequest, cmp: str) -> JsonResponse:
     account_type = get_str(data, "type", max_length=10)
     if account_type not in CashAccount.Type.values:
         raise errors.validation_error("type")
-    raw_location = data.get("location_id")
-    try:
-        location_id = UUID(str(raw_location)) if raw_location else None
-    except ValueError as exc:
-        raise errors.validation_error("location_id") from exc
     new = services.NewAccount(
         name=get_str(data, "name", max_length=NAME_MAX),
         type=account_type,
         currency=get_str(data, "currency", max_length=3, required=False).upper(),
-        location_id=location_id,
     )
 
     def handler(ctx: CommandContext) -> CommandResult:
         account = services.create_account(ctx, context.company, new)
-        # The new account must be within the creator's own scope (§ 23.1.11–23.1.12).
+        # The new account must be within the creator's own access (§ 23.1.11–23.1.12).
         if not access.RightsResolver().has_permission(actor, MANAGE, resource_id=account.id):
             raise errors.permission_denied(MANAGE)
         return CommandResult(201, {"cash_account": _account_payload(account)})
@@ -97,7 +90,6 @@ def account_list(request: HttpRequest, cmp: str) -> JsonResponse:
         "name": new.name,
         "type": new.type,
         "currency": new.currency,
-        "location_id": str(location_id) if location_id else None,
     }
     return run_and_respond(request, "cash_account.create", actor, payload, handler)
 

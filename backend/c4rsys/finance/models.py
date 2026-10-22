@@ -4,17 +4,17 @@ from django.db import models
 from django.db.models import Q
 from django.utils.timezone import now
 
-from c4rsys.companies.models import Company, Location
+from c4rsys.companies.models import Company
 from c4rsys.platform.ids import uuid7
 from c4rsys.platform.models import Currency
 
 
 class CashAccount(models.Model):
-    """A cash desk or a bank account, shared by the company or bound to one location (§ 17.2.5).
+    """A cash desk or a bank account of the company, not bound to any location (§ 17.2.5,
+    clarification of 23.10.2026). Access is set by the employee's rights (§ 23.1.11).
 
     Created only by hand (§ 22.1.7). A bank account is an accounting object, not a bank
-    integration (§ 17.2.9). `location` is additionally bound to the same company by a composite
-    foreign key (migration 0002).
+    integration (§ 17.2.9).
     """
 
     class Type(models.TextChoices):
@@ -30,9 +30,6 @@ class CashAccount(models.Model):
     name = models.CharField(max_length=150)
     type = models.CharField(max_length=10, choices=Type.choices)
     currency = models.ForeignKey(Currency, on_delete=models.PROTECT, related_name="+")
-    location = models.ForeignKey(
-        Location, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
-    )
     state = models.CharField(max_length=10, choices=State.choices, default=State.ACTIVE)
     created_by_user_id = models.UUIDField()
     created_at = models.DateTimeField(default=now)

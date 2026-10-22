@@ -57,7 +57,6 @@ export type CashAccount = {
   name: string;
   type: "cash" | "bank";
   currency: string;
-  location_id: string | null;
   state: "active" | "archived";
   version: number;
 };

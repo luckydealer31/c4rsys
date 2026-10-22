@@ -46,7 +46,7 @@ def closed(owner: Client, s: Scenario, manager: tuple[Client, str]) -> dict[str,
     desk = post(
         owner,
         f"/api/c/{s.cmp}/cash-accounts",
-        {"name": "Phuket cash", "type": "cash", "currency": "THB", "location_id": s.location},
+        {"name": "Phuket cash", "type": "cash", "currency": "THB"},
         key(),
     ).json()["cash_account"]["id"]
     rental: dict[str, Any] = issue(a, s).json()["rental"]

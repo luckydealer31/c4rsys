@@ -7,28 +7,16 @@ from uuid import UUID
 from django.db.models import QuerySet
 from django.utils import timezone
 
-from c4rsys.companies.models import Company, Location
+from c4rsys.companies.models import Company
 from c4rsys.finance.models import CashAccount
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
 from c4rsys.platform.models import Currency
 
 
-@dataclass(frozen=True)
-class AccountPlace:
-    """Where a cash account belongs, for permission scopes (§ 23.1.11–23.1.12)."""
-
-    id: UUID
-    location_id: UUID | None
-
-
-def account_place(company_id: UUID, account_id: UUID) -> AccountPlace | None:
-    rows = list(
-        CashAccount.objects.filter(company_id=company_id, pk=account_id).values_list(
-            "location_id", flat=True
-        )
-    )
-    return AccountPlace(id=account_id, location_id=rows[0]) if rows else None
+def account_exists(company_id: UUID, account_id: UUID) -> bool:
+    """For permission scopes (§ 23.1.11–23.1.12): accounts are not bound to locations."""
+    return CashAccount.objects.filter(company_id=company_id, pk=account_id).exists()
 
 
 def accounts_of(company_id: UUID) -> QuerySet[CashAccount]:
@@ -47,7 +35,6 @@ def snapshot(account: CashAccount) -> dict[str, Any]:
         "name": account.name,
         "type": account.type,
         "currency": account.currency_id,
-        "location": str(account.location_id) if account.location_id else None,
         "state": account.state,
     }
 
@@ -57,29 +44,22 @@ class NewAccount:
     name: str
     type: str
     currency: str  # empty: the company's main currency is proposed (§ 22.1.7)
-    location_id: UUID | None = None
 
 
 def create_account(ctx: CommandContext, company: Company, data: NewAccount) -> CashAccount:
-    """Name, type and currency are required; the scope is the whole company or one location
-    (§ 22.1.7). The initial balance comes with money records (T15)."""
+    """Name, type and currency are required; no location (§ 17.2.5, § 22.1.7). The initial
+    balance comes with money records (T15)."""
     code = data.currency or (company.main_currency_id or "")
     if not code:
         raise errors.validation_error("currency", code="FIELD_REQUIRED")
     currency = Currency.objects.filter(code=code.upper()).first()
     if currency is None:
         raise errors.validation_error("currency", code="CURRENCY_INVALID")
-    location = None
-    if data.location_id is not None:
-        location = Location.objects.filter(company=company, pk=data.location_id).first()
-        if location is None:
-            raise errors.validation_error("location_id", code="LOCATION_UNKNOWN")
     account = CashAccount.objects.create(
         company=company,
         name=data.name,
         type=data.type,
         currency=currency,
-        location=location,
         created_by_user_id=ctx.actor.user_id,
         created_at=timezone.now(),
     )

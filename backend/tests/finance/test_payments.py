@@ -21,7 +21,7 @@ from c4rsys.rentals import returns as returns_module
 from c4rsys.rentals.models import RentalCalculation
 from tests.accounts.helpers import post
 from tests.companies.helpers import hire, key
-from tests.rentals.scenario import BKK, NOW, Scenario, add_client, add_location, build, issue
+from tests.rentals.scenario import BKK, NOW, Scenario, add_client, build, issue
 
 pytestmark = pytest.mark.django_db
 
@@ -43,7 +43,7 @@ def s(owner: Client) -> Scenario:
 
 @pytest.fixture
 def desk(owner: Client, s: Scenario) -> str:
-    body = {"name": "Phuket cash", "type": "cash", "currency": "THB", "location_id": s.location}
+    body = {"name": "Phuket cash", "type": "cash", "currency": "THB"}
     desk_id: str = post(owner, f"/api/c/{s.cmp}/cash-accounts", body, key()).json()["cash_account"][
         "id"
     ]
@@ -263,12 +263,11 @@ def test_archived_account_is_refused(owner: Client, s: Scenario, desk: str) -> N
 
 
 def test_receipt_needs_the_right_on_that_account(owner: Client, s: Scenario, desk: str) -> None:
-    # § 23.1.11: within the scope of cash accounts.
-    krabi = add_location(owner, s.cmp, "Krabi")
-    krabi_desk = post(
+    # § 23.1.11–23.1.12: «all accounts» of the company or the listed ones, whatever the location.
+    other_desk = post(
         owner,
         f"/api/c/{s.cmp}/cash-accounts",
-        {"name": "Krabi cash", "type": "cash", "currency": "THB", "location_id": krabi},
+        {"name": "Second cash", "type": "cash", "currency": "THB"},
         key(),
     ).json()["cash_account"]["id"]
     manager, _ = hire(
@@ -277,12 +276,26 @@ def test_receipt_needs_the_right_on_that_account(owner: Client, s: Scenario, des
         "m@example.com",
         [{"type": "set", "set": "rental_manager", "locations": [s.location]}],
     )
+    listed, _ = hire(
+        owner,
+        s.cmp,
+        "l@example.com",
+        [
+            {
+                "type": "set",
+                "set": "rental_manager",
+                "locations": [s.location],
+                "cash_accounts": [desk],
+            }
+        ],
+    )
     driver, _ = hire(owner, s.cmp, "d@example.com", [{"type": "set", "set": "driver"}])
 
-    assert _pay(manager, s, desk, "100", []).status_code == 201
-    assert _pay(manager, s, krabi_desk, "100", []).status_code == 404
+    assert _pay(manager, s, other_desk, "100", []).status_code == 201
+    assert _pay(listed, s, desk, "100", []).status_code == 201
+    assert _pay(listed, s, other_desk, "100", []).status_code == 404
     assert _pay(driver, s, desk, "100", []).status_code == 404
-    assert MoneyMovement.objects.count() == 1
+    assert MoneyMovement.objects.count() == 2
 
 
 def test_journal_failure_posts_nothing(owner: Client, s: Scenario, desk: str) -> None:

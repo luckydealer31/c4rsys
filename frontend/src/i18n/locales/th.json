@@ -57,12 +57,10 @@
     "currency_hint": "The main currency of the company is proposed.",
     "name": "Name",
     "none": "No cash desks yet.",
-    "scope": "Scope",
     "title": "Cash desks and accounts",
     "type": "Type",
     "type_bank": "Bank account",
-    "type_cash": "Cash desk",
-    "whole_company": "Whole company"
+    "type_cash": "Cash desk"
   },
   "clients": {
     "advance": "Available: {{amount}} {{currency}}",
@@ -190,7 +188,7 @@
     "invitation_target_not_found": "No user with this ID.",
     "location_already_deactivated": "The location is already deactivated.",
     "location_deactivated": "The location is deactivated: new operations are not accepted there.",
-    "location_has_history": "The location has history or links (operations, vehicles, cash desks, tariffs or rights): it can only be deactivated.",
+    "location_has_history": "The location has history or links (operations, vehicles, tariffs or rights): it can only be deactivated.",
     "location_has_unfinished": "The location cannot be deactivated yet:",
     "location_not_active": "The location is not active: it needs a time zone and a ready context.",
     "location_not_deactivated": "The location is not deactivated.",

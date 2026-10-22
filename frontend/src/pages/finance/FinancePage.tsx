@@ -12,7 +12,6 @@ import { currencies, formatMoment } from "../../time";
 import { clientName } from "../clients/ClientsPage";
 import { useOrders } from "../orders/OrdersPage";
 import { ClientFinder } from "../rentals/IssuePage";
-import { useLocations } from "../settings/LocationsPage";
 import { CashReceipt, usePayments } from "./CashReceipt";
 
 export function useCashAccounts() {
@@ -145,8 +144,6 @@ export function CashAccountsEditor() {
   const { t } = useTranslation();
   const can = useCan();
   const accounts = useCashAccounts();
-  const locations = useLocations();
-  const names = new Map((locations.data?.locations ?? []).map((l) => [l.id, l.name]));
   return (
     <>
       <Card title={t("cash.title")}>
@@ -160,7 +157,6 @@ export function CashAccountsEditor() {
                 <th>{t("cash.name")}</th>
                 <th>{t("cash.type")}</th>
                 <th>{t("cash.currency")}</th>
-                <th>{t("cash.scope")}</th>
                 <th />
               </tr>
             </thead>
@@ -169,7 +165,6 @@ export function CashAccountsEditor() {
                 <AccountRow
                   key={account.id}
                   account={account}
-                  scope={account.location_id ? (names.get(account.location_id) ?? "—") : t("cash.whole_company")}
                   editable={can("finance.cash_account.manage")}
                 />
               ))}
@@ -194,11 +189,9 @@ function useRefresh() {
 
 function AccountRow({
   account,
-  scope,
   editable,
 }: {
   account: CashAccount;
-  scope: string;
   editable: boolean;
 }) {
   const { t } = useTranslation();
@@ -225,7 +218,6 @@ function AccountRow({
       </td>
       <td>{t(`cash.type_${account.type}`)}</td>
       <td>{account.currency}</td>
-      <td>{scope}</td>
       <td>
         {account.state === "archived" ? (
           <span className="badge">{t("cash.archived")}</span>
@@ -262,20 +254,17 @@ function AccountRow({
 function CreateAccount() {
   const { t } = useTranslation();
   const company = useCompany();
-  const locations = useLocations();
   const refresh = useRefresh();
   const [form, setForm] = useState({
     name: "",
     type: "cash",
     currency: company.main_currency ?? "",
-    location_id: "",
   });
   const create = useCommand<Record<string, string>, unknown>(`/c/${company.public_id}/cash-accounts`);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     const body: Record<string, string> = { name: form.name, type: form.type, currency: form.currency };
-    if (form.location_id) body.location_id = form.location_id;
     if ((await create.run(body)) !== null) {
       setForm({ ...form, name: "" });
       await refresh();
@@ -304,19 +293,6 @@ function CreateAccount() {
               {currencies().map((code) => (
                 <option key={code} value={code}>
                   {code}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label={t("cash.scope")}>
-            <select
-              value={form.location_id}
-              onChange={(e) => setForm({ ...form, location_id: e.target.value })}
-            >
-              <option value="">{t("cash.whole_company")}</option>
-              {(locations.data?.locations ?? []).map((location) => (
-                <option key={location.id} value={location.id}>
-                  {location.name}
                 </option>
               ))}
             </select>

@@ -103,8 +103,8 @@ def parse_rights(value: Any, field: str = "rights") -> list[RightSpec]:
 
 def validate_rights(company_id: UUID, specs: list[RightSpec]) -> None:
     """Codes exist; selected locations, contexts and cash accounts belong to the company. Listed
-    contexts belong to the listed locations; a listed cash account is shared by the company or
-    belongs to a listed location (§ 23.1.12)."""
+    contexts belong to the listed locations. Cash accounts are not bound to locations, so any
+    account of the company may be listed (§ 23.1.11–23.1.12, clarification of 23.10.2026)."""
     sets = {s.code for s in specs if s.kind == Kind.SET}
     known_sets = set(PermissionSet.objects.filter(is_system=True).values_list("code", flat=True))
     if sets - known_sets:
@@ -124,12 +124,7 @@ def validate_rights(company_id: UUID, specs: list[RightSpec]) -> None:
             if contexts.count() != len(spec.contexts):
                 raise errors.validation_error("rights", code="SCOPE_INVALID")
         for account_id in spec.cash_accounts or ():
-            place = finance.account_place(company_id, account_id)
-            if place is None or (
-                spec.locations is not None
-                and place.location_id is not None
-                and place.location_id not in spec.locations
-            ):
+            if not finance.account_exists(company_id, account_id):
                 raise errors.validation_error("rights", code="SCOPE_INVALID")
 
 
@@ -290,15 +285,12 @@ def replace_rights(
 # --- Permission check (A08, § 23.3.8) --------------------------------------------------------
 
 
-def _covers_account(assignment: PermissionAssignment, account: finance.AccountPlace) -> bool:
-    """«All» covers the accounts of the locations in scope, and accounts shared by the company only
-    when the scope is the whole company; otherwise the account must be listed (decision 22.10.2026,
-    § 23.1.11–23.1.12)."""
-    if not assignment.all_cash_accounts:
-        return account.id in {x.cash_account_id for x in assignment.cash_accounts.all()}
-    if account.location_id is None:
-        return assignment.all_locations
-    return _in_scope(assignment, account.location_id, None)
+def _covers_account(assignment: PermissionAssignment, account_id: UUID) -> bool:
+    """«All» covers every cash account of the company whatever the locations of the assignment;
+    otherwise the account must be listed (§ 23.1.11–23.1.12, clarification of 23.10.2026)."""
+    if assignment.all_cash_accounts:
+        return True
+    return account_id in {x.cash_account_id for x in assignment.cash_accounts.all()}
 
 
 def _in_scope(
@@ -346,11 +338,8 @@ class RightsResolver:
         )
         if employment is None:
             return False
-        account = None
-        if resource_id is not None:
-            account = finance.account_place(actor.company_id, resource_id)
-            if account is None:
-                return False
+        if resource_id is not None and not finance.account_exists(actor.company_id, resource_id):
+            return False
         if employment.position.is_top_authority:
             return True
         covering = [
@@ -358,13 +347,13 @@ class RightsResolver:
             for a in _active_assignments(employment.id)
             if permission in a.permissions
             and _in_scope(a, location_id, context_id)
-            and (account is None or _covers_account(a, account))
+            and (resource_id is None or _covers_account(a, resource_id))
         ]
         if whole_company:
             if any(a.kind == Kind.DENY for a in covering):
                 return False
             return any(a.kind != Kind.DENY and a.all_locations for a in covering)
-        located = location_id is not None or account is not None
+        located = location_id is not None or resource_id is not None
         # A denial limited to some locations does not remove the permission elsewhere.
         if any(a.kind == Kind.DENY and (located or a.all_locations) for a in covering):
             return False

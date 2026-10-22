@@ -12,7 +12,7 @@ from c4rsys.companies import readiness
 from c4rsys.companies.models import ActivityContext, Company, Location, Position
 from c4rsys.platform.models import AuditEvent
 from tests.accounts.helpers import post
-from tests.companies.helpers import create_company, named_user
+from tests.companies.helpers import create_company, hire, named_user
 
 pytestmark = pytest.mark.django_db
 
@@ -279,13 +279,13 @@ def test_empty_location_is_deleted_with_its_contexts(owner: Client, cmp: str) ->
     assert deleted.before is not None and deleted.before["contexts"] == ["service"]
 
 
-def test_location_referred_to_by_a_cash_account_is_not_deleted(owner: Client, cmp: str) -> None:
+def test_location_referred_to_by_rights_is_not_deleted(owner: Client, cmp: str) -> None:
     location_id = _create_location(owner, cmp).json()["location"]["id"]
-    post(
+    hire(
         owner,
-        f"/api/c/{cmp}/cash-accounts",
-        {"name": "Desk", "type": "cash", "currency": "THB", "location_id": location_id},
-        headers={"Idempotency-Key": "c"},
+        cmp,
+        "m@example.com",
+        [{"type": "set", "set": "rental_manager", "locations": [location_id]}],
     )
 
     response = owner.delete(

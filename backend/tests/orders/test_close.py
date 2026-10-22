@@ -41,7 +41,7 @@ def s(owner: Client) -> Scenario:
 
 @pytest.fixture
 def desk(owner: Client, s: Scenario) -> str:
-    body = {"name": "Phuket cash", "type": "cash", "currency": "THB", "location_id": s.location}
+    body = {"name": "Phuket cash", "type": "cash", "currency": "THB"}
     desk_id: str = post(owner, f"/api/c/{s.cmp}/cash-accounts", body, key()).json()["cash_account"][
         "id"
     ]
