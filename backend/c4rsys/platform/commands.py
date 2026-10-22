@@ -59,11 +59,16 @@ class CommandContext:
         before: dict[str, Any] | None = None,
         after: dict[str, Any] | None = None,
         reason: str = "",
+        company_id: UUID | None = None,
     ) -> None:
-        """Queue a journal entry; it is written in the same transaction as the command."""
+        """Queue a journal entry; it is written in the same transaction as the command.
+
+        `company_id` is for a command that creates the company it is journaled in; otherwise the
+        entry belongs to the active company of the actor.
+        """
         self._entries.append(
             AuditEvent(
-                company_id=self.actor.company_id,
+                company_id=company_id or self.actor.company_id,
                 actor_user_id=self.actor.user_id,
                 actor_employment_id=self.actor.employment_id,
                 session_id=self.actor.session_id,

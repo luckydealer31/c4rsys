@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "c4rsys.platform",
     "c4rsys.accounts",
+    "c4rsys.companies",
 ]
 
 MIDDLEWARE = [

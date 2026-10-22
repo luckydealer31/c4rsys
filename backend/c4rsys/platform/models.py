@@ -96,3 +96,16 @@ class IdempotencyRecord(models.Model):
 
     def __str__(self) -> str:
         return f"{self.command}:{self.key}"
+
+
+class Currency(models.Model):
+    """System reference of currencies (ISO 4217), seeded from platform.currencies."""
+
+    code = models.CharField(max_length=3, primary_key=True)
+    minor_units = models.PositiveSmallIntegerField()
+
+    class Meta:
+        db_table = "currency"
+
+    def __str__(self) -> str:
+        return self.code

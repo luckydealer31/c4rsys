@@ -1,0 +1,251 @@
+"""Company creation, active company context and the company profile.
+
+ТЗ § 3.1, § 3.3.4–3.3.5, § 3.3.8, § 22.1.4, § 22.1.7.
+"""
+
+import zoneinfo
+from dataclasses import dataclass
+from decimal import Decimal
+from typing import Any
+from uuid import UUID
+
+from django.db.models import Q, QuerySet
+from django.utils import timezone
+
+from c4rsys.accounts.models import UserAccount
+from c4rsys.companies.models import Company, Employment, OwnershipShare, Position
+from c4rsys.platform import errors
+from c4rsys.platform.commands import Actor, CommandContext
+from c4rsys.platform.ids import normalize_public_id
+from c4rsys.platform.models import AuditEvent, Currency
+from c4rsys.platform.registry import allocate_public_id
+
+FULL_SHARE = Decimal("100")
+_TIMEZONES = frozenset(zoneinfo.available_timezones())
+
+
+def validate_timezone(value: str, field: str = "timezone") -> str:
+    """IANA time zone name (§ 4.2.2)."""
+    if value not in _TIMEZONES:
+        raise errors.validation_error(field, code="TIMEZONE_INVALID")
+    return value
+
+
+def validate_currency(value: str, field: str = "main_currency") -> Currency:
+    currency = Currency.objects.filter(code=value.upper()).first()
+    if currency is None:
+        raise errors.validation_error(field, code="CURRENCY_INVALID")
+    return currency
+
+
+@dataclass(frozen=True)
+class CompanyContext:
+    """The active company of a request and the user's employment in it."""
+
+    company: Company
+    employment: Employment
+
+    @property
+    def is_top_authority(self) -> bool:
+        return self.employment.position.is_top_authority
+
+
+# --- Creation (§ 3.1.1, § 3.1.4, § 3.3.4–3.3.5) -------------------------------------------
+
+
+@dataclass(frozen=True)
+class NewCompany:
+    display_name: str
+    timezone: str = ""
+    main_currency: str = ""
+
+
+def create_company(ctx: CommandContext, user: UserAccount, data: NewCompany) -> CompanyContext:
+    """One transaction: company with CMP ID, 100% share, director position, employment.
+
+    The creator needs first and last name (§ 2.1.3) and gets no invitation to themself (§ 3.3.5).
+    """
+    if not user.has_full_name:
+        raise errors.business_rule("NAME_REQUIRED")
+    currency = validate_currency(data.main_currency) if data.main_currency else None
+    now = timezone.now()
+
+    company = Company(
+        display_name=data.display_name,
+        timezone=data.timezone,
+        main_currency=currency,
+        created_by=user,
+        created_at=now,
+    )
+    company.public_id = allocate_public_id("CMP", entity_type="company", entity_id=company.id)
+    company.save(force_insert=True)
+
+    share = OwnershipShare.objects.create(
+        company=company, owner_user=user, percent=FULL_SHARE, valid_from=now
+    )
+    position = Position.objects.create(
+        company=company,
+        code=Position.Code.DIRECTOR,
+        is_top_authority=True,
+        is_owner_position=True,
+        created_at=now,
+    )
+    employment = Employment.objects.create(
+        company=company,
+        user=user,
+        position=position,
+        state=Employment.State.ACTIVE,
+        started_at=now,
+        created_at=now,
+    )
+
+    # The fact of creation stays in the history regardless of later changes (§ 3.1.4).
+    ctx.audit(
+        "company.created",
+        object_type="company",
+        object_id=company.public_id,
+        after=profile_snapshot(company),
+        company_id=company.id,
+    )
+    ctx.audit(
+        "company.share_granted",
+        object_type="ownership_share",
+        object_id=share.id,
+        after={"owner_user": user.public_id, "percent": share.percent},
+        company_id=company.id,
+    )
+    ctx.audit(
+        "employment.created",
+        object_type="employment",
+        object_id=employment.id,
+        after={
+            "user": user.public_id,
+            "position": str(position.id),
+            "position_code": position.code,
+            "is_top_authority": True,
+            "state": employment.state,
+        },
+        company_id=company.id,
+    )
+    return CompanyContext(company=company, employment=employment)
+
+
+# --- Companies of the user (§ 2.1.8, § 3.3.7) -----------------------------------------------
+
+
+def companies_of(user: UserAccount) -> QuerySet[Company]:
+    """Companies the user is related to as owner, co-owner or through current employment."""
+    current_share = Q(shares__owner_user=user, shares__valid_to__isnull=True)
+    employed = Q(employments__user=user, employments__state=Employment.State.ACTIVE)
+    return Company.objects.filter(current_share | employed).distinct().order_by("display_name")
+
+
+# --- Active company (§ 3.3.8, docs/stage1/STAGE1_COMMANDS_API.md) ---------------------------
+
+
+def resolve_company(user: UserAccount, public_id: str, session_id: UUID | None) -> CompanyContext:
+    """The company from the address is the active one only with current employment of the user.
+
+    A passed ID gives no authority. A missing company and a company without the user's employment
+    get the same NOT_FOUND (§ 2.8.1); the attempt is journaled as a security event.
+    """
+    normalized = normalize_public_id(public_id)
+    employment = None
+    if normalized is not None:
+        employment = (
+            Employment.objects.select_related("company", "position")
+            .filter(company__public_id=normalized, user=user, state=Employment.State.ACTIVE)
+            .first()
+        )
+    if employment is None:
+        AuditEvent.objects.create(
+            actor_user_id=user.id,
+            session_id=session_id,
+            action="security.company_access_denied",
+            object_type="company",
+            object_id=public_id[:64],
+            result="denied",
+        )
+        raise errors.not_found()
+    return CompanyContext(company=employment.company, employment=employment)
+
+
+def company_actor(user: UserAccount, context: CompanyContext, session_id: UUID | None) -> Actor:
+    return Actor(
+        user_id=user.id,
+        company_id=context.company.id,
+        employment_id=context.employment.id,
+        session_id=session_id,
+    )
+
+
+class PositionAuthorityResolver:
+    """Permission check of T03: the director with top authority may do everything in the company
+    (§ 3.1.4). Permission sets, scopes and overrides come with the full resolver of T05; until
+    then every other employee is refused."""
+
+    def has_permission(
+        self,
+        actor: Actor,
+        permission: str,
+        *,
+        location_id: UUID | None = None,
+        context_id: UUID | None = None,
+        resource_id: UUID | None = None,
+    ) -> bool:
+        if actor.company_id is None or actor.employment_id is None:
+            return False
+        return Employment.objects.filter(
+            pk=actor.employment_id,
+            company_id=actor.company_id,
+            state=Employment.State.ACTIVE,
+            position__is_top_authority=True,
+        ).exists()
+
+
+# --- Profile (§ 3.1.6, § 22.1.4, § 22.1.7) --------------------------------------------------
+
+
+def profile_snapshot(company: Company) -> dict[str, Any]:
+    return {
+        "display_name": company.display_name,
+        "timezone": company.timezone,
+        "main_currency": company.main_currency_id,
+    }
+
+
+def setup_state(company: Company) -> dict[str, bool]:
+    """Completion of the wizard sections handled here: profile needs the name and a confirmed time
+    zone (§ 22.1.4), finance needs the main currency (§ 22.1.7)."""
+    return {
+        "profile": bool(company.display_name and company.timezone),
+        "finance": company.main_currency_id is not None,
+    }
+
+
+def update_profile(
+    ctx: CommandContext, company_id: UUID, changes: dict[str, str], expected_version: int
+) -> Company:
+    company = Company.objects.select_for_update().get(pk=company_id)
+    if company.version != expected_version:
+        raise errors.version_conflict()
+    before = profile_snapshot(company)
+    if "display_name" in changes:
+        company.display_name = changes["display_name"]
+    if "timezone" in changes:
+        company.timezone = changes["timezone"]
+    if "main_currency" in changes:
+        company.main_currency = validate_currency(changes["main_currency"])
+    after = profile_snapshot(company)
+    company.version += 1
+    company.save(
+        update_fields=["display_name", "timezone", "main_currency", "version", "updated_at"]
+    )
+    ctx.audit(
+        "company.profile_changed",
+        object_type="company",
+        object_id=company.public_id,
+        before={k: v for k, v in before.items() if before[k] != after[k]},
+        after={k: v for k, v in after.items() if before[k] != after[k]},
+    )
+    return company

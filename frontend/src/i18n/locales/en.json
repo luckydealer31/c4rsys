@@ -5,5 +5,6 @@
     "unavailable": "Server is unavailable"
   },
   "settings": { "language": "Language" },
+  "positions": { "director": "Director" },
   "languages": { "en": "English", "ru": "Русский", "th": "ไทย" }
 }
