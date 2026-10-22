@@ -55,11 +55,14 @@ ASGI_APPLICATION = "config.asgi.application"
 
 TEMPLATES: list[dict[str, object]] = []
 
-DATABASE_URL = os.environ.get("DATABASE_URL", "postgres://c4rsys:c4rsys_dev_only@localhost:5432/c4rsys")
+DATABASE_URL = os.environ.get(
+    "DATABASE_URL", "postgres://c4rsys:c4rsys_dev_only@localhost:5432/c4rsys"
+)
 DATABASES = {
     "default": dj_database_url.parse(DATABASE_URL, conn_max_age=60),
 }
-DATABASES["default"]["ATOMIC_REQUESTS"] = False  # transactions are explicit per business command (A07)
+# Transactions are explicit per business command (A07), not per HTTP request.
+DATABASES["default"]["ATOMIC_REQUESTS"] = False
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -89,6 +92,8 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = int(os.environ.get("DJANGO_HSTS_SECONDS", "0"))
 
 # Development: one-time codes are printed to the console instead of being emailed.
+# TODO(T02): Django 6.1 deprecates EMAIL_BACKEND in favour of MAILERS (removal in Django 2028);
+# configure mail via MAILERS when the mail layer is implemented.
 EMAIL_BACKEND = os.environ.get(
     "DJANGO_EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend"
 )

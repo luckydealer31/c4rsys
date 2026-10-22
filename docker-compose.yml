@@ -42,7 +42,10 @@ services:
     ports:
       - "127.0.0.1:5173:5173"
     volumes:
-      - ./frontend/src:/app/src
+      # Whole frontend folder, so config changes apply without rebuilding;
+      # node_modules stays inside the container.
+      - ./frontend:/app
+      - /app/node_modules
     depends_on:
       - backend
 
