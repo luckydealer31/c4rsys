@@ -315,6 +315,8 @@ class PermissionAssignment(models.Model):
     permissions = ArrayField(models.CharField(max_length=60))
     all_locations = models.BooleanField(default=True)
     all_contexts = models.BooleanField(default=True)
+    # «All in the accessible scope» or a list of cash desks and accounts (§ 23.1.11–23.1.12).
+    all_cash_accounts = models.BooleanField(default=True)
     locations = models.ManyToManyField(Location, through="AssignmentLocation", related_name="+")
     contexts = models.ManyToManyField(
         ActivityContext, through="AssignmentContext", related_name="+"
@@ -380,6 +382,30 @@ class AssignmentContext(models.Model):
 
     def __str__(self) -> str:
         return f"{self.assignment_id}@{self.context_id}"
+
+
+class AssignmentCashAccount(models.Model):
+    """Selected cash desk or account of an assignment with a concrete list (§ 23.1.11)."""
+
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    assignment = models.ForeignKey(
+        PermissionAssignment, on_delete=models.PROTECT, related_name="cash_accounts"
+    )
+    cash_account = models.ForeignKey(
+        "finance.CashAccount", on_delete=models.PROTECT, related_name="+"
+    )
+
+    class Meta:
+        db_table = "permission_assignment_cash_account"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["assignment", "cash_account"],
+                name="permission_assignment_cash_account_uniq",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.assignment_id}@{self.cash_account_id}"
 
 
 class Invitation(models.Model):

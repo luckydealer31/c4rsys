@@ -14,6 +14,7 @@ from django.utils import timezone
 
 from c4rsys.companies.models import (
     ActivityContext,
+    AssignmentCashAccount,
     AssignmentContext,
     AssignmentLocation,
     Employment,
@@ -24,6 +25,7 @@ from c4rsys.companies.models import (
     PermissionSetItem,
 )
 from c4rsys.companies.permissions import BROAD_PERMISSIONS, BROAD_SETS
+from c4rsys.finance import services as finance
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext
 
@@ -32,12 +34,14 @@ Kind = PermissionAssignment.Kind
 
 @dataclass(frozen=True)
 class RightSpec:
-    """One requested assignment. `locations` / `contexts` None means «all» (§ 23.1.9–23.1.10)."""
+    """One requested assignment. `locations` / `contexts` / `cash_accounts` None means «all»
+    (§ 23.1.9–23.1.11)."""
 
     kind: str
     code: str  # set code for kind=set, permission code otherwise
     locations: frozenset[UUID] | None = None
     contexts: frozenset[UUID] | None = None
+    cash_accounts: frozenset[UUID] | None = None
 
     @property
     def is_broad(self) -> bool:
@@ -51,6 +55,9 @@ class RightSpec:
             ("set" if self.kind == Kind.SET else "permission"): self.code,
             "locations": "all" if self.locations is None else sorted(map(str, self.locations)),
             "contexts": "all" if self.contexts is None else sorted(map(str, self.contexts)),
+            "cash_accounts": "all"
+            if self.cash_accounts is None
+            else sorted(map(str, self.cash_accounts)),
         }
 
 
@@ -66,7 +73,7 @@ def _uuid_list(value: Any, field: str) -> frozenset[UUID] | None:
 
 
 def parse_rights(value: Any, field: str = "rights") -> list[RightSpec]:
-    """Parse `[{type, set|permission, locations, contexts}]` from a request body."""
+    """Parse `[{type, set|permission, locations, contexts, cash_accounts}]` from a request."""
     if not isinstance(value, list):
         raise errors.validation_error(field)
     specs: list[RightSpec] = []
@@ -84,6 +91,9 @@ def parse_rights(value: Any, field: str = "rights") -> list[RightSpec]:
                 code=code,
                 locations=_uuid_list(item.get("locations", "all"), f"{where}.locations"),
                 contexts=_uuid_list(item.get("contexts", "all"), f"{where}.contexts"),
+                cash_accounts=_uuid_list(
+                    item.get("cash_accounts", "all"), f"{where}.cash_accounts"
+                ),
             )
         )
     if len(set(specs)) != len(specs):
@@ -92,8 +102,9 @@ def parse_rights(value: Any, field: str = "rights") -> list[RightSpec]:
 
 
 def validate_rights(company_id: UUID, specs: list[RightSpec]) -> None:
-    """Codes exist; selected locations and contexts belong to the company, and listed contexts
-    belong to the listed locations."""
+    """Codes exist; selected locations, contexts and cash accounts belong to the company. Listed
+    contexts belong to the listed locations; a listed cash account is shared by the company or
+    belongs to a listed location (§ 23.1.12)."""
     sets = {s.code for s in specs if s.kind == Kind.SET}
     known_sets = set(PermissionSet.objects.filter(is_system=True).values_list("code", flat=True))
     if sets - known_sets:
@@ -111,6 +122,14 @@ def validate_rights(company_id: UUID, specs: list[RightSpec]) -> None:
             if spec.locations is not None:
                 contexts = contexts.filter(location_id__in=spec.locations)
             if contexts.count() != len(spec.contexts):
+                raise errors.validation_error("rights", code="SCOPE_INVALID")
+        for account_id in spec.cash_accounts or ():
+            place = finance.account_place(company_id, account_id)
+            if place is None or (
+                spec.locations is not None
+                and place.location_id is not None
+                and place.location_id not in spec.locations
+            ):
                 raise errors.validation_error("rights", code="SCOPE_INVALID")
 
 
@@ -131,6 +150,7 @@ def _active_assignments(employment_id: UUID) -> list[PermissionAssignment]:
         .prefetch_related(
             Prefetch("locations", queryset=Location.objects.only("id")),
             Prefetch("contexts", queryset=ActivityContext.objects.only("id")),
+            "cash_accounts",
         )
         .order_by("granted_at")
     )
@@ -147,6 +167,9 @@ def _spec_of(assignment: PermissionAssignment) -> RightSpec:
         contexts=None
         if assignment.all_contexts
         else frozenset(x.id for x in assignment.contexts.all()),
+        cash_accounts=None
+        if assignment.all_cash_accounts
+        else frozenset(x.cash_account_id for x in assignment.cash_accounts.all()),
     )
 
 
@@ -187,6 +210,7 @@ def assign(
             permissions=codes,
             all_locations=spec.locations is None,
             all_contexts=spec.contexts is None,
+            all_cash_accounts=spec.cash_accounts is None,
             granted_by_user_id=granted_by_user_id,
             granted_at=now,
         )
@@ -199,6 +223,12 @@ def assign(
         AssignmentContext.objects.bulk_create(
             AssignmentContext(company_id=employment.company_id, assignment=assignment, context_id=x)
             for x in spec.contexts or ()
+        )
+        AssignmentCashAccount.objects.bulk_create(
+            AssignmentCashAccount(
+                company_id=employment.company_id, assignment=assignment, cash_account_id=x
+            )
+            for x in spec.cash_accounts or ()
         )
         created.append(assignment)
     return created
@@ -260,6 +290,17 @@ def replace_rights(
 # --- Permission check (A08, § 23.3.8) --------------------------------------------------------
 
 
+def _covers_account(assignment: PermissionAssignment, account: finance.AccountPlace) -> bool:
+    """«All» covers the accounts of the locations in scope, and accounts shared by the company only
+    when the scope is the whole company; otherwise the account must be listed (decision 22.10.2026,
+    § 23.1.11–23.1.12)."""
+    if not assignment.all_cash_accounts:
+        return account.id in {x.cash_account_id for x in assignment.cash_accounts.all()}
+    if account.location_id is None:
+        return assignment.all_locations
+    return _in_scope(assignment, account.location_id, None)
+
+
 def _in_scope(
     assignment: PermissionAssignment, location_id: UUID | None, context_id: UUID | None
 ) -> bool:
@@ -277,8 +318,7 @@ class RightsResolver:
 
     Without a location the check asks whether the permission is granted anywhere in the company
     and not denied for the whole company; with a location (and context) the assignment's scope must
-    cover it. Resource scopes (cash
-    accounts) come with T06.
+    cover it. With a cash account (`resource_id`) the account must be in the assignment's scope.
     """
 
     def has_permission(
@@ -303,16 +343,22 @@ class RightsResolver:
         )
         if employment is None:
             return False
+        account = None
+        if resource_id is not None:
+            account = finance.account_place(actor.company_id, resource_id)
+            if account is None:
+                return False
         if employment.position.is_top_authority:
             return True
         covering = [
             a
             for a in _active_assignments(employment.id)
-            if permission in a.permissions and _in_scope(a, location_id, context_id)
+            if permission in a.permissions
+            and _in_scope(a, location_id, context_id)
+            and (account is None or _covers_account(a, account))
         ]
+        located = location_id is not None or account is not None
         # A denial limited to some locations does not remove the permission elsewhere.
-        if any(
-            a.kind == Kind.DENY and (location_id is not None or a.all_locations) for a in covering
-        ):
+        if any(a.kind == Kind.DENY and (located or a.all_locations) for a in covering):
             return False
         return any(a.kind in (Kind.SET, Kind.GRANT) for a in covering)
