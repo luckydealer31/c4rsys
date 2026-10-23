@@ -10,6 +10,11 @@ class FleetConfig(AppConfig):
 
     def ready(self) -> None:
         from c4rsys.companies import locations
-        from c4rsys.fleet import services
+        from c4rsys.fleet import moves, services
+        from c4rsys.orders import services as orders
 
         locations.register_blockers(services.location_blockers)
+        orders.register_operations(moves.operations_for_order)
+        orders.register_history(moves.history_for_order)
+        # § 23.6.5: closing an order with a move needs the right to move vehicles.
+        orders.register_section_permission("move", "vehicle.move")

@@ -1,17 +1,19 @@
 """HTTP API of the company garage (ТЗ § 8.1, § 8.7.7, § 23.5)."""
 
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
 from django.http import HttpRequest, JsonResponse
-from django.views.decorators.http import require_http_methods
+from django.views.decorators.http import require_http_methods, require_POST
 
 from c4rsys.accounts.middleware import require_user
 from c4rsys.companies import access
 from c4rsys.companies import services as companies
+from c4rsys.companies.models import Employment
 from c4rsys.companies.views import run_and_respond
-from c4rsys.fleet import services
-from c4rsys.fleet.models import VehicleCard
+from c4rsys.fleet import moves, services
+from c4rsys.fleet.models import VehicleCard, VehicleMove
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
@@ -138,3 +140,110 @@ def _contexts(value: Any) -> frozenset[str]:
     if types - services.USAGE_CONTEXT_TYPES:
         raise errors.validation_error("contexts", code="CONTEXT_TYPE_INVALID")
     return types
+
+
+# --- Internal move recorded after it happened (§ 8.5.2, § 15.1.3–15.1.5, § 23.6.2) -----------
+
+
+def _moment(data: dict[str, Any], key: str) -> datetime:
+    """An ISO 8601 moment with its offset (§ 4.2.2)."""
+    value = data.get(key)
+    if not isinstance(value, str) or not value:
+        raise errors.validation_error(key, code="FIELD_REQUIRED")
+    try:
+        moment = datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise errors.validation_error(key, code="DATETIME_INVALID") from exc
+    if moment.tzinfo is None:
+        raise errors.validation_error(key, code="DATETIME_WITHOUT_OFFSET")
+    return moment
+
+
+def _uuid(data: dict[str, Any], key: str) -> UUID:
+    value = data.get(key)
+    if value in (None, ""):
+        raise errors.validation_error(key, code="FIELD_REQUIRED")
+    try:
+        return UUID(str(value))
+    except ValueError as exc:
+        raise errors.validation_error(key) from exc
+
+
+def _move_payload(move: VehicleMove) -> dict[str, Any]:
+    return {
+        "id": str(move.id),
+        "order_id": str(move.order_id),
+        "from_location_id": str(move.from_location_id),
+        "to_location_id": str(move.to_location_id),
+        "driver": {
+            "employment_id": str(move.driver_employment_id),
+            "name": _name(move.driver_employment),
+        },
+        "actual_start": move.actual_start.astimezone(UTC).isoformat(),
+        "actual_end": move.actual_end.astimezone(UTC).isoformat(),
+        "note": move.note,
+    }
+
+
+def _name(employment: Employment) -> str:
+    user = employment.user
+    return f"{user.first_name} {user.last_name}".strip() if user else ""
+
+
+@require_POST
+def vehicle_move(request: HttpRequest, cmp: str, card_id: UUID) -> JsonResponse:
+    """vehicle.move in the source location; the destination is chosen freely among the company's
+    locations without access to it (§ 15.1.4, decision 23.10.2026)."""
+    context, actor = _actor(request, cmp)
+    card = services.get_card(context.company.id, card_id)
+    if not _allowed(actor, "vehicle.view", card):
+        raise errors.not_found()
+    if not _allowed(actor, "vehicle.move", card):
+        raise errors.permission_denied("vehicle.move")
+    data = parse_json(request)
+    move_request = moves.MoveRequest(
+        vehicle_card_id=card.id,
+        to_location_id=_uuid(data, "to_location_id"),
+        driver_employment_id=_uuid(data, "driver_employment_id"),
+        actual_start=_moment(data, "actual_start"),
+        actual_end=_moment(data, "actual_end"),
+        note=get_str(data, "note", max_length=500, required=False),
+    )
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        move = moves.record_move(ctx, context.company.id, move_request)
+        refreshed = services.get_card(context.company.id, card_id)
+        return CommandResult(201, {"move": _move_payload(move), "vehicle": _payload(refreshed)})
+
+    payload = {
+        k: (str(v) if isinstance(v, UUID | datetime) else v)
+        for k, v in move_request.__dict__.items()
+    }
+    return run_and_respond(request, "vehicle.move", actor, payload, handler)
+
+
+@require_http_methods(["GET"])
+def vehicle_moves(request: HttpRequest, cmp: str, card_id: UUID) -> JsonResponse:
+    context, actor = _actor(request, cmp)
+    card = services.get_card(context.company.id, card_id)
+    if not _allowed(actor, "vehicle.view", card):
+        raise errors.not_found()
+    items = moves.moves_of(context.company.id, card.id)
+    return JsonResponse({"moves": [_move_payload(m) for m in items]})
+
+
+@require_http_methods(["GET"])
+def drivers(request: HttpRequest, cmp: str) -> JsonResponse:
+    """Employees who may be recorded as the driver of a move: any active employee of the company
+    (§ 15.2.4). Only names, for those who move vehicles."""
+    context, actor = _actor(request, cmp)
+    if not access.RightsResolver().has_permission(actor, "vehicle.move"):
+        raise errors.permission_denied("vehicle.move")
+    employments = Employment.objects.filter(
+        company=context.company, state=Employment.State.ACTIVE
+    ).select_related("user")
+    items = sorted(
+        ({"employment_id": str(e.id), "name": _name(e)} for e in employments),
+        key=lambda x: x["name"],
+    )
+    return JsonResponse({"drivers": items})

@@ -19,6 +19,7 @@
     "rental_issued": "Vehicle issued",
     "rental_returned": "Return accepted",
     "vehicle_location_changed": "Vehicle location changed",
+    "vehicle_moved": "Vehicle moved",
     "vehicle_odometer_recorded": "Odometer recorded"
   },
   "auth": {
@@ -162,6 +163,7 @@
     "datetime_invalid": "Enter a valid date and time.",
     "datetime_without_offset": "Date and time without a time zone.",
     "deposit_not_required": "No amount when the deposit is not required.",
+    "driver_unknown": "Choose an active employee of the company as the driver.",
     "email_already_registered": "This email is already registered. Sign in instead.",
     "email_invalid": "Enter a valid email.",
     "employee_already_exists": "This person already works in the company.",
@@ -195,6 +197,7 @@
     "location_unknown": "Choose a location of the company.",
     "login_failed": "Wrong password. Attempts left: {{attempts_left}}.",
     "mileage_unlimited": "No limit values for unlimited mileage.",
+    "move_same_location": "Choose another location: the vehicle is already there.",
     "name_required": "Enter your first and last name in the profile first.",
     "network_error": "No connection to the server. Check the network and try again — a repeated attempt will not post the operation twice.",
     "not_found": "Not found.",
@@ -246,10 +249,13 @@
     "timezone_invalid": "Choose a time zone from the list.",
     "unknown": "Something went wrong ({{code}}).",
     "validation_error": "Check the field «{{field}}».",
+    "vehicle_archived": "The vehicle is archived.",
+    "vehicle_busy": "The vehicle is in an active rental and cannot be moved.",
     "vehicle_field_not_editable": "This field of the vehicle cannot be changed.",
     "vehicle_location_mismatch": "The vehicle is in another location. Move it first or choose its location.",
     "vehicle_not_available": "The vehicle is busy with another rental.",
     "vehicle_not_ready": "The vehicle is not ready for rental.",
+    "vehicle_without_location": "The vehicle has no location to move from.",
     "version_conflict": "The data has changed. Refresh and check before saving again."
   },
   "history": {
@@ -322,6 +328,18 @@
     "state_draft": "Draft",
     "timezone_hint": "By default the company time zone."
   },
+  "moves": {
+    "actual_end": "Actual end",
+    "actual_start": "Actual start",
+    "done": "The vehicle is now in «{{to}}».",
+    "driver": "Driver",
+    "none": "No moves yet.",
+    "record": "Record the move",
+    "record_hint": "A move that already happened, from «{{from}}». An internal order of the company is created; the vehicle is then registered in the new location.",
+    "record_title": "Record a move",
+    "title": "Moves",
+    "to": "To location"
+  },
   "nav": {
     "clients": "Clients",
     "finance": "Finance",
@@ -344,13 +362,17 @@
     "closing": "Closing",
     "condition_not_finished": "{{operation}} is not finished: return and formalization are needed",
     "created": "Created",
-    "finished": "finished",
+    "finished": "operation finished",
+    "internal": "Internal order of the company",
+    "line_move": "Vehicle move",
     "line_rental": "Rental",
     "lines": "Lines",
     "no_payments": "No payments yet.",
     "none": "No orders yet.",
-    "not_finished": "not finished",
+    "not_finished": "operation not finished",
     "number": "Number",
+    "op_state_completed": "completed",
+    "operation_move": "Move",
     "operation_rental": "Rental",
     "order": "Order",
     "overpaid": "overpaid",
@@ -415,6 +437,7 @@
     "tariff_view": "View tariffs",
     "vehicle_create": "Create vehicles",
     "vehicle_edit": "Edit vehicles",
+    "vehicle_move": "Move vehicles",
     "vehicle_view": "View vehicles"
   },
   "positions": {

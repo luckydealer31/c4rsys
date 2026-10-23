@@ -10,6 +10,7 @@ import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { formatMoment } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
+import { VehicleMoves } from "./VehicleMoves";
 
 const USAGE_CONTEXTS = ["rental", "service", "warehouse"] as const;
 
@@ -221,6 +222,7 @@ export function VehiclePage() {
         <ErrorMessage error={update.error} />
       </Card>
       <VehicleTariffs vehicleId={data.id} />
+      <VehicleMoves vehicle={data} />
       {can("rental.view") ? (
         <Card title={t("vehicles.rentals")}>
           {own.length === 0 ? <p className="muted">{t("vehicles.no_rentals")}</p> : null}

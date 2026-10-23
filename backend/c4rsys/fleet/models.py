@@ -119,3 +119,44 @@ class OdometerReading(models.Model):
 
     def __str__(self) -> str:
         return f"{self.value} {self.unit} @ {self.measured_at:%Y-%m-%d %H:%M}"
+
+
+class VehicleMove(models.Model):
+    """An internal move A → B recorded after it happened in one action (§ 8.5.2, § 15.1.3,
+    § 15.1.5, § 23.6.2; decision 23.10.2026). It belongs to an internal order of the company.
+    Planning, «in transit», expenses and delivery to clients come later.
+
+    Links are additionally bound to the same company by composite foreign keys (migration 0004).
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    vehicle_card = models.ForeignKey(VehicleCard, on_delete=models.PROTECT, related_name="moves")
+    order = models.ForeignKey("orders.Order", on_delete=models.PROTECT, related_name="+")
+    from_location = models.ForeignKey(Location, on_delete=models.PROTECT, related_name="+")
+    to_location = models.ForeignKey(Location, on_delete=models.PROTECT, related_name="+")
+    driver_employment = models.ForeignKey(
+        "companies.Employment", on_delete=models.PROTECT, related_name="+"
+    )
+    actual_start = models.DateTimeField()
+    actual_end = models.DateTimeField()
+    note = models.CharField(max_length=500, blank=True, default="")
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "vehicle_move"
+        constraints = [
+            models.UniqueConstraint(fields=["company", "id"], name="vehicle_move_company_id_uniq"),
+            models.CheckConstraint(
+                condition=Q(actual_end__gt=models.F("actual_start")),
+                name="vehicle_move_period_valid",
+            ),
+            models.CheckConstraint(
+                condition=~Q(from_location=models.F("to_location")),
+                name="vehicle_move_other_location",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.vehicle_card_id}: {self.from_location_id} → {self.to_location_id}"

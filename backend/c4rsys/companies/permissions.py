@@ -22,6 +22,7 @@ PERMISSIONS: dict[str, str] = {
     "vehicle.view": "vehicle",
     "vehicle.create": "vehicle",
     "vehicle.edit": "vehicle",
+    "vehicle.move": "vehicle",
     "client.find": "client",
     "client.list": "client",
     "client.create": "client",
@@ -50,6 +51,8 @@ SYSTEM_SETS: dict[str, tuple[str, ...]] = {
     # § 23.2.2. Whether order.close_with_debt belongs here is OPEN; until decided it does not.
     RENTAL_MANAGER: (
         "vehicle.view",
+        # Decision 23.10.2026: the rental manager moves vehicles between locations.
+        "vehicle.move",
         "client.find",
         "client.list",
         "client.create",

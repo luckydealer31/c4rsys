@@ -260,3 +260,14 @@ export type Payment = {
   posted_at: string | null;
   allocations: { order_id: string; amount: string; purpose: string; state: string }[];
 };
+
+export type VehicleMove = {
+  id: string;
+  order_id: string;
+  from_location_id: string;
+  to_location_id: string;
+  driver: { employment_id: string; name: string };
+  actual_start: string;
+  actual_end: string;
+  note: string;
+};

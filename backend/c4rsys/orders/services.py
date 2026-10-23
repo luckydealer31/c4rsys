@@ -125,6 +125,34 @@ def create_order(
     return order
 
 
+def create_internal_order(
+    ctx: CommandContext, *, company_id: UUID, responsible_employment_id: UUID | None
+) -> Order:
+    """An internal order of the company itself (§ 12.1.1, § 12.1.3), for example for an internal
+    move of a vehicle (§ 15.1.5). It has no client and no client charges."""
+    order = Order.objects.create(
+        company_id=company_id,
+        number=next_number(company_id, "order"),
+        is_internal=True,
+        responsible_employment_id=responsible_employment_id,
+        created_by_user_id=ctx.actor.user_id,
+        created_at=timezone.now(),
+    )
+    ctx.audit(
+        "order.created",
+        object_type="order",
+        object_id=order.id,
+        after={
+            "number": order.number,
+            "internal": True,
+            "responsible_employment": str(responsible_employment_id)
+            if responsible_employment_id
+            else None,
+        },
+    )
+    return order
+
+
 def lock_open_order(company_id: UUID, order_id: UUID) -> Order:
     """For an operation added to an existing order: it must be open (§ 12.2.3)."""
     order = Order.objects.select_for_update().filter(company_id=company_id, pk=order_id).first()

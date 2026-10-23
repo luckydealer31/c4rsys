@@ -149,3 +149,11 @@ def location_blockers(company_id: UUID, location_id: UUID, context_type: str | N
         & (Q(issue_location_id=location_id) | Q(return_location_id=location_id))
     )
     return ["rentals_not_finished"] if unfinished.exists() else []
+
+
+def vehicle_busy(company_id: UUID, card_id: UUID) -> list[str]:
+    """A vehicle in an active rental is with the client and is not moved (§ 15.1.8)."""
+    active = Rental.objects.filter(
+        company_id=company_id, vehicle_card_id=card_id, state=Rental.State.ACTIVE
+    ).exists()
+    return ["in_rental"] if active else []

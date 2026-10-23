@@ -81,7 +81,7 @@ export function OrdersPage() {
                   <td>
                     <Link to={companyPath(company, `/orders/${order.id}`)}>№ {order.number}</Link>
                   </td>
-                  <td>{names.get(order.client_id ?? "") ?? "—"}</td>
+                  <td>{order.is_internal ? t("orders.internal") : (names.get(order.client_id ?? "") ?? "—")}</td>
                   <td>{formatMoment(order.created_at, zone, i18n.language)}</td>
                   <td className="small">
                     <OrderAmountsText order={order} />
@@ -159,7 +159,9 @@ export function OrderPage() {
         <dl className="facts">
           <dt>{t("orders.client")}</dt>
           <dd>
-            {client.data ? (
+            {current.is_internal ? (
+              t("orders.internal")
+            ) : client.data ? (
               <Link to={companyPath(company, `/clients/${client.data.client.id}`)}>{clientName(client.data.client)}</Link>
             ) : (
               "—"
@@ -191,10 +193,10 @@ export function OrderPage() {
                   {op.type === "rental" ? (
                     <Link to={companyPath(company, `/rentals/${op.id}`)}>{t("orders.line_rental")}</Link>
                   ) : (
-                    op.type
+                    t(`orders.line_${op.type}`)
                   )}
                 </td>
-                <td>{op.type === "rental" ? t(`rentals.state_${op.state}`) : op.state}</td>
+                <td>{op.type === "rental" ? t(`rentals.state_${op.state}`) : t(`orders.op_state_${op.state}`)}</td>
                 <td>{op.finished ? t("orders.finished") : t("orders.not_finished")}</td>
               </tr>
             ))}
