@@ -17,7 +17,8 @@ import { OrderPage, OrdersPage } from "./pages/orders/OrdersPage";
 import { IssuePage } from "./pages/rentals/IssuePage";
 import { RentalPage } from "./pages/rentals/RentalPage";
 import { RentalsPage } from "./pages/rentals/RentalsPage";
-import { EmployeePage, EmployeesPage } from "./pages/settings/EmployeesPage";
+import { CompanyProfilePage } from "./pages/settings/CompanyProfilePage";
+import { EmployeePage } from "./pages/settings/EmployeesPage";
 import { SettingsPage } from "./pages/settings/SettingsPage";
 import { SetupPage } from "./pages/setup/SetupPage";
 import { TariffPage, TariffsPage } from "./pages/tariffs/TariffsPage";
@@ -88,12 +89,12 @@ export function App() {
         <Route path="warehouse" element={<ContextSectionPage type="warehouse" />} />
         <Route path="finance" element={<FinancePage />} />
         <Route path="settings" element={<SettingsPage />} />
-        <Route path="settings/company" element={<Navigate to="../company" replace />} />
+        <Route path="settings/company" element={<CompanyProfilePage />} />
         <Route path="settings/locations" element={<Navigate to="../company" replace />} />
         <Route path="settings/tariffs" element={<TariffsPage />} />
         <Route path="settings/tariffs/:id" element={<TariffPage />} />
-        <Route path="settings/employees" element={<EmployeesPage />} />
-        <Route path="settings/employees/:id" element={<EmployeePage />} />
+        <Route path="clients/employees/:id" element={<EmployeePage />} />
+        <Route path="settings/employees" element={<Navigate to="../clients?tab=employees" replace />} />
       </Route>
       <Route
         path="*"

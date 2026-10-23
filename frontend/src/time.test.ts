@@ -18,12 +18,16 @@ describe("time zones with offsets", () => {
     expect(formatOffset(0)).toBe("UTC+00:00");
   });
 
-  it("orders zones by offset and labels them", () => {
-    const options = timeZoneOptions(new Date("2026-01-15T12:00:00Z"));
+  it("offers a short list ordered by offset, keeping a current value outside it", () => {
+    const winter = new Date("2026-01-15T12:00:00Z");
+    const options = timeZoneOptions((zone) => `cities of ${zone}`, "Asia/Barnaul", winter);
     const offsets = options.map((o) => o.offset);
     expect(offsets).toEqual([...offsets].sort((a, b) => a - b));
+    expect(options.length).toBeLessThan(80);
     expect(options.find((o) => o.zone === "Asia/Yekaterinburg")?.label).toBe(
-      "UTC+05:00 — Asia / Yekaterinburg",
+      "UTC+05:00 — cities of Asia/Yekaterinburg",
     );
+    expect(options.find((o) => o.zone === "Asia/Kolkata")?.offset).toBe(330);
+    expect(options.some((o) => o.zone === "Asia/Barnaul")).toBe(true);
   });
 });

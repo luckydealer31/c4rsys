@@ -9,42 +9,69 @@ import type { Client, ClientContact } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
+import { EmployeesList } from "../settings/EmployeesPage";
 
 export function clientName(client: Pick<Client, "kind" | "first_name" | "last_name" | "company_name">) {
   return client.kind === "company" ? client.company_name : `${client.first_name} ${client.last_name}`.trim();
 }
 
 /** Clients: list with search when allowed (§ 6.2.2), creation with possible matches (§ 6.1.11). */
-/** «Clients and counterparties» (decision of 24.10.2026): one menu item, two separate lists
- * (§ 6.1.7) on neighbouring tabs. */
+type PeopleTab = "clients" | "counterparties" | "employees";
+
+/** Tabs the employee may see (decision of 24.10.2026): each is shown only with its rights.
+ * Counterparties have no rights of their own yet (module of a later stage), so the tab follows
+ * the client list — TODO(spec): rights of counterparties. */
+export function peopleTabs(can: (permission: string) => boolean): PeopleTab[] {
+  const tabs: PeopleTab[] = [];
+  if (can("client.list") || can("client.create")) tabs.push("clients");
+  if (can("client.list")) tabs.push("counterparties");
+  if (can("employee.invite") || can("employee.rights.manage") || can("employee.access.block")) {
+    tabs.push("employees");
+  }
+  return tabs;
+}
+
+/** «Clients and counterparties» (decisions of 24.10.2026): one menu item, separate lists
+ * (§ 6.1.7) on neighbouring tabs — clients, counterparties, employees. */
 export function ClientsPage() {
   const { t } = useTranslation();
+  const can = useCan();
   const [params, setParams] = useSearchParams();
-  const tab = params.get("tab") === "counterparties" ? "counterparties" : "clients";
+  const tabs = peopleTabs(can);
+  const wanted = params.get("tab") as PeopleTab | null;
+  const tab = wanted && tabs.includes(wanted) ? wanted : tabs[0];
+  if (!tab) {
+    return (
+      <div className="page">
+        <h1>{t("nav.clients")}</h1>
+        <p className="muted">{t("clients.nothing_allowed")}</p>
+      </div>
+    );
+  }
   return (
     <div className="page">
       <h1>{t("nav.clients")}</h1>
       <div className="tabs" role="tablist">
-        {(["clients", "counterparties"] as const).map((key) => (
+        {tabs.map((key) => (
           <button
             key={key}
             type="button"
             role="tab"
             aria-selected={tab === key}
             className={tab === key ? "active" : ""}
-            onClick={() => setParams(key === "clients" ? {} : { tab: key })}
+            onClick={() => setParams(key === tabs[0] ? {} : { tab: key })}
           >
             {t(`clients.tab_${key}`)}
           </button>
         ))}
       </div>
-      {tab === "clients" ? (
-        <ClientsList />
-      ) : (
+      {tab === "clients" ? <ClientsList /> : null}
+      {tab === "counterparties" ? (
         <Card>
           <p className="muted">{t("clients.counterparties_later")}</p>
         </Card>
-      )}
+      ) : null}
+      {tab === "employees" ? <EmployeesList /> : null}
     </div>
   );
 }

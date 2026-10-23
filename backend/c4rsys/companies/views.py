@@ -1,8 +1,11 @@
 """HTTP API of companies (docs/stage1/STAGE1_COMMANDS_API.md, «Компания и настройка»)."""
 
+import re
 from typing import Any
 from uuid import UUID
 
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 from django.http import HttpRequest, JsonResponse
 from django.views.decorators.http import require_http_methods, require_POST
 
@@ -36,6 +39,44 @@ def run_and_respond(
     )
 
 
+COUNTRY_RE = re.compile(r"^[A-Z]{2}$")
+MAX_IDENTIFIERS = 10
+
+
+def _requisites(data: dict[str, Any]) -> dict[str, Any]:
+    """Optional profile data of § 3.1.5 present in the request."""
+    changes: dict[str, Any] = {}
+    for key, max_length in services.REQUISITES.items():
+        if key in data:
+            changes[key] = get_str(data, key, max_length=max_length, required=False)
+    if changes.get("country"):
+        changes["country"] = changes["country"].upper()
+        if not COUNTRY_RE.match(changes["country"]):
+            raise errors.validation_error("country", code="COUNTRY_INVALID")
+    if changes.get("email"):
+        try:
+            validate_email(changes["email"])
+        except ValidationError as exc:
+            raise errors.validation_error("email", code="EMAIL_INVALID") from exc
+        changes["email"] = changes["email"].lower()
+    if "identifiers" in data:
+        items = data["identifiers"]
+        if not isinstance(items, list) or len(items) > MAX_IDENTIFIERS:
+            raise errors.validation_error("identifiers")
+        identifiers = []
+        for item in items:
+            if not isinstance(item, dict):
+                raise errors.validation_error("identifiers")
+            kind = get_str(item, "type", max_length=60, required=False)
+            value = get_str(item, "value", max_length=100, required=False)
+            if kind or value:
+                if not (kind and value):
+                    raise errors.validation_error("identifiers", code="IDENTIFIER_INCOMPLETE")
+                identifiers.append({"type": kind, "value": value})
+        changes["identifiers"] = identifiers
+    return changes
+
+
 def _file_id(data: dict[str, Any], key: str) -> UUID | None:
     value = get_str(data, key, max_length=36, required=False)
     if not value:
@@ -60,6 +101,8 @@ def _company_payload(company: Company, context: services.CompanyContext | None) 
             company.setup_completed_at.isoformat() if company.setup_completed_at else None
         ),
         "context_types": services.context_types(company),
+        **{key: getattr(company, key) for key in services.REQUISITES},
+        "identifiers": company.identifiers,
     }
     if context is not None:
         body["employment"] = {
@@ -134,7 +177,7 @@ def company(request: HttpRequest, cmp: str) -> JsonResponse:
 
     data = parse_json(request)
     expected_version = get_int(data, "expected_version")
-    changes: dict[str, str] = {}
+    changes: dict[str, Any] = _requisites(data)
     if "display_name" in data:
         changes["display_name"] = get_str(data, "display_name", max_length=DISPLAY_NAME_MAX)
     if "timezone" in data:

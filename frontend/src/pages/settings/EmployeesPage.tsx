@@ -38,14 +38,15 @@ export function positionName(position: Employee["position"], t: (key: string) =>
 }
 
 /** Employees: list, invitation by ID or email with position and rights (§ 5.1, § 23.1). */
-export function EmployeesPage() {
+/** Employees of the company; shown as a tab of «Clients and counterparties» (decision of
+ * 24.10.2026). */
+export function EmployeesList() {
   const { t } = useTranslation();
   const company = useCompany();
   const can = useCan();
   const employees = useEmployees();
   return (
-    <div className="page">
-      <h1>{t("settings.employees")}</h1>
+    <>
       <Card>
         {employees.isLoading ? <Loading /> : null}
         <table>
@@ -61,7 +62,7 @@ export function EmployeesPage() {
             {(employees.data?.employees ?? []).map((employee) => (
               <tr key={employee.id}>
                 <td>
-                  <Link to={companyPath(company, `/settings/employees/${employee.id}`)}>
+                  <Link to={companyPath(company, `/clients/employees/${employee.id}`)}>
                     {employeeName(employee, t)}
                   </Link>
                   <div className="muted small">{employee.user?.public_id ?? ""}</div>
@@ -80,7 +81,7 @@ export function EmployeesPage() {
         </table>
       </Card>
       {can("employee.invite") ? <InviteForm /> : null}
-    </div>
+    </>
   );
 }
 

@@ -19,7 +19,7 @@ class Company(models.Model):
     """Profile of § 3.1.1, § 3.1.6, § 22.1.4, § 22.1.7.
 
     The time zone is empty until the user confirms one; main currency until it is chosen.
-    The remaining profile fields of § 3.1.5 are added by later tasks. `setup_completed_at` is
+    The other fields of § 3.1.5 are optional. `setup_completed_at` is
     set by «Complete» of the setup wizard while at least one context is ready; from then the
     interface shows «Orders» (customer's decision of 24.10.2026).
     """
@@ -35,6 +35,17 @@ class Company(models.Model):
         Currency, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
     setup_completed_at = models.DateTimeField(null=True, blank=True)
+    # Optional profile data of § 3.1.5; filled after creation (§ 3.1.2).
+    legal_name = models.CharField(max_length=300, blank=True, default="")
+    country = models.CharField(max_length=2, blank=True, default="")  # ISO 3166-1 alpha-2
+    legal_form = models.CharField(max_length=100, blank=True, default="")
+    identifiers = models.JSONField(default=list, blank=True)  # [{"type": …, "value": …}]
+    legal_address = models.CharField(max_length=500, blank=True, default="")
+    actual_address = models.CharField(max_length=500, blank=True, default="")
+    phone = models.CharField(max_length=40, blank=True, default="")
+    email = models.CharField(max_length=254, blank=True, default="")
+    website = models.CharField(max_length=300, blank=True, default="")
+    description = models.TextField(blank=True, default="")
     created_by = models.ForeignKey(UserAccount, on_delete=models.PROTECT, related_name="+")
     created_at = models.DateTimeField(default=now)
     updated_at = models.DateTimeField(auto_now=True)

@@ -84,12 +84,13 @@ test("base example from registration to closing survives a restart", async ({ pa
   await expect(page).toHaveURL(/\/c\/CMP-[A-Z0-9]+\/setup$/);
   const base = new URL(page.url()).pathname.replace(/\/setup$/, "");
 
-  await page.goto(`${base}/company`);
+  await page.goto(`${base}/settings/company`);
   await page.getByLabel(t("companies.main_currency")).selectOption("THB");
   await page.getByRole("button", { name: t("common.save") }).click();
   await expect(page.getByText(t("common.saved"))).toBeVisible();
 
   await page.goto(`${base}/company`);
+  await page.getByRole("button", { name: t("locations.add") }).click();
   const location = card(page, t("locations.create_title"));
   await location.getByLabel(t("locations.name")).fill("Пхукет");
   await location.getByLabel(t("companies.timezone")).selectOption("Asia/Bangkok");

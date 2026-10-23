@@ -1,13 +1,10 @@
+import { ZONES } from "./timezones";
+
 /** Time helpers: moments come from the server in UTC and are shown in the time zone of the
  * location (§ 4.2.2); in the history with the year (§ 2.7.6). */
 
 export function deviceTimeZone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-}
-
-export function timeZones(): string[] {
-  const zones = Intl.supportedValuesOf?.("timeZone") ?? [];
-  return zones.includes("UTC") ? zones : ["UTC", ...zones];
 }
 
 /** Offset of a zone from UTC in minutes at a moment (summer time included). */
@@ -30,16 +27,22 @@ export function formatOffset(minutes: number): string {
 
 export type ZoneOption = { zone: string; offset: number; label: string };
 
-/** Time zones with their current offset from UTC, ordered by offset (decision of 24.10.2026).
- * The IANA name stays the stored value: one offset does not identify a zone (summer time). */
-export function timeZoneOptions(at: Date = new Date()): ZoneOption[] {
-  return timeZones()
+/** Offered time zones with their current offset from UTC, ordered by offset (decision of
+ * 24.10.2026). `describe` gives the cities of a zone. The IANA name stays the stored value: one
+ * offset does not identify a zone (summer time). A current value outside the list is kept. */
+export function timeZoneOptions(
+  describe: (zone: string) => string,
+  current = "",
+  at: Date = new Date(),
+): ZoneOption[] {
+  const zones: string[] = [...ZONES];
+  if (current && !zones.includes(current)) zones.push(current);
+  return zones
     .map((zone) => {
       const offset = zoneOffsetMinutes(zone, at);
-      const place = zone.replaceAll("_", " ").replaceAll("/", " / ");
-      return { zone, offset, label: `${formatOffset(offset)} — ${place}` };
+      return { zone, offset, label: `${formatOffset(offset)} — ${describe(zone)}` };
     })
-    .sort((a, b) => a.offset - b.offset || a.zone.localeCompare(b.zone));
+    .sort((a, b) => a.offset - b.offset || a.label.localeCompare(b.label));
 }
 
 export function formatMoment(value: string | null | undefined, timeZone: string, locale: string) {

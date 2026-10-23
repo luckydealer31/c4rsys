@@ -3,20 +3,16 @@ import { Link } from "react-router";
 
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 
-/** Settings: tariffs, employees. The company profile and locations are in «Company» (decision
- * of 24.10.2026). */
+/** Settings of the company: its profile, the setup wizard, tariffs. Employees are a tab of
+ * «Clients and counterparties», locations are in «Company» (decisions of 24.10.2026). */
 export function SettingsPage() {
   const { t } = useTranslation();
   const company = useCompany();
   const can = useCan();
   const links = [
     ["setup", "/setup", can("company.settings")],
+    ["company", "/settings/company", can("company.settings")],
     ["tariffs", "/settings/tariffs", can("tariff.view")],
-    [
-      "employees",
-      "/settings/employees",
-      can("employee.invite") || can("employee.rights.manage") || can("employee.access.block"),
-    ],
   ] as const;
   return (
     <div className="page">

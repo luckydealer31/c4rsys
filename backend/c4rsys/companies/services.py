@@ -203,12 +203,28 @@ def company_actor(user: UserAccount, context: CompanyContext, session_id: UUID |
 # --- Profile (§ 3.1.6, § 22.1.4, § 22.1.7) --------------------------------------------------
 
 
+# Optional text fields of the company profile (§ 3.1.5) with their maximum length.
+REQUISITES = {
+    "legal_name": 300,
+    "country": 2,
+    "legal_form": 100,
+    "legal_address": 500,
+    "actual_address": 500,
+    "phone": 40,
+    "email": 254,
+    "website": 300,
+    "description": 2000,
+}
+
+
 def profile_snapshot(company: Company) -> dict[str, Any]:
     return {
         "display_name": company.display_name,
         "logo": str(company.logo_id) if company.logo_id else None,
         "timezone": company.timezone,
         "main_currency": company.main_currency_id,
+        **{key: getattr(company, key) for key in REQUISITES},
+        "identifiers": company.identifiers,
     }
 
 
@@ -246,7 +262,7 @@ def complete_setup(ctx: CommandContext, company_id: UUID) -> Company:
 
 
 def update_profile(
-    ctx: CommandContext, company_id: UUID, changes: dict[str, str], expected_version: int
+    ctx: CommandContext, company_id: UUID, changes: dict[str, Any], expected_version: int
 ) -> Company:
     company = Company.objects.select_for_update().get(pk=company_id)
     if company.version != expected_version:
@@ -269,6 +285,9 @@ def update_profile(
         company.timezone = changes["timezone"]
     if "main_currency" in changes:
         company.main_currency = validate_currency(changes["main_currency"])
+    for key in [*REQUISITES, "identifiers"]:
+        if key in changes:
+            setattr(company, key, changes[key])
     after = profile_snapshot(company)
     company.version += 1
     company.save(
@@ -277,6 +296,8 @@ def update_profile(
             "logo",
             "timezone",
             "main_currency",
+            *REQUISITES,
+            "identifiers",
             "version",
             "updated_at",
         ]

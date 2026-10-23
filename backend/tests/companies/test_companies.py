@@ -1,6 +1,7 @@
 """Company creation, active company and profile (ТЗ § 3.1, § 3.3.4–3.3.5, § 22.1.4, § 22.1.7)."""
 
 from decimal import Decimal
+from typing import Any
 
 import pytest
 from django.db import IntegrityError, transaction
@@ -219,3 +220,45 @@ def test_position_of_employment_must_belong_to_same_company(owner: Client) -> No
 
     with pytest.raises(IntegrityError), transaction.atomic():
         Employment.objects.filter(company=first).update(position=foreign_position)
+
+
+def test_optional_profile_data_of_3_1_5(owner: Client) -> None:
+    company = create_company(owner).json()["company"]
+    data = {
+        "expected_version": company["version"],
+        "legal_name": "ООО «Юмакфорд»",
+        "country": "ru",
+        "legal_form": "ООО",
+        "identifiers": [{"type": "ИНН", "value": "6670000000"}, {"type": "", "value": ""}],
+        "legal_address": "Екатеринбург, ул. Ленина, 1",
+        "phone": "+7 343 000-00-00",
+        "email": "Office@Example.com",
+        "website": "https://example.com",
+        "description": "Аренда автомобилей",
+    }
+
+    body = patch_company(owner, company["public_id"], data).json()["company"]
+
+    assert body["country"] == "RU"
+    assert body["email"] == "office@example.com"
+    assert body["identifiers"] == [{"type": "ИНН", "value": "6670000000"}]
+    assert body["actual_address"] == ""
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "code"),
+    [
+        ("country", "Russia", "FIELD_TOO_LONG"),
+        ("country", "1A", "COUNTRY_INVALID"),
+        ("email", "office", "EMAIL_INVALID"),
+        ("identifiers", [{"type": "ИНН", "value": ""}], "IDENTIFIER_INCOMPLETE"),
+    ],
+)
+def test_invalid_profile_data_is_refused(owner: Client, field: str, value: Any, code: str) -> None:
+    company = create_company(owner).json()["company"]
+
+    response = patch_company(
+        owner, company["public_id"], {"expected_version": company["version"], field: value}
+    )
+
+    assert response.json()["error"]["code"] == code

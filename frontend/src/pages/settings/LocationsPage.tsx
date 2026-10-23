@@ -8,6 +8,7 @@ import type { ContextType, Location } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { useCan, useCompany } from "../../layout/CompanyShell";
+import { Icon } from "../../components/icons";
 import { TimeZoneSelect } from "../../components/TimeZoneSelect";
 
 const CONTEXT_TYPES: ContextType[] = ["rental", "service", "warehouse"];
@@ -21,7 +22,7 @@ export function useLocations() {
 }
 
 /** Locations with their contexts, state and schedule (§ 4.1–4.4, § 22.1.5–22.1.6). */
-export function LocationsEditor() {
+export function LocationsEditor({ createOpen = false }: { createOpen?: boolean }) {
   const { t } = useTranslation();
   const can = useCan();
   const locations = useLocations();
@@ -34,7 +35,7 @@ export function LocationsEditor() {
       {locations.data?.locations.length === 0 ? (
         <p className="muted">{t("locations.none")}</p>
       ) : null}
-      {can("company.settings") ? <CreateLocation /> : null}
+      {can("company.settings") ? <CreateLocation initiallyOpen={createOpen} /> : null}
     </>
   );
 }
@@ -51,7 +52,23 @@ function useRefresh() {
   };
 }
 
-function CreateLocation() {
+/** Creation of a location stays folded under a button (decision of 24.10.2026). */
+function CreateLocation({ initiallyOpen }: { initiallyOpen: boolean }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(initiallyOpen);
+  if (!open) {
+    return (
+      <div className="actions">
+        <button type="button" className="secondary" onClick={() => setOpen(true)}>
+          <Icon name="plus" size={18} /> {t("locations.add")}
+        </button>
+      </div>
+    );
+  }
+  return <CreateLocationForm onDone={() => setOpen(initiallyOpen)} />;
+}
+
+function CreateLocationForm({ onDone }: { onDone: () => void }) {
   const { t } = useTranslation();
   const company = useCompany();
   const refresh = useRefresh();
@@ -74,6 +91,7 @@ function CreateLocation() {
       setAddress("");
       setContexts([]);
       await refresh();
+      onDone();
     }
   }
 
@@ -111,6 +129,9 @@ function CreateLocation() {
         <div className="actions">
           <button type="submit" disabled={!name.trim() || create.pending}>
             {t("locations.create")}
+          </button>
+          <button type="button" className="secondary" onClick={onDone}>
+            {t("common.cancel")}
           </button>
         </div>
       </form>

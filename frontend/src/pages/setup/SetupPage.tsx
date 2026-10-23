@@ -54,7 +54,7 @@ export function SetupPage() {
 
   const content: Record<Step, ReactNode> = {
     profile: <CompanyProfileForm onSaved={refresh} />,
-    location: <LocationsEditor />,
+    location: <LocationsEditor createOpen />,
     finance: (
       <>
         <CompanyProfileForm onSaved={refresh} />
@@ -81,7 +81,7 @@ export function SetupPage() {
     employees: (
       <Card>
         <p>{t("setup.employees_text")}</p>
-        <Link className="button secondary" to={companyPath(company, "/settings/employees")}>
+        <Link className="button secondary" to={companyPath(company, "/clients?tab=employees")}>
           {t("settings.employees")}
         </Link>
       </Card>
@@ -175,9 +175,9 @@ function ReadinessCheck({ readiness }: { readiness: Readiness }) {
   const { t } = useTranslation();
   const company = useCompany();
   const links: Record<string, string> = {
-    timezone: "/company",
-    main_currency: "/company",
-    display_name: "/company",
+    timezone: "/settings/company",
+    main_currency: "/settings/company",
+    display_name: "/settings/company",
     no_timezone: "/company",
     no_context: "/company",
     no_tariff: "/settings/tariffs",

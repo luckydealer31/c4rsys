@@ -35,6 +35,17 @@ export type Company = CompanySummary & {
   version: number;
   setup_completed_at: string | null;
   context_types: ContextType[];
+  // Optional profile data (§ 3.1.5).
+  legal_name: string;
+  country: string;
+  legal_form: string;
+  identifiers: { type: string; value: string }[];
+  legal_address: string;
+  actual_address: string;
+  phone: string;
+  email: string;
+  website: string;
+  description: string;
   employment?: {
     id: string;
     position_code: string;
