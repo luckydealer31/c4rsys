@@ -10,6 +10,38 @@ export function timeZones(): string[] {
   return zones.includes("UTC") ? zones : ["UTC", ...zones];
 }
 
+/** Offset of a zone from UTC in minutes at a moment (summer time included). */
+export function zoneOffsetMinutes(timeZone: string, at: Date = new Date()): number {
+  const shown = toLocalInput(at, timeZone);
+  const [date, time] = shown.split("T");
+  const [y, m, d] = (date ?? "").split("-").map(Number);
+  const [hh, mm] = (time ?? "").split(":").map(Number);
+  const asUtc = Date.UTC(y ?? 0, (m ?? 1) - 1, d ?? 1, hh ?? 0, mm ?? 0);
+  return Math.round((asUtc - Math.floor(at.getTime() / 60000) * 60000) / 60000);
+}
+
+export function formatOffset(minutes: number): string {
+  const sign = minutes < 0 ? "−" : "+";
+  const abs = Math.abs(minutes);
+  const hours = String(Math.floor(abs / 60)).padStart(2, "0");
+  const rest = String(abs % 60).padStart(2, "0");
+  return `UTC${sign}${hours}:${rest}`;
+}
+
+export type ZoneOption = { zone: string; offset: number; label: string };
+
+/** Time zones with their current offset from UTC, ordered by offset (decision of 24.10.2026).
+ * The IANA name stays the stored value: one offset does not identify a zone (summer time). */
+export function timeZoneOptions(at: Date = new Date()): ZoneOption[] {
+  return timeZones()
+    .map((zone) => {
+      const offset = zoneOffsetMinutes(zone, at);
+      const place = zone.replaceAll("_", " ").replaceAll("/", " / ");
+      return { zone, offset, label: `${formatOffset(offset)} — ${place}` };
+    })
+    .sort((a, b) => a.offset - b.offset || a.zone.localeCompare(b.zone));
+}
+
 export function formatMoment(value: string | null | undefined, timeZone: string, locale: string) {
   if (!value) return "—";
   return new Intl.DateTimeFormat(locale, {

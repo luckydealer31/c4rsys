@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "c4rsys.platform",
     "c4rsys.accounts",
+    "c4rsys.files",
     "c4rsys.companies",
     "c4rsys.finance",
     "c4rsys.fleet",
@@ -88,6 +89,9 @@ USE_I18N = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+
+# Content of uploaded files, outside the database (A10). On the server — a separate volume.
+C4R_FILES_ROOT = os.environ.get("C4R_FILES_ROOT", str(BASE_DIR / "var" / "files"))
 
 # Cookies and transport security (A08). The session cookie is set by c4rsys.accounts.middleware.
 CSRF_COOKIE_SAMESITE = "Lax"

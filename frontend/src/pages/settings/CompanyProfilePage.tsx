@@ -4,21 +4,14 @@ import { useTranslation } from "react-i18next";
 
 import type { Company } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
+import { ImagePicker } from "../../components/images";
+import { TimeZoneSelect } from "../../components/TimeZoneSelect";
 import { Card, ErrorMessage, Field } from "../../components/ui";
 import { useCan, useCompany } from "../../layout/CompanyShell";
-import { currencies, deviceTimeZone, timeZones } from "../../time";
+import { currencies, deviceTimeZone } from "../../time";
 
-/** Company profile: display name, time zone (§ 3.1.6, § 22.1.4), main currency (§ 22.1.7). */
-export function CompanyProfilePage() {
-  const { t } = useTranslation();
-  return (
-    <div className="page">
-      <h1>{t("settings.company")}</h1>
-      <CompanyProfileForm />
-    </div>
-  );
-}
-
+/** Company profile form: display name, logo (§ 3.1.1), time zone (§ 3.1.6, § 22.1.4), main currency
+ * (§ 22.1.7). */
 export function CompanyProfileForm({ onSaved }: { onSaved?: () => void }) {
   const { t } = useTranslation();
   const company = useCompany();
@@ -26,6 +19,7 @@ export function CompanyProfileForm({ onSaved }: { onSaved?: () => void }) {
   const client = useQueryClient();
   const [form, setForm] = useState({
     display_name: company.display_name,
+    logo: company.logo,
     timezone: company.timezone ?? deviceTimeZone(),
     main_currency: company.main_currency ?? "",
   });
@@ -41,6 +35,7 @@ export function CompanyProfileForm({ onSaved }: { onSaved?: () => void }) {
     setSaved(false);
     const changes: Record<string, unknown> = { expected_version: company.version };
     if (form.display_name !== company.display_name) changes.display_name = form.display_name;
+    if (form.logo !== company.logo) changes.logo = form.logo ?? "";
     if (form.timezone !== company.timezone) changes.timezone = form.timezone;
     if (form.main_currency && form.main_currency !== company.main_currency)
       changes.main_currency = form.main_currency;
@@ -57,6 +52,16 @@ export function CompanyProfileForm({ onSaved }: { onSaved?: () => void }) {
         <p className="muted small">
           {t("companies.company_id")}: {company.public_id}
         </p>
+        <Field label={t("companies.logo")}>
+          <ImagePicker
+            purpose="company_logo"
+            value={form.logo}
+            name={form.display_name}
+            square
+            disabled={!editable}
+            onChange={(logo) => setForm({ ...form, logo })}
+          />
+        </Field>
         <div className="row">
           <Field label={t("companies.display_name")}>
             <input
@@ -69,17 +74,11 @@ export function CompanyProfileForm({ onSaved }: { onSaved?: () => void }) {
             label={t("companies.timezone")}
             hint={company.timezone ? undefined : t("companies.timezone_confirm")}
           >
-            <select
+            <TimeZoneSelect
               value={form.timezone}
               disabled={!editable}
-              onChange={(e) => setForm({ ...form, timezone: e.target.value })}
-            >
-              {timeZones().map((zone) => (
-                <option key={zone} value={zone}>
-                  {zone}
-                </option>
-              ))}
-            </select>
+              onChange={(timezone) => setForm({ ...form, timezone })}
+            />
           </Field>
           <Field label={t("companies.main_currency")} hint={t("companies.main_currency_hint")}>
             <select

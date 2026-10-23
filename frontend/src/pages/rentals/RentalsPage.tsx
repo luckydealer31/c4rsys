@@ -7,6 +7,7 @@ import { Card, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { formatMoment } from "../../time";
 import { clientName } from "../clients/ClientsPage";
+import { ContextLocations } from "../contexts/ContextLocations";
 import { useLocations } from "../settings/LocationsPage";
 import { useRentals, useVehicles } from "../vehicles/VehiclesPage";
 
@@ -29,6 +30,7 @@ export function RentalsPage() {
   return (
     <div className="page">
       <h1>{t("nav.rentals")}</h1>
+      <ContextLocations type="rental" />
       {can("rental.issue") ? (
         <div className="actions" style={{ marginBottom: 16, marginTop: 0 }}>
           <Link className="button" to={companyPath(company, "/rentals/new")}>

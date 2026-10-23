@@ -3,15 +3,14 @@ import { Link } from "react-router";
 
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 
-/** Settings: company, locations, tariffs, employees (STAGE1_SCREENS, main menu). */
+/** Settings: tariffs, employees. The company profile and locations are in «Company» (decision
+ * of 24.10.2026). */
 export function SettingsPage() {
   const { t } = useTranslation();
   const company = useCompany();
   const can = useCan();
   const links = [
     ["setup", "/setup", can("company.settings")],
-    ["company", "/settings/company", true],
-    ["locations", "/settings/locations", true],
     ["tariffs", "/settings/tariffs", can("tariff.view")],
     [
       "employees",

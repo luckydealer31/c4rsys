@@ -36,15 +36,30 @@ def run_and_respond(
     )
 
 
+def _file_id(data: dict[str, Any], key: str) -> UUID | None:
+    value = get_str(data, key, max_length=36, required=False)
+    if not value:
+        return None
+    try:
+        return UUID(value)
+    except ValueError as exc:
+        raise errors.validation_error(key) from exc
+
+
 def _company_payload(company: Company, context: services.CompanyContext | None) -> dict[str, Any]:
     body: dict[str, Any] = {
         "public_id": company.public_id,
         "display_name": company.display_name,
+        "logo": str(company.logo_id) if company.logo_id else None,
         "timezone": company.timezone or None,
         "main_currency": company.main_currency_id,
         "created_at": company.created_at.isoformat(),
         "version": company.version,
         "setup": services.setup_state(company),
+        "setup_completed_at": (
+            company.setup_completed_at.isoformat() if company.setup_completed_at else None
+        ),
+        "context_types": services.context_types(company),
     }
     if context is not None:
         body["employment"] = {
@@ -64,6 +79,7 @@ def companies(request: HttpRequest) -> JsonResponse:
             {
                 "public_id": c.public_id,
                 "display_name": c.display_name,
+                "logo": str(c.logo_id) if c.logo_id else None,
                 "setup": services.setup_state(c),
             }
             for c in services.companies_of(user)
@@ -77,6 +93,7 @@ def companies(request: HttpRequest) -> JsonResponse:
         display_name=get_str(data, "display_name", max_length=DISPLAY_NAME_MAX),
         timezone=services.validate_timezone(timezone) if timezone else "",
         main_currency=currency.upper(),
+        logo=_file_id(data, "logo"),
     )
 
     def handler(ctx: CommandContext) -> CommandResult:
@@ -87,6 +104,7 @@ def companies(request: HttpRequest) -> JsonResponse:
         "display_name": new.display_name,
         "timezone": new.timezone,
         "main_currency": new.main_currency,
+        "logo": str(new.logo) if new.logo else None,
     }
     return run_and_respond(
         request, "company.create", Actor(user_id=user.id, session_id=session.id), payload, handler
@@ -123,6 +141,9 @@ def company(request: HttpRequest, cmp: str) -> JsonResponse:
         changes["timezone"] = services.validate_timezone(get_str(data, "timezone", max_length=64))
     if "main_currency" in data:
         changes["main_currency"] = get_str(data, "main_currency", max_length=3).upper()
+    if "logo" in data:
+        logo = _file_id(data, "logo")
+        changes["logo"] = str(logo) if logo else ""
     if not changes:
         raise errors.validation_error("body", code="NOTHING_TO_CHANGE")
 

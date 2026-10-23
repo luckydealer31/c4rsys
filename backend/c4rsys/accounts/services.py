@@ -20,6 +20,7 @@ from django.utils import timezone
 from c4rsys.accounts import otp, security
 from c4rsys.accounts.models import AuthFlow, LoginContact, UserAccount, UserSession
 from c4rsys.platform import errors
+from c4rsys.platform.commands import CommandContext
 from c4rsys.platform.models import AuditEvent
 from c4rsys.platform.registry import allocate_public_id
 
@@ -27,7 +28,14 @@ from c4rsys.platform.registry import allocate_public_id
 FLOW_TTL = timedelta(minutes=30)
 PASSWORD_ATTEMPTS = 5
 
-CRITICAL_ACTIONS = {"end_all_sessions", "change_personal_data"}
+CRITICAL_ACTIONS = {
+    "end_all_sessions",
+    "change_personal_data",
+    # Customer's decision of 24.10.2026: the cloud password is changed with the current
+    # password and a code to the email.
+    "change_password",
+    "change_email",  # § 2.3.2
+}
 
 
 @dataclass(frozen=True)
@@ -418,6 +426,110 @@ def confirm_critical(user: UserAccount, action: str, token: str, code: str) -> N
         )
     if outcome.result != otp.CodeCheck.OK:
         raise outcome.error()
+
+
+# --- Cloud password and login email (§ 2.3.2, decision of 24.10.2026) ----------------------
+
+
+def change_password(
+    ctx: CommandContext, user: UserAccount, session: UserSession, current: str, new: str
+) -> int:
+    """Run inside the command after the code was confirmed. A wrong current password refuses
+    the change; without it the password is only restored with the backup code (§ 2.3.5).
+    Other sessions end after the change (decision of 24.10.2026). Returns how many ended."""
+    locked = UserAccount.objects.select_for_update().get(pk=user.pk)
+    if not check_password(current, locked.password_hash):
+        raise errors.business_rule("CURRENT_PASSWORD_WRONG", field="current_password")
+    _check_password_strength(new)
+    if check_password(new, locked.password_hash):
+        raise errors.business_rule("PASSWORD_SAME_AS_CURRENT", field="new_password")
+    locked.password_hash = make_password(new)
+    locked.save(update_fields=["password_hash", "updated_at"])
+    now = timezone.now()
+    others = list(
+        locked.sessions.filter(ended_at__isnull=True)
+        .exclude(pk=session.pk)
+        .values_list("id", flat=True)
+    )
+    UserSession.objects.filter(pk__in=others).update(
+        ended_at=now, end_reason=UserSession.EndReason.PASSWORD_CHANGED
+    )
+    ctx.audit(
+        "account.password_changed",
+        object_type="user_account",
+        object_id=locked.public_id,
+        after={"ended_sessions": [str(i) for i in others]},
+    )
+    return len(others)
+
+
+def start_email_change(user: UserAccount, new_email_input: str, client: Client) -> StartedFlow:
+    """Sends a code to the new address. Called after the code to the current one was confirmed.
+    Whether the address is taken is told only after its code is entered (§ 24.4.2)."""
+    email = normalize_email(new_email_input)
+    if email in confirmed_emails(user):
+        raise errors.business_rule("EMAIL_SAME_AS_CURRENT", field="email")
+    now = timezone.now()
+    with transaction.atomic():
+        flow, token = _new_flow(AuthFlow.Purpose.CHANGE_EMAIL, email, client, now, user=user)
+        otp.issue_code(flow, now, deliver=True, ip=client.ip)
+        journal(
+            "auth.code_requested",
+            object_type="auth_flow",
+            object_id=flow.id,
+            user=user,
+            after={"purpose": flow.purpose},
+        )
+    return StartedFlow(token)
+
+
+def verify_email_change(user: UserAccount, token: str, code: str) -> str:
+    """Checks the code of the new address; returns the address."""
+    flow = _verify(token, AuthFlow.Purpose.CHANGE_EMAIL, code)
+    if flow.user_id != user.id:
+        raise errors.business_rule("FLOW_EXPIRED")
+    return flow.contact_value
+
+
+def replace_email(ctx: CommandContext, user: UserAccount, token: str) -> str:
+    """Run inside the command: the confirmed new address replaces the login email, all sessions
+    end (§ 2.3.3)."""
+    now = timezone.now()
+    flow = _locked_flow(token, AuthFlow.Purpose.CHANGE_EMAIL, now)
+    if flow.user_id != user.id or flow.code_verified_at is None:
+        raise errors.business_rule("CODE_NOT_CONFIRMED")
+    if _email_owner(flow.contact_value) is not None:
+        raise errors.business_rule("EMAIL_ALREADY_REGISTERED", field="email")
+    contact = (
+        LoginContact.objects.select_for_update()
+        .filter(user=user, kind=LoginContact.Kind.EMAIL)
+        .order_by("verified_at")
+        .first()
+    )
+    if contact is None:
+        raise RuntimeError(f"Account {user.public_id} has no confirmed email")
+    before = contact.value
+    try:
+        with transaction.atomic():
+            contact.value = flow.contact_value
+            contact.verified_at = flow.code_verified_at
+            contact.save(update_fields=["value", "verified_at"])
+    except IntegrityError as exc:
+        raise errors.business_rule("EMAIL_ALREADY_REGISTERED", field="email") from exc
+    flow.completed_at = now
+    flow.save(update_fields=["completed_at"])
+    ended = list(user.sessions.filter(ended_at__isnull=True).values_list("id", flat=True))
+    UserSession.objects.filter(pk__in=ended).update(
+        ended_at=now, end_reason=UserSession.EndReason.CONTACT_CHANGED
+    )
+    ctx.audit(
+        "account.email_changed",
+        object_type="user_account",
+        object_id=user.public_id,
+        before={"email": before},
+        after={"email": contact.value, "ended_sessions": [str(i) for i in ended]},
+    )
+    return contact.value
 
 
 # --- Lookups for other modules ----------------------------------------------------------------

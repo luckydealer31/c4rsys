@@ -6,8 +6,10 @@ import { Link, useNavigate } from "react-router";
 import { api } from "../../api/client";
 import type { Company, CompanySummary, User } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
+import { Avatar, ImagePicker } from "../../components/images";
+import { TimeZoneSelect } from "../../components/TimeZoneSelect";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
-import { deviceTimeZone, timeZones } from "../../time";
+import { deviceTimeZone } from "../../time";
 
 /** Companies of the user (§ 2.1.8) and creation of a new one (§ 3.1.1, § 22.1.4). */
 export function CompaniesPage({ user }: { user: User }) {
@@ -24,9 +26,16 @@ export function CompaniesPage({ user }: { user: User }) {
         {companies.isLoading ? <Loading /> : null}
         {companies.data?.length === 0 ? <p className="muted">{t("companies.none")}</p> : null}
         {(companies.data ?? []).map((company) => (
-          <Link key={company.public_id} className="list-link" to={`/c/${company.public_id}`}>
-            <strong>{company.display_name}</strong>{" "}
-            <span className="muted small">{company.public_id}</span>
+          <Link
+            key={company.public_id}
+            className="list-link company-link"
+            to={`/c/${company.public_id}`}
+          >
+            <Avatar file={company.logo} name={company.display_name} size={36} square />
+            <span>
+              <strong>{company.display_name}</strong>{" "}
+              <span className="muted small">{company.public_id}</span>
+            </span>
           </Link>
         ))}
       </Card>
@@ -40,15 +49,21 @@ function CreateCompany({ user }: { user: User }) {
   const navigate = useNavigate();
   const client = useQueryClient();
   const [name, setName] = useState("");
+  const [logo, setLogo] = useState<string | null>(null);
   // The user's time zone is proposed and must be confirmed or changed (§ 22.1.4).
-  const [timezone, setTimezone] = useState(deviceTimeZone());
-  const create = useCommand<{ display_name: string; timezone: string }, { company: Company }>(
-    "/companies",
-  );
+  const [timezone, setTimezone] = useState(user.timezone || deviceTimeZone());
+  const create = useCommand<
+    { display_name: string; timezone: string; logo?: string },
+    { company: Company }
+  >("/companies");
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    const result = await create.run({ display_name: name, timezone });
+    const result = await create.run({
+      display_name: name,
+      timezone,
+      ...(logo ? { logo } : {}),
+    });
     if (result) {
       void client.invalidateQueries({ queryKey: ["companies"] });
       navigate(`/c/${result.company.public_id}/setup`);
@@ -68,15 +83,18 @@ function CreateCompany({ user }: { user: User }) {
             <input value={name} onChange={(e) => setName(e.target.value)} />
           </Field>
           <Field label={t("companies.timezone")} hint={t("companies.timezone_hint")}>
-            <select value={timezone} onChange={(e) => setTimezone(e.target.value)}>
-              {timeZones().map((zone) => (
-                <option key={zone} value={zone}>
-                  {zone}
-                </option>
-              ))}
-            </select>
+            <TimeZoneSelect value={timezone} onChange={setTimezone} />
           </Field>
         </div>
+        <Field label={t("companies.logo")} hint={t("companies.logo_hint")}>
+          <ImagePicker
+            purpose="company_logo"
+            value={logo}
+            name={name}
+            square
+            onChange={setLogo}
+          />
+        </Field>
         <ErrorMessage error={create.error} />
         <div className="actions">
           <button type="submit" disabled={!user.has_full_name || !name.trim() || create.pending}>

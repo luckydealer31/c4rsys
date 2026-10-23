@@ -69,7 +69,7 @@ test("base example from registration to closing survives a restart", async ({ pa
   await page.getByRole("button", { name: t("auth.create_account") }).click();
   await page.getByRole("button", { name: t("auth.backup_done") }).click();
   await expect(page).toHaveURL(/\/profile$/);
-  const name = card(page, t("profile.name_title"));
+  const name = card(page, t("profile.personal_title"));
   await name.getByLabel(t("profile.first_name")).fill(author.first);
   await name.getByLabel(t("profile.last_name")).fill(author.last);
   await name.getByRole("button", { name: t("common.save") }).click();
@@ -84,12 +84,12 @@ test("base example from registration to closing survives a restart", async ({ pa
   await expect(page).toHaveURL(/\/c\/CMP-[A-Z0-9]+\/setup$/);
   const base = new URL(page.url()).pathname.replace(/\/setup$/, "");
 
-  await page.goto(`${base}/settings/company`);
+  await page.goto(`${base}/company`);
   await page.getByLabel(t("companies.main_currency")).selectOption("THB");
   await page.getByRole("button", { name: t("common.save") }).click();
   await expect(page.getByText(t("common.saved"))).toBeVisible();
 
-  await page.goto(`${base}/settings/locations`);
+  await page.goto(`${base}/company`);
   const location = card(page, t("locations.create_title"));
   await location.getByLabel(t("locations.name")).fill("Пхукет");
   await location.getByLabel(t("companies.timezone")).selectOption("Asia/Bangkok");

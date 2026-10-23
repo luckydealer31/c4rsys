@@ -13,7 +13,15 @@ from django.db.models import Q, QuerySet
 from django.utils import timezone
 
 from c4rsys.accounts.models import UserAccount
-from c4rsys.companies.models import Company, Employment, OwnershipShare, Position
+from c4rsys.companies.models import (
+    ActivityContext,
+    Company,
+    Employment,
+    OwnershipShare,
+    Position,
+)
+from c4rsys.files import services as files
+from c4rsys.files.models import StoredFile
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext
 from c4rsys.platform.ids import normalize_public_id
@@ -58,6 +66,7 @@ class NewCompany:
     display_name: str
     timezone: str = ""
     main_currency: str = ""
+    logo: UUID | None = None
 
 
 def create_company(ctx: CommandContext, user: UserAccount, data: NewCompany) -> CompanyContext:
@@ -70,8 +79,11 @@ def create_company(ctx: CommandContext, user: UserAccount, data: NewCompany) -> 
     currency = validate_currency(data.main_currency) if data.main_currency else None
     now = timezone.now()
 
+    if data.logo is not None:
+        files.usable(data.logo, purpose=StoredFile.Purpose.COMPANY_LOGO, user_id=user.id)
     company = Company(
         display_name=data.display_name,
+        logo_id=data.logo,
         timezone=data.timezone,
         main_currency=currency,
         created_by=user,
@@ -79,6 +91,8 @@ def create_company(ctx: CommandContext, user: UserAccount, data: NewCompany) -> 
     )
     company.public_id = allocate_public_id("CMP", entity_type="company", entity_id=company.id)
     company.save(force_insert=True)
+    if data.logo is not None:
+        files.attach_to_company(data.logo, company.id)
 
     share = OwnershipShare.objects.create(
         company=company, owner_user=user, percent=FULL_SHARE, valid_from=now
@@ -192,6 +206,7 @@ def company_actor(user: UserAccount, context: CompanyContext, session_id: UUID |
 def profile_snapshot(company: Company) -> dict[str, Any]:
     return {
         "display_name": company.display_name,
+        "logo": str(company.logo_id) if company.logo_id else None,
         "timezone": company.timezone,
         "main_currency": company.main_currency_id,
     }
@@ -206,6 +221,30 @@ def setup_state(company: Company) -> dict[str, bool]:
     }
 
 
+def context_types(company: Company) -> list[str]:
+    """Types of contexts present in the company's locations, deactivated ones included, so the
+    history of a direction stays reachable. The interface shows sections by them (customer's
+    decision of 24.10.2026)."""
+    return sorted(
+        set(ActivityContext.objects.filter(company=company).values_list("type", flat=True))
+    )
+
+
+def complete_setup(ctx: CommandContext, company_id: UUID) -> Company:
+    """«Complete» of the setup wizard. The caller checks that a context is ready (§ 22.1.12)."""
+    company = Company.objects.select_for_update().get(pk=company_id)
+    if company.setup_completed_at is None:
+        company.setup_completed_at = timezone.now()
+        company.save(update_fields=["setup_completed_at", "updated_at"])
+    ctx.audit(
+        "company.setup_completed",
+        object_type="company",
+        object_id=company.public_id,
+        after={"setup_completed_at": company.setup_completed_at},
+    )
+    return company
+
+
 def update_profile(
     ctx: CommandContext, company_id: UUID, changes: dict[str, str], expected_version: int
 ) -> Company:
@@ -213,6 +252,17 @@ def update_profile(
     if company.version != expected_version:
         raise errors.version_conflict()
     before = profile_snapshot(company)
+    if "logo" in changes:
+        logo = UUID(changes["logo"]) if changes["logo"] else None
+        if logo is not None and logo != company.logo_id:
+            files.usable(
+                logo,
+                purpose=StoredFile.Purpose.COMPANY_LOGO,
+                user_id=ctx.actor.user_id,
+                company_id=company.id,
+            )
+            files.attach_to_company(logo, company.id)
+        company.logo_id = logo
     if "display_name" in changes:
         company.display_name = changes["display_name"]
     if "timezone" in changes:
@@ -222,7 +272,14 @@ def update_profile(
     after = profile_snapshot(company)
     company.version += 1
     company.save(
-        update_fields=["display_name", "timezone", "main_currency", "version", "updated_at"]
+        update_fields=[
+            "display_name",
+            "logo",
+            "timezone",
+            "main_currency",
+            "version",
+            "updated_at",
+        ]
     )
     ctx.audit(
         "company.profile_changed",

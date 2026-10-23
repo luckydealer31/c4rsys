@@ -603,6 +603,26 @@ def company_readiness(request: HttpRequest, cmp: str) -> JsonResponse:
 
 
 @require_POST
+def company_setup_complete(request: HttpRequest, cmp: str) -> JsonResponse:
+    """«Complete» of the setup wizard: allowed when the final check shows at least one ready
+    context (§ 22.1.12); from then «Orders» are shown (customer's decision of 24.10.2026)."""
+    context, actor = _actor(request, cmp)
+    if not access.RightsResolver().has_permission(actor, "company.settings"):
+        raise errors.permission_denied("company.settings")
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        if not setup.readiness(context.company)["first_operation_ready"]:
+            raise errors.business_rule("SETUP_NOT_READY")
+        done = companies.complete_setup(ctx, context.company.id)
+        completed = done.setup_completed_at
+        return CommandResult(
+            200, {"setup_completed_at": completed.isoformat() if completed else None}
+        )
+
+    return run_and_respond(request, "company.complete_setup", actor, {}, handler)
+
+
+@require_POST
 def rental_quote(request: HttpRequest, cmp: str) -> JsonResponse:
     """Preliminary calculation before the issue is confirmed (§ 13.6.6, STAGE1_SCREENS): the
     current tariff of the vehicle, the planned period. A read: nothing is posted."""

@@ -76,3 +76,31 @@ def test_readiness_needs_company_settings(owner: Client) -> None:
     manager, _ = hire(owner, s.cmp, "m@example.com", [{"type": "set", "set": "rental_manager"}])
 
     assert manager.get(f"/api/c/{s.cmp}/readiness").status_code == 403
+
+
+def test_setup_is_completed_only_with_a_ready_context(owner: Client) -> None:
+    cmp = create_company(owner, timezone="Asia/Bangkok", main_currency="THB").json()["company"][
+        "public_id"
+    ]
+
+    refused = post(owner, f"/api/c/{cmp}/setup/complete", {}, key())
+    assert refused.json()["error"]["code"] == "SETUP_NOT_READY"
+    assert owner.get(f"/api/c/{cmp}").json()["company"]["setup_completed_at"] is None
+
+
+def test_completed_setup_and_context_types_are_in_the_company(owner: Client) -> None:
+    s = build(owner)
+    s_vehicle_terms = owner.put(
+        f"/api/c/{s.cmp}/tariffs/{s.tariff}/vehicles/{s.vehicle}",
+        data={"mileage": {"mode": "unlimited"}, "deposit": {"required": False}},
+        content_type="application/json",
+        headers=key(),
+    )
+    assert s_vehicle_terms.status_code in (200, 201)
+
+    done = post(owner, f"/api/c/{s.cmp}/setup/complete", {}, key())
+
+    assert done.status_code == 200, done.content
+    company = owner.get(f"/api/c/{s.cmp}").json()["company"]
+    assert company["setup_completed_at"] is not None
+    assert company["context_types"] == ["rental"]

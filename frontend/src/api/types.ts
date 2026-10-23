@@ -1,17 +1,30 @@
 export type User = {
   public_id: string;
+  username: string | null;
+  username_changed_at: string | null;
   first_name: string;
   last_name: string;
   middle_name: string;
   has_full_name: boolean;
+  avatar: string | null;
   email: string | null;
+  birth_date: string | null;
+  contact_email: string;
+  contact_phone: string;
+  document_type: string;
+  document_number: string;
+  document_issued_on: string | null;
+  document_expires_on: string | null;
   language: string;
   theme: "system" | "light" | "dark";
+  /** Personal time zone of the interface; empty — the device's. */
+  timezone: string;
 };
 
 export type CompanySummary = {
   public_id: string;
   display_name: string;
+  logo: string | null;
   setup: { profile: boolean; finance: boolean };
 };
 
@@ -20,6 +33,8 @@ export type Company = CompanySummary & {
   main_currency: string | null;
   created_at: string;
   version: number;
+  setup_completed_at: string | null;
+  context_types: ContextType[];
   employment?: {
     id: string;
     position_code: string;

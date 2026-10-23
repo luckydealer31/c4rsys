@@ -10,6 +10,7 @@ from django.db.models import Q
 from django.utils.timezone import now
 
 from c4rsys.accounts.models import UserAccount
+from c4rsys.files.models import StoredFile
 from c4rsys.platform.ids import uuid7
 from c4rsys.platform.models import Currency
 
@@ -18,16 +19,22 @@ class Company(models.Model):
     """Profile of § 3.1.1, § 3.1.6, § 22.1.4, § 22.1.7.
 
     The time zone is empty until the user confirms one; main currency until it is chosen.
-    The remaining profile fields of § 3.1.5 are added by later tasks.
+    The remaining profile fields of § 3.1.5 are added by later tasks. `setup_completed_at` is
+    set by «Complete» of the setup wizard while at least one context is ready; from then the
+    interface shows «Orders» (customer's decision of 24.10.2026).
     """
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     public_id = models.CharField(max_length=40, unique=True)
     display_name = models.CharField(max_length=200)
+    logo = models.ForeignKey(
+        StoredFile, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
     timezone = models.CharField(max_length=64, blank=True, default="")
     main_currency = models.ForeignKey(
         Currency, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
+    setup_completed_at = models.DateTimeField(null=True, blank=True)
     created_by = models.ForeignKey(UserAccount, on_delete=models.PROTECT, related_name="+")
     created_at = models.DateTimeField(default=now)
     updated_at = models.DateTimeField(auto_now=True)

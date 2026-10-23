@@ -8,7 +8,7 @@ import type { ContextType, Location } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { useCan, useCompany } from "../../layout/CompanyShell";
-import { timeZones } from "../../time";
+import { TimeZoneSelect } from "../../components/TimeZoneSelect";
 
 const CONTEXT_TYPES: ContextType[] = ["rental", "service", "warehouse"];
 
@@ -21,16 +21,6 @@ export function useLocations() {
 }
 
 /** Locations with their contexts, state and schedule (§ 4.1–4.4, § 22.1.5–22.1.6). */
-export function LocationsPage() {
-  const { t } = useTranslation();
-  return (
-    <div className="page">
-      <h1>{t("settings.locations")}</h1>
-      <LocationsEditor />
-    </div>
-  );
-}
-
 export function LocationsEditor() {
   const { t } = useTranslation();
   const can = useCan();
@@ -56,6 +46,8 @@ function useRefresh() {
     await client.invalidateQueries({ queryKey: ["locations", company.public_id] });
     // The setup wizard shows readiness from the same data (§ 22.1.12).
     await client.invalidateQueries({ queryKey: ["readiness", company.public_id] });
+    // Sections of the menu follow the contexts of the locations (decision of 24.10.2026).
+    await client.invalidateQueries({ queryKey: ["company", company.public_id] });
   };
 }
 
@@ -93,14 +85,7 @@ function CreateLocation() {
             <input value={name} onChange={(e) => setName(e.target.value)} />
           </Field>
           <Field label={t("companies.timezone")} hint={t("locations.timezone_hint")}>
-            <select value={timezone} onChange={(e) => setTimezone(e.target.value)}>
-              <option value="">—</option>
-              {timeZones().map((zone) => (
-                <option key={zone} value={zone}>
-                  {zone}
-                </option>
-              ))}
-            </select>
+            <TimeZoneSelect value={timezone} onChange={setTimezone} emptyLabel="—" />
           </Field>
           <Field label={t("locations.address")}>
             <input value={address} onChange={(e) => setAddress(e.target.value)} />
@@ -223,17 +208,11 @@ function LocationCard({ location, editable }: { location: Location; editable: bo
               <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
             </Field>
             <Field label={t("companies.timezone")}>
-              <select
+              <TimeZoneSelect
                 value={form.timezone}
-                onChange={(e) => setForm({ ...form, timezone: e.target.value })}
-              >
-                <option value="">—</option>
-                {timeZones().map((zone) => (
-                  <option key={zone} value={zone}>
-                    {zone}
-                  </option>
-                ))}
-              </select>
+                onChange={(timezone) => setForm({ ...form, timezone })}
+                emptyLabel="—"
+              />
             </Field>
             <Field label={t("locations.address")}>
               <input

@@ -1,5 +1,8 @@
 """HTTP API of the personal account (docs/stage1/STAGE1_COMMANDS_API.md, «Аккаунт»)."""
 
+import re
+import zoneinfo
+from datetime import date, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -20,8 +23,11 @@ from c4rsys.accounts.models import (
     DEFAULT_TOTAL_MINUTES,
     AuthFlow,
     UserAccount,
+    UsernameReservation,
     UserSession,
 )
+from c4rsys.files import services as files
+from c4rsys.files.models import StoredFile
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult, Handler, run_command
 from c4rsys.platform.http import (
@@ -36,6 +42,10 @@ from c4rsys.platform.http import (
 from c4rsys.platform.middleware import get_request_id
 
 LANGUAGES = {"", "en", "ru", "th"}
+USERNAME_RE = re.compile(r"^[A-Za-z0-9._]{3,30}$")  # § 2.2.1
+USERNAME_INTERVAL = timedelta(days=30)  # § 2.2.2
+TIMEZONES = zoneinfo.available_timezones() | {"UTC"}
+PHONE_RE = re.compile(r"^\+?[0-9 ()\-]{5,40}$")
 
 
 def _client(request: HttpRequest) -> services.Client:
@@ -51,13 +61,30 @@ def _user_payload(user: UserAccount) -> dict[str, Any]:
     )
     return {
         "public_id": user.public_id,
+        "username": user.username or None,
+        "username_changed_at": (
+            user.username_changed_at.isoformat() if user.username_changed_at else None
+        ),
         "first_name": user.first_name,
         "last_name": user.last_name,
         "middle_name": user.middle_name,
         "has_full_name": user.has_full_name,
+        "avatar": str(user.avatar_id) if user.avatar_id else None,
         "email": email,
+        "birth_date": user.birth_date.isoformat() if user.birth_date else None,
+        "contact_email": user.contact_email,
+        "contact_phone": user.contact_phone,
+        "document_type": user.document_type,
+        "document_number": user.document_number,
+        "document_issued_on": (
+            user.document_issued_on.isoformat() if user.document_issued_on else None
+        ),
+        "document_expires_on": (
+            user.document_expires_on.isoformat() if user.document_expires_on else None
+        ),
         "language": user.language,
         "theme": user.theme,
+        "timezone": user.time_zone,
     }
 
 
@@ -189,6 +216,11 @@ def me(request: HttpRequest) -> JsonResponse:
         if theme not in UserAccount.Theme.values:
             raise errors.validation_error("theme")
         changes["theme"] = theme
+    if "timezone" in data:
+        zone = get_str(data, "timezone", max_length=64, required=False)
+        if zone and zone not in TIMEZONES:
+            raise errors.validation_error("timezone", code="TIMEZONE_INVALID")
+        changes["time_zone"] = zone
 
     def handler(ctx: CommandContext) -> CommandResult:
         locked = UserAccount.objects.select_for_update().get(pk=user.pk)
@@ -223,20 +255,81 @@ def _name_is_empty(user: UserAccount) -> bool:
     return not (user.first_name or user.last_name or user.middle_name)
 
 
+def _date(data: dict[str, Any], key: str) -> str:
+    """An optional date as YYYY-MM-DD; kept as text in the command payload."""
+    value = get_str(data, key, max_length=10, required=False)
+    if value:
+        try:
+            date.fromisoformat(value)
+        except ValueError as exc:
+            raise errors.validation_error(key, code="DATE_INVALID") from exc
+    return value
+
+
+def _personal_values(data: dict[str, Any], user: UserAccount) -> dict[str, Any]:
+    values: dict[str, Any] = {
+        "last_name": get_str(data, "last_name", max_length=150),
+        "first_name": get_str(data, "first_name", max_length=150),
+        "middle_name": get_str(data, "middle_name", max_length=150, required=False),
+        "birth_date": _date(data, "birth_date"),
+        "contact_email": get_str(data, "contact_email", required=False),
+        "contact_phone": get_str(data, "contact_phone", max_length=40, required=False),
+        "document_type": get_str(data, "document_type", max_length=100, required=False),
+        "document_number": get_str(data, "document_number", max_length=100, required=False),
+        "document_issued_on": _date(data, "document_issued_on"),
+        "document_expires_on": _date(data, "document_expires_on"),
+        "avatar": get_str(data, "avatar", max_length=36, required=False),
+    }
+    if values["contact_email"]:
+        values["contact_email"] = services.normalize_email(values["contact_email"])
+    if values["contact_phone"] and not PHONE_RE.match(values["contact_phone"]):
+        raise errors.validation_error("contact_phone", code="PHONE_INVALID")
+    if values["birth_date"] and date.fromisoformat(values["birth_date"]) > timezone.localdate():
+        raise errors.validation_error("birth_date", code="DATE_IN_FUTURE")
+    issued, expires = values["document_issued_on"], values["document_expires_on"]
+    if issued and expires and expires < issued:
+        raise errors.validation_error("document_expires_on", code="DATE_BEFORE_ISSUE")
+    if values["avatar"]:
+        try:
+            avatar = UUID(values["avatar"])
+        except ValueError as exc:
+            raise errors.validation_error("avatar") from exc
+        if avatar != user.avatar_id:
+            files.usable(avatar, purpose=StoredFile.Purpose.AVATAR, user_id=user.id)
+    return values
+
+
+def _personal_snapshot(user: UserAccount) -> dict[str, Any]:
+    body = _user_payload(user)
+    return {key: body[key] for key in PERSONAL_FIELDS}
+
+
+PERSONAL_FIELDS = (
+    "last_name",
+    "first_name",
+    "middle_name",
+    "birth_date",
+    "contact_email",
+    "contact_phone",
+    "document_type",
+    "document_number",
+    "document_issued_on",
+    "document_expires_on",
+    "avatar",
+)
+
+
 @require_POST
 def personal_data(request: HttpRequest) -> JsonResponse:
-    """First, last and middle name (§ 2.1.5–2.1.6).
+    """Personal data of the profile: name and photo (§ 2.1.5–2.1.6) and the optional data added
+    by the customer on 24.10.2026 (birth date, contact email and phone, identity document).
 
     Changing personal data requires a one-time code (§ 2.1.1). The first entry of the name after
     registration, while first and last name are still empty, does not (decision 22.10.2026).
     """
     user, session = require_user(request)
     data = parse_json(request)
-    values = {
-        "first_name": get_str(data, "first_name", max_length=150),
-        "last_name": get_str(data, "last_name", max_length=150),
-        "middle_name": get_str(data, "middle_name", max_length=150, required=False),
-    }
+    values = _personal_values(data, user)
     first_entry = _name_is_empty(user)
     if not first_entry:
         services.confirm_critical(
@@ -251,20 +344,137 @@ def personal_data(request: HttpRequest) -> JsonResponse:
         if first_entry and not _name_is_empty(locked):
             # Filled in parallel by another request: this is now a change and needs a code.
             raise errors.business_rule("CONFIRMATION_REQUIRED")
-        before = {key: getattr(locked, key) for key in values}
-        for key, value in values.items():
-            setattr(locked, key, value)
-        locked.save(update_fields=[*values, "updated_at"])
+        before = _personal_snapshot(locked)
+        for key in ("last_name", "first_name", "middle_name", "contact_email", "contact_phone"):
+            setattr(locked, key, values[key])
+        locked.document_type = values["document_type"]
+        locked.document_number = values["document_number"]
+        for key in ("birth_date", "document_issued_on", "document_expires_on"):
+            setattr(locked, key, date.fromisoformat(values[key]) if values[key] else None)
+        locked.avatar_id = UUID(values["avatar"]) if values["avatar"] else None
+        locked.save()
+        after = _personal_snapshot(locked)
+        changed = [key for key in PERSONAL_FIELDS if before[key] != after[key]]
         ctx.audit(
             "account.personal_data_changed",
             object_type="user_account",
             object_id=locked.public_id,
-            before=before,
-            after=values,
+            before={key: before[key] for key in changed},
+            after={key: after[key] for key in changed},
         )
         return CommandResult(200, {"user": _user_payload(locked)})
 
     return _run(request, "account.change_personal_data", _actor(user, session), values, handler)
+
+
+@require_http_methods(["PUT"])
+def username(request: HttpRequest) -> JsonResponse:
+    """Set, change or remove the optional username (§ 2.2.1–2.2.2): at most once in 30 days; a
+    released name stays reserved for this account for 30 days."""
+    user, session = require_user(request)
+    data = parse_json(request)
+    value = get_str(data, "username", max_length=30, required=False)
+    if value and not USERNAME_RE.match(value):
+        raise errors.validation_error("username", code="USERNAME_INVALID")
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        now = timezone.now()
+        locked = UserAccount.objects.select_for_update().get(pk=user.pk)
+        current = locked.username or ""
+        if current.lower() == value.lower() and current == value:
+            return CommandResult(200, {"user": _user_payload(locked)})
+        renamed = current.lower() != value.lower()
+        # The very first setting is not a change; later changes, removal included, count.
+        is_change = renamed and (bool(current) or locked.username_changed_at is not None)
+        if is_change and locked.username_changed_at:
+            allowed_at = locked.username_changed_at + USERNAME_INTERVAL
+            if now < allowed_at:
+                raise errors.business_rule(
+                    "USERNAME_CHANGE_TOO_SOON", field="username", allowed_at=allowed_at.isoformat()
+                )
+        if value and renamed:
+            taken = UserAccount.objects.filter(username__iexact=value).exclude(pk=locked.pk)
+            reserved = UsernameReservation.objects.filter(
+                username_lower=value.lower(), reserved_until__gt=now
+            ).exclude(user=locked)
+            if taken.exists() or reserved.exists():
+                raise errors.business_rule("USERNAME_TAKEN", field="username")
+        if current and renamed:
+            UsernameReservation.objects.create(
+                user=locked,
+                username_lower=current.lower(),
+                released_at=now,
+                reserved_until=now + USERNAME_INTERVAL,
+            )
+        locked.username = value
+        if is_change:
+            locked.username_changed_at = now
+        locked.save(update_fields=["username", "username_changed_at", "updated_at"])
+        ctx.audit(
+            "account.username_changed",
+            object_type="user_account",
+            object_id=locked.public_id,
+            before={"username": current or None},
+            after={"username": locked.username or None},
+        )
+        return CommandResult(200, {"user": _user_payload(locked)})
+
+    return _run(
+        request, "account.change_username", _actor(user, session), {"username": value}, handler
+    )
+
+
+@require_POST
+def password_change(request: HttpRequest) -> JsonResponse:
+    """New cloud password with the current one and a code to the email (decision of
+    24.10.2026). Other sessions end; the current one stays."""
+    user, session = require_user(request)
+    data = parse_json(request)
+    current = get_str(data, "current_password", max_length=128)
+    new = get_str(data, "new_password", max_length=128)
+    services.confirm_critical(
+        user, "change_password", get_str(data, "flow"), get_str(data, "code", max_length=20)
+    )
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        ended = services.change_password(ctx, user, session, current, new)
+        return CommandResult(200, {"status": "changed", "ended_sessions": ended})
+
+    # Passwords are not part of the stored request: the code flow makes the request unique.
+    payload = {"flow": get_str(data, "flow")}
+    return _run(request, "account.change_password", _actor(user, session), payload, handler)
+
+
+@require_POST
+def email_change_start(request: HttpRequest) -> JsonResponse:
+    """Step 1 (§ 2.3.2): code to the current email confirmed, a code goes to the new one."""
+    user, _session = require_user(request)
+    data = parse_json(request)
+    services.confirm_critical(
+        user, "change_email", get_str(data, "flow"), get_str(data, "code", max_length=20)
+    )
+    started = services.start_email_change(user, get_str(data, "email"), _client(request))
+    return JsonResponse(started.as_dict())
+
+
+@require_POST
+def email_change_complete(request: HttpRequest) -> JsonResponse:
+    """Step 2: the code of the new address; the address replaces the login email and all
+    sessions end (§ 2.3.3)."""
+    user, session = require_user(request)
+    data = parse_json(request)
+    token = get_str(data, "flow")
+    services.verify_email_change(user, token, get_str(data, "code", max_length=20))
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        email = services.replace_email(ctx, user, token)
+        return CommandResult(200, {"status": "changed", "email": email})
+
+    response = _run(
+        request, "account.change_email", _actor(user, session), {"flow": token}, handler
+    )
+    mark_session_cleared(request)
+    return response
 
 
 # --- Sessions and their limits (§ 2.3.3, § 24.4.2) ------------------------------------------

@@ -59,6 +59,40 @@ export type RequestOptions = {
   background?: boolean;
 };
 
+/** Upload of one file as multipart (the browser sets the content type and its boundary). */
+export async function uploadFile(
+  purpose: "avatar" | "company_logo",
+  file: File,
+  idempotencyKey: string = crypto.randomUUID(),
+): Promise<{ id: string }> {
+  const body = new FormData();
+  body.append("file", file);
+  let response: Response;
+  try {
+    response = await fetch(`/api/files?purpose=${purpose}`, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "X-CSRFToken": await csrfToken(),
+        "Idempotency-Key": idempotencyKey,
+      },
+      credentials: "same-origin",
+      body,
+    });
+  } catch {
+    throw new ApiError(0, null);
+  }
+  const data: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new ApiError(response.status, (data as ErrorBody | null)?.error ?? null);
+  }
+  return (data as { file: { id: string } }).file;
+}
+
+export function fileUrl(id: string): string {
+  return `/api/files/${id}`;
+}
+
 export async function api<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const method = options.method ?? "GET";
   const headers: Record<string, string> = { Accept: "application/json" };

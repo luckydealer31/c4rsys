@@ -1,11 +1,12 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 
 import { useApi } from "../../api/queries";
 import type { Readiness } from "../../api/types";
 import type { ApiError } from "../../api/client";
+import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Loading } from "../../components/ui";
 import { companyPath, useCompany } from "../../layout/CompanyShell";
 import { CashAccountsEditor } from "../finance/FinancePage";
@@ -119,6 +120,7 @@ export function SetupPage() {
             {t("setup.back")}
           </button>
         ) : null}
+        {step === "check" ? <CompleteSetup ready={r.first_operation_ready} /> : null}
         {index < STEPS.length - 1 ? (
           <button
             type="button"
@@ -135,16 +137,49 @@ export function SetupPage() {
   );
 }
 
+/** «Complete»: allowed when at least one context is ready (§ 22.1.12); from then «Orders»
+ * appear in the menu (decision of 24.10.2026). */
+function CompleteSetup({ ready }: { ready: boolean }) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const client = useQueryClient();
+  const navigate = useNavigate();
+  const complete = useCommand<Record<string, never>, { setup_completed_at: string }>(
+    `/c/${company.public_id}/setup/complete`,
+  );
+  if (company.setup_completed_at) {
+    return <span className="badge ok">{t("setup.completed")}</span>;
+  }
+  return (
+    <>
+      <button
+        type="button"
+        disabled={!ready || complete.pending}
+        onClick={async () => {
+          if ((await complete.run({})) !== null) {
+            await client.invalidateQueries({ queryKey: ["company", company.public_id] });
+            navigate(companyPath(company, "/orders"));
+          }
+        }}
+      >
+        {t("setup.complete")}
+      </button>
+      {!ready ? <span className="muted small">{t("setup.complete_needs_ready")}</span> : null}
+      <ErrorMessage error={complete.error} />
+    </>
+  );
+}
+
 /** «Ready / Needs setup» for the company, each location and context, with links (§ 22.1.12). */
 function ReadinessCheck({ readiness }: { readiness: Readiness }) {
   const { t } = useTranslation();
   const company = useCompany();
   const links: Record<string, string> = {
-    timezone: "/settings/company",
-    main_currency: "/settings/company",
-    display_name: "/settings/company",
-    no_timezone: "/settings/locations",
-    no_context: "/settings/locations",
+    timezone: "/company",
+    main_currency: "/company",
+    display_name: "/company",
+    no_timezone: "/company",
+    no_context: "/company",
     no_tariff: "/settings/tariffs",
     no_vehicle: "/vehicles",
     no_vehicle_with_tariff: "/settings/tariffs",
@@ -164,7 +199,7 @@ function ReadinessCheck({ readiness }: { readiness: Readiness }) {
       </Card>
       {readiness.locations.length === 0 ? (
         <Card>
-          <Link to={companyPath(company, "/settings/locations")}>{t("setup.missing_location")}</Link>
+          <Link to={companyPath(company, "/company")}>{t("setup.missing_location")}</Link>
         </Card>
       ) : null}
       {readiness.locations.map((location) => (

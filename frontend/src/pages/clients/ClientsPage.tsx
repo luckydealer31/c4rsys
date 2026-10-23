@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useParams } from "react-router";
+import { Link, useParams, useSearchParams } from "react-router";
 
 import { api } from "../../api/client";
 import { useApi } from "../../api/queries";
@@ -15,7 +15,41 @@ export function clientName(client: Pick<Client, "kind" | "first_name" | "last_na
 }
 
 /** Clients: list with search when allowed (§ 6.2.2), creation with possible matches (§ 6.1.11). */
+/** «Clients and counterparties» (decision of 24.10.2026): one menu item, two separate lists
+ * (§ 6.1.7) on neighbouring tabs. */
 export function ClientsPage() {
+  const { t } = useTranslation();
+  const [params, setParams] = useSearchParams();
+  const tab = params.get("tab") === "counterparties" ? "counterparties" : "clients";
+  return (
+    <div className="page">
+      <h1>{t("nav.clients")}</h1>
+      <div className="tabs" role="tablist">
+        {(["clients", "counterparties"] as const).map((key) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={tab === key}
+            className={tab === key ? "active" : ""}
+            onClick={() => setParams(key === "clients" ? {} : { tab: key })}
+          >
+            {t(`clients.tab_${key}`)}
+          </button>
+        ))}
+      </div>
+      {tab === "clients" ? (
+        <ClientsList />
+      ) : (
+        <Card>
+          <p className="muted">{t("clients.counterparties_later")}</p>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function ClientsList() {
   const { t } = useTranslation();
   const company = useCompany();
   const can = useCan();
@@ -26,8 +60,7 @@ export function ClientsPage() {
     can("client.list"),
   );
   return (
-    <div className="page">
-      <h1>{t("nav.clients")}</h1>
+    <>
       {can("client.list") ? (
         <Card>
           <Field label={t("clients.search")}>
@@ -51,7 +84,7 @@ export function ClientsPage() {
         <p className="muted">{t("clients.list_not_allowed")}</p>
       )}
       {can("client.create") ? <ClientForm /> : null}
-    </div>
+    </>
   );
 }
 

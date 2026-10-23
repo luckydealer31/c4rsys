@@ -6,8 +6,10 @@ hashes (§ 24.4.3).
 
 from django.db import models
 from django.db.models import Q
+from django.db.models.functions import Lower
 from django.utils import timezone
 
+from c4rsys.files.models import StoredFile
 from c4rsys.platform.ids import uuid7
 
 DEFAULT_IDLE_MINUTES = 7 * 24 * 60  # 7 days of inactivity (§ 24.4.2)
@@ -29,6 +31,23 @@ class UserAccount(models.Model):
     first_name = models.CharField(max_length=150, blank=True, default="")
     last_name = models.CharField(max_length=150, blank=True, default="")
     middle_name = models.CharField(max_length=150, blank=True, default="")
+    # Optional username (§ 2.2.1–2.2.2); unique without regard to case.
+    username = models.CharField(max_length=30, blank=True, default="")
+    username_changed_at = models.DateTimeField(null=True, blank=True)
+    avatar = models.ForeignKey(
+        StoredFile, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    # Additional personal data, all optional (customer's decision of 24.10.2026). The second
+    # email and the phone here are for contact only, not for login.
+    birth_date = models.DateField(null=True, blank=True)
+    contact_email = models.CharField(max_length=254, blank=True, default="")
+    contact_phone = models.CharField(max_length=40, blank=True, default="")
+    document_type = models.CharField(max_length=100, blank=True, default="")
+    document_number = models.CharField(max_length=100, blank=True, default="")
+    document_issued_on = models.DateField(null=True, blank=True)
+    document_expires_on = models.DateField(null=True, blank=True)
+    # Personal time zone of the interface (customer's decision of 24.10.2026); empty — device.
+    time_zone = models.CharField(max_length=64, blank=True, default="")
     password_hash = models.CharField(max_length=255)
     backup_code_hash = models.CharField(max_length=255, blank=True, default="")
     language = models.CharField(max_length=10, blank=True, default="")
@@ -42,6 +61,11 @@ class UserAccount(models.Model):
     class Meta:
         db_table = "user_account"
         constraints = [
+            models.UniqueConstraint(
+                Lower("username"),
+                name="user_account_username_ci_uniq",
+                condition=~Q(username=""),
+            ),
             models.CheckConstraint(
                 condition=Q(session_idle_limit_min__gte=1)
                 & Q(session_idle_limit_min__lte=DEFAULT_IDLE_MINUTES),
@@ -61,6 +85,25 @@ class UserAccount(models.Model):
     def has_full_name(self) -> bool:
         """First and last name are required to create a company or accept employment (§ 2.1.3)."""
         return bool(self.first_name.strip() and self.last_name.strip())
+
+
+class UsernameReservation(models.Model):
+    """A released username stays reserved for the same account for 30 days (§ 2.2.2)."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    user = models.ForeignKey(UserAccount, on_delete=models.PROTECT, related_name="+")
+    username_lower = models.CharField(max_length=30)
+    released_at = models.DateTimeField(default=timezone.now)
+    reserved_until = models.DateTimeField()
+
+    class Meta:
+        db_table = "username_reservation"
+        indexes = [
+            models.Index(fields=["username_lower", "reserved_until"], name="username_resv_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return self.username_lower
 
 
 class LoginContact(models.Model):
@@ -96,6 +139,7 @@ class AuthFlow(models.Model):
         REGISTER = "register"
         LOGIN = "login"
         CRITICAL = "critical"
+        CHANGE_EMAIL = "change_email"  # confirmation of the new address (§ 2.3.2)
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     purpose = models.CharField(max_length=20, choices=Purpose.choices)
@@ -172,6 +216,8 @@ class UserSession(models.Model):
         ENDED_ALL = "ended_all"
         IDLE_EXPIRED = "idle_expired"
         TOTAL_EXPIRED = "total_expired"
+        PASSWORD_CHANGED = "password_changed"  # noqa: S105
+        CONTACT_CHANGED = "contact_changed"
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     user = models.ForeignKey(UserAccount, on_delete=models.PROTECT, related_name="sessions")

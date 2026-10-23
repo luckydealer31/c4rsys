@@ -1,0 +1,36 @@
+"""Details of an uploaded file (A10). The content lives outside PostgreSQL under its id."""
+
+from django.db import models
+from django.db.models import Q
+from django.utils import timezone
+
+from c4rsys.platform.ids import uuid7
+
+
+class StoredFile(models.Model):
+    """A file is closed by default (A10): who may read it is decided by its purpose.
+
+    Uploader and company are plain UUIDs: the module does not own accounts or companies.
+    """
+
+    class Purpose(models.TextChoices):
+        AVATAR = "avatar"  # profile photo (§ 2.1.5)
+        COMPANY_LOGO = "company_logo"  # § 3.1.1, § 3.1.5
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    purpose = models.CharField(max_length=30, choices=Purpose.choices)
+    uploaded_by = models.UUIDField()
+    company_id = models.UUIDField(null=True, blank=True)
+    content_type = models.CharField(max_length=60)
+    size = models.PositiveIntegerField()
+    sha256 = models.CharField(max_length=64)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = "stored_file"
+        constraints = [
+            models.CheckConstraint(condition=Q(size__gt=0), name="stored_file_size_positive"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.purpose}:{self.id}"

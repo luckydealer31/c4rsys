@@ -30,6 +30,10 @@ services:
     environment:
       DATABASE_URL: postgres://c4rsys:${POSTGRES_PASSWORD}@db:5432/c4rsys
       DJANGO_DEBUG: "0"
+      C4R_FILES_ROOT: /data/files
+    volumes:
+      # Uploaded files (A10): kept apart from the database, back up together with it.
+      - files_data:/data/files
     depends_on:
       db:
         condition: service_healthy
@@ -53,5 +57,6 @@ services:
 
 volumes:
   db_data:
+  files_data:
   caddy_data:
   caddy_config:
