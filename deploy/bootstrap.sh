@@ -43,12 +43,17 @@ ufw --force enable
 
 echo "== SSH: keys only"
 if [ -s /root/.ssh/authorized_keys ]; then
-  cat > /etc/ssh/sshd_config.d/60-c4rsys-keys-only.conf <<'EOF'
+  # sshd takes the first value it reads; provider images ship 50-cloud-init.conf with
+  # «PasswordAuthentication yes», so this file must sort before it.
+  rm -f /etc/ssh/sshd_config.d/60-c4rsys-keys-only.conf
+  cat > /etc/ssh/sshd_config.d/01-c4rsys-keys-only.conf <<'EOF'
 PasswordAuthentication no
 KbdInteractiveAuthentication no
 PermitRootLogin prohibit-password
 EOF
   sshd -t && systemctl reload ssh
+  [ "$(sshd -T | awk '/^passwordauthentication /{print $2}')" = "no" ] \
+    || { echo "Password login is still on"; exit 1; }
 else
   echo "No key in /root/.ssh/authorized_keys: password login is left as it is"
 fi
