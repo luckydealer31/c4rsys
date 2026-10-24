@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate, useSearchParams } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 
 import { api, ApiError } from "../../api/client";
 import { useApi } from "../../api/queries";
@@ -140,6 +140,14 @@ export function IssuePage() {
               </select>
             </Field>
           </div>
+          {/* A rental tariff is chosen among those assigned to the vehicle (§ 13.1.2): say so
+              and lead there when there is none (decision of 24.10.2026). */}
+          {vehicleId && tariffs.data && tariffs.data.tariffs.length === 0 ? (
+            <div className="alert warn">
+              {t("rentals.no_tariff_for_vehicle")}{" "}
+              <Link to={companyPath(company, "/rentals/tariffs")}>{t("settings.tariffs")}</Link>
+            </div>
+          ) : null}
           <h3 style={{ marginTop: 16 }}>{t("rentals.client")}</h3>
           {chosen ? (
             <p>

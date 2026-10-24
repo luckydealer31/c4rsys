@@ -661,7 +661,8 @@
     "tariff": "Tariff",
     "time_zone": "Times are shown in {{zone}}.",
     "vehicle": "Vehicle",
-    "vehicle_and_client": "Vehicle, tariff and client"
+    "vehicle_and_client": "Vehicle, tariff and client",
+    "no_tariff_for_vehicle": "This vehicle has no tariff: assign it a tariff with mileage and deposit terms."
   },
   "rights": {
     "add": "Add rights",

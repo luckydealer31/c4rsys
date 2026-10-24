@@ -36,6 +36,17 @@ export function RentalsPage() {
           <Link className="button" to={companyPath(company, "/rentals/new")}>
             {t("rentals.issue")}
           </Link>
+          {can("tariff.view") ? (
+            <Link className="button secondary" to={companyPath(company, "/rentals/tariffs")}>
+              {t("settings.tariffs")}
+            </Link>
+          ) : null}
+        </div>
+      ) : can("tariff.view") ? (
+        <div className="actions" style={{ marginBottom: 16, marginTop: 0 }}>
+          <Link className="button secondary" to={companyPath(company, "/rentals/tariffs")}>
+            {t("settings.tariffs")}
+          </Link>
         </div>
       ) : null}
       <Card>

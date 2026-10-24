@@ -66,7 +66,7 @@ export function SetupPage() {
     tariff: (
       <Card>
         <p>{t("setup.tariff_text")}</p>
-        <Link className="button" to={companyPath(company, "/settings/tariffs")}>
+        <Link className="button" to={companyPath(company, "/rentals/tariffs")}>
           {t("settings.tariffs")}
         </Link>
       </Card>
@@ -181,9 +181,9 @@ function ReadinessCheck({ readiness }: { readiness: Readiness }) {
     display_name: "/settings/company",
     no_timezone: "/company",
     no_context: "/company",
-    no_tariff: "/settings/tariffs",
+    no_tariff: "/rentals/tariffs",
     no_vehicle: "/vehicles",
-    no_vehicle_with_tariff: "/settings/tariffs",
+    no_vehicle_with_tariff: "/rentals/tariffs",
   };
   const missingCompany = Object.entries(readiness.company.items).filter(([, ok]) => !ok);
   return (

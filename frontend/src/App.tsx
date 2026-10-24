@@ -95,8 +95,9 @@ export function App() {
         <Route path="settings" element={<SettingsPage />} />
         <Route path="settings/company" element={<CompanyProfilePage />} />
         <Route path="settings/locations" element={<Navigate to="../company" replace />} />
-        <Route path="settings/tariffs" element={<TariffsPage />} />
-        <Route path="settings/tariffs/:id" element={<TariffPage />} />
+        <Route path="rentals/tariffs" element={<TariffsPage />} />
+        <Route path="rentals/tariffs/:id" element={<TariffPage />} />
+        <Route path="settings/tariffs" element={<Navigate to="../rentals/tariffs" replace />} />
         <Route path="clients/employees/:id" element={<EmployeePage />} />
         <Route path="settings/employees" element={<Navigate to="../clients?tab=employees" replace />} />
       </Route>

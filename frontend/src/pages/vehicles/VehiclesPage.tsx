@@ -431,7 +431,7 @@ function VehicleTariffs({ vehicleId }: { vehicleId: string }) {
       ))}
       <p className="muted small">
         {t("vehicles.tariffs_hint")}{" "}
-        <Link to={companyPath(company, "/settings/tariffs")}>{t("settings.tariffs")}</Link>
+        <Link to={companyPath(company, "/rentals/tariffs")}>{t("settings.tariffs")}</Link>
       </p>
     </Card>
   );
@@ -448,7 +448,7 @@ function AssignedTariff({ tariff, vehicleId }: { tariff: Tariff; vehicleId: stri
   if (!mine) return null;
   return (
     <p>
-      <Link to={companyPath(company, `/settings/tariffs/${tariff.id}`)}>{tariff.name}</Link>
+      <Link to={companyPath(company, `/rentals/tariffs/${tariff.id}`)}>{tariff.name}</Link>
       {tariff.state === "archived" ? <span className="badge"> {t("tariffs.archived")}</span> : null}
     </p>
   );

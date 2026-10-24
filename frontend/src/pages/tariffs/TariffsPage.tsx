@@ -31,7 +31,7 @@ export function TariffsPage() {
         {tariffs.isLoading ? <Loading /> : null}
         {tariffs.data?.tariffs.length === 0 ? <p className="muted">{t("tariffs.none")}</p> : null}
         {(tariffs.data?.tariffs ?? []).map((tariff) => (
-          <Link key={tariff.id} className="list-link" to={companyPath(company, `/settings/tariffs/${tariff.id}`)}>
+          <Link key={tariff.id} className="list-link" to={companyPath(company, `/rentals/tariffs/${tariff.id}`)}>
             <strong>{tariff.name}</strong>{" "}
             {tariff.state === "archived" ? <span className="badge">{t("tariffs.archived")}</span> : null}
             <div className="muted small">

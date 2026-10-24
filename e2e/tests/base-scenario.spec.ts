@@ -115,7 +115,7 @@ test("base example from registration to closing survives a restart", async ({ pa
   await page.getByRole("button", { name: t("vehicles.create") }).click();
   await expect(page.getByRole("heading", { name: "Toyota Yaris" })).toBeVisible();
 
-  await page.goto(`${base}/settings/tariffs`);
+  await page.goto(`${base}/rentals/tariffs`);
   const tariff = card(page, t("tariffs.create_title"));
   await tariff.getByLabel(t("tariffs.name")).fill("Сутки");
   await tariff.getByLabel(t("cash.currency")).selectOption("THB");
