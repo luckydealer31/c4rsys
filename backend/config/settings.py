@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     "c4rsys.orders",
     "c4rsys.inspections",
     "c4rsys.rentals",
+    "c4rsys.warehouse",
 ]
 
 MIDDLEWARE = [

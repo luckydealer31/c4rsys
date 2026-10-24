@@ -219,11 +219,18 @@ class ActivityContext(models.Model):
     location = models.ForeignKey(Location, on_delete=models.PROTECT, related_name="contexts")
     type = models.CharField(max_length=20, choices=Type.choices)
     state = models.CharField(max_length=20, choices=State.choices, default=State.ENABLED)
+    # § 11.1.5: the warehouse context always stores; for rental and service storage is an
+    # additional setting, off by default. It gives the context its own stock.
+    storage_enabled = models.BooleanField(default=False)
     created_at = models.DateTimeField(default=now)
 
     class Meta:
         db_table = "activity_context"
         constraints = [
+            models.CheckConstraint(
+                condition=~Q(type="warehouse") | Q(storage_enabled=True),
+                name="activity_context_warehouse_stores",
+            ),
             models.UniqueConstraint(
                 fields=["company", "id"], name="activity_context_company_id_uniq"
             ),

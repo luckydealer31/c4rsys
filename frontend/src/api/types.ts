@@ -75,7 +75,13 @@ export type Location = {
   state: "draft" | "active" | "deactivated";
   version: number;
   schedule: { weekly: Record<string, { from: string; to: string }[]>; exceptions: unknown[] };
-  contexts: { id: string; type: ContextType; state: string; ready: boolean }[];
+  contexts: {
+    id: string;
+    type: ContextType;
+    state: string;
+    ready: boolean;
+    storage_enabled: boolean;
+  }[];
 };
 
 export type CashAccount = {
@@ -361,4 +367,40 @@ export type VehicleMove = {
   actual_start: string;
   actual_end: string;
   note: string;
+};
+
+/** Item of the warehouse catalog (§ 11.1.11–11.1.16). */
+export type WarehouseItem = {
+  id: string;
+  version: number;
+  name: string;
+  unit: "piece" | "instance" | "liter" | "kilogram" | "meter";
+  accounting: "individual" | "batch";
+  manufacturer: string | null;
+  manufacturer_other: string;
+  manufacturer_name: string;
+  side: string;
+  longitudinal: string;
+  vertical: string;
+  placement: string;
+  originality: string;
+  state: "active" | "archived";
+  applicability: { make: string; model: string | null }[];
+  packagings: { id: string; name: string; quantity: string; state: string }[];
+  barcodes: { id: string; code: string; packaging_id: string | null }[];
+};
+
+export type WarehouseOptions = {
+  units: { code: string; accounting: string }[];
+  attributes: Record<"side" | "longitudinal" | "vertical" | "placement" | "originality", string[]>;
+};
+
+/** A context with storage (§ 11.1.5). */
+export type Storage = {
+  context_id: string;
+  type: ContextType;
+  state: string;
+  location_id: string;
+  location_name: string;
+  location_deactivated: boolean;
 };

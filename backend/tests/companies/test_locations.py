@@ -126,16 +126,16 @@ def test_location_without_timezone_stays_draft(owner: Client, rental_conditions_
 
 
 def test_context_without_module_conditions_is_not_ready(owner: Client, cmp: str) -> None:
-    # § 4.3.1: a rental context needs a current tariff (T07); service and warehouse have no
-    # module yet. One unready context does not block another (§ 4.4.3).
+    # § 4.3.1: a rental context needs a current tariff (T07); service has no module yet; an
+    # enabled warehouse context is ready (PROPOSAL of 25.10.2026, it always stores). One unready
+    # context does not block another (§ 4.4.3).
     location_id = _create_location(owner, cmp).json()["location"]["id"]
     for key, kind in (("x-1", "rental"), ("x-2", "service"), ("x-3", "warehouse")):
         assert _add_context(owner, cmp, location_id, kind, key).status_code == 201
 
     location = owner.get(f"/api/c/{cmp}/locations/{location_id}").json()["location"]
 
-    assert [c["ready"] for c in location["contexts"]] == [False, False, False]
-    assert location["state"] == "draft"
+    assert [c["ready"] for c in location["contexts"]] == [False, False, True]
 
 
 def test_one_context_of_each_type_per_location(owner: Client, cmp: str) -> None:

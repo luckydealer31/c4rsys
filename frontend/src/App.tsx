@@ -10,6 +10,8 @@ import { RegisterPage } from "./pages/auth/RegisterPage";
 import { CompaniesPage } from "./pages/companies/CompaniesPage";
 import { ClientPage, ClientsPage } from "./pages/clients/ClientsPage";
 import { CompanyPage } from "./pages/company/CompanyPage";
+import { ItemPage, NewItemPage } from "./pages/warehouse/ItemPage";
+import { WarehousePage } from "./pages/warehouse/WarehousePage";
 import { DashboardsPage } from "./pages/company/DashboardsPage";
 import { ContextSectionPage } from "./pages/contexts/ContextLocations";
 import { FinancePage } from "./pages/finance/FinancePage";
@@ -90,7 +92,9 @@ export function App() {
         <Route path="clients" element={<ClientsPage />} />
         <Route path="clients/:id" element={<ClientPage />} />
         <Route path="service" element={<ContextSectionPage type="service" />} />
-        <Route path="warehouse" element={<ContextSectionPage type="warehouse" />} />
+        <Route path="warehouse" element={<WarehousePage />} />
+        <Route path="warehouse/items/new" element={<NewItemPage />} />
+        <Route path="warehouse/items/:id" element={<ItemPage />} />
         <Route path="finance" element={<FinancePage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="settings/company" element={<CompanyProfilePage />} />

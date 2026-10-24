@@ -12,4 +12,5 @@ urlpatterns = [
     path("api/", include("c4rsys.parties.urls")),
     path("api/", include("c4rsys.orders.urls")),
     path("api/", include("c4rsys.rentals.urls")),
+    path("api/", include("c4rsys.warehouse.urls")),
 ]
