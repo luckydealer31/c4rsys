@@ -145,6 +145,7 @@
     "service": "Сервис",
     "state_deactivated": "Деактивирована",
     "state_disabled": "Отключён",
+    "state_module_later": "Модуль в разработке",
     "state_not_ready": "Требуется настройка",
     "state_ready": "Готово",
     "warehouse": "Склад"

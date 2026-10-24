@@ -61,9 +61,12 @@ const PATHS: Record<string, ReactNode> = {
   ),
   garage: (
     <>
-      {/* A garage building (decision of 24.10.2026). */}
-      <path d="M3 10l9-6 9 6v10H3z" />
-      <path d="M7 20v-7h10v7M7 16h10" />
+      {/* A car seen from the side (decision of 24.10.2026). */}
+      <path d="M2 16v-3l2-1 2.5-4h8l3.5 4 3 .8V16" />
+      <path d="M6.5 8l-1.5 4h14" />
+      <circle cx="7" cy="16.5" r="2" />
+      <circle cx="17" cy="16.5" r="2" />
+      <path d="M2 16h3M9 16h6M19 16h3" />
     </>
   ),
   settings: (

@@ -11,7 +11,7 @@ import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { Icon, type IconName } from "../../components/icons";
 import { TimeZoneSelect } from "../../components/TimeZoneSelect";
-import { AVAILABLE_CONTEXTS, contextAvailable } from "../../contexts";
+import { AVAILABLE_CONTEXTS, contextAvailable, moduleWorks } from "../../contexts";
 
 // Only types whose modules work are offered (§ 4.1.9).
 const CONTEXT_TYPES = AVAILABLE_CONTEXTS;
@@ -275,7 +275,15 @@ function LocationCard({ location, editable }: { location: Location; editable: bo
             <tr key={c.id}>
               <td>{t(`contexts.${c.type}`)}</td>
               <td>{t(`locations.context_${c.state}`)}</td>
-              <td>{c.state === "enabled" ? (c.ready ? t("locations.ready") : t("locations.not_ready")) : "—"}</td>
+              <td>
+                {!moduleWorks(c.type)
+                  ? t("contexts.state_module_later")
+                  : c.state === "enabled"
+                    ? c.ready
+                      ? t("locations.ready")
+                      : t("locations.not_ready")
+                    : "—"}
+              </td>
               <td>
                 {editable && !(deactivated && c.state === "disabled") ? (
                   <button

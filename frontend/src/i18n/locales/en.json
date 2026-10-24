@@ -145,6 +145,7 @@
     "service": "Service",
     "state_deactivated": "Deactivated",
     "state_disabled": "Disabled",
+    "state_module_later": "Module in development",
     "state_not_ready": "Needs setup",
     "state_ready": "Ready",
     "warehouse": "Warehouse"

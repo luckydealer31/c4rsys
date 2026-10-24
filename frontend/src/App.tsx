@@ -10,6 +10,7 @@ import { RegisterPage } from "./pages/auth/RegisterPage";
 import { CompaniesPage } from "./pages/companies/CompaniesPage";
 import { ClientPage, ClientsPage } from "./pages/clients/ClientsPage";
 import { CompanyPage } from "./pages/company/CompanyPage";
+import { ContextSectionPage } from "./pages/contexts/ContextLocations";
 import { FinancePage } from "./pages/finance/FinancePage";
 import { OrderPage, OrdersPage } from "./pages/orders/OrdersPage";
 import { IssuePage } from "./pages/rentals/IssuePage";
@@ -84,6 +85,8 @@ export function App() {
         <Route path="vehicles/:id" element={<VehiclePage />} />
         <Route path="clients" element={<ClientsPage />} />
         <Route path="clients/:id" element={<ClientPage />} />
+        <Route path="service" element={<ContextSectionPage type="service" />} />
+        <Route path="warehouse" element={<ContextSectionPage type="warehouse" />} />
         <Route path="finance" element={<FinancePage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="settings/company" element={<CompanyProfilePage />} />
