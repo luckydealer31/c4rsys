@@ -7,11 +7,11 @@ import { Card, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { formatMoment } from "../../time";
 import { clientName } from "../clients/ClientsPage";
-import { ContextLocations } from "../contexts/ContextLocations";
 import { useLocations } from "../settings/LocationsPage";
 import { useRentals, useVehicles } from "../vehicles/VehiclesPage";
 
-/** Rentals of the company with the action «Issue a vehicle» (STAGE1_SCREENS). */
+/** Rentals of the company with the action «Issue a vehicle» (STAGE1_SCREENS). Locations are
+ * columns of the list, not a block of their own (decision of 24.10.2026). */
 export function RentalsPage() {
   const { t, i18n } = useTranslation();
   const company = useCompany();
@@ -27,10 +27,10 @@ export function RentalsPage() {
   const vehicleName = new Map((vehicles.data?.vehicles ?? []).map((v) => [v.id, v.name]));
   const clientNames = new Map((clients.data?.clients ?? []).map((c) => [c.id, clientName(c)]));
   const zones = new Map((locations.data?.locations ?? []).map((l) => [l.id, l.timezone ?? "UTC"]));
+  const places = new Map((locations.data?.locations ?? []).map((l) => [l.id, l.name]));
   return (
     <div className="page">
       <h1>{t("nav.rentals")}</h1>
-      <ContextLocations type="rental" />
       {can("rental.issue") ? (
         <div className="actions" style={{ marginBottom: 16, marginTop: 0 }}>
           <Link className="button" to={companyPath(company, "/rentals/new")}>
@@ -47,7 +47,9 @@ export function RentalsPage() {
               <th>{t("rentals.vehicle")}</th>
               <th>{t("rentals.client")}</th>
               <th>{t("rentals.start")}</th>
+              <th>{t("rentals.issue_location")}</th>
               <th>{t("rentals.end")}</th>
+              <th>{t("rentals.return_location")}</th>
               <th>{t("rentals.state")}</th>
             </tr>
           </thead>
@@ -63,7 +65,11 @@ export function RentalsPage() {
                   </td>
                   <td>{clientNames.get(rental.client_id) ?? "—"}</td>
                   <td>{formatMoment(rental.actual_start, zone, i18n.language)}</td>
+                  <td>{places.get(rental.issue_location_id) ?? "—"}</td>
                   <td>{formatMoment(rental.actual_end, zone, i18n.language)}</td>
+                  <td>
+                    {rental.return_location_id ? (places.get(rental.return_location_id) ?? "—") : "—"}
+                  </td>
                   <td>{t(`rentals.state_${rental.state}`)}</td>
                 </tr>
               );

@@ -31,7 +31,8 @@ export function useRentals(enabled = true) {
   );
 }
 
-/** Garage: name, VHL, location, occupancy (free / in rental), current odometer (§ 8.7.2). */
+/** Garage: vehicles by location — name, VHL, occupancy (free / in rental), current odometer
+ * (§ 8.7.2; decision of 24.10.2026). */
 export function VehiclesPage() {
   const { t } = useTranslation();
   const company = useCompany();
@@ -39,7 +40,23 @@ export function VehiclesPage() {
   const vehicles = useVehicles();
   const locations = useLocations();
   const rentals = useRentals(can("rental.view"));
-  const names = new Map((locations.data?.locations ?? []).map((l) => [l.id, l.name]));
+  // Vehicles are grouped by their location, in the order of the locations (decision of
+  // 24.10.2026); those without a location come last.
+  const list = vehicles.data?.vehicles ?? [];
+  const groups = [
+    ...(locations.data?.locations ?? []).map((l) => ({
+      id: l.id,
+      name: l.name,
+      vehicles: list.filter((v) => v.location_id === l.id),
+    })),
+    {
+      id: "none",
+      name: t("vehicles.no_location"),
+      vehicles: list.filter(
+        (v) => !v.location_id || !locations.data?.locations.some((l) => l.id === v.location_id),
+      ),
+    },
+  ].filter((group) => group.vehicles.length > 0);
   const busy = new Set((rentals.data?.rentals ?? []).filter((r) => r.state === "active").map((r) => r.vehicle_card_id));
   return (
     <div className="page">
@@ -51,39 +68,45 @@ export function VehiclesPage() {
           </Link>
         </div>
       ) : null}
-      <Card>
-        {vehicles.isLoading ? <Loading /> : null}
-        {vehicles.data?.vehicles.length === 0 ? <p className="muted">{t("vehicles.none")}</p> : null}
-        <table>
-          <thead>
-            <tr>
-              <th>{t("vehicles.name")}</th>
-              <th>{t("vehicles.location")}</th>
-              <th>{t("vehicles.occupancy")}</th>
-              <th>{t("vehicles.odometer")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(vehicles.data?.vehicles ?? []).map((vehicle) => (
-              <tr key={vehicle.id}>
-                <td>
-                  <Link to={companyPath(company, `/vehicles/${vehicle.id}`)}>{vehicle.name}</Link>
-                  <div className="muted small">{vehicle.vehicle_id}</div>
-                </td>
-                <td>{vehicle.location_id ? names.get(vehicle.location_id) : "—"}</td>
-                <td>
-                  {busy.has(vehicle.id) ? (
-                    <span className="badge warn">{t("vehicles.in_rental")}</span>
-                  ) : (
-                    <span className="badge ok">{t("vehicles.free")}</span>
-                  )}
-                </td>
-                <td>{vehicle.odometer ? `${Number(vehicle.odometer.value)} ${vehicle.odometer.unit}` : "—"}</td>
+      {vehicles.isLoading ? <Loading /> : null}
+      {vehicles.data?.vehicles.length === 0 ? (
+        <Card>
+          <p className="muted">{t("vehicles.none")}</p>
+        </Card>
+      ) : null}
+      {groups.map((group) => (
+        <Card key={group.id} title={group.name}>
+          <table>
+            <thead>
+              <tr>
+                <th>{t("vehicles.name")}</th>
+                <th>{t("vehicles.occupancy")}</th>
+                <th>{t("vehicles.odometer")}</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </Card>
+            </thead>
+            <tbody>
+              {group.vehicles.map((vehicle) => (
+                <tr key={vehicle.id}>
+                  <td>
+                    <Link to={companyPath(company, `/vehicles/${vehicle.id}`)}>{vehicle.name}</Link>
+                    <div className="muted small">{vehicle.vehicle_id}</div>
+                  </td>
+                  <td>
+                    {busy.has(vehicle.id) ? (
+                      <span className="badge warn">{t("vehicles.in_rental")}</span>
+                    ) : (
+                      <span className="badge ok">{t("vehicles.free")}</span>
+                    )}
+                  </td>
+                  <td>
+                    {vehicle.odometer ? `${Number(vehicle.odometer.value)} ${vehicle.odometer.unit}` : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      ))}
     </div>
   );
 }

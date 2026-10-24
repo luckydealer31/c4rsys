@@ -1,7 +1,8 @@
 /** Time zones offered for choice (decision of 24.10.2026): one line per offset with several of
  * its major cities, instead of every IANA name. Zones with the same offset are separate lines
  * only where their summer time differs; the cities of one line keep the same clock all year.
- * The selection of zones and cities is a PROPOSAL. City names are in the translations
+ * Cities are landmarks (decision of 24.10.2026): one city per country — the capital or the
+ * best known — and several only from different countries; their selection is a PROPOSAL. City names are in the translations
  * (`timezones.<zone>`). */
 export const ZONES = [
   "Pacific/Pago_Pago",

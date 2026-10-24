@@ -215,6 +215,7 @@ export type RentalSummary = {
   client_id: string;
   state: string;
   issue_location_id: string;
+  return_location_id: string | null;
   actual_start: string;
   actual_end: string | null;
 };
