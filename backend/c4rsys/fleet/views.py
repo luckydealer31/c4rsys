@@ -220,6 +220,44 @@ def vehicle_detail(request: HttpRequest, cmp: str, card_id: UUID) -> JsonRespons
     return run_and_respond(request, "vehicle.update", actor, payload, handler)
 
 
+@require_http_methods(["PUT"])
+def vehicle_details(request: HttpRequest, cmp: str, card_id: UUID) -> JsonResponse:
+    """The whole set of data of the creation card except relation, location and odometer unit;
+    the interface sends all fields (decision of 24.10.2026: «Edit» of a vehicle)."""
+    context, actor = _actor(request, cmp)
+    card = services.get_card(context.company.id, card_id)
+    if not _allowed(actor, "vehicle.view", card):
+        raise errors.not_found()
+    if not _allowed(actor, "vehicle.edit", card):
+        raise errors.permission_denied("vehicle.edit")
+    data = parse_json(request)
+    expected_version = get_int(data, "expected_version")
+    details = characteristics.parse(data, timezone.localdate().year)
+    owner = owners.parse(data, card.relation)
+    name = get_str(data, "name", max_length=NAME_MAX, required=False)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        services.update_details(
+            ctx, context.company, card_id, details, owner, name, expected_version
+        )
+        return CommandResult(
+            200,
+            {
+                "vehicle": _payload(services.get_card(context.company.id, card_id)),
+                "warnings": details.warnings,
+            },
+        )
+
+    payload = {
+        "card_id": str(card_id),
+        "expected_version": expected_version,
+        "name": name,
+        "owner": owner.payload(),
+        **details.payload(),
+    }
+    return run_and_respond(request, "vehicle.update_details", actor, payload, handler)
+
+
 def _contexts(value: Any) -> frozenset[str]:
     """Usage context types of the vehicle (§ 8.5.1); an empty list switches all off."""
     if not isinstance(value, list) or not all(isinstance(x, str) for x in value):

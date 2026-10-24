@@ -146,9 +146,14 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
     ? new Intl.DisplayNames([i18n.language], { type: "region" }).of(c.plate_country)
     : "";
   const option = (prefix: string, value: string) => (value ? t(`${prefix}.${value}`) : "");
+  const can = useCan();
+  const company = useCompany();
   const owner = vehicle.owner;
+  // Not given is said plainly (decision of 24.10.2026).
   const ownerText = !owner
-    ? ""
+    ? vehicle.relation === "own"
+      ? company.display_name
+      : t("vehicles.owner_not_given")
     : owner.kind === "company"
       ? (owner.company?.display_name ?? "")
       : owner.kind === "client"
@@ -156,13 +161,14 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
       : owner.kind === "profile"
         ? owner.lookup
         : owner.kind === "none"
-          ? t("vehicles.owner_kind_none")
+          ? t("vehicles.owner_not_given")
           : [owner.name, owner.contact].filter(Boolean).join(", ");
   const facts: [string, string][] = [
     [t("vehicles.relation"), t(`vehicles.relation_${vehicle.relation}`)],
     [
       t("vehicles.section_owner"),
-      ownerText && owner?.kind !== "company" && owner?.kind !== "client" && !owner?.confirmed
+      // Only the owner of a managed vehicle is asked to confirm (§ 8.3.1, § 8.3.13).
+      vehicle.relation === "managed" && owner && owner.kind !== "none" && !owner.confirmed
         ? `${ownerText} (${t("vehicles.owner_unconfirmed")})`
         : ownerText,
     ],
@@ -199,6 +205,13 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
             </div>
           ))}
       </dl>
+      {can("vehicle.edit") ? (
+        <div className="actions">
+          <Link className="button secondary" to={companyPath(company, `/vehicles/${vehicle.id}/edit`)}>
+            {t("common.edit")}
+          </Link>
+        </div>
+      ) : null}
     </Card>
   );
 }

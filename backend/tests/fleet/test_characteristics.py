@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 from django.test import Client
 
-from c4rsys.fleet.models import VehicleMake, VehicleModel, VehicleOwnerClaim
+from c4rsys.fleet.models import VehicleMake, VehicleModel, VehicleOwnerClaim, VehiclePlate
 from c4rsys.platform.models import AuditEvent
 from tests.accounts.helpers import post, register
 from tests.companies.helpers import create_company, key
@@ -286,3 +286,69 @@ def test_client_vehicle_owner_by_hand_without_profile(owner: Client, cmp: str) -
         key(),
     )
     assert refused.json()["error"]["field"] == "owner_kind"
+
+
+# --- Correction of the data (decision of 24.10.2026) -----------------------------------------
+
+
+def put_details(owner: Client, cmp: str, card_id: str, **data: Any) -> Any:
+    return owner.put(
+        f"/api/c/{cmp}/vehicles/{card_id}/details",
+        data=data,
+        content_type="application/json",
+        headers=key(),
+    )
+
+
+def test_details_are_corrected_plate_keeps_history_owner_is_redeclared(
+    owner: Client, cmp: str, location: str
+) -> None:
+    created = create(owner, cmp, location, name="Car", plate="AA 111", plate_country="TH")
+    vehicle = created.json()["vehicle"]
+    cmp_card = vehicle["id"]
+
+    response = put_details(
+        owner,
+        cmp,
+        cmp_card,
+        expected_version=vehicle["version"],
+        name="Car",
+        vehicle_type="passenger_car",
+        make="TOYOTA",
+        plate="BB 222",
+        plate_country="TH",
+        color="Red",
+    )
+
+    assert response.status_code == 200, response.content
+    body = response.json()["vehicle"]
+    assert body["characteristics"]["plate"] == "BB 222"
+    assert body["characteristics"]["color"] == "Red"
+    assert body["name"] == "Car"
+    plates = VehiclePlate.objects.order_by("valid_from")
+    assert [p.number for p in plates] == ["AA 111", "BB 222"]
+    assert plates[0].valid_to is not None
+    stale = put_details(owner, cmp, cmp_card, expected_version=vehicle["version"])
+    assert stale.status_code == 409
+
+
+def test_client_is_set_later_on_a_client_vehicle(owner: Client, cmp: str) -> None:
+    created = post(
+        owner,
+        f"/api/c/{cmp}/vehicles",
+        {"name": "Guest", "relation": "client", "odometer_unit": "km"},
+        key(),
+    ).json()["vehicle"]
+    assert created["owner"]["kind"] == "none"
+
+    response = put_details(
+        owner,
+        cmp,
+        created["id"],
+        expected_version=created["version"],
+        owner_kind="person",
+        owner_name="Сидоров Пётр",
+    )
+
+    assert response.json()["vehicle"]["owner"]["name"] == "Сидоров Пётр"
+    assert VehicleOwnerClaim.objects.filter(vehicle_card_id=created["id"]).count() == 2

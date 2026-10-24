@@ -115,6 +115,14 @@ const PATHS: Record<string, ReactNode> = {
   ),
   exit: <path d="M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3M14 8l4 4-4 4M18 12H8" />,
   plus: <path d="M12 5v14M5 12h14" />,
+  dashboards: (
+    <>
+      <rect x="3" y="3" width="8" height="10" rx="1.5" />
+      <rect x="13" y="3" width="8" height="6" rx="1.5" />
+      <rect x="13" y="11" width="8" height="10" rx="1.5" />
+      <rect x="3" y="15" width="8" height="6" rx="1.5" />
+    </>
+  ),
 };
 
 export type IconName = keyof typeof PATHS;

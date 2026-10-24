@@ -10,6 +10,7 @@ import { RegisterPage } from "./pages/auth/RegisterPage";
 import { CompaniesPage } from "./pages/companies/CompaniesPage";
 import { ClientPage, ClientsPage } from "./pages/clients/ClientsPage";
 import { CompanyPage } from "./pages/company/CompanyPage";
+import { DashboardsPage } from "./pages/company/DashboardsPage";
 import { ContextSectionPage } from "./pages/contexts/ContextLocations";
 import { FinancePage } from "./pages/finance/FinancePage";
 import { OrderPage, OrdersPage } from "./pages/orders/OrdersPage";
@@ -22,7 +23,7 @@ import { EmployeePage } from "./pages/settings/EmployeesPage";
 import { SettingsPage } from "./pages/settings/SettingsPage";
 import { SetupPage } from "./pages/setup/SetupPage";
 import { TariffPage, TariffsPage } from "./pages/tariffs/TariffsPage";
-import { NewVehiclePage } from "./pages/vehicles/NewVehiclePage";
+import { EditVehiclePage, NewVehiclePage } from "./pages/vehicles/NewVehiclePage";
 import { VehiclePage, VehiclesPage } from "./pages/vehicles/VehiclesPage";
 
 export function App() {
@@ -74,6 +75,7 @@ export function App() {
       <Route path="/c/:cmp" element={<CompanyShell user={user} />}>
         <Route index element={<Navigate to="company" replace />} />
         <Route path="company" element={<CompanyPage />} />
+        <Route path="dashboards" element={<DashboardsPage />} />
         <Route path="company/locations/:id" element={<LocationPage />} />
         <Route path="setup" element={<SetupPage />} />
         <Route path="rentals" element={<RentalsPage />} />
@@ -84,6 +86,7 @@ export function App() {
         <Route path="vehicles" element={<VehiclesPage />} />
         <Route path="vehicles/new" element={<NewVehiclePage />} />
         <Route path="vehicles/:id" element={<VehiclePage />} />
+        <Route path="vehicles/:id/edit" element={<EditVehiclePage />} />
         <Route path="clients" element={<ClientsPage />} />
         <Route path="clients/:id" element={<ClientPage />} />
         <Route path="service" element={<ContextSectionPage type="service" />} />

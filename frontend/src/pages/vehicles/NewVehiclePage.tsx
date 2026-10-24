@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useNavigate, useSearchParams } from "react-router";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 
 import { useApi } from "../../api/queries";
 import type { CatalogMake, CatalogModel, Client, Vehicle, VehicleOptions } from "../../api/types";
@@ -85,6 +85,66 @@ const EMPTY: Form = {
  * characteristics and accounting. The name is formed from the make, the model and the plate
  * until the user writes their own. */
 export function NewVehiclePage() {
+  return <VehicleForm />;
+}
+
+/** «Edit» of a vehicle (decision of 24.10.2026): the same card with the current data; relation,
+ * location and odometer unit are not changed here. */
+export function EditVehiclePage() {
+  const company = useCompany();
+  const { id = "" } = useParams();
+  const vehicle = useApi<{ vehicle: Vehicle }>(
+    ["vehicle", company.public_id, id],
+    `/c/${company.public_id}/vehicles/${id}`,
+  );
+  if (!vehicle.data) {
+    return (
+      <div className="page">
+        <Loading />
+      </div>
+    );
+  }
+  return <VehicleForm vehicle={vehicle.data.vehicle} />;
+}
+
+function formOf(vehicle: Vehicle): Form {
+  const c = vehicle.characteristics;
+  const o = vehicle.owner;
+  const text = (value: number | string | null) => (value === null ? "" : String(value));
+  return {
+    ...EMPTY,
+    transport_class: c.transport_class || "ground",
+    vehicle_type: c.vehicle_type || "passenger_car",
+    make: c.make ?? (c.make_name ? OTHER : ""),
+    make_other: c.make ? "" : c.make_name,
+    model: c.model ?? (c.model_name && c.make ? OTHER : ""),
+    model_other: c.model ? "" : c.model_name,
+    year: text(c.year),
+    plate: c.plate,
+    plate_country: c.plate_country,
+    vin: c.vin,
+    color: c.color,
+    body_type: c.body_type,
+    fuel_type: c.fuel_type,
+    transmission: c.transmission,
+    drive: c.drive,
+    engine_volume_l: c.engine_volume_l ?? "",
+    power_hp: text(c.power_hp),
+    seats: text(c.seats),
+    doors: text(c.doors),
+    location_id: vehicle.location_id ?? "",
+    odometer_unit: vehicle.odometer_unit,
+    relation: vehicle.relation,
+    owner_kind: o && vehicle.relation === "managed" ? o.kind : "profile",
+    owner_lookup: o?.lookup ?? "",
+    owner_name: o?.name ?? "",
+    owner_contact: o?.contact ?? "",
+    owner_client_id: o?.client?.id ?? "",
+    client_owner_kind: o && vehicle.relation === "client" && o.kind !== "none" ? o.kind : "client",
+  };
+}
+
+function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
   const { t, i18n } = useTranslation();
   const company = useCompany();
   const client = useQueryClient();
@@ -99,13 +159,21 @@ export function NewVehiclePage() {
   );
   const [params] = useSearchParams();
   const initialRelation = params.get("relation");
-  const [form, setForm] = useState<Form>({
-    ...EMPTY,
-    relation: initialRelation === "managed" || initialRelation === "client" ? initialRelation : "own",
-  });
-  const [customName, setCustomName] = useState<string | null>(null);
+  const [form, setForm] = useState<Form>(
+    vehicle
+      ? formOf(vehicle)
+      : {
+          ...EMPTY,
+          relation:
+            initialRelation === "managed" || initialRelation === "client" ? initialRelation : "own",
+        },
+  );
+  const [customName, setCustomName] = useState<string | null>(vehicle ? vehicle.name : null);
   const create = useCommand<Record<string, unknown>, { vehicle: Vehicle; warnings: string[] }>(
-    `/c/${company.public_id}/vehicles`,
+    vehicle
+      ? `/c/${company.public_id}/vehicles/${vehicle.id}/details`
+      : `/c/${company.public_id}/vehicles`,
+    vehicle ? "PUT" : "POST",
   );
   const set = (changes: Partial<Form>) => setForm({ ...form, ...changes });
 
@@ -182,8 +250,18 @@ export function NewVehiclePage() {
       body.make_other = form.make_other;
       body.model_other = form.model_other;
     }
+    if (vehicle) {
+      // Relation, location and unit stay as they are; the version guards the change.
+      delete body.relation;
+      delete body.location_id;
+      delete body.odometer_unit;
+      body.expected_version = vehicle.version;
+    }
     const result = await create.run(body);
     if (result !== null) {
+      if (vehicle) {
+        await client.invalidateQueries({ queryKey: ["vehicle", company.public_id, vehicle.id] });
+      }
       await client.invalidateQueries({ queryKey: ["vehicles", company.public_id] });
       await client.invalidateQueries({ queryKey: ["readiness", company.public_id] });
       navigate(companyPath(company, `/vehicles/${result.vehicle.id}`));
@@ -217,9 +295,11 @@ export function NewVehiclePage() {
   return (
     <div className="page">
       <p>
-        <Link to={companyPath(company, "/vehicles")}>← {t("nav.garage")}</Link>
+        <Link to={companyPath(company, vehicle ? `/vehicles/${vehicle.id}` : "/vehicles")}>
+          ← {vehicle ? vehicle.name : t("nav.garage")}
+        </Link>
       </p>
-      <h1>{t("vehicles.create_title")}</h1>
+      <h1>{vehicle ? t("vehicles.edit_title") : t("vehicles.create_title")}</h1>
       <form className="stack" onSubmit={submit}>
         <Card title={t("vehicles.section_kind")}>
           {/* Only ground transport exists for now, so its class is not asked (decision of
@@ -364,6 +444,7 @@ export function NewVehiclePage() {
               <input
                 type="radio"
                 name="relation"
+                disabled={Boolean(vehicle)}
                 checked={form.relation === "own"}
                 onChange={() => set({ relation: "own" })}
               />{" "}
@@ -373,6 +454,7 @@ export function NewVehiclePage() {
               <input
                 type="radio"
                 name="relation"
+                disabled={Boolean(vehicle)}
                 checked={form.relation === "managed"}
                 onChange={() => set({ relation: "managed" })}
               />{" "}
@@ -382,6 +464,7 @@ export function NewVehiclePage() {
               <input
                 type="radio"
                 name="relation"
+                disabled={Boolean(vehicle)}
                 checked={form.relation === "client"}
                 onChange={() => set({ relation: "client" })}
               />{" "}
@@ -475,6 +558,7 @@ export function NewVehiclePage() {
           )}
         </Card>
 
+        {vehicle ? null : (
         <Card title={t("vehicles.section_accounting")}>
           <div className="row">
             {form.relation !== "client" ? (
@@ -497,6 +581,7 @@ export function NewVehiclePage() {
             </Field>
           </div>
         </Card>
+        )}
 
         <Card title={t("vehicles.name")}>
           <Field label={t("vehicles.name")} hint={t("vehicles.name_auto_hint")}>
@@ -512,10 +597,12 @@ export function NewVehiclePage() {
             <button
               type="submit"
               disabled={
-                !name.trim() || (form.relation !== "client" && !form.location_id) || create.pending
+                !name.trim() ||
+                (!vehicle && form.relation !== "client" && !form.location_id) ||
+                create.pending
               }
             >
-              {t("vehicles.create")}
+              {vehicle ? t("common.save") : t("vehicles.create")}
             </button>
           </div>
         </Card>

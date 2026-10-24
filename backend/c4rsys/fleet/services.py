@@ -128,6 +128,69 @@ def create_vehicle(ctx: CommandContext, company: Company, data: NewVehicle) -> V
     return card
 
 
+def update_details(
+    ctx: CommandContext,
+    company: Company,
+    card_id: UUID,
+    details: Characteristics,
+    owner: owners.Owner,
+    name: str,
+    expected_version: int,
+) -> VehicleCard:
+    """Corrects the identification data, characteristics, name and declared owner (decision of
+    24.10.2026). They are unconfirmed declarations of the company, so they are changed directly
+    (§ 8.2.1 restricts confirmed factory data). A new plate closes the period of the current one
+    (§ 8.2.11); a new owner is a new declaration (§ 8.3.13). Relation and location are not
+    changed here: location by a move (§ 8.5.2)."""
+    card = (
+        VehicleCard.objects.select_for_update()
+        .select_related("vehicle")
+        .filter(company_id=company.id, pk=card_id)
+        .first()
+    )
+    if card is None:
+        raise errors.not_found()
+    if card.version != expected_version:
+        raise errors.version_conflict()
+    vehicle = Vehicle.objects.select_for_update().get(pk=card.vehicle_id)
+    before = characteristics.describe(vehicle)
+    before_name = card.name
+    characteristics.apply(vehicle, details)
+    vehicle.save()
+    now = timezone.now()
+    current = vehicle.plates.filter(valid_to__isnull=True).first()
+    plate_changed = (current.number if current else "") != details.plate or (
+        current.country if current else ""
+    ) != details.plate_country
+    if plate_changed:
+        if current is not None:
+            current.valid_to = now
+            current.save(update_fields=["valid_to"])
+        if details.plate:
+            VehiclePlate.objects.create(
+                vehicle=vehicle,
+                number=details.plate,
+                number_normalized=characteristics.normalize_plate(details.plate),
+                country=details.plate_country,
+                valid_from=now,
+            )
+    card.name = name or characteristics.make_name(details) or card.name
+    card.version += 1
+    card.save(update_fields=["name", "version", "updated_at"])
+    after = characteristics.describe(vehicle)
+    changed = [k for k in after if before.get(k) != after[k] and k != "identifier_matches"]
+    ctx.audit(
+        "vehicle.details_changed",
+        object_type="vehicle_card",
+        object_id=card.id,
+        before={"name": before_name, **{k: before.get(k) for k in changed}},
+        after={"name": card.name, **{k: after[k] for k in changed}},
+    )
+    if not owners.is_current(card, owner):
+        owners.declare(ctx, company, card, owner)
+    return card
+
+
 @dataclass(frozen=True)
 class VehicleChanges:
     """The name and the usage contexts change; location and odometer unit do not (location by

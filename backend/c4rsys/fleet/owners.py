@@ -142,6 +142,18 @@ def declare(ctx: CommandContext, company: Company, card: VehicleCard, owner: Own
     )
 
 
+def is_current(card: VehicleCard, owner: Owner) -> bool:
+    """Whether the latest declaration already says the same."""
+    claim = card.owner_claims.order_by("-created_at").first()
+    return claim is not None and (
+        claim.kind,
+        claim.lookup,
+        claim.manual_name,
+        claim.manual_contact,
+        claim.client_id,
+    ) == (owner.kind, owner.lookup, owner.name, owner.contact, owner.client_id)
+
+
 def describe(card: VehicleCard) -> dict[str, Any] | None:
     claim = card.owner_claims.order_by("-created_at").first()
     if claim is None:

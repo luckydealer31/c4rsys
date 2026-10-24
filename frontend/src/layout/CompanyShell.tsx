@@ -43,14 +43,17 @@ export function companyPath(company: Pick<Company, "public_id">, path = ""): str
  * a rental or a service context. The order of items is a PROPOSAL. */
 export function companyMenu(company: Company): [key: string, path: string, icon: IconName][] {
   const has = (type: ContextType) => contextAvailable(type) && company.context_types.includes(type);
+  // Order of the customer (24.10.2026): company, dashboards, contacts, garage, finance, then
+  // the directions and settings. Orders keep their place after finance (PROPOSAL).
   const items: [string, string, IconName, boolean][] = [
-    ["finance", "/finance", "finance", true],
+    ["dashboards", "/dashboards", "dashboards", true],
     ["clients", "/clients", "people", true],
+    ["garage", "/vehicles", "garage", has("rental") || has("service")],
+    ["finance", "/finance", "finance", true],
     ["orders", "/orders", "orders", company.setup_completed_at !== null],
     ["rentals", "/rentals", "rentals", has("rental")],
     ["service", "/service", "service", has("service")],
     ["warehouse", "/warehouse", "warehouse", has("warehouse")],
-    ["garage", "/vehicles", "garage", has("rental") || has("service")],
     ["settings", "/settings", "settings", true],
   ];
   return items.filter(([, , , visible]) => visible).map(([key, path, icon]) => [key, path, icon]);
