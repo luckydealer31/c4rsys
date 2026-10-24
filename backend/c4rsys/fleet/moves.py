@@ -40,6 +40,9 @@ class MoveRequest:
 
 def record_move(ctx: CommandContext, company_id: UUID, request: MoveRequest) -> VehicleMove:
     card = lock_card(company_id, request.vehicle_card_id)
+    if card.storage_context_id is not None:
+        # A vehicle on a warehouse is a stock item, not moved as a garage vehicle (§ 8.1.5).
+        raise errors.business_rule("VEHICLE_IN_WAREHOUSE")
     if card.state != VehicleCard.State.ACTIVE:
         raise errors.business_rule("VEHICLE_ARCHIVED")
     source = card.accounting_location_id

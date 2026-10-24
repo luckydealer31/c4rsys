@@ -151,6 +151,18 @@ def location_blockers(company_id: UUID, location_id: UUID, context_type: str | N
     return ["rentals_not_finished"] if unfinished.exists() else []
 
 
+def vehicle_context_blockers(company_id: UUID, card_id: UUID, context_type: str) -> list[str]:
+    """Rentals of the vehicle that keep its rental context on: booked, issued, or returned without
+    completed formalization (decision of 24.10.2026)."""
+    if context_type != "rental":
+        return []
+    unfinished = Rental.objects.filter(company_id=company_id, vehicle_card_id=card_id).filter(
+        Q(state__in=(Rental.State.BOOKED, Rental.State.ACTIVE))
+        | Q(state=Rental.State.RETURNED, formalization_completed_at__isnull=True)
+    )
+    return ["rentals_not_finished"] if unfinished.exists() else []
+
+
 def vehicle_busy(company_id: UUID, card_id: UUID) -> list[str]:
     """A vehicle in an active rental is with the client and is not moved (§ 15.1.8)."""
     active = Rental.objects.filter(

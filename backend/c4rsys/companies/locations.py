@@ -284,6 +284,22 @@ def enabled_context_types(company_id: UUID, location_id: UUID) -> set[str]:
     )
 
 
+def storage_context(company_id: UUID, context_id: UUID) -> ActivityContext | None:
+    """An enabled warehouse context of an active location of the company — the place an own
+    vehicle is transferred to (§ 8.1.5, § 8.1.7)."""
+    return (
+        ActivityContext.objects.select_related("location")
+        .filter(
+            company_id=company_id,
+            pk=context_id,
+            type=ActivityContext.Type.WAREHOUSE,
+            state=ActivityContext.State.ENABLED,
+            location__deactivated_at__isnull=True,
+        )
+        .first()
+    )
+
+
 def location_exists(company_id: UUID, location_id: UUID) -> bool:
     return Location.objects.filter(company_id=company_id, pk=location_id).exists()
 

@@ -1,6 +1,7 @@
 """Vehicle cards, odometer history and readiness for rental (ТЗ § 8.1, § 8.2.12, § 8.5.1,
 § 8.7.7)."""
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
@@ -25,8 +26,27 @@ from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
 from c4rsys.platform.registry import allocate_public_id
 
-# Context types a vehicle may be allowed in (§ 8.5.1): all three of the MVP (decision 22.10.2026).
-USAGE_CONTEXT_TYPES = frozenset({"rental", "service", "warehouse"})
+# Operational context types a vehicle is switched on for (§ 8.5.1): rental now; taxi, cargo and
+# the like later. Service is implied for every vehicle of the company and is not switched; the
+# warehouse is not a usage context — an own vehicle is transferred there by a separate operation
+# (§ 8.1.5, § 8.3.9). Customer's decision of 24.10.2026, replaces that of 22.10.2026.
+USAGE_CONTEXT_TYPES = frozenset({"rental"})
+
+# (company_id, vehicle_card_id, context_type) -> codes of unfinished operations in that context;
+# registered by the module of the context. A context is switched off only without them
+# (decision of 24.10.2026).
+ContextBlockers = Callable[[UUID, UUID, str], list[str]]
+_context_blockers: list[ContextBlockers] = []
+
+
+def register_context_blockers(check: ContextBlockers) -> None:
+    _context_blockers.append(check)
+
+
+def context_blockers(company_id: UUID, card_id: UUID, context_type: str) -> list[str]:
+    return [
+        code for check in _context_blockers for code in check(company_id, card_id, context_type)
+    ]
 
 
 def cards_of(company_id: UUID) -> QuerySet[VehicleCard]:
@@ -103,8 +123,8 @@ def create_vehicle(ctx: CommandContext, company: Company, data: NewVehicle) -> V
     )
     usable = USAGE_CONTEXT_TYPES
     if data.relation == VehicleCard.Relation.CLIENT:
-        # A client vehicle is only serviced: no rental, no warehouse (§ 8.1.2).
-        usable = frozenset({"service"})
+        # A client vehicle is only serviced, and service is implied (§ 8.1.2).
+        usable = frozenset()
     contexts = sorted(locations.context_types_in_company(company.id) & usable)
     VehicleCardContext.objects.bulk_create(
         VehicleCardContext(company=company, vehicle_card=card, context_type=t) for t in contexts
@@ -219,6 +239,19 @@ def update_vehicle(
     if changes.name is not None:
         card.name = changes.name
     if changes.contexts is not None:
+        if card.storage_context_id is not None and changes.contexts:
+            raise errors.business_rule("VEHICLE_IN_WAREHOUSE", field="contexts")
+        found = sorted(
+            {
+                code
+                for removed in set(before["contexts"]) - changes.contexts
+                for code in context_blockers(company_id, card.id, removed)
+            }
+        )
+        if found:
+            raise errors.business_rule(
+                "VEHICLE_CONTEXT_HAS_UNFINISHED", field="contexts", blockers=found
+            )
         VehicleCardContext.objects.filter(vehicle_card=card).exclude(
             context_type__in=changes.contexts
         ).delete()
@@ -329,6 +362,48 @@ def record_reading(
 # --- Readiness for rental (§ 8.7.7) ---------------------------------------------------------
 
 
+def transfer_to_warehouse(
+    ctx: CommandContext, company_id: UUID, card_id: UUID, context_id: UUID, expected_version: int
+) -> VehicleCard:
+    """An own vehicle without any operational context enabled becomes a stock item of a
+    warehouse context, keeping its ID, characteristics and history (§ 8.1.5, § 8.1.7; decision
+    of 24.10.2026). A managed or client vehicle is not transferred."""
+    card = lock_card(company_id, card_id)
+    if card.version != expected_version:
+        raise errors.version_conflict()
+    if card.relation != VehicleCard.Relation.OWN:
+        raise errors.business_rule("VEHICLE_NOT_OWN")
+    if card.storage_context_id is not None:
+        raise errors.business_rule("VEHICLE_IN_WAREHOUSE")
+    if allowed_contexts(card):
+        raise errors.business_rule("VEHICLE_HAS_CONTEXTS", contexts=sorted(allowed_contexts(card)))
+    target = locations.storage_context(company_id, context_id)
+    if target is None:
+        raise errors.validation_error("context_id", code="WAREHOUSE_UNKNOWN")
+    before = {"location": str(card.accounting_location_id) if card.accounting_location_id else None}
+    card.storage_context_id = target.id
+    card.stored_at = timezone.now()
+    card.accounting_location_id = target.location_id
+    card.version += 1
+    card.save(
+        update_fields=[
+            "storage_context",
+            "stored_at",
+            "accounting_location",
+            "version",
+            "updated_at",
+        ]
+    )
+    ctx.audit(
+        "vehicle.transferred_to_warehouse",
+        object_type="vehicle_card",
+        object_id=card.id,
+        before=before,
+        after={"storage_context": str(target.id), "location": str(target.location_id)},
+    )
+    return card
+
+
 def rental_readiness(card: VehicleCard) -> dict[str, Any]:
     """Own or managed, bound to a location with an enabled rental context, allowed for rental.
     An enabled context counts without a tariff; the tariff is checked at issue (decision
@@ -336,6 +411,8 @@ def rental_readiness(card: VehicleCard) -> dict[str, Any]:
     missing = []
     if card.state != VehicleCard.State.ACTIVE:
         missing.append("card_archived")
+    if card.storage_context_id is not None:
+        missing.append("in_warehouse")
     if card.relation not in (VehicleCard.Relation.OWN, VehicleCard.Relation.MANAGED):
         missing.append("not_owned_or_managed")
     location_id = card.accounting_location_id

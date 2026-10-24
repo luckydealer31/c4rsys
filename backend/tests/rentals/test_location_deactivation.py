@@ -166,3 +166,22 @@ def test_rental_context_is_switched_off_after_rentals_finish_and_vehicles_stay(
     later = issue(owner, s, actual_start=(ISSUE_AT + timedelta(days=2)).isoformat())
     assert later.status_code != 201
     assert post(owner, f"{path}/enable", {}, key()).status_code == 200
+
+
+def test_rental_cannot_be_switched_off_for_a_vehicle_with_an_active_rental(owner: Client) -> None:
+    # Decision of 24.10.2026: a context of a vehicle is switched off only without unfinished
+    # operations in it.
+    s = build(owner)
+    issued = issue(owner, s)
+    assert issued.status_code == 201, issued.content
+    version = owner.get(f"/api/c/{s.cmp}/vehicles/{s.vehicle}").json()["vehicle"]["version"]
+
+    response = owner.patch(
+        f"/api/c/{s.cmp}/vehicles/{s.vehicle}",
+        data={"contexts": [], "expected_version": version},
+        content_type="application/json",
+        headers=key(),
+    )
+
+    assert response.json()["error"]["code"] == "VEHICLE_CONTEXT_HAS_UNFINISHED"
+    assert response.json()["error"]["params"]["blockers"] == ["rentals_not_finished"]

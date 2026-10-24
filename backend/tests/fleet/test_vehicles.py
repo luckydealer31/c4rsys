@@ -69,19 +69,16 @@ def test_create_own_vehicle_with_vhl_id(owner: Client, cmp: str) -> None:
 def test_usage_contexts_are_the_applicable_ones_existing_at_creation(
     owner: Client, cmp: str
 ) -> None:
-    # § 8.5.1: existing contexts of the company are enabled — rental, service and warehouse all
-    # apply (decision 22.10.2026); later ones are not added automatically.
-    phuket = _location(owner, cmp, "Phuket", "rental", "warehouse")
-    first = _create(owner, cmp, phuket).json()["vehicle"]
-    _location(owner, cmp, "Krabi", "service")
+    # § 8.5.1: existing operational contexts of the company are enabled; service is implied and
+    # the warehouse is not a usage context (decision of 24.10.2026).
+    krabi = _location(owner, cmp, "Krabi", "service", "warehouse")
+    first = _create(owner, cmp, krabi).json()["vehicle"]
+    phuket = _location(owner, cmp, "Phuket", "rental")
     second = _create(owner, cmp, phuket, name="Honda Click").json()["vehicle"]
 
-    assert first["contexts"] == ["rental", "warehouse"]
-    assert second["contexts"] == ["rental", "service", "warehouse"]
-    assert owner.get(f"/api/c/{cmp}/vehicles/{first['id']}").json()["vehicle"]["contexts"] == [
-        "rental",
-        "warehouse",
-    ]
+    assert first["contexts"] == []
+    assert second["contexts"] == ["rental"]
+    assert owner.get(f"/api/c/{cmp}/vehicles/{first['id']}").json()["vehicle"]["contexts"] == []
 
 
 def test_rental_readiness_of_8_7_7(owner: Client, cmp: str) -> None:
@@ -126,18 +123,15 @@ def test_switching_rental_off_removes_readiness(owner: Client, cmp: str) -> None
     location_id = _location(owner, cmp, "Phuket", "rental", "service")
     vehicle = _create(owner, cmp, location_id).json()["vehicle"]
 
-    changed = _patch(owner, cmp, vehicle["id"], {"contexts": ["service"], "expected_version": 1})
+    changed = _patch(owner, cmp, vehicle["id"], {"contexts": [], "expected_version": 1})
 
-    assert changed.json()["vehicle"]["contexts"] == ["service"]
+    assert changed.json()["vehicle"]["contexts"] == []
     assert changed.json()["vehicle"]["rental_readiness"]["missing"] == ["rental_not_allowed"]
     event = AuditEvent.objects.get(action="vehicle.changed")
-    assert (event.before, event.after) == (
-        {"contexts": ["rental", "service"]},
-        {"contexts": ["service"]},
-    )
+    assert (event.before, event.after) == ({"contexts": ["rental"]}, {"contexts": []})
 
 
-@pytest.mark.parametrize("contexts", [["taxi"], "rental", [1]])
+@pytest.mark.parametrize("contexts", [["taxi"], ["service"], ["warehouse"], "rental", [1]])
 def test_only_usage_context_types(owner: Client, cmp: str, contexts: Any) -> None:
     vehicle = _create(owner, cmp, _location(owner, cmp, "Phuket", "rental")).json()["vehicle"]
 
@@ -291,3 +285,77 @@ def test_reading_between_neighbours_and_equal_values_are_accepted(card: VehicleC
 
     assert OdometerReading.objects.count() == 4
     assert {r.unit for r in OdometerReading.objects.all()} == {"km"}
+
+
+# --- Switching a context off and the transfer to a warehouse (decision of 24.10.2026) --------
+
+
+def _warehouse(owner: Client, cmp: str, location_id: str) -> str:
+    response = post(
+        owner, f"/api/c/{cmp}/locations/{location_id}/contexts", {"type": "warehouse"}, key()
+    )
+    assert response.status_code in (200, 201), response.content
+    location = owner.get(f"/api/c/{cmp}/locations/{location_id}").json()["location"]
+    context_id: str = next(c["id"] for c in location["contexts"] if c["type"] == "warehouse")
+    return context_id
+
+
+def _to_warehouse(owner: Client, cmp: str, vehicle_id: str, context_id: str, version: int) -> Any:
+    return post(
+        owner,
+        f"/api/c/{cmp}/vehicles/{vehicle_id}/to-warehouse",
+        {"context_id": context_id, "expected_version": version},
+        key(),
+    )
+
+
+def test_own_vehicle_goes_to_warehouse_only_without_contexts(owner: Client, cmp: str) -> None:
+    location_id = _location(owner, cmp, "Phuket", "rental")
+    storage = _warehouse(owner, cmp, location_id)
+    vehicle = _create(owner, cmp, location_id).json()["vehicle"]
+
+    refused = _to_warehouse(owner, cmp, vehicle["id"], storage, vehicle["version"])
+    assert refused.json()["error"]["code"] == "VEHICLE_HAS_CONTEXTS"
+
+    off = _patch(owner, cmp, vehicle["id"], {"contexts": [], "expected_version": 1}).json()
+    moved = _to_warehouse(owner, cmp, vehicle["id"], storage, off["vehicle"]["version"])
+
+    assert moved.status_code == 200, moved.content
+    body = moved.json()["vehicle"]
+    assert body["storage"]["context_id"] == storage
+    assert body["vehicle_id"] == vehicle["vehicle_id"]  # the same asset, history kept
+    assert "in_warehouse" in body["rental_readiness"]["missing"]
+    back_on = _patch(owner, cmp, vehicle["id"], {"contexts": ["rental"], "expected_version": 3})
+    assert back_on.json()["error"]["code"] == "VEHICLE_IN_WAREHOUSE"
+    assert AuditEvent.objects.filter(action="vehicle.transferred_to_warehouse").count() == 1
+
+
+def test_managed_vehicle_is_not_transferred(owner: Client, cmp: str) -> None:
+    location_id = _location(owner, cmp, "Phuket")
+    storage = _warehouse(owner, cmp, location_id)
+    vehicle = _create(owner, cmp, location_id, relation="managed").json()["vehicle"]
+
+    response = _to_warehouse(owner, cmp, vehicle["id"], storage, vehicle["version"])
+
+    assert response.json()["error"]["code"] == "VEHICLE_NOT_OWN"
+
+
+def test_transfer_needs_its_own_right(owner: Client, cmp: str) -> None:
+    location_id = _location(owner, cmp, "Phuket")
+    storage = _warehouse(owner, cmp, location_id)
+    vehicle = _create(owner, cmp, location_id).json()["vehicle"]
+    rights = [
+        {
+            "type": "grant",
+            "permission": p,
+            "locations": "all",
+            "contexts": "all",
+            "cash_accounts": "all",
+        }
+        for p in ("vehicle.view", "vehicle.edit")
+    ]
+    staff, _ = hire(owner, cmp, "staff@example.com", rights)
+
+    response = _to_warehouse(staff, cmp, vehicle["id"], storage, vehicle["version"])
+
+    assert response.status_code == 403

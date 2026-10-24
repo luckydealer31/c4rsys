@@ -193,6 +193,8 @@ export type Vehicle = {
   odometer: { value: string; unit: string; measured_at: string } | null;
   rental_readiness: { ready: boolean; missing: string[] };
   characteristics: VehicleCharacteristics;
+  /** On a warehouse as a stock item (§ 8.1.5); null — in the garage. */
+  storage: { context_id: string; location_id: string; since: string | null } | null;
   /** Declared owner (§ 8.3.13); unconfirmed until the owner answers the request. */
   owner: {
     kind: "company" | "profile" | "person" | "organization" | "client" | "none";

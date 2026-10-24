@@ -2,8 +2,31 @@ import { useTranslation } from "react-i18next";
 
 import type { ContextType, Location } from "../../api/types";
 import { Card, Loading } from "../../components/ui";
+import { Link } from "react-router";
+
+import type { Vehicle } from "../../api/types";
 import { moduleWorks } from "../../contexts";
+import { companyPath, useCompany } from "../../layout/CompanyShell";
 import { useLocations } from "../settings/LocationsPage";
+import { useVehicles } from "../vehicles/VehiclesPage";
+
+/** Vehicles transferred to this warehouse as stock items (§ 8.1.5). */
+function StoredVehicles({ items, path }: { items: Vehicle[]; path: (id: string) => string }) {
+  const { t } = useTranslation();
+  if (items.length === 0) return null;
+  return (
+    <>
+      <h3 style={{ marginTop: 12 }}>{t("vehicles.stored_title")}</h3>
+      <ul>
+        {items.map((v) => (
+          <li key={v.id}>
+            <Link to={path(v.id)}>{v.name}</Link> <span className="muted small">{v.vehicle_id}</span>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
 
 function contextState(location: Location, type: ContextType): string {
   const context = location.contexts.find((c) => c.type === type);
@@ -19,7 +42,9 @@ function contextState(location: Location, type: ContextType): string {
  * appears with the service module. */
 export function ContextSectionPage({ type }: { type: Exclude<ContextType, "rental"> }) {
   const { t } = useTranslation();
+  const company = useCompany();
   const locations = useLocations();
+  const vehicles = useVehicles();
   const items = (locations.data?.locations ?? []).filter((l) =>
     l.contexts.some((c) => c.type === type),
   );
@@ -34,6 +59,14 @@ export function ContextSectionPage({ type }: { type: Exclude<ContextType, "renta
             <span className={`badge ${state === "ready" ? "ok" : "warn"}`}>
               {t(`contexts.state_${state}`)}
             </span>
+            {type === "warehouse" ? (
+              <StoredVehicles
+                items={(vehicles.data?.vehicles ?? []).filter((v) =>
+                  location.contexts.some((c) => c.id === v.storage?.context_id),
+                )}
+                path={(id) => companyPath(company, `/vehicles/${id}`)}
+              />
+            ) : null}
           </Card>
         );
       })}

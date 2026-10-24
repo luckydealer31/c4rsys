@@ -9,7 +9,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_http_methods, require_POST
 
 from c4rsys.accounts.middleware import require_user
-from c4rsys.companies import access
+from c4rsys.companies import access, locations
 from c4rsys.companies import services as companies
 from c4rsys.companies.models import Employment
 from c4rsys.companies.views import run_and_respond
@@ -57,6 +57,13 @@ def _payload(card: VehicleCard) -> dict[str, Any]:
         "rental_readiness": services.rental_readiness(card),
         "characteristics": characteristics.describe(card.vehicle),
         "owner": owners.describe(card),
+        "storage": None
+        if card.storage_context_id is None
+        else {
+            "context_id": str(card.storage_context_id),
+            "location_id": str(card.accounting_location_id),
+            "since": card.stored_at.isoformat() if card.stored_at else None,
+        },
     }
 
 
@@ -256,6 +263,44 @@ def vehicle_details(request: HttpRequest, cmp: str, card_id: UUID) -> JsonRespon
         **details.payload(),
     }
     return run_and_respond(request, "vehicle.update_details", actor, payload, handler)
+
+
+@require_POST
+def vehicle_to_warehouse(request: HttpRequest, cmp: str, card_id: UUID) -> JsonResponse:
+    """Transfer of an own vehicle without operational contexts to a warehouse (§ 8.1.5; decision
+    of 24.10.2026). The right counts in the target location."""
+    context, actor = _actor(request, cmp)
+    card = services.get_card(context.company.id, card_id)
+    if not _allowed(actor, "vehicle.view", card):
+        raise errors.not_found()
+    data = parse_json(request)
+    expected_version = get_int(data, "expected_version")
+    try:
+        context_id = UUID(get_str(data, "context_id", max_length=40))
+    except ValueError as exc:
+        raise errors.validation_error("context_id") from exc
+    target = locations.storage_context(context.company.id, context_id)
+    if target is None:
+        raise errors.validation_error("context_id", code="WAREHOUSE_UNKNOWN")
+    if not access.RightsResolver().has_permission(
+        actor, "vehicle.transfer_to_warehouse", location_id=target.location_id
+    ):
+        raise errors.permission_denied("vehicle.transfer_to_warehouse")
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        services.transfer_to_warehouse(
+            ctx, context.company.id, card_id, context_id, expected_version
+        )
+        return CommandResult(
+            200, {"vehicle": _payload(services.get_card(context.company.id, card_id))}
+        )
+
+    payload = {
+        "card_id": str(card_id),
+        "context_id": str(context_id),
+        "expected_version": expected_version,
+    }
+    return run_and_respond(request, "vehicle.transfer_to_warehouse", actor, payload, handler)
 
 
 def _contexts(value: Any) -> frozenset[str]:

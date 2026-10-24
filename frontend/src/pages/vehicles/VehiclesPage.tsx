@@ -9,13 +9,13 @@ import { useCommand } from "../../api/useCommand";
 import { Icon } from "../../components/icons";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
-import { AVAILABLE_CONTEXTS } from "../../contexts";
 import { formatMoment } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
 import { VehicleMoves } from "./VehicleMoves";
 
-// Only types whose modules work are offered (§ 4.1.9).
-const USAGE_CONTEXTS = AVAILABLE_CONTEXTS;
+// Only operational contexts are switched for a vehicle — rental now (decision of 24.10.2026):
+// service is implied, the warehouse is reached by a transfer of an own vehicle (§ 8.1.5).
+const USAGE_CONTEXTS = ["rental"] as const;
 
 export function useVehicles() {
   const company = useCompany();
@@ -50,7 +50,10 @@ export function VehiclesPage() {
     : "own";
   // Own and managed vehicles are grouped by their location, in the order of the locations;
   // those without a location come last. Client vehicles have no location (§ 8.1.2).
-  const list = (vehicles.data?.vehicles ?? []).filter((v) => v.relation === tab);
+  // Vehicles on a warehouse are stock items, shown in «Warehouse» (§ 8.1.5).
+  const list = (vehicles.data?.vehicles ?? []).filter(
+    (v) => v.relation === tab && v.storage === null,
+  );
   const groups = (tab === "client"
     ? [{ id: "client", name: t("vehicles.client_group"), vehicles: list }]
     : [
@@ -235,8 +238,10 @@ export function VehiclePage() {
   const location = locations.data?.locations.find((l) => l.id === data.location_id);
   const timeZone = location?.timezone ?? company.timezone ?? "UTC";
   const own = (rentals.data?.rentals ?? []).filter((r) => r.vehicle_card_id === data.id);
-  // Rental, moves, tariffs and contexts concern only own and managed vehicles (§ 8.1.2).
-  const isClient = data.relation === "client";
+  // Rental, moves, tariffs and contexts concern only own and managed vehicles in the garage
+  // (§ 8.1.2, § 8.1.5).
+  const stored = data.storage !== null;
+  const isClient = data.relation === "client" || stored;
 
   const current = data;
   async function save(changes: Record<string, unknown>) {
@@ -258,6 +263,13 @@ export function VehiclePage() {
   return (
     <div className="page">
       <h1>{data.name}</h1>
+      {stored ? (
+        <div className="alert warn">
+          {t("vehicles.in_warehouse", {
+            location: locations.data?.locations.find((l) => l.id === data.storage?.location_id)?.name ?? "—",
+          })}
+        </div>
+      ) : null}
       <VehicleFacts vehicle={data} />
       <Card>
         <p>
@@ -309,8 +321,12 @@ export function VehiclePage() {
             {t(`contexts.${type}`)}
           </label>
         ))}
+        {isClient ? null : <p className="muted small">{t("vehicles.contexts_hint")}</p>}
         <ErrorMessage error={update.error} />
       </Card>
+      {data.relation === "own" && !stored && data.contexts.length === 0 ? (
+        <TransferToWarehouse vehicle={data} />
+      ) : null}
       {isClient ? null : <VehicleTariffs vehicleId={data.id} />}
       {isClient ? null : <VehicleMoves vehicle={data} />}
       {!isClient && can("rental.view") ? (
@@ -334,6 +350,66 @@ export function VehiclePage() {
         </Card>
       ) : null}
     </div>
+  );
+}
+
+/** Offered when an own vehicle has no operational context: transfer to a warehouse as the same
+ * asset with all its history (decision of 24.10.2026; § 8.1.5, § 8.1.7). */
+function TransferToWarehouse({ vehicle }: { vehicle: Vehicle }) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const can = useCan();
+  const client = useQueryClient();
+  const locations = useLocations();
+  const [target, setTarget] = useState("");
+  const transfer = useCommand<{ context_id: string; expected_version: number }, unknown>(
+    `/c/${company.public_id}/vehicles/${vehicle.id}/to-warehouse`,
+  );
+  if (!can("vehicle.transfer_to_warehouse")) return null;
+  const warehouses = (locations.data?.locations ?? []).flatMap((l) =>
+    l.state === "deactivated"
+      ? []
+      : l.contexts
+          .filter((c) => c.type === "warehouse" && c.state === "enabled")
+          .map((c) => ({ id: c.id, name: l.name })),
+  );
+  return (
+    <Card title={t("vehicles.transfer_title")}>
+      <p>{t("vehicles.transfer_text")}</p>
+      {warehouses.length === 0 ? (
+        <p className="muted">{t("vehicles.transfer_no_warehouse")}</p>
+      ) : (
+        <div className="row">
+          <Field label={t("vehicles.transfer_target")}>
+            <select value={target} onChange={(e) => setTarget(e.target.value)}>
+              <option value="">—</option>
+              {warehouses.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
+      )}
+      <ErrorMessage error={transfer.error} />
+      {warehouses.length ? (
+        <div className="actions">
+          <button
+            type="button"
+            disabled={!target || transfer.pending}
+            onClick={async () => {
+              if ((await transfer.run({ context_id: target, expected_version: vehicle.version })) !== null) {
+                await client.invalidateQueries({ queryKey: ["vehicle", company.public_id, vehicle.id] });
+                await client.invalidateQueries({ queryKey: ["vehicles", company.public_id] });
+              }
+            }}
+          >
+            {t("vehicles.transfer_button")}
+          </button>
+        </div>
+      ) : null}
+    </Card>
   );
 }
 

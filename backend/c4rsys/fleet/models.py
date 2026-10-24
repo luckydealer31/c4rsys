@@ -4,7 +4,7 @@ from django.db import models
 from django.db.models import Q
 from django.utils.timezone import now
 
-from c4rsys.companies.models import Company, Location
+from c4rsys.companies.models import ActivityContext, Company, Location
 from c4rsys.platform.ids import uuid7
 
 
@@ -144,6 +144,12 @@ class VehicleCard(models.Model):
     )
     odometer_unit = models.CharField(max_length=2, choices=OdometerUnit.choices)
     state = models.CharField(max_length=10, choices=State.choices, default=State.ACTIVE)
+    # An own vehicle transferred to a warehouse is an individual stock item of a storage context
+    # (§ 8.1.5, § 8.1.7); it keeps its ID and history. Empty — the vehicle is in the garage.
+    storage_context = models.ForeignKey(
+        ActivityContext, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    stored_at = models.DateTimeField(null=True, blank=True)
     created_by_user_id = models.UUIDField()
     created_at = models.DateTimeField(default=now)
     updated_at = models.DateTimeField(auto_now=True)
@@ -160,6 +166,10 @@ class VehicleCard(models.Model):
             models.CheckConstraint(
                 condition=Q(relation="client") | Q(accounting_location__isnull=False),
                 name="vehicle_card_operational_has_location",
+            ),
+            models.CheckConstraint(
+                condition=Q(storage_context__isnull=True) | Q(relation="own"),
+                name="vehicle_card_only_own_in_storage",
             ),
         ]
 

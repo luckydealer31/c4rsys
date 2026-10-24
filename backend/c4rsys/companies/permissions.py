@@ -23,6 +23,8 @@ PERMISSIONS: dict[str, str] = {
     "vehicle.create": "vehicle",
     "vehicle.edit": "vehicle",
     "vehicle.move": "vehicle",
+    # Decision of 24.10.2026: a separate right; only in «Company administrator» (PROPOSAL).
+    "vehicle.transfer_to_warehouse": "vehicle",
     "client.find": "client",
     "client.list": "client",
     "client.create": "client",

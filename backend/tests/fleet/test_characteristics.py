@@ -241,7 +241,7 @@ def test_client_vehicle_has_no_location_and_only_service(
     assert response.status_code == 201, response.content
     vehicle = response.json()["vehicle"]
     assert vehicle["location_id"] is None
-    assert vehicle["contexts"] == ["service"]
+    assert vehicle["contexts"] == []  # service is implied for every vehicle
     assert vehicle["owner"]["client"]["name"] == "Ivan Petrov"
     assert "not_owned_or_managed" in vehicle["rental_readiness"]["missing"]
 
