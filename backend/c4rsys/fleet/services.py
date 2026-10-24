@@ -12,7 +12,7 @@ from django.utils import timezone
 
 from c4rsys.companies import locations
 from c4rsys.companies.models import Company
-from c4rsys.fleet import characteristics
+from c4rsys.fleet import characteristics, owners
 from c4rsys.fleet.characteristics import Characteristics
 from c4rsys.fleet.models import (
     OdometerReading,
@@ -58,6 +58,8 @@ class NewVehicle:
     location_id: UUID
     odometer_unit: str
     details: Characteristics = field(default_factory=Characteristics)
+    relation: str = VehicleCard.Relation.OWN
+    owner: owners.Owner = field(default_factory=owners.Owner)
 
 
 def create_vehicle(ctx: CommandContext, company: Company, data: NewVehicle) -> VehicleCard:
@@ -86,7 +88,7 @@ def create_vehicle(ctx: CommandContext, company: Company, data: NewVehicle) -> V
         company=company,
         vehicle=vehicle,
         name=name,
-        relation=VehicleCard.Relation.OWN,
+        relation=data.relation,
         accounting_location_id=data.location_id,
         odometer_unit=data.odometer_unit,
         created_by_user_id=ctx.actor.user_id,
@@ -111,6 +113,7 @@ def create_vehicle(ctx: CommandContext, company: Company, data: NewVehicle) -> V
             "identifier_matches": characteristics.matches(vehicle),
         },
     )
+    owners.declare(ctx, company, card, data.owner)
     return card
 
 

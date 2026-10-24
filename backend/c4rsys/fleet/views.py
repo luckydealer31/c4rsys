@@ -13,7 +13,7 @@ from c4rsys.companies import access
 from c4rsys.companies import services as companies
 from c4rsys.companies.models import Employment
 from c4rsys.companies.views import run_and_respond
-from c4rsys.fleet import characteristics, moves, services
+from c4rsys.fleet import characteristics, moves, owners, services
 from c4rsys.fleet.models import Vehicle, VehicleCard, VehicleMake, VehicleModel, VehicleMove
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
@@ -56,6 +56,7 @@ def _payload(card: VehicleCard) -> dict[str, Any]:
         },
         "rental_readiness": services.rental_readiness(card),
         "characteristics": characteristics.describe(card.vehicle),
+        "owner": owners.describe(card),
     }
 
 
@@ -72,9 +73,10 @@ def vehicle_list(request: HttpRequest, cmp: str) -> JsonResponse:
 
     data = parse_json(request)
     relation = get_str(data, "relation", max_length=10, required=False) or "own"
-    if relation != VehicleCard.Relation.OWN:
-        # Stage 1: own vehicles only (STAGE1_PLAN, T09).
+    # Own or managed (§ 8.1.6, decision of 24.10.2026); client vehicles come with the service.
+    if relation not in (VehicleCard.Relation.OWN, VehicleCard.Relation.MANAGED):
         raise errors.validation_error("relation", code="RELATION_NOT_AVAILABLE")
+    owner = owners.parse(data, relation)
     unit = get_str(data, "odometer_unit", max_length=2)
     if unit not in VehicleCard.OdometerUnit.values:
         raise errors.validation_error("odometer_unit")
@@ -90,6 +92,8 @@ def vehicle_list(request: HttpRequest, cmp: str) -> JsonResponse:
         location_id=location_id,
         odometer_unit=unit,
         details=details,
+        relation=relation,
+        owner=owner,
     )
 
     def handler(ctx: CommandContext) -> CommandResult:
@@ -106,6 +110,8 @@ def vehicle_list(request: HttpRequest, cmp: str) -> JsonResponse:
         "name": new.name,
         "location_id": str(location_id),
         "odometer_unit": unit,
+        "relation": relation,
+        "owner": owner.payload(),
         **details.payload(),
     }
     return run_and_respond(request, "vehicle.create", actor, payload, handler)

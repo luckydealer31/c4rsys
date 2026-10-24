@@ -193,6 +193,15 @@ export type Vehicle = {
   odometer: { value: string; unit: string; measured_at: string } | null;
   rental_readiness: { ready: boolean; missing: string[] };
   characteristics: VehicleCharacteristics;
+  /** Declared owner (§ 8.3.13); unconfirmed until the owner answers the request. */
+  owner: {
+    kind: "company" | "profile" | "person" | "organization" | "none";
+    lookup: string;
+    name: string;
+    contact: string;
+    confirmed: boolean;
+    company?: { public_id: string; display_name: string; legal_name: string };
+  } | null;
 };
 
 /** Identification data and characteristics of § 8.1.8–8.1.12; all optional. */

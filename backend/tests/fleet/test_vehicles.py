@@ -151,7 +151,7 @@ def test_only_usage_context_types(owner: Client, cmp: str, contexts: Any) -> Non
     [
         ({"name": ""}, "name"),
         ({"odometer_unit": "ft"}, "odometer_unit"),
-        ({"relation": "managed"}, "relation"),
+        ({"relation": "client"}, "relation"),
         ({"location_id": "01a1628f-ca1c-71ab-a48b-80eede8d99b1"}, "location_id"),
     ],
 )

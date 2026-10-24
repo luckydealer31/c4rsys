@@ -120,7 +120,24 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
     ? new Intl.DisplayNames([i18n.language], { type: "region" }).of(c.plate_country)
     : "";
   const option = (prefix: string, value: string) => (value ? t(`${prefix}.${value}`) : "");
+  const owner = vehicle.owner;
+  const ownerText = !owner
+    ? ""
+    : owner.kind === "company"
+      ? (owner.company?.display_name ?? "")
+      : owner.kind === "profile"
+        ? owner.lookup
+        : owner.kind === "none"
+          ? t("vehicles.owner_kind_none")
+          : [owner.name, owner.contact].filter(Boolean).join(", ");
   const facts: [string, string][] = [
+    [t("vehicles.relation"), t(`vehicles.relation_${vehicle.relation}`)],
+    [
+      t("vehicles.section_owner"),
+      ownerText && owner?.kind !== "company" && !owner?.confirmed
+        ? `${ownerText} (${t("vehicles.owner_unconfirmed")})`
+        : ownerText,
+    ],
     [t("vehicles.vehicle_type"), c.vehicle_type ? t(`vehicles.type_${c.vehicle_type}`) : ""],
     [t("vehicles.make"), c.make_name],
     [t("vehicles.model"), c.model_name],

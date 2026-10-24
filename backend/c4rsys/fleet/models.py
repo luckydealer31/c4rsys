@@ -167,6 +167,42 @@ class VehicleCard(models.Model):
         return self.name
 
 
+class VehicleOwnerClaim(models.Model):
+    """The owner as declared by the company (§ 8.3.13). With «own» the company itself is the
+    declared owner; with «managed» the owner is a profile found by ID, email or phone, an owner
+    described by hand, or not given yet. The data stay unconfirmed until the owner accepts the
+    request of § 8.3.1. A new declaration is a new row; the latest one is current.
+
+    `owner_user_id` is resolved silently from the lookup: the company is not told whether such
+    a profile exists, nor its name (§ 2.2.3)."""
+
+    class Kind(models.TextChoices):
+        COMPANY = "company"
+        PROFILE = "profile"
+        PERSON = "person"
+        ORGANIZATION = "organization"
+        NONE = "none"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    vehicle_card = models.ForeignKey(
+        "VehicleCard", on_delete=models.PROTECT, related_name="owner_claims"
+    )
+    kind = models.CharField(max_length=20, choices=Kind.choices)
+    lookup = models.CharField(max_length=254, blank=True, default="")
+    owner_user_id = models.UUIDField(null=True, blank=True)
+    manual_name = models.CharField(max_length=300, blank=True, default="")
+    manual_contact = models.CharField(max_length=254, blank=True, default="")
+    created_at = models.DateTimeField(default=now)
+    created_by_user_id = models.UUIDField()
+
+    class Meta:
+        db_table = "vehicle_owner_claim"
+
+    def __str__(self) -> str:
+        return f"{self.kind}:{self.vehicle_card_id}"
+
+
 class VehicleCardContext(models.Model):
     """Context type the vehicle may be used in (§ 8.5.1)."""
 

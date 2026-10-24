@@ -35,7 +35,14 @@ type Form = {
   doors: string;
   location_id: string;
   odometer_unit: string;
+  relation: string;
+  owner_kind: string;
+  owner_lookup: string;
+  owner_name: string;
+  owner_contact: string;
 };
+
+const OWNER_KINDS = ["profile", "person", "organization", "none"] as const;
 
 const EMPTY: Form = {
   transport_class: "ground",
@@ -59,6 +66,11 @@ const EMPTY: Form = {
   doors: "",
   location_id: "",
   odometer_unit: "km",
+  relation: "own",
+  owner_kind: "profile",
+  owner_lookup: "",
+  owner_name: "",
+  owner_contact: "",
 };
 
 /** Full creation card of a vehicle (customer's decisions of 24.10.2026; § 8.1.8–8.1.12): class
@@ -125,7 +137,16 @@ export function NewVehiclePage() {
       power_hp: number(form.power_hp),
       seats: number(form.seats),
       doors: number(form.doors),
+      relation: form.relation,
     };
+    if (form.relation === "managed") {
+      body.owner_kind = form.owner_kind;
+      if (form.owner_kind === "profile") body.owner_lookup = form.owner_lookup;
+      if (form.owner_kind === "person" || form.owner_kind === "organization") {
+        body.owner_name = form.owner_name;
+        body.owner_contact = form.owner_contact;
+      }
+    }
     if (usesCatalogMake) {
       body.make = form.make;
       if (form.model && form.model !== OTHER) body.model = form.model;
@@ -174,24 +195,8 @@ export function NewVehiclePage() {
       <h1>{t("vehicles.create_title")}</h1>
       <form className="stack" onSubmit={submit}>
         <Card title={t("vehicles.section_kind")}>
-          <div className="field">
-            <span>{t("vehicles.transport_class")}</span>
-            <div className="choice-row">
-              {o.transport_classes.map((item) => (
-                <label key={item.code} className={item.available ? "" : "muted"}>
-                  <input
-                    type="radio"
-                    name="transport_class"
-                    disabled={!item.available}
-                    checked={form.transport_class === item.code}
-                    onChange={() => set({ transport_class: item.code })}
-                  />{" "}
-                  {t(`vehicles.class_${item.code}`)}
-                  {item.available ? "" : ` — ${t("vehicles.later")}`}
-                </label>
-              ))}
-            </div>
-          </div>
+          {/* Only ground transport exists for now, so its class is not asked (decision of
+              24.10.2026); the choice returns with air and water. */}
           <Field label={t("vehicles.vehicle_type")}>
             <select
               value={form.vehicle_type}
@@ -275,6 +280,9 @@ export function NewVehiclePage() {
 
         <Card title={t("vehicles.section_identification")}>
           <div className="row">
+            <Field label={t("vehicles.vin")} hint={t("vehicles.vin_hint")}>
+              <input value={form.vin} onChange={(e) => set({ vin: e.target.value })} />
+            </Field>
             <Field label={t("vehicles.plate")}>
               <input value={form.plate} onChange={(e) => set({ plate: e.target.value })} />
             </Field>
@@ -287,9 +295,6 @@ export function NewVehiclePage() {
                   </option>
                 ))}
               </select>
-            </Field>
-            <Field label={t("vehicles.vin")} hint={t("vehicles.vin_hint")}>
-              <input value={form.vin} onChange={(e) => set({ vin: e.target.value })} />
             </Field>
           </div>
         </Card>
@@ -326,6 +331,70 @@ export function NewVehiclePage() {
           </div>
         </Card>
 
+        <Card title={t("vehicles.section_owner")}>
+          <div className="choice-row">
+            <label>
+              <input
+                type="radio"
+                name="relation"
+                checked={form.relation === "own"}
+                onChange={() => set({ relation: "own" })}
+              />{" "}
+              {t("vehicles.owner_company", { company: company.display_name })}
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="relation"
+                checked={form.relation === "managed"}
+                onChange={() => set({ relation: "managed" })}
+              />{" "}
+              {t("vehicles.owner_other")}
+            </label>
+          </div>
+          {form.relation === "own" ? (
+            <dl className="facts" style={{ marginTop: 12 }}>
+              <dt>{t("companies.display_name")}</dt>
+              <dd>{company.display_name}</dd>
+              <dt>{t("company.legal_name")}</dt>
+              <dd>{company.legal_name || "—"}</dd>
+              <dt>{t("companies.company_id")}</dt>
+              <dd>{company.public_id}</dd>
+            </dl>
+          ) : (
+            <div className="stack" style={{ marginTop: 12 }}>
+              <Field label={t("vehicles.owner_kind")}>
+                <select value={form.owner_kind} onChange={(e) => set({ owner_kind: e.target.value })}>
+                  {OWNER_KINDS.map((kind) => (
+                    <option key={kind} value={kind}>
+                      {t(`vehicles.owner_kind_${kind}`)}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              {form.owner_kind === "profile" ? (
+                <Field label={t("vehicles.owner_lookup")} hint={t("vehicles.owner_lookup_hint")}>
+                  <input value={form.owner_lookup} onChange={(e) => set({ owner_lookup: e.target.value })} />
+                </Field>
+              ) : null}
+              {form.owner_kind === "person" || form.owner_kind === "organization" ? (
+                <div className="row">
+                  <Field label={t(`vehicles.owner_name_${form.owner_kind}`)}>
+                    <input value={form.owner_name} onChange={(e) => set({ owner_name: e.target.value })} />
+                  </Field>
+                  <Field label={t("vehicles.owner_contact")}>
+                    <input
+                      value={form.owner_contact}
+                      onChange={(e) => set({ owner_contact: e.target.value })}
+                    />
+                  </Field>
+                </div>
+              ) : null}
+              <p className="muted small">{t("vehicles.owner_managed_hint")}</p>
+            </div>
+          )}
+        </Card>
+
         <Card title={t("vehicles.section_accounting")}>
           <div className="row">
             <Field label={t("vehicles.location")}>
@@ -345,7 +414,6 @@ export function NewVehiclePage() {
               </select>
             </Field>
           </div>
-          <p className="muted small">{t("vehicles.own_only")}</p>
         </Card>
 
         <Card title={t("vehicles.name")}>

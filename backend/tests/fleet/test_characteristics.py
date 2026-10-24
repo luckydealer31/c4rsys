@@ -6,8 +6,9 @@ from typing import Any
 import pytest
 from django.test import Client
 
-from c4rsys.fleet.models import VehicleMake, VehicleModel
-from tests.accounts.helpers import post
+from c4rsys.fleet.models import VehicleMake, VehicleModel, VehicleOwnerClaim
+from c4rsys.platform.models import AuditEvent
+from tests.accounts.helpers import post, register
 from tests.companies.helpers import create_company, key
 
 pytestmark = pytest.mark.django_db
@@ -124,3 +125,85 @@ def test_invalid_characteristics_are_refused(
 
     assert response.status_code == 400
     assert response.json()["error"]["field"] == field
+
+
+# --- Declared owner (§ 8.1.6, § 8.3.13) ------------------------------------------------------
+
+
+def test_own_vehicle_has_the_company_as_declared_owner(
+    owner: Client, cmp: str, location: str
+) -> None:
+    vehicle = create(owner, cmp, location, name="A").json()["vehicle"]
+
+    assert vehicle["relation"] == "own"
+    assert vehicle["owner"]["kind"] == "company"
+    assert vehicle["owner"]["company"]["public_id"] == cmp
+    assert vehicle["owner"]["confirmed"] is False
+
+
+def test_managed_vehicle_owner_by_profile_does_not_reveal_it(
+    owner: Client, cmp: str, location: str
+) -> None:
+    other = Client()
+    register(other, "carowner@example.com")
+
+    response = create(
+        owner,
+        cmp,
+        location,
+        name="B",
+        relation="managed",
+        owner_kind="profile",
+        owner_lookup="CarOwner@Example.com",
+    )
+
+    assert response.status_code == 201, response.content
+    owner_body = response.json()["vehicle"]["owner"]
+    assert owner_body == {
+        "kind": "profile",
+        "lookup": "carowner@example.com",
+        "name": "",
+        "contact": "",
+        "confirmed": False,
+    }
+    claim = VehicleOwnerClaim.objects.get(kind="profile")
+    assert claim.owner_user_id is not None
+    event = AuditEvent.objects.get(action="vehicle.owner_declared", object_id=claim.vehicle_card_id)
+    assert "owner_user_id" not in str(event.after)
+
+
+@pytest.mark.parametrize(
+    ("data", "field"),
+    [
+        ({"owner_kind": "profile"}, "owner_lookup"),
+        ({"owner_kind": "profile", "owner_lookup": "nobody"}, "owner_lookup"),
+        ({"owner_kind": "person"}, "owner_name"),
+        ({"owner_kind": "company"}, "owner_kind"),
+    ],
+)
+def test_managed_owner_input_is_checked(
+    owner: Client, cmp: str, location: str, data: dict[str, Any], field: str
+) -> None:
+    response = create(owner, cmp, location, name="C", relation="managed", **data)
+
+    assert response.json()["error"]["field"] == field
+
+
+def test_managed_owner_described_by_hand_or_not_given(
+    owner: Client, cmp: str, location: str
+) -> None:
+    by_hand = create(
+        owner,
+        cmp,
+        location,
+        name="D",
+        relation="managed",
+        owner_kind="organization",
+        owner_name="ООО «Авто»",
+        owner_contact="+7 900 000-00-00",
+    ).json()["vehicle"]
+    none = create(owner, cmp, location, name="E", relation="managed").json()["vehicle"]
+
+    assert by_hand["owner"]["name"] == "ООО «Авто»"
+    assert none["owner"]["kind"] == "none"
+    assert none["rental_readiness"]["missing"] != ["not_owned_or_managed"]
