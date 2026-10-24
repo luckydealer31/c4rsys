@@ -8,28 +8,29 @@ import type { Invitation, User } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Loading } from "../../components/ui";
 
-/** Invitations to work in a company (§ 5.1.3). Before accepting, the user sees what data the
- * company gets: first and last name always, middle name and email by choice (§ 5.1.7). */
-export function InvitationsPage({ user }: { user: User }) {
+/** Invitations to work in a company (§ 5.1.3), shown in «My companies» only when there are any
+ * (decision of 24.10.2026). Before accepting, the user sees what data the company gets: first
+ * and last name always, middle name and email by choice (§ 5.1.7). */
+export function InvitationsSection({ user }: { user: User }) {
   const { t } = useTranslation();
   const invitations = useQuery({
     queryKey: ["invitations"],
     queryFn: async () => (await api<{ invitations: Invitation[] }>("/invitations")).invitations,
   });
+  if (invitations.isLoading) return <Loading />;
+  if (!invitations.data?.length) return null;
   return (
-    <div className="page">
-      <h1>{t("invitations.title")}</h1>
-      {invitations.isLoading ? <Loading /> : null}
-      {invitations.data?.length === 0 ? <p className="muted">{t("invitations.none")}</p> : null}
+    <>
+      <h2>{t("invitations.title")}</h2>
       {!user.has_full_name ? (
         <div className="alert warn">
           {t("profile.name_required")} <Link to="/profile">{t("companies.to_profile")}</Link>
         </div>
       ) : null}
-      {(invitations.data ?? []).map((invitation) => (
+      {invitations.data.map((invitation) => (
         <InvitationCard key={invitation.id} invitation={invitation} />
       ))}
-    </div>
+    </>
   );
 }
 

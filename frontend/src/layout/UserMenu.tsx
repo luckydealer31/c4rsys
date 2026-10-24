@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useNavigate } from "react-router";
+import { useNavigate } from "react-router";
 
 import { api } from "../api/client";
 import type { User } from "../api/types";
@@ -48,8 +48,9 @@ function useClock(timeZone: string, locale: string): string {
   return value;
 }
 
-/** The user's own menu (decisions of 24.10.2026): the profile, invitations, personal settings
- * of the interface — theme, language, time zone — and exit. Company settings are not here. */
+/** The user's own menu (decisions of 24.10.2026): name and ID, personal settings of the
+ * interface — theme, language, time zone — and exit. Until the user chooses, the language and
+ * the time zone are the device's; a choice is saved in the profile for all devices. */
 export function UserMenu({ user }: { user: User }) {
   const { t, i18n } = useTranslation();
   const client = useQueryClient();
@@ -102,16 +103,15 @@ export function UserMenu({ user }: { user: User }) {
       </button>
       {open ? (
         <div className="popup user-panel" role="menu">
-          <Link to="/profile" className="popup-head menu-link" onClick={close}>
+          {/* The profile opens from the name of the site; invitations are in «My companies»
+              (decision of 24.10.2026). */}
+          <div className="popup-head">
             <Avatar file={user.avatar} name={name} size={40} />
             <div>
               <strong>{name}</strong>
               <div className="muted small">{user.public_id}</div>
             </div>
-          </Link>
-          <Link to="/invitations" className="menu-row" onClick={close}>
-            <Icon name="invitations" /> {t("nav.invitations")}
-          </Link>
+          </div>
           <div className="quick-settings">
             <button
               type="button"
@@ -143,18 +143,17 @@ export function UserMenu({ user }: { user: User }) {
           </div>
           {picker === "language" ? (
             <div className="picker">
-              {(["", ...UI_LANGUAGES] as string[]).map((code) => (
+              {UI_LANGUAGES.map((code) => (
                 <button
-                  key={code || "device"}
+                  key={code}
                   type="button"
-                  className={`menu-row${user.language === code ? " active" : ""}`}
+                  className={`menu-row${language === code ? " active" : ""}`}
                   onClick={() => {
                     setPicker(null);
                     void change({ language: code });
                   }}
                 >
-                  <span aria-hidden="true">{code ? FLAGS[code] : "🌐"}</span>{" "}
-                  {code ? t(`languages.${code}`) : t("profile.language_device")}
+                  <span aria-hidden="true">{FLAGS[code]}</span> {t(`languages.${code}`)}
                 </button>
               ))}
             </div>
@@ -162,8 +161,7 @@ export function UserMenu({ user }: { user: User }) {
           {picker === "timezone" ? (
             <div className="picker">
               <TimeZoneSelect
-                value={user.timezone}
-                emptyLabel={t("profile.timezone_device")}
+                value={zone}
                 onChange={(timezone) => {
                   setPicker(null);
                   void change({ timezone });

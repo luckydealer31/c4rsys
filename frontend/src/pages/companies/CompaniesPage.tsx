@@ -7,6 +7,7 @@ import { api } from "../../api/client";
 import type { Company, CompanySummary, User } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Avatar, ImagePicker } from "../../components/images";
+import { InvitationsSection } from "../account/InvitationsPage";
 import { TimeZoneSelect } from "../../components/TimeZoneSelect";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { deviceTimeZone } from "../../time";
@@ -22,6 +23,7 @@ export function CompaniesPage({ user }: { user: User }) {
   return (
     <div className="page">
       <h1>{t("companies.title")}</h1>
+      <InvitationsSection user={user} />
       <Card>
         {companies.isLoading ? <Loading /> : null}
         {companies.data?.length === 0 ? <p className="muted">{t("companies.none")}</p> : null}

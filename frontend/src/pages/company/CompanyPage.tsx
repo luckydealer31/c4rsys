@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 
+import { Icon } from "../../components/icons";
 import { Avatar } from "../../components/images";
 import { Card } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
@@ -58,13 +59,17 @@ export function CompanyPage() {
             </div>
           ))}
         </dl>
-        {can("company.settings") ? (
-          <div className="actions">
+        <div className="actions">
+          {can("company.settings") ? (
             <Link className="button secondary" to={companyPath(company, "/settings/company")}>
               {t("common.edit")}
             </Link>
-          </div>
-        ) : null}
+          ) : null}
+          {/* Leaving the company returns to «My companies» (decision of 24.10.2026). */}
+          <Link className="button secondary" to="/companies">
+            <Icon name="exit" size={18} /> {t("company.leave")}
+          </Link>
+        </div>
       </Card>
       <h2>{t("settings.locations")}</h2>
       <p className="muted">{t("company.locations_hint")}</p>

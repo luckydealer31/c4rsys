@@ -4,7 +4,6 @@ import { useMe, useProfilePreferences } from "./auth";
 import { Loading } from "./components/ui";
 import { AppShell } from "./layout/AppShell";
 import { CompanyShell } from "./layout/CompanyShell";
-import { InvitationsPage } from "./pages/account/InvitationsPage";
 import { ProfilePage } from "./pages/account/ProfilePage";
 import { LoginPage } from "./pages/auth/LoginPage";
 import { RegisterPage } from "./pages/auth/RegisterPage";
@@ -67,9 +66,7 @@ export function App() {
       <Route
         path="/invitations"
         element={
-          <AppShell user={user}>
-            <InvitationsPage user={user} />
-          </AppShell>
+          <Navigate to="/companies" replace />
         }
       />
       <Route path="/c/:cmp" element={<CompanyShell user={user} />}>

@@ -30,7 +30,8 @@ export function AppShell({
   return (
     <div className="shell">
       <header className="topbar">
-        <Link to="/companies" className="brand">
+        {/* The name of the site opens the profile (decision of 24.10.2026). */}
+        <Link to="/profile" className="brand">
           c4rsys
         </Link>
         <span className="spacer" />

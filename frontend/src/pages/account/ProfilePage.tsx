@@ -10,6 +10,7 @@ import { Avatar, ImagePicker } from "../../components/images";
 import { TimeZoneSelect } from "../../components/TimeZoneSelect";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { UI_LANGUAGES } from "../../i18n";
+import { deviceTimeZone } from "../../time";
 
 /** Own profile (§ 2.1.4–2.1.6, § 2.2, § 2.3, § 2.7; decisions of 24.10.2026): a card to read,
  * changed by «Edit»; login email and cloud password; interface settings; sessions. */
@@ -533,7 +534,7 @@ function PasswordCard() {
 }
 
 function PreferencesCard({ user }: { user: User }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const client = useQueryClient();
   const update = useCommand<
     Partial<Pick<User, "language" | "theme" | "timezone">>,
@@ -549,8 +550,10 @@ function PreferencesCard({ user }: { user: User }) {
     <Card title={t("profile.preferences")}>
       <div className="row">
         <Field label={t("profile.language")}>
-          <select value={user.language} onChange={(e) => void change({ language: e.target.value })}>
-            <option value="">{t("profile.language_device")}</option>
+          <select
+            value={user.language || i18n.language.slice(0, 2)}
+            onChange={(e) => void change({ language: e.target.value })}
+          >
             {UI_LANGUAGES.map((code) => (
               <option key={code} value={code}>
                 {t(`languages.${code}`)}
@@ -572,8 +575,7 @@ function PreferencesCard({ user }: { user: User }) {
         </Field>
         <Field label={t("profile.timezone")} hint={t("profile.timezone_hint")}>
           <TimeZoneSelect
-            value={user.timezone}
-            emptyLabel={t("profile.timezone_device")}
+            value={user.timezone || deviceTimeZone()}
             onChange={(timezone) => void change({ timezone })}
           />
         </Field>

@@ -1,13 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { createContext, useCallback, useContext, useRef, useState } from "react";
+import { createContext, useContext } from "react";
 import { useTranslation } from "react-i18next";
-import { Outlet, useNavigate, useParams } from "react-router";
+import { NavLink, Outlet, useParams } from "react-router";
 
 import { api, ApiError } from "../api/client";
 import type { Company, User } from "../api/types";
-import { Icon, type IconName } from "../components/icons";
+import type { IconName } from "../components/icons";
 import { Avatar } from "../components/images";
-import { useDismiss } from "../components/useDismiss";
 import { ErrorMessage, Loading } from "../components/ui";
 import { AppShell, RailLink } from "./AppShell";
 
@@ -56,56 +55,17 @@ export function companyMenu(company: Company): [key: string, path: string, icon:
   return items.filter(([, , , visible]) => visible).map(([key, path, icon]) => [key, path, icon]);
 }
 
-/** The company's own menu, opened by its logo: its card, its settings and leaving it for «My
- * companies» (decision of 24.10.2026). */
-function CompanyMenu({ company }: { company: Company }) {
-  const { t } = useTranslation();
-  const navigate = useNavigate();
-  const [open, setOpen] = useState(false);
-  const root = useRef<HTMLDivElement>(null);
-  const close = useCallback(() => setOpen(false), []);
-  useDismiss(open, close, root);
-  const go = (path: string) => {
-    setOpen(false);
-    navigate(path);
-  };
+/** The company's logo leads straight to its card (decision of 24.10.2026). */
+function CompanyLink({ company }: { company: Company }) {
   return (
-    <div className="company-menu" ref={root}>
-      <button
-        type="button"
-        className="rail-item rail-company"
-        aria-expanded={open}
-        aria-label={company.display_name}
-        data-tip={company.display_name}
-        onClick={() => setOpen(!open)}
-      >
-        <Avatar file={company.logo} name={company.display_name} size={36} square />
-      </button>
-      {open ? (
-        <div className="popup company-popup" role="menu">
-          <div className="popup-head">
-            <Avatar file={company.logo} name={company.display_name} size={40} square />
-            <div>
-              <strong>{company.display_name}</strong>
-              <div className="muted small">{company.public_id}</div>
-            </div>
-          </div>
-          <button type="button" className="menu-row" onClick={() => go(companyPath(company, "/company"))}>
-            <Icon name="card" /> {t("company.card")}
-          </button>
-          <button
-            type="button"
-            className="menu-row"
-            onClick={() => go(companyPath(company, "/settings/company"))}
-          >
-            <Icon name="settings" /> {t("company.settings")}
-          </button>
-          <button type="button" className="menu-row" onClick={() => go("/companies")}>
-            <Icon name="exit" /> {t("company.leave")}
-          </button>
-        </div>
-      ) : null}
-    </div>
+    <NavLink
+      to={companyPath(company, "/company")}
+      className="rail-item rail-company"
+      aria-label={company.display_name}
+      data-tip={company.display_name}
+    >
+      <Avatar file={company.logo} name={company.display_name} size={36} square />
+    </NavLink>
   );
 }
 
@@ -124,7 +84,7 @@ export function CompanyShell({ user }: { user: User }) {
   const data = company.data?.company;
   const sidebar = data ? (
     <>
-      <CompanyMenu company={data} />
+      <CompanyLink company={data} />
       {companyMenu(data).map(([key, path, icon]) => (
         <RailLink key={key} to={`/c/${cmp}${path}`} icon={icon} label={t(`nav.${key}`)} />
       ))}
