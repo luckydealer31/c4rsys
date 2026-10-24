@@ -55,14 +55,28 @@ def parse(data: dict[str, Any], relation: str) -> Owner:
     if relation == VehicleCard.Relation.OWN:
         return Owner()
     if relation == VehicleCard.Relation.CLIENT:
-        # The owner of a client vehicle is a client of the company, or not given yet.
-        value = _text(data, "owner_client_id", 40)
-        if not value:
-            return Owner(kind=VehicleOwnerClaim.Kind.NONE)
-        try:
-            return Owner(kind=VehicleOwnerClaim.Kind.CLIENT, client_id=UUID(value))
-        except ValueError as exc:
-            raise errors.validation_error("owner_client_id") from exc
+        # The owner of a client vehicle is optional: a client of the company, a person or an
+        # organization described by hand without a profile, or not given (decision of
+        # 24.10.2026).
+        kind = _text(data, "owner_kind", 20) or (
+            VehicleOwnerClaim.Kind.CLIENT
+            if _text(data, "owner_client_id", 40)
+            else VehicleOwnerClaim.Kind.NONE
+        )
+        if kind == VehicleOwnerClaim.Kind.CLIENT:
+            value = _text(data, "owner_client_id", 40)
+            if not value:
+                raise errors.validation_error("owner_client_id", code="FIELD_REQUIRED")
+            try:
+                return Owner(kind=kind, client_id=UUID(value))
+            except ValueError as exc:
+                raise errors.validation_error("owner_client_id") from exc
+        if kind not in (
+            VehicleOwnerClaim.Kind.PERSON,
+            VehicleOwnerClaim.Kind.ORGANIZATION,
+            VehicleOwnerClaim.Kind.NONE,
+        ):
+            raise errors.validation_error("owner_kind")
     kind = _text(data, "owner_kind", 20) or VehicleOwnerClaim.Kind.NONE
     allowed = {
         VehicleOwnerClaim.Kind.PROFILE,

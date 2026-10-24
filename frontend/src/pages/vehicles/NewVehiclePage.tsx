@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 
 import { useApi } from "../../api/queries";
 import type { CatalogMake, CatalogModel, Client, Vehicle, VehicleOptions } from "../../api/types";
@@ -42,9 +42,12 @@ type Form = {
   owner_name: string;
   owner_contact: string;
   owner_client_id: string;
+  client_owner_kind: string;
 };
 
 const OWNER_KINDS = ["profile", "person", "organization", "none"] as const;
+// A client vehicle: a client from the base, or an owner by hand without a profile (24.10.2026).
+const CLIENT_OWNER_KINDS = ["client", "person", "organization", "none"] as const;
 
 const EMPTY: Form = {
   transport_class: "ground",
@@ -74,6 +77,7 @@ const EMPTY: Form = {
   owner_name: "",
   owner_contact: "",
   owner_client_id: "",
+  client_owner_kind: "client",
 };
 
 /** Full creation card of a vehicle (customer's decisions of 24.10.2026; § 8.1.8–8.1.12): class
@@ -93,7 +97,12 @@ export function NewVehiclePage() {
     `/c/${company.public_id}/clients?q=`,
     can("client.list"),
   );
-  const [form, setForm] = useState<Form>(EMPTY);
+  const [params] = useSearchParams();
+  const initialRelation = params.get("relation");
+  const [form, setForm] = useState<Form>({
+    ...EMPTY,
+    relation: initialRelation === "managed" || initialRelation === "client" ? initialRelation : "own",
+  });
   const [customName, setCustomName] = useState<string | null>(null);
   const create = useCommand<Record<string, unknown>, { vehicle: Vehicle; warnings: string[] }>(
     `/c/${company.public_id}/vehicles`,
@@ -148,8 +157,14 @@ export function NewVehiclePage() {
       doors: number(form.doors),
       relation: form.relation,
     };
-    if (form.relation === "client" && form.owner_client_id) {
-      body.owner_client_id = form.owner_client_id;
+    if (form.relation === "client") {
+      const kind = form.client_owner_kind === "client" && !form.owner_client_id ? "none" : form.client_owner_kind;
+      body.owner_kind = kind;
+      if (kind === "client") body.owner_client_id = form.owner_client_id;
+      if (kind === "person" || kind === "organization") {
+        body.owner_name = form.owner_name;
+        body.owner_contact = form.owner_contact;
+      }
     }
     if (form.relation === "managed") {
       body.owner_kind = form.owner_kind;
@@ -384,19 +399,46 @@ export function NewVehiclePage() {
             </dl>
           ) : form.relation === "client" ? (
             <div className="stack" style={{ marginTop: 12 }}>
-              <Field label={t("vehicles.owner_client_choose")}>
+              <Field label={t("vehicles.owner_kind")}>
                 <select
-                  value={form.owner_client_id}
-                  onChange={(e) => set({ owner_client_id: e.target.value })}
+                  value={form.client_owner_kind}
+                  onChange={(e) => set({ client_owner_kind: e.target.value })}
                 >
-                  <option value="">{t("vehicles.owner_kind_none")}</option>
-                  {(clients.data?.clients ?? []).map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {clientName(c)}
+                  {CLIENT_OWNER_KINDS.map((kind) => (
+                    <option key={kind} value={kind}>
+                      {t(`vehicles.owner_kind_${kind}`)}
                     </option>
                   ))}
                 </select>
               </Field>
+              {form.client_owner_kind === "client" ? (
+                <Field label={t("vehicles.owner_client_choose")}>
+                  <select
+                    value={form.owner_client_id}
+                    onChange={(e) => set({ owner_client_id: e.target.value })}
+                  >
+                    <option value="">—</option>
+                    {(clients.data?.clients ?? []).map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {clientName(c)}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              ) : null}
+              {form.client_owner_kind === "person" || form.client_owner_kind === "organization" ? (
+                <div className="row">
+                  <Field label={t(`vehicles.owner_name_${form.client_owner_kind}`)}>
+                    <input value={form.owner_name} onChange={(e) => set({ owner_name: e.target.value })} />
+                  </Field>
+                  <Field label={t("vehicles.owner_contact")}>
+                    <input
+                      value={form.owner_contact}
+                      onChange={(e) => set({ owner_contact: e.target.value })}
+                    />
+                  </Field>
+                </div>
+              ) : null}
               <p className="muted small">{t("vehicles.owner_client_hint")}</p>
             </div>
           ) : (

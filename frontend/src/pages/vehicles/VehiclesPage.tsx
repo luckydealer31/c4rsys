@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useParams } from "react-router";
+import { Link, useParams, useSearchParams } from "react-router";
 
 import { useApi } from "../../api/queries";
 import type { RentalSummary, Tariff, Vehicle, VehicleTerms } from "../../api/types";
@@ -33,6 +33,9 @@ export function useRentals(enabled = true) {
 
 /** Garage: vehicles by location — name, VHL, occupancy (free / in rental), current odometer
  * (§ 8.7.2; decision of 24.10.2026). */
+type Relation = "own" | "managed" | "client";
+const RELATIONS: Relation[] = ["own", "managed", "client"];
+
 export function VehiclesPage() {
   const { t } = useTranslation();
   const company = useCompany();
@@ -40,10 +43,17 @@ export function VehiclesPage() {
   const vehicles = useVehicles();
   const locations = useLocations();
   const rentals = useRentals(can("rental.view"));
-  // Vehicles are grouped by their location, in the order of the locations (decision of
-  // 24.10.2026); those without a location come last.
-  const list = vehicles.data?.vehicles ?? [];
-  const groups = [
+  // Tabs by relation, as the tabs of «Contacts» (decision of 24.10.2026; § 8.1.6).
+  const [params, setParams] = useSearchParams();
+  const tab: Relation = RELATIONS.includes(params.get("tab") as Relation)
+    ? (params.get("tab") as Relation)
+    : "own";
+  // Own and managed vehicles are grouped by their location, in the order of the locations;
+  // those without a location come last. Client vehicles have no location (§ 8.1.2).
+  const list = (vehicles.data?.vehicles ?? []).filter((v) => v.relation === tab);
+  const groups = (tab === "client"
+    ? [{ id: "client", name: t("vehicles.client_group"), vehicles: list }]
+    : [
     ...(locations.data?.locations ?? []).map((l) => ({
       id: l.id,
       name: l.name,
@@ -53,27 +63,37 @@ export function VehiclesPage() {
       id: "none",
       name: t("vehicles.no_location"),
       vehicles: list.filter(
-        (v) =>
-          v.relation !== "client" &&
-          (!v.location_id || !locations.data?.locations.some((l) => l.id === v.location_id)),
+        (v) => !v.location_id || !locations.data?.locations.some((l) => l.id === v.location_id),
       ),
     },
-    // Client vehicles are a group of their own, without a location (§ 8.1.2).
-    { id: "client", name: t("vehicles.client_group"), vehicles: list.filter((v) => v.relation === "client") },
-  ].filter((group) => group.vehicles.length > 0);
+  ]).filter((group) => group.vehicles.length > 0);
   const busy = new Set((rentals.data?.rentals ?? []).filter((r) => r.state === "active").map((r) => r.vehicle_card_id));
   return (
     <div className="page">
       <h1>{t("nav.garage")}</h1>
       {can("vehicle.create") ? (
         <div className="actions" style={{ marginTop: 0, marginBottom: 16 }}>
-          <Link className="button" to={companyPath(company, "/vehicles/new")}>
+          <Link className="button" to={companyPath(company, `/vehicles/new?relation=${tab}`)}>
             <Icon name="plus" size={18} /> {t("vehicles.create_button")}
           </Link>
         </div>
       ) : null}
+      <div className="tabs" role="tablist">
+        {RELATIONS.map((key) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={tab === key}
+            className={tab === key ? "active" : ""}
+            onClick={() => setParams(key === "own" ? {} : { tab: key })}
+          >
+            {t(`vehicles.tab_${key}`)}
+          </button>
+        ))}
+      </div>
       {vehicles.isLoading ? <Loading /> : null}
-      {vehicles.data?.vehicles.length === 0 ? (
+      {vehicles.data && list.length === 0 ? (
         <Card>
           <p className="muted">{t("vehicles.none")}</p>
         </Card>
@@ -84,7 +104,7 @@ export function VehiclesPage() {
             <thead>
               <tr>
                 <th>{t("vehicles.name")}</th>
-                <th>{t("vehicles.occupancy")}</th>
+                {tab === "client" ? null : <th>{t("vehicles.occupancy")}</th>}
                 <th>{t("vehicles.odometer")}</th>
               </tr>
             </thead>
@@ -95,13 +115,15 @@ export function VehiclesPage() {
                     <Link to={companyPath(company, `/vehicles/${vehicle.id}`)}>{vehicle.name}</Link>
                     <div className="muted small">{vehicle.vehicle_id}</div>
                   </td>
-                  <td>
-                    {busy.has(vehicle.id) ? (
-                      <span className="badge warn">{t("vehicles.in_rental")}</span>
-                    ) : (
-                      <span className="badge ok">{t("vehicles.free")}</span>
-                    )}
-                  </td>
+                  {tab === "client" ? null : (
+                    <td>
+                      {busy.has(vehicle.id) ? (
+                        <span className="badge warn">{t("vehicles.in_rental")}</span>
+                      ) : (
+                        <span className="badge ok">{t("vehicles.free")}</span>
+                      )}
+                    </td>
+                  )}
                   <td>
                     {vehicle.odometer ? `${Number(vehicle.odometer.value)} ${vehicle.odometer.unit}` : "—"}
                   </td>
@@ -200,6 +222,8 @@ export function VehiclePage() {
   const location = locations.data?.locations.find((l) => l.id === data.location_id);
   const timeZone = location?.timezone ?? company.timezone ?? "UTC";
   const own = (rentals.data?.rentals ?? []).filter((r) => r.vehicle_card_id === data.id);
+  // Rental, moves, tariffs and contexts concern only own and managed vehicles (§ 8.1.2).
+  const isClient = data.relation === "client";
 
   const current = data;
   async function save(changes: Record<string, unknown>) {
@@ -224,8 +248,8 @@ export function VehiclePage() {
       <VehicleFacts vehicle={data} />
       <Card>
         <p>
-          {data.vehicle_id} · {t(`vehicles.relation_${data.relation}`)} · {location?.name ?? "—"} ·{" "}
-          {t(`vehicles.unit_${data.odometer_unit}`)}
+          {data.vehicle_id} · {t(`vehicles.relation_${data.relation}`)}
+          {isClient ? "" : ` · ${location?.name ?? "—"}`} · {t(`vehicles.unit_${data.odometer_unit}`)}
         </p>
         <p>
           {t("vehicles.odometer")}:{" "}
@@ -233,6 +257,7 @@ export function VehiclePage() {
             ? `${Number(data.odometer.value)} ${data.odometer.unit} (${formatMoment(data.odometer.measured_at, timeZone, i18n.language)})`
             : "—"}
         </p>
+        {isClient ? null : (
         <p>
           {t("vehicles.rental_readiness")}:{" "}
           {data.rental_readiness.ready ? (
@@ -243,6 +268,7 @@ export function VehiclePage() {
             </span>
           )}
         </p>
+        )}
         {can("vehicle.edit") ? (
           <>
             <div className="row">
@@ -257,8 +283,9 @@ export function VehiclePage() {
             </div>
           </>
         ) : null}
-        <h3 style={{ marginTop: 16 }}>{t("vehicles.contexts")}</h3>
-        {USAGE_CONTEXTS.map((type) => (
+        {/* A client vehicle is only serviced: nothing to allow (decision of 24.10.2026). */}
+        {isClient ? null : <h3 style={{ marginTop: 16 }}>{t("vehicles.contexts")}</h3>}
+        {(isClient ? [] : USAGE_CONTEXTS).map((type) => (
           <label key={type} style={{ marginRight: 16 }}>
             <input
               type="checkbox"
@@ -271,9 +298,9 @@ export function VehiclePage() {
         ))}
         <ErrorMessage error={update.error} />
       </Card>
-      <VehicleTariffs vehicleId={data.id} />
-      <VehicleMoves vehicle={data} />
-      {can("rental.view") ? (
+      {isClient ? null : <VehicleTariffs vehicleId={data.id} />}
+      {isClient ? null : <VehicleMoves vehicle={data} />}
+      {!isClient && can("rental.view") ? (
         <Card title={t("vehicles.rentals")}>
           {own.length === 0 ? <p className="muted">{t("vehicles.no_rentals")}</p> : null}
           <table>

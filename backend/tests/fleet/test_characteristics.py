@@ -260,3 +260,29 @@ def test_client_of_another_company_cannot_be_owner(owner: Client, cmp: str) -> N
     )
 
     assert response.json()["error"]["code"] == "CLIENT_UNKNOWN"
+
+
+def test_client_vehicle_owner_by_hand_without_profile(owner: Client, cmp: str) -> None:
+    response = post(
+        owner,
+        f"/api/c/{cmp}/vehicles",
+        {
+            "name": "Guest car",
+            "relation": "client",
+            "odometer_unit": "km",
+            "owner_kind": "person",
+            "owner_name": "Сидоров Пётр",
+            "owner_contact": "+7 900 111-22-33",
+        },
+        key(),
+    )
+
+    assert response.status_code == 201, response.content
+    assert response.json()["vehicle"]["owner"]["name"] == "Сидоров Пётр"
+    refused = post(
+        owner,
+        f"/api/c/{cmp}/vehicles",
+        {"name": "Y", "relation": "client", "odometer_unit": "km", "owner_kind": "profile"},
+        key(),
+    )
+    assert refused.json()["error"]["field"] == "owner_kind"
