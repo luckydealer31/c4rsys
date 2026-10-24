@@ -373,6 +373,7 @@
     "name": "Name",
     "no_contexts": "none",
     "none": "No locations yet.",
+    "not_found": "Location not found.",
     "not_ready": "needs setup",
     "ready": "ready",
     "restore": "Restore",
@@ -822,6 +823,7 @@
   "vehicles": {
     "contexts": "Allowed contexts",
     "create": "Create vehicle",
+    "create_button": "Create vehicle",
     "create_title": "New vehicle",
     "free": "Free",
     "in_rental": "In rental",

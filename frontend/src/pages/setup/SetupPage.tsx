@@ -7,6 +7,7 @@ import { useApi } from "../../api/queries";
 import type { Readiness } from "../../api/types";
 import type { ApiError } from "../../api/client";
 import { useCommand } from "../../api/useCommand";
+import { contextAvailable } from "../../contexts";
 import { Card, ErrorMessage, Loading } from "../../components/ui";
 import { companyPath, useCompany } from "../../layout/CompanyShell";
 import { CashAccountsEditor } from "../finance/FinancePage";
@@ -209,7 +210,7 @@ function ReadinessCheck({ readiness }: { readiness: Readiness }) {
               <Link to={companyPath(company, links[code] ?? "/settings")}>{t(`setup.missing_${code}`)}</Link>
             </p>
           ))}
-          {location.contexts.map((context) => (
+          {location.contexts.filter((c) => contextAvailable(c.type)).map((context) => (
             <div key={context.id}>
               <strong>{t(`contexts.${context.type}`)}</strong> <Status ready={context.ready} />
               <ul>

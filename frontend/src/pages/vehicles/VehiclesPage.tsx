@@ -1,18 +1,21 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 
 import { useApi } from "../../api/queries";
 import type { RentalSummary, Tariff, Vehicle, VehicleTerms } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
+import { Icon } from "../../components/icons";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
+import { AVAILABLE_CONTEXTS } from "../../contexts";
 import { formatMoment } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
 import { VehicleMoves } from "./VehicleMoves";
 
-const USAGE_CONTEXTS = ["rental", "service", "warehouse"] as const;
+// Only types whose modules work are offered (§ 4.1.9).
+const USAGE_CONTEXTS = AVAILABLE_CONTEXTS;
 
 export function useVehicles() {
   const company = useCompany();
@@ -41,6 +44,13 @@ export function VehiclesPage() {
   return (
     <div className="page">
       <h1>{t("nav.garage")}</h1>
+      {can("vehicle.create") ? (
+        <div className="actions" style={{ marginTop: 0, marginBottom: 16 }}>
+          <Link className="button" to={companyPath(company, "/vehicles/new")}>
+            <Icon name="plus" size={18} /> {t("vehicles.create_button")}
+          </Link>
+        </div>
+      ) : null}
       <Card>
         {vehicles.isLoading ? <Loading /> : null}
         {vehicles.data?.vehicles.length === 0 ? <p className="muted">{t("vehicles.none")}</p> : null}
@@ -74,7 +84,20 @@ export function VehiclesPage() {
           </tbody>
         </table>
       </Card>
-      {can("vehicle.create") ? <CreateVehicle /> : null}
+    </div>
+  );
+}
+
+/** Creation of a vehicle on its own page, opened by «Create vehicle» (decision of 24.10.2026). */
+export function NewVehiclePage() {
+  const { t } = useTranslation();
+  const company = useCompany();
+  return (
+    <div className="page">
+      <p>
+        <Link to={companyPath(company, "/vehicles")}>← {t("nav.garage")}</Link>
+      </p>
+      <CreateVehicle />
     </div>
   );
 }
@@ -83,16 +106,18 @@ function CreateVehicle() {
   const { t } = useTranslation();
   const company = useCompany();
   const client = useQueryClient();
+  const navigate = useNavigate();
   const locations = useLocations();
   const [form, setForm] = useState({ name: "", location_id: "", odometer_unit: "km" });
   const create = useCommand<Record<string, string>, { vehicle: Vehicle }>(`/c/${company.public_id}/vehicles`);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if ((await create.run(form)) !== null) {
-      setForm({ ...form, name: "" });
+    const result = await create.run(form);
+    if (result !== null) {
       await client.invalidateQueries({ queryKey: ["vehicles", company.public_id] });
       await client.invalidateQueries({ queryKey: ["readiness", company.public_id] });
+      navigate(companyPath(company, `/vehicles/${result.vehicle.id}`));
     }
   }
 

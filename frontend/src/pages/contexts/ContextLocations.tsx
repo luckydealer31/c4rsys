@@ -42,16 +42,3 @@ export function ContextLocations({ type }: { type: ContextType }) {
     </Card>
   );
 }
-
-/** Service and warehouse: the modules come with later stages (STAGE1 README); until then the
- * section shows its locations. */
-export function ContextSectionPage({ type }: { type: Exclude<ContextType, "rental"> }) {
-  const { t } = useTranslation();
-  return (
-    <div className="page">
-      <h1>{t(`nav.${type}`)}</h1>
-      <ContextLocations type={type} />
-      <p className="muted">{t("contexts.module_later")}</p>
-    </div>
-  );
-}

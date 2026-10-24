@@ -4,10 +4,11 @@ import { useTranslation } from "react-i18next";
 import { NavLink, Outlet, useParams } from "react-router";
 
 import { api, ApiError } from "../api/client";
-import type { Company, User } from "../api/types";
+import type { Company, ContextType, User } from "../api/types";
 import type { IconName } from "../components/icons";
 import { Avatar } from "../components/images";
 import { ErrorMessage, Loading } from "../components/ui";
+import { contextAvailable } from "../contexts";
 import { AppShell, RailLink } from "./AppShell";
 
 type ActiveCompany = { company: Company; permissions: Set<string> };
@@ -41,7 +42,7 @@ export function companyPath(company: Pick<Company, "public_id">, path = ""): str
  * wizard; rental, service and warehouse with such a context in some location; the garage with
  * a rental or a service context. The order of items is a PROPOSAL. */
 export function companyMenu(company: Company): [key: string, path: string, icon: IconName][] {
-  const has = (type: string) => company.context_types.includes(type as never);
+  const has = (type: ContextType) => contextAvailable(type) && company.context_types.includes(type);
   const items: [string, string, IconName, boolean][] = [
     ["finance", "/finance", "finance", true],
     ["clients", "/clients", "people", true],

@@ -1,17 +1,21 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { Link, useNavigate, useParams } from "react-router";
 
 import type { ApiError } from "../../api/client";
 import { useApi } from "../../api/queries";
 import type { ContextType, Location } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
-import { useCan, useCompany } from "../../layout/CompanyShell";
-import { Icon } from "../../components/icons";
+import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
+import { Icon, type IconName } from "../../components/icons";
 import { TimeZoneSelect } from "../../components/TimeZoneSelect";
+import { AVAILABLE_CONTEXTS, contextAvailable } from "../../contexts";
 
-const CONTEXT_TYPES: ContextType[] = ["rental", "service", "warehouse"];
+// Only types whose modules work are offered (§ 4.1.9).
+const CONTEXT_TYPES = AVAILABLE_CONTEXTS;
+const shown = (contexts: Location["contexts"]) => contexts.filter((c) => contextAvailable(c.type));
 
 export function useLocations() {
   const company = useCompany();
@@ -29,9 +33,11 @@ export function LocationsEditor({ createOpen = false }: { createOpen?: boolean }
   return (
     <>
       {locations.isLoading ? <Loading /> : null}
-      {(locations.data?.locations ?? []).map((location) => (
-        <LocationCard key={location.id} location={location} editable={can("company.settings")} />
-      ))}
+      <div className="tiles">
+        {(locations.data?.locations ?? []).map((location) => (
+          <LocationTile key={location.id} location={location} />
+        ))}
+      </div>
       {locations.data?.locations.length === 0 ? (
         <p className="muted">{t("locations.none")}</p>
       ) : null}
@@ -139,9 +145,75 @@ function CreateLocationForm({ onDone }: { onDone: () => void }) {
   );
 }
 
+const CONTEXT_ICONS: Record<ContextType, IconName> = {
+  rental: "rentals",
+  service: "service",
+  warehouse: "warehouse",
+};
+
+/** A small card of a location (decision of 24.10.2026): name, address, its contexts as icons
+ * and «Edit», which opens the location's own page. */
+function LocationTile({ location }: { location: Location }) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  return (
+    <section className="card tile">
+      <div className="tile-head">
+        <h3>{location.name}</h3>
+        {location.state !== "active" ? (
+          <span className="badge warn">{t(`locations.state_${location.state}`)}</span>
+        ) : null}
+      </div>
+      {location.address ? <p className="muted small">{location.address}</p> : null}
+      <div className="context-icons">
+        {shown(location.contexts).length === 0 ? (
+          <span className="muted small">{t("locations.no_contexts")}</span>
+        ) : null}
+        {shown(location.contexts).map((c) => (
+          <span
+            key={c.id}
+            className={`context-icon${c.state === "enabled" ? "" : " off"}`}
+            title={`${t(`contexts.${c.type}`)}: ${t(`locations.context_${c.state}`)}`}
+            aria-label={`${t(`contexts.${c.type}`)}: ${t(`locations.context_${c.state}`)}`}
+          >
+            <Icon name={CONTEXT_ICONS[c.type]} size={22} />
+          </span>
+        ))}
+      </div>
+      <div className="actions">
+        <Link className="button secondary" to={companyPath(company, `/company/locations/${location.id}`)}>
+          {t("common.edit")}
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+/** The location's own page: everything about it — name, time zone, address, contexts,
+ * deactivation and deletion (§ 4.1–4.4). */
+export function LocationPage() {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const can = useCan();
+  const { id = "" } = useParams();
+  const locations = useLocations();
+  const location = locations.data?.locations.find((l) => l.id === id);
+  return (
+    <div className="page">
+      <p>
+        <Link to={companyPath(company, "/company")}>← {company.display_name}</Link>
+      </p>
+      {locations.isLoading ? <Loading /> : null}
+      {locations.data && !location ? <p className="muted">{t("locations.not_found")}</p> : null}
+      {location ? <LocationCard location={location} editable={can("company.settings")} /> : null}
+    </div>
+  );
+}
+
 function LocationCard({ location, editable }: { location: Location; editable: boolean }) {
   const { t } = useTranslation();
   const company = useCompany();
+  const navigate = useNavigate();
   const refresh = useRefresh();
   const base = `/c/${company.public_id}/locations/${location.id}`;
   const [form, setForm] = useState({
@@ -192,14 +264,14 @@ function LocationCard({ location, editable }: { location: Location; editable: bo
       </p>
       <table>
         <tbody>
-          {location.contexts.length === 0 ? (
+          {shown(location.contexts).length === 0 ? (
             <tr>
               <td className="muted">
                 {t("locations.contexts")}: {t("locations.no_contexts")}
               </td>
             </tr>
           ) : null}
-          {location.contexts.map((c) => (
+          {shown(location.contexts).map((c) => (
             <tr key={c.id}>
               <td>{t(`contexts.${c.type}`)}</td>
               <td>{t(`locations.context_${c.state}`)}</td>
@@ -268,7 +340,17 @@ function LocationCard({ location, editable }: { location: Location; editable: bo
             </button>
             {confirmDelete ? (
               <>
-                <button type="button" className="danger" disabled={remove.pending} onClick={() => void run(remove, {})}>
+                <button
+                  type="button"
+                  className="danger"
+                  disabled={remove.pending}
+                  onClick={async () => {
+                    if ((await remove.run({})) !== null) {
+                      await refresh();
+                      navigate(companyPath(company, "/company"));
+                    }
+                  }}
+                >
                   {t("locations.delete_confirm")}
                 </button>
                 <button type="button" className="secondary" onClick={() => setConfirmDelete(false)}>

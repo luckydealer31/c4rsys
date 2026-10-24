@@ -10,18 +10,18 @@ import { RegisterPage } from "./pages/auth/RegisterPage";
 import { CompaniesPage } from "./pages/companies/CompaniesPage";
 import { ClientPage, ClientsPage } from "./pages/clients/ClientsPage";
 import { CompanyPage } from "./pages/company/CompanyPage";
-import { ContextSectionPage } from "./pages/contexts/ContextLocations";
 import { FinancePage } from "./pages/finance/FinancePage";
 import { OrderPage, OrdersPage } from "./pages/orders/OrdersPage";
 import { IssuePage } from "./pages/rentals/IssuePage";
 import { RentalPage } from "./pages/rentals/RentalPage";
 import { RentalsPage } from "./pages/rentals/RentalsPage";
 import { CompanyProfilePage } from "./pages/settings/CompanyProfilePage";
+import { LocationPage } from "./pages/settings/LocationsPage";
 import { EmployeePage } from "./pages/settings/EmployeesPage";
 import { SettingsPage } from "./pages/settings/SettingsPage";
 import { SetupPage } from "./pages/setup/SetupPage";
 import { TariffPage, TariffsPage } from "./pages/tariffs/TariffsPage";
-import { VehiclePage, VehiclesPage } from "./pages/vehicles/VehiclesPage";
+import { NewVehiclePage, VehiclePage, VehiclesPage } from "./pages/vehicles/VehiclesPage";
 
 export function App() {
   const me = useMe();
@@ -72,6 +72,7 @@ export function App() {
       <Route path="/c/:cmp" element={<CompanyShell user={user} />}>
         <Route index element={<Navigate to="company" replace />} />
         <Route path="company" element={<CompanyPage />} />
+        <Route path="company/locations/:id" element={<LocationPage />} />
         <Route path="setup" element={<SetupPage />} />
         <Route path="rentals" element={<RentalsPage />} />
         <Route path="rentals/new" element={<IssuePage />} />
@@ -79,11 +80,10 @@ export function App() {
         <Route path="orders" element={<OrdersPage />} />
         <Route path="orders/:id" element={<OrderPage />} />
         <Route path="vehicles" element={<VehiclesPage />} />
+        <Route path="vehicles/new" element={<NewVehiclePage />} />
         <Route path="vehicles/:id" element={<VehiclePage />} />
         <Route path="clients" element={<ClientsPage />} />
         <Route path="clients/:id" element={<ClientPage />} />
-        <Route path="service" element={<ContextSectionPage type="service" />} />
-        <Route path="warehouse" element={<ContextSectionPage type="warehouse" />} />
         <Route path="finance" element={<FinancePage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="settings/company" element={<CompanyProfilePage />} />

@@ -31,8 +31,22 @@ const PATHS: Record<string, ReactNode> = {
   ),
   rentals: (
     <>
-      <circle cx="8" cy="15" r="4" />
-      <path d="M11 12l9-9M17 6l2 2M15 8l2 2" />
+      {/* A hanging sign «RENT» (decision of 24.10.2026). */}
+      <circle cx="12" cy="3" r="1" />
+      <path d="M12 3.5L5 9M12 3.5L19 9" />
+      <rect x="2.5" y="9" width="19" height="11" rx="1.5" />
+      <text
+        x="12"
+        y="17"
+        textAnchor="middle"
+        fontSize="6.6"
+        fontWeight="700"
+        fontFamily="system-ui, sans-serif"
+        fill="currentColor"
+        stroke="none"
+      >
+        RENT
+      </text>
     </>
   ),
   service: (
@@ -40,15 +54,16 @@ const PATHS: Record<string, ReactNode> = {
   ),
   warehouse: (
     <>
-      <path d="M3 8l9-5 9 5v12H3z" />
-      <path d="M7 20v-8h10v8M7 15h10" />
+      {/* A box (decision of 24.10.2026). */}
+      <path d="M21 8l-9-5-9 5v8l9 5 9-5z" />
+      <path d="M3 8l9 5 9-5M12 13v8M7.5 5.5l9 5" />
     </>
   ),
   garage: (
     <>
-      <path d="M5 16l1.5-5a2 2 0 0 1 2-1.5h7a2 2 0 0 1 2 1.5L19 16" />
-      <rect x="3" y="16" width="18" height="4" rx="1.5" />
-      <path d="M7 20v1M17 20v1" />
+      {/* A garage building (decision of 24.10.2026). */}
+      <path d="M3 10l9-6 9 6v10H3z" />
+      <path d="M7 20v-7h10v7M7 16h10" />
     </>
   ),
   settings: (

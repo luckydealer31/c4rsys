@@ -108,11 +108,12 @@ test("base example from registration to closing survives a restart", async ({ pa
 
   // Vehicle, daily tariff 1 000 THB from 1 day, terms «unlimited, no deposit».
   await page.goto(`${base}/vehicles`);
+  await page.getByRole("link", { name: t("vehicles.create_button") }).click();
   const vehicle = card(page, t("vehicles.create_title"));
   await vehicle.getByLabel(t("vehicles.name")).fill("Toyota Yaris");
   await vehicle.getByLabel(t("vehicles.location")).selectOption({ label: "Пхукет" });
   await vehicle.getByRole("button", { name: t("vehicles.create") }).click();
-  await expect(page.getByRole("link", { name: "Toyota Yaris" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Toyota Yaris" })).toBeVisible();
 
   await page.goto(`${base}/settings/tariffs`);
   const tariff = card(page, t("tariffs.create_title"));
