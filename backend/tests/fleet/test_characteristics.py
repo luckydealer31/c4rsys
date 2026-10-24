@@ -207,3 +207,56 @@ def test_managed_owner_described_by_hand_or_not_given(
     assert by_hand["owner"]["name"] == "ООО «Авто»"
     assert none["owner"]["kind"] == "none"
     assert none["rental_readiness"]["missing"] != ["not_owned_or_managed"]
+
+
+def test_client_vehicle_has_no_location_and_only_service(
+    owner: Client, cmp: str, location: str
+) -> None:
+    post(owner, f"/api/c/{cmp}/locations/{location}/contexts", {"type": "service"}, key())
+    client_id = post(
+        owner,
+        f"/api/c/{cmp}/clients",
+        {
+            "kind": "person",
+            "first_name": "Ivan",
+            "last_name": "Petrov",
+            "contacts": [{"kind": "phone", "value": "+66812345678"}],
+        },
+        key(),
+    ).json()["client"]["id"]
+
+    response = post(
+        owner,
+        f"/api/c/{cmp}/vehicles",
+        {
+            "name": "Client car",
+            "relation": "client",
+            "odometer_unit": "km",
+            "location_id": location,  # ignored for a client vehicle
+            "owner_client_id": client_id,
+        },
+        key(),
+    )
+
+    assert response.status_code == 201, response.content
+    vehicle = response.json()["vehicle"]
+    assert vehicle["location_id"] is None
+    assert vehicle["contexts"] == ["service"]
+    assert vehicle["owner"]["client"]["name"] == "Ivan Petrov"
+    assert "not_owned_or_managed" in vehicle["rental_readiness"]["missing"]
+
+
+def test_client_of_another_company_cannot_be_owner(owner: Client, cmp: str) -> None:
+    response = post(
+        owner,
+        f"/api/c/{cmp}/vehicles",
+        {
+            "name": "X",
+            "relation": "client",
+            "odometer_unit": "km",
+            "owner_client_id": "01a1628f-ca1c-71ab-a48b-80eede8d99b1",
+        },
+        key(),
+    )
+
+    assert response.json()["error"]["code"] == "CLIENT_UNKNOWN"

@@ -53,9 +53,13 @@ export function VehiclesPage() {
       id: "none",
       name: t("vehicles.no_location"),
       vehicles: list.filter(
-        (v) => !v.location_id || !locations.data?.locations.some((l) => l.id === v.location_id),
+        (v) =>
+          v.relation !== "client" &&
+          (!v.location_id || !locations.data?.locations.some((l) => l.id === v.location_id)),
       ),
     },
+    // Client vehicles are a group of their own, without a location (§ 8.1.2).
+    { id: "client", name: t("vehicles.client_group"), vehicles: list.filter((v) => v.relation === "client") },
   ].filter((group) => group.vehicles.length > 0);
   const busy = new Set((rentals.data?.rentals ?? []).filter((r) => r.state === "active").map((r) => r.vehicle_card_id));
   return (
@@ -125,6 +129,8 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
     ? ""
     : owner.kind === "company"
       ? (owner.company?.display_name ?? "")
+      : owner.kind === "client"
+        ? (owner.client?.name ?? "")
       : owner.kind === "profile"
         ? owner.lookup
         : owner.kind === "none"
@@ -134,7 +140,7 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
     [t("vehicles.relation"), t(`vehicles.relation_${vehicle.relation}`)],
     [
       t("vehicles.section_owner"),
-      ownerText && owner?.kind !== "company" && !owner?.confirmed
+      ownerText && owner?.kind !== "company" && owner?.kind !== "client" && !owner?.confirmed
         ? `${ownerText} (${t("vehicles.owner_unconfirmed")})`
         : ownerText,
     ],

@@ -181,6 +181,7 @@ class VehicleOwnerClaim(models.Model):
         PROFILE = "profile"
         PERSON = "person"
         ORGANIZATION = "organization"
+        CLIENT = "client"  # a client of the company, for a client vehicle (§ 8.1.2)
         NONE = "none"
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
@@ -191,6 +192,9 @@ class VehicleOwnerClaim(models.Model):
     kind = models.CharField(max_length=20, choices=Kind.choices)
     lookup = models.CharField(max_length=254, blank=True, default="")
     owner_user_id = models.UUIDField(null=True, blank=True)
+    client = models.ForeignKey(
+        "parties.ClientCard", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
     manual_name = models.CharField(max_length=300, blank=True, default="")
     manual_contact = models.CharField(max_length=254, blank=True, default="")
     created_at = models.DateTimeField(default=now)

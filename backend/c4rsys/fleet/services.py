@@ -55,7 +55,7 @@ def allowed_contexts(card: VehicleCard) -> set[str]:
 @dataclass(frozen=True)
 class NewVehicle:
     name: str
-    location_id: UUID
+    location_id: UUID | None
     odometer_unit: str
     details: Characteristics = field(default_factory=Characteristics)
     relation: str = VehicleCard.Relation.OWN
@@ -66,7 +66,14 @@ def create_vehicle(ctx: CommandContext, company: Company, data: NewVehicle) -> V
     """A new global vehicle with its VHL ID and the company's own card in the garage, bound to a
     location (§ 8.1.3). Only the name is required (§ 8.1.10). The usage contexts are the
     applicable contexts existing in the company at creation (§ 8.5.1)."""
-    locations.require_usable(company.id, data.location_id, "location_id")
+    # A client vehicle is not bound to a location of the company (§ 8.1.2, § 8.1.3).
+    if data.relation == VehicleCard.Relation.CLIENT:
+        location_id = None
+    elif data.location_id is None:
+        raise errors.validation_error("location_id", code="FIELD_REQUIRED")
+    else:
+        location_id = data.location_id
+        locations.require_usable(company.id, location_id, "location_id")
     # The name may be formed from the make, the model and the plate (§ 8.1.10).
     name = data.name or characteristics.make_name(data.details)
     if not name:
@@ -89,12 +96,16 @@ def create_vehicle(ctx: CommandContext, company: Company, data: NewVehicle) -> V
         vehicle=vehicle,
         name=name,
         relation=data.relation,
-        accounting_location_id=data.location_id,
+        accounting_location_id=location_id,
         odometer_unit=data.odometer_unit,
         created_by_user_id=ctx.actor.user_id,
         created_at=now,
     )
-    contexts = sorted(locations.context_types_in_company(company.id) & USAGE_CONTEXT_TYPES)
+    usable = USAGE_CONTEXT_TYPES
+    if data.relation == VehicleCard.Relation.CLIENT:
+        # A client vehicle is only serviced: no rental, no warehouse (§ 8.1.2).
+        usable = frozenset({"service"})
+    contexts = sorted(locations.context_types_in_company(company.id) & usable)
     VehicleCardContext.objects.bulk_create(
         VehicleCardContext(company=company, vehicle_card=card, context_type=t) for t in contexts
     )
@@ -106,7 +117,7 @@ def create_vehicle(ctx: CommandContext, company: Company, data: NewVehicle) -> V
             "vehicle": vehicle.public_id,
             "name": card.name,
             "relation": card.relation,
-            "accounting_location": str(data.location_id),
+            "accounting_location": str(location_id) if location_id else None,
             "odometer_unit": card.odometer_unit,
             "contexts": contexts,
             "characteristics": data.details.payload(),

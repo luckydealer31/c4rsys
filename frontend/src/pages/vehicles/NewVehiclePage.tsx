@@ -4,10 +4,11 @@ import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router";
 
 import { useApi } from "../../api/queries";
-import type { CatalogMake, CatalogModel, Vehicle, VehicleOptions } from "../../api/types";
+import type { CatalogMake, CatalogModel, Client, Vehicle, VehicleOptions } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
-import { companyPath, useCompany } from "../../layout/CompanyShell";
+import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
+import { clientName } from "../clients/ClientsPage";
 import { countries } from "../settings/CompanyProfilePage";
 import { useLocations } from "../settings/LocationsPage";
 
@@ -40,6 +41,7 @@ type Form = {
   owner_lookup: string;
   owner_name: string;
   owner_contact: string;
+  owner_client_id: string;
 };
 
 const OWNER_KINDS = ["profile", "person", "organization", "none"] as const;
@@ -71,6 +73,7 @@ const EMPTY: Form = {
   owner_lookup: "",
   owner_name: "",
   owner_contact: "",
+  owner_client_id: "",
 };
 
 /** Full creation card of a vehicle (customer's decisions of 24.10.2026; § 8.1.8–8.1.12): class
@@ -83,7 +86,13 @@ export function NewVehiclePage() {
   const client = useQueryClient();
   const navigate = useNavigate();
   const locations = useLocations();
+  const can = useCan();
   const options = useApi<VehicleOptions>(["vehicle-options"], "/catalog/vehicle-options");
+  const clients = useApi<{ clients: Client[] }>(
+    ["clients", company.public_id, ""],
+    `/c/${company.public_id}/clients?q=`,
+    can("client.list"),
+  );
   const [form, setForm] = useState<Form>(EMPTY);
   const [customName, setCustomName] = useState<string | null>(null);
   const create = useCommand<Record<string, unknown>, { vehicle: Vehicle; warnings: string[] }>(
@@ -139,6 +148,9 @@ export function NewVehiclePage() {
       doors: number(form.doors),
       relation: form.relation,
     };
+    if (form.relation === "client" && form.owner_client_id) {
+      body.owner_client_id = form.owner_client_id;
+    }
     if (form.relation === "managed") {
       body.owner_kind = form.owner_kind;
       if (form.owner_kind === "profile") body.owner_lookup = form.owner_lookup;
@@ -351,6 +363,15 @@ export function NewVehiclePage() {
               />{" "}
               {t("vehicles.owner_other")}
             </label>
+            <label>
+              <input
+                type="radio"
+                name="relation"
+                checked={form.relation === "client"}
+                onChange={() => set({ relation: "client" })}
+              />{" "}
+              {t("vehicles.owner_client")}
+            </label>
           </div>
           {form.relation === "own" ? (
             <dl className="facts" style={{ marginTop: 12 }}>
@@ -361,6 +382,23 @@ export function NewVehiclePage() {
               <dt>{t("companies.company_id")}</dt>
               <dd>{company.public_id}</dd>
             </dl>
+          ) : form.relation === "client" ? (
+            <div className="stack" style={{ marginTop: 12 }}>
+              <Field label={t("vehicles.owner_client_choose")}>
+                <select
+                  value={form.owner_client_id}
+                  onChange={(e) => set({ owner_client_id: e.target.value })}
+                >
+                  <option value="">{t("vehicles.owner_kind_none")}</option>
+                  {(clients.data?.clients ?? []).map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {clientName(c)}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <p className="muted small">{t("vehicles.owner_client_hint")}</p>
+            </div>
           ) : (
             <div className="stack" style={{ marginTop: 12 }}>
               <Field label={t("vehicles.owner_kind")}>
@@ -397,6 +435,7 @@ export function NewVehiclePage() {
 
         <Card title={t("vehicles.section_accounting")}>
           <div className="row">
+            {form.relation !== "client" ? (
             <Field label={t("vehicles.location")}>
               <select value={form.location_id} onChange={(e) => set({ location_id: e.target.value })}>
                 <option value="">—</option>
@@ -407,6 +446,7 @@ export function NewVehiclePage() {
                 ))}
               </select>
             </Field>
+            ) : null}
             <Field label={t("vehicles.odometer_unit")}>
               <select value={form.odometer_unit} onChange={(e) => set({ odometer_unit: e.target.value })}>
                 <option value="km">{t("vehicles.unit_km")}</option>
@@ -427,7 +467,12 @@ export function NewVehiclePage() {
           ) : null}
           <ErrorMessage error={create.error} />
           <div className="actions">
-            <button type="submit" disabled={!name.trim() || !form.location_id || create.pending}>
+            <button
+              type="submit"
+              disabled={
+                !name.trim() || (form.relation !== "client" && !form.location_id) || create.pending
+              }
+            >
               {t("vehicles.create")}
             </button>
           </div>

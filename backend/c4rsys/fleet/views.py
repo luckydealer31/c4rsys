@@ -73,17 +73,20 @@ def vehicle_list(request: HttpRequest, cmp: str) -> JsonResponse:
 
     data = parse_json(request)
     relation = get_str(data, "relation", max_length=10, required=False) or "own"
-    # Own or managed (§ 8.1.6, decision of 24.10.2026); client vehicles come with the service.
-    if relation not in (VehicleCard.Relation.OWN, VehicleCard.Relation.MANAGED):
-        raise errors.validation_error("relation", code="RELATION_NOT_AVAILABLE")
+    # Own, managed or client (§ 8.1.6, decisions of 24.10.2026).
+    if relation not in VehicleCard.Relation.values:
+        raise errors.validation_error("relation")
     owner = owners.parse(data, relation)
     unit = get_str(data, "odometer_unit", max_length=2)
     if unit not in VehicleCard.OdometerUnit.values:
         raise errors.validation_error("odometer_unit")
-    try:
-        location_id = UUID(get_str(data, "location_id", max_length=40))
-    except ValueError as exc:
-        raise errors.validation_error("location_id") from exc
+    location_id: UUID | None = None
+    if relation != VehicleCard.Relation.CLIENT:
+        try:
+            location_id = UUID(get_str(data, "location_id", max_length=40))
+        except ValueError as exc:
+            raise errors.validation_error("location_id") from exc
+    # A client vehicle has no location: the right counts anywhere in the company.
     if not access.RightsResolver().has_permission(actor, "vehicle.create", location_id=location_id):
         raise errors.permission_denied("vehicle.create")
     details = characteristics.parse(data, timezone.localdate().year)
@@ -108,7 +111,7 @@ def vehicle_list(request: HttpRequest, cmp: str) -> JsonResponse:
 
     payload = {
         "name": new.name,
-        "location_id": str(location_id),
+        "location_id": str(location_id) if location_id else None,
         "odometer_unit": unit,
         "relation": relation,
         "owner": owner.payload(),

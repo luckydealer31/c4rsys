@@ -195,12 +195,13 @@ export type Vehicle = {
   characteristics: VehicleCharacteristics;
   /** Declared owner (§ 8.3.13); unconfirmed until the owner answers the request. */
   owner: {
-    kind: "company" | "profile" | "person" | "organization" | "none";
+    kind: "company" | "profile" | "person" | "organization" | "client" | "none";
     lookup: string;
     name: string;
     contact: string;
     confirmed: boolean;
     company?: { public_id: string; display_name: string; legal_name: string };
+    client?: { id: string; name: string };
   } | null;
 };
 

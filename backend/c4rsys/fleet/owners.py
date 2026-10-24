@@ -9,10 +9,12 @@ itself is a later task. The company never learns from a lookup whether a profile
 import re
 from dataclasses import dataclass
 from typing import Any
+from uuid import UUID
 
 from c4rsys.accounts import services as accounts
 from c4rsys.companies.models import Company
 from c4rsys.fleet.models import VehicleCard, VehicleOwnerClaim
+from c4rsys.parties import services as parties
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
 
@@ -25,6 +27,7 @@ class Owner:
     lookup: str = ""
     name: str = ""
     contact: str = ""
+    client_id: UUID | None = None
 
     def payload(self) -> dict[str, str]:
         return {
@@ -32,6 +35,7 @@ class Owner:
             "lookup": self.lookup,
             "name": self.name,
             "contact": self.contact,
+            "client_id": str(self.client_id) if self.client_id else "",
         }
 
 
@@ -50,6 +54,15 @@ def _text(data: dict[str, Any], key: str, max_length: int) -> str:
 def parse(data: dict[str, Any], relation: str) -> Owner:
     if relation == VehicleCard.Relation.OWN:
         return Owner()
+    if relation == VehicleCard.Relation.CLIENT:
+        # The owner of a client vehicle is a client of the company, or not given yet.
+        value = _text(data, "owner_client_id", 40)
+        if not value:
+            return Owner(kind=VehicleOwnerClaim.Kind.NONE)
+        try:
+            return Owner(kind=VehicleOwnerClaim.Kind.CLIENT, client_id=UUID(value))
+        except ValueError as exc:
+            raise errors.validation_error("owner_client_id") from exc
     kind = _text(data, "owner_kind", 20) or VehicleOwnerClaim.Kind.NONE
     allowed = {
         VehicleOwnerClaim.Kind.PROFILE,
@@ -90,12 +103,18 @@ def _resolve(lookup: str) -> Any:
 
 def declare(ctx: CommandContext, company: Company, card: VehicleCard, owner: Owner) -> None:
     user = _resolve(owner.lookup) if owner.kind == VehicleOwnerClaim.Kind.PROFILE else None
+    client = None
+    if owner.client_id is not None:
+        client = parties.clients_of(company.id).filter(pk=owner.client_id).first()
+        if client is None:
+            raise errors.validation_error("owner_client_id", code="CLIENT_UNKNOWN")
     claim = VehicleOwnerClaim.objects.create(
         company=company,
         vehicle_card=card,
         kind=owner.kind,
         lookup=owner.lookup,
         owner_user_id=user.id if user else None,
+        client=client,
         manual_name=owner.name,
         manual_contact=owner.contact,
         created_by_user_id=ctx.actor.user_id,
@@ -121,6 +140,8 @@ def describe(card: VehicleCard) -> dict[str, Any] | None:
         # The request of § 8.3.1 is not sent yet: nothing is confirmed.
         "confirmed": False,
     }
+    if claim.client is not None:
+        body["client"] = {"id": str(claim.client_id), "name": parties.display_name(claim.client)}
     if claim.kind == VehicleOwnerClaim.Kind.COMPANY:
         company = card.company
         body["company"] = {

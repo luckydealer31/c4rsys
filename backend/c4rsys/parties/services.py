@@ -205,6 +205,13 @@ def update_client(
 # --- Reading ----------------------------------------------------------------------------------
 
 
+def display_name(card: ClientCard) -> str:
+    """Name of a client for other modules: company name or «First Last»."""
+    if card.company_name:
+        return card.company_name
+    return " ".join(part for part in (card.first_name, card.last_name) if part)
+
+
 def clients_of(company_id: UUID) -> QuerySet[ClientCard]:
     return ClientCard.objects.filter(company_id=company_id).prefetch_related("contacts")
 
