@@ -1,7 +1,7 @@
 """Vehicle cards, odometer history and readiness for rental (ТЗ § 8.1, § 8.2.12, § 8.5.1,
 § 8.7.7)."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
@@ -12,7 +12,15 @@ from django.utils import timezone
 
 from c4rsys.companies import locations
 from c4rsys.companies.models import Company
-from c4rsys.fleet.models import OdometerReading, Vehicle, VehicleCard, VehicleCardContext
+from c4rsys.fleet import characteristics
+from c4rsys.fleet.characteristics import Characteristics
+from c4rsys.fleet.models import (
+    OdometerReading,
+    Vehicle,
+    VehicleCard,
+    VehicleCardContext,
+    VehiclePlate,
+)
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
 from c4rsys.platform.registry import allocate_public_id
@@ -24,7 +32,7 @@ USAGE_CONTEXT_TYPES = frozenset({"rental", "service", "warehouse"})
 def cards_of(company_id: UUID) -> QuerySet[VehicleCard]:
     return (
         VehicleCard.objects.filter(company_id=company_id)
-        .select_related("vehicle")
+        .select_related("vehicle", "vehicle__make", "vehicle__model")
         .prefetch_related("contexts")
         .order_by("name", "created_at")
     )
@@ -49,6 +57,7 @@ class NewVehicle:
     name: str
     location_id: UUID
     odometer_unit: str
+    details: Characteristics = field(default_factory=Characteristics)
 
 
 def create_vehicle(ctx: CommandContext, company: Company, data: NewVehicle) -> VehicleCard:
@@ -56,14 +65,27 @@ def create_vehicle(ctx: CommandContext, company: Company, data: NewVehicle) -> V
     location (§ 8.1.3). Only the name is required (§ 8.1.10). The usage contexts are the
     applicable contexts existing in the company at creation (§ 8.5.1)."""
     locations.require_usable(company.id, data.location_id, "location_id")
+    # The name may be formed from the make, the model and the plate (§ 8.1.10).
+    name = data.name or characteristics.make_name(data.details)
+    if not name:
+        raise errors.validation_error("name", code="FIELD_REQUIRED")
     now = timezone.now()
     vehicle = Vehicle(created_at=now)
+    characteristics.apply(vehicle, data.details)
     vehicle.public_id = allocate_public_id("VHL", entity_type="vehicle", entity_id=vehicle.id)
     vehicle.save(force_insert=True)
+    if data.details.plate:
+        VehiclePlate.objects.create(
+            vehicle=vehicle,
+            number=data.details.plate,
+            number_normalized=characteristics.normalize_plate(data.details.plate),
+            country=data.details.plate_country,
+            valid_from=now,
+        )
     card = VehicleCard.objects.create(
         company=company,
         vehicle=vehicle,
-        name=data.name,
+        name=name,
         relation=VehicleCard.Relation.OWN,
         accounting_location_id=data.location_id,
         odometer_unit=data.odometer_unit,
@@ -85,6 +107,8 @@ def create_vehicle(ctx: CommandContext, company: Company, data: NewVehicle) -> V
             "accounting_location": str(data.location_id),
             "odometer_unit": card.odometer_unit,
             "contexts": contexts,
+            "characteristics": data.details.payload(),
+            "identifier_matches": characteristics.matches(vehicle),
         },
     )
     return card

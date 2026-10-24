@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useParams } from "react-router";
 
 import { useApi } from "../../api/queries";
 import type { RentalSummary, Tariff, Vehicle, VehicleTerms } from "../../api/types";
@@ -111,71 +111,49 @@ export function VehiclesPage() {
   );
 }
 
-/** Creation of a vehicle on its own page, opened by «Create vehicle» (decision of 24.10.2026). */
-export function NewVehiclePage() {
-  const { t } = useTranslation();
-  const company = useCompany();
+/** Identification data and characteristics of the vehicle; a coincidence of VIN or plate with
+ * another vehicle is shown as a reason to check (§ 8.6.3). */
+function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
+  const { t, i18n } = useTranslation();
+  const c = vehicle.characteristics;
+  const country = c.plate_country
+    ? new Intl.DisplayNames([i18n.language], { type: "region" }).of(c.plate_country)
+    : "";
+  const option = (prefix: string, value: string) => (value ? t(`${prefix}.${value}`) : "");
+  const facts: [string, string][] = [
+    [t("vehicles.vehicle_type"), c.vehicle_type ? t(`vehicles.type_${c.vehicle_type}`) : ""],
+    [t("vehicles.make"), c.make_name],
+    [t("vehicles.model"), c.model_name],
+    [t("vehicles.year"), c.year ? String(c.year) : ""],
+    [t("vehicles.plate"), [c.plate, country].filter(Boolean).join(", ")],
+    [t("vehicles.vin"), c.vin],
+    [t("vehicles.color"), c.color],
+    [t("vehicles.body_type"), option("vehicles.body", c.body_type)],
+    [t("vehicles.fuel_type"), option("vehicles.fuel", c.fuel_type)],
+    [t("vehicles.transmission"), option("vehicles.gearbox", c.transmission)],
+    [t("vehicles.drive"), option("vehicles.drives", c.drive)],
+    [t("vehicles.engine_volume_l"), c.engine_volume_l ?? ""],
+    [t("vehicles.power_hp"), c.power_hp ? String(c.power_hp) : ""],
+    [t("vehicles.seats"), c.seats ? String(c.seats) : ""],
+    [t("vehicles.doors"), c.doors !== null ? String(c.doors) : ""],
+  ];
   return (
-    <div className="page">
-      <p>
-        <Link to={companyPath(company, "/vehicles")}>← {t("nav.garage")}</Link>
-      </p>
-      <CreateVehicle />
-    </div>
-  );
-}
-
-function CreateVehicle() {
-  const { t } = useTranslation();
-  const company = useCompany();
-  const client = useQueryClient();
-  const navigate = useNavigate();
-  const locations = useLocations();
-  const [form, setForm] = useState({ name: "", location_id: "", odometer_unit: "km" });
-  const create = useCommand<Record<string, string>, { vehicle: Vehicle }>(`/c/${company.public_id}/vehicles`);
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    const result = await create.run(form);
-    if (result !== null) {
-      await client.invalidateQueries({ queryKey: ["vehicles", company.public_id] });
-      await client.invalidateQueries({ queryKey: ["readiness", company.public_id] });
-      navigate(companyPath(company, `/vehicles/${result.vehicle.id}`));
-    }
-  }
-
-  return (
-    <Card title={t("vehicles.create_title")}>
-      <form className="stack" onSubmit={submit}>
-        <div className="row">
-          <Field label={t("vehicles.name")} hint={t("vehicles.name_hint")}>
-            <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-          </Field>
-          <Field label={t("vehicles.location")}>
-            <select value={form.location_id} onChange={(e) => setForm({ ...form, location_id: e.target.value })}>
-              <option value="">—</option>
-              {(locations.data?.locations ?? []).map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.name}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label={t("vehicles.odometer_unit")}>
-            <select value={form.odometer_unit} onChange={(e) => setForm({ ...form, odometer_unit: e.target.value })}>
-              <option value="km">{t("vehicles.unit_km")}</option>
-              <option value="mi">{t("vehicles.unit_mi")}</option>
-            </select>
-          </Field>
+    <Card title={t("vehicles.section_characteristics")}>
+      {c.identifier_matches.length ? (
+        <div className="alert warn">
+          {c.identifier_matches.map((m) => t(`vehicles.match_${m}`)).join(" ")}
         </div>
-        <p className="muted small">{t("vehicles.own_only")}</p>
-        <ErrorMessage error={create.error} />
-        <div className="actions">
-          <button type="submit" disabled={!form.name.trim() || !form.location_id || create.pending}>
-            {t("vehicles.create")}
-          </button>
-        </div>
-      </form>
+      ) : null}
+      <dl className="facts">
+        {facts
+          .filter(([, value]) => value)
+          .map(([label, value]) => (
+            <div key={label} style={{ display: "contents" }}>
+              <dt>{label}</dt>
+              <dd>{value}</dd>
+            </div>
+          ))}
+      </dl>
     </Card>
   );
 }
@@ -220,6 +198,7 @@ export function VehiclePage() {
   return (
     <div className="page">
       <h1>{data.name}</h1>
+      <VehicleFacts vehicle={data} />
       <Card>
         <p>
           {data.vehicle_id} · {t(`vehicles.relation_${data.relation}`)} · {location?.name ?? "—"} ·{" "}

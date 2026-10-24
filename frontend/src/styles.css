@@ -75,7 +75,7 @@ input, select, textarea {
   background: var(--surface); color: var(--text); font: inherit;
 }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 0; }
-input[type="checkbox"] { width: auto; }
+input[type="checkbox"], input[type="radio"] { width: auto; }
 
 button, .button {
   display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 6px;
@@ -218,3 +218,4 @@ dl.facts dd { margin: 0; }
 .context-icon { display: inline-flex; padding: 6px; border-radius: 8px; background: var(--bg);
   color: var(--accent); }
 .context-icon.off { color: var(--muted); opacity: 0.6; }
+.choice-row { display: flex; flex-wrap: wrap; gap: 8px 20px; }

@@ -192,6 +192,58 @@ export type Vehicle = {
   version: number;
   odometer: { value: string; unit: string; measured_at: string } | null;
   rental_readiness: { ready: boolean; missing: string[] };
+  characteristics: VehicleCharacteristics;
+};
+
+/** Identification data and characteristics of § 8.1.8–8.1.12; all optional. */
+export type VehicleCharacteristics = {
+  transport_class: string;
+  vehicle_type: string;
+  make: string | null;
+  make_name: string;
+  model: string | null;
+  model_name: string;
+  year: number | null;
+  vin: string;
+  plate: string;
+  plate_country: string;
+  color: string;
+  body_type: string;
+  fuel_type: string;
+  transmission: string;
+  drive: string;
+  engine_volume_l: string | null;
+  power_hp: number | null;
+  seats: number | null;
+  doors: number | null;
+  /** Identifiers that coincide with another vehicle: a reason to check (§ 8.6.3). */
+  identifier_matches: ("vin" | "plate")[];
+};
+
+export type VehicleOptions = {
+  transport_classes: { code: string; available: boolean }[];
+  vehicle_types: string[];
+  catalog_types: string[];
+  body_types: string[];
+  fuel_types: string[];
+  transmissions: string[];
+  drives: string[];
+};
+
+export type CatalogMake = {
+  code: string;
+  name: string;
+  name_cyrillic: string;
+  popular: boolean;
+  country: string;
+};
+
+export type CatalogModel = {
+  code: string;
+  name: string;
+  name_cyrillic: string;
+  year_from: number | null;
+  year_to: number | null;
 };
 
 export type ClientContact = { kind: "phone" | "email"; value: string };

@@ -22,7 +22,8 @@ import { EmployeePage } from "./pages/settings/EmployeesPage";
 import { SettingsPage } from "./pages/settings/SettingsPage";
 import { SetupPage } from "./pages/setup/SetupPage";
 import { TariffPage, TariffsPage } from "./pages/tariffs/TariffsPage";
-import { NewVehiclePage, VehiclePage, VehiclesPage } from "./pages/vehicles/VehiclesPage";
+import { NewVehiclePage } from "./pages/vehicles/NewVehiclePage";
+import { VehiclePage, VehiclesPage } from "./pages/vehicles/VehiclesPage";
 
 export function App() {
   const me = useMe();

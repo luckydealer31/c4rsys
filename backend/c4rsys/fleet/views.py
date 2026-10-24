@@ -5,6 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from django.http import HttpRequest, JsonResponse
+from django.utils import timezone
 from django.views.decorators.http import require_http_methods, require_POST
 
 from c4rsys.accounts.middleware import require_user
@@ -12,8 +13,8 @@ from c4rsys.companies import access
 from c4rsys.companies import services as companies
 from c4rsys.companies.models import Employment
 from c4rsys.companies.views import run_and_respond
-from c4rsys.fleet import moves, services
-from c4rsys.fleet.models import VehicleCard, VehicleMove
+from c4rsys.fleet import characteristics, moves, services
+from c4rsys.fleet.models import Vehicle, VehicleCard, VehicleMake, VehicleModel, VehicleMove
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
@@ -54,6 +55,7 @@ def _payload(card: VehicleCard) -> dict[str, Any]:
             "measured_at": reading.measured_at.isoformat(),
         },
         "rental_readiness": services.rental_readiness(card),
+        "characteristics": characteristics.describe(card.vehicle),
     }
 
 
@@ -82,18 +84,95 @@ def vehicle_list(request: HttpRequest, cmp: str) -> JsonResponse:
         raise errors.validation_error("location_id") from exc
     if not access.RightsResolver().has_permission(actor, "vehicle.create", location_id=location_id):
         raise errors.permission_denied("vehicle.create")
+    details = characteristics.parse(data, timezone.localdate().year)
     new = services.NewVehicle(
-        name=get_str(data, "name", max_length=NAME_MAX), location_id=location_id, odometer_unit=unit
+        name=get_str(data, "name", max_length=NAME_MAX, required=False),
+        location_id=location_id,
+        odometer_unit=unit,
+        details=details,
     )
 
     def handler(ctx: CommandContext) -> CommandResult:
         card = services.create_vehicle(ctx, context.company, new)
         return CommandResult(
-            201, {"vehicle": _payload(services.get_card(context.company.id, card.id))}
+            201,
+            {
+                "vehicle": _payload(services.get_card(context.company.id, card.id)),
+                "warnings": details.warnings,
+            },
         )
 
-    payload = {"name": new.name, "location_id": str(location_id), "odometer_unit": unit}
+    payload = {
+        "name": new.name,
+        "location_id": str(location_id),
+        "odometer_unit": unit,
+        **details.payload(),
+    }
     return run_and_respond(request, "vehicle.create", actor, payload, handler)
+
+
+@require_http_methods(["GET"])
+def catalog_makes(request: HttpRequest) -> JsonResponse:
+    """Makes of the catalog for a vehicle type (§ 8.1.11); popular ones are marked."""
+    require_user(request)
+    vehicle_type = request.GET.get("type", "")
+    items = VehicleMake.objects.filter(vehicle_type=vehicle_type).order_by("name")
+    return JsonResponse(
+        {
+            "makes": [
+                {
+                    "code": m.code,
+                    "name": m.name,
+                    "name_cyrillic": m.name_cyrillic,
+                    "popular": m.popular,
+                    "country": m.country,
+                }
+                for m in items
+            ]
+        }
+    )
+
+
+@require_http_methods(["GET"])
+def catalog_models(request: HttpRequest, make: str) -> JsonResponse:
+    require_user(request)
+    items = VehicleModel.objects.filter(make_id=make).order_by("name")
+    return JsonResponse(
+        {
+            "models": [
+                {
+                    "code": m.code,
+                    "name": m.name,
+                    "name_cyrillic": m.name_cyrillic,
+                    "year_from": m.year_from,
+                    "year_to": m.year_to,
+                }
+                for m in items
+            ]
+        }
+    )
+
+
+@require_http_methods(["GET"])
+def catalog_options(request: HttpRequest) -> JsonResponse:
+    """Lists of the creation card: classes, types, bodies, fuels, gearboxes, drives."""
+    require_user(request)
+    return JsonResponse(
+        {
+            "transport_classes": [
+                {"code": c, "available": c in characteristics.AVAILABLE_CLASSES}
+                for c in Vehicle.TransportClass.values
+            ],
+            "vehicle_types": characteristics.VEHICLE_TYPES[Vehicle.TransportClass.GROUND],
+            "catalog_types": sorted(
+                set(VehicleMake.objects.values_list("vehicle_type", flat=True))
+            ),
+            "body_types": characteristics.BODY_TYPES,
+            "fuel_types": characteristics.FUEL_TYPES,
+            "transmissions": characteristics.TRANSMISSIONS,
+            "drives": characteristics.DRIVES,
+        }
+    )
 
 
 @require_http_methods(["GET", "PATCH"])

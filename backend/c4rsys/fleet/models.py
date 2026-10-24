@@ -8,19 +8,112 @@ from c4rsys.companies.models import Company, Location
 from c4rsys.platform.ids import uuid7
 
 
+class VehicleMake(models.Model):
+    """Catalog of makes loaded with the system (§ 8.1.11); for passenger cars — the customer's
+    catalog `catalog/cars.csv` (24.10.2026). A value missing here is entered as «Other» text and
+    does not create a make."""
+
+    code = models.CharField(max_length=60, primary_key=True)
+    vehicle_type = models.CharField(max_length=30)
+    name = models.CharField(max_length=100)
+    name_cyrillic = models.CharField(max_length=100, blank=True, default="")
+    popular = models.BooleanField(default=False)
+    country = models.CharField(max_length=100, blank=True, default="")
+
+    class Meta:
+        db_table = "vehicle_make"
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class VehicleModel(models.Model):
+    """Catalog of models of a make (§ 8.1.11)."""
+
+    code = models.CharField(max_length=120, primary_key=True)
+    make = models.ForeignKey(VehicleMake, on_delete=models.PROTECT, related_name="models")
+    name = models.CharField(max_length=150)
+    name_cyrillic = models.CharField(max_length=150, blank=True, default="")
+    car_class = models.CharField(max_length=5, blank=True, default="")
+    year_from = models.PositiveSmallIntegerField(null=True, blank=True)
+    year_to = models.PositiveSmallIntegerField(null=True, blank=True)
+
+    class Meta:
+        db_table = "vehicle_model"
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class Vehicle(models.Model):
     """Global record of a vehicle with its c4rsys asset ID (§ 8.1.14). It belongs to no company;
-    companies work with it through their own cards."""
+    companies work with it through their own cards. Identification data and characteristics of
+    § 8.1.8–8.1.12 are all optional; values outside the catalog are kept as text."""
+
+    class TransportClass(models.TextChoices):
+        GROUND = "ground"  # the only class of the first launch (§ 8.1.8)
+        AIR = "air"
+        WATER = "water"
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     public_id = models.CharField(max_length=40, unique=True)
     created_at = models.DateTimeField(default=now)
+    transport_class = models.CharField(
+        max_length=10, choices=TransportClass.choices, default=TransportClass.GROUND
+    )
+    vehicle_type = models.CharField(max_length=30, blank=True, default="")
+    make = models.ForeignKey(
+        VehicleMake, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    make_other = models.CharField(max_length=100, blank=True, default="")
+    model = models.ForeignKey(
+        VehicleModel, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    model_other = models.CharField(max_length=150, blank=True, default="")
+    year = models.PositiveSmallIntegerField(null=True, blank=True)
+    # Compared globally after upper-casing and trimming (§ 8.6.1).
+    vin = models.CharField(max_length=40, blank=True, default="", db_index=True)
+    color = models.CharField(max_length=60, blank=True, default="")
+    body_type = models.CharField(max_length=30, blank=True, default="")
+    fuel_type = models.CharField(max_length=30, blank=True, default="")
+    transmission = models.CharField(max_length=30, blank=True, default="")
+    drive = models.CharField(max_length=30, blank=True, default="")
+    engine_volume_l = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True)
+    power_hp = models.PositiveSmallIntegerField(null=True, blank=True)
+    seats = models.PositiveSmallIntegerField(null=True, blank=True)
+    doors = models.PositiveSmallIntegerField(null=True, blank=True)
 
     class Meta:
         db_table = "vehicle"
 
     def __str__(self) -> str:
         return self.public_id
+
+
+class VehiclePlate(models.Model):
+    """A registration plate with its country and period (§ 8.2.11). A plate is not globally
+    unique; a match in the same country is a reason to check, not proof (§ 8.6.1)."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    vehicle = models.ForeignKey(Vehicle, on_delete=models.PROTECT, related_name="plates")
+    number = models.CharField(max_length=20)
+    number_normalized = models.CharField(max_length=20, db_index=True)
+    country = models.CharField(max_length=2, blank=True, default="")
+    valid_from = models.DateTimeField(default=now)
+    valid_to = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "vehicle_plate"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["vehicle"],
+                condition=Q(valid_to__isnull=True),
+                name="vehicle_plate_one_current",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return self.number
 
 
 class VehicleCard(models.Model):
