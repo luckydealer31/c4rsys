@@ -1,6 +1,6 @@
 from django.urls import path
 
-from c4rsys.warehouse import views
+from c4rsys.warehouse import stock_views, views
 
 urlpatterns = [
     path("catalog/manufacturers", views.manufacturers),
@@ -22,6 +22,33 @@ urlpatterns = [
         views.barcode_remove,
     ),
     path("c/<str:cmp>/warehouse/barcodes/<str:code>", views.barcode_lookup),
+    path("c/<str:cmp>/warehouse/items/<uuid:item_id>/stock", stock_views.item_stock),
+    path("c/<str:cmp>/warehouse/items/<uuid:item_id>/lots", stock_views.item_lots),
+    path(
+        "c/<str:cmp>/warehouse/items/<uuid:item_id>/supplier-articles",
+        stock_views.supplier_articles,
+    ),
+    path(
+        "c/<str:cmp>/warehouse/items/<uuid:item_id>/supplier-articles/<uuid:entry_id>",
+        stock_views.supplier_article_remove,
+    ),
+    path("c/<str:cmp>/warehouse/supplier-articles/lookup", stock_views.supplier_article_lookup),
+    path("c/<str:cmp>/warehouse/stock", stock_views.stock_list),
+    path("c/<str:cmp>/warehouse/assets/<uuid:asset_id>/tags", stock_views.asset_tags),
+    path("c/<str:cmp>/warehouse/lots/<uuid:lot_id>/tags", stock_views.lot_tags),
+    path("c/<str:cmp>/warehouse/receipts", stock_views.receipt_list),
+    path("c/<str:cmp>/warehouse/receipts/<uuid:receipt_id>", stock_views.receipt_detail),
+    path("c/<str:cmp>/warehouse/receipts/<uuid:receipt_id>/post", stock_views.receipt_post),
+    path(
+        "c/<str:cmp>/warehouse/receipts/<uuid:receipt_id>/lines/<uuid:line_id>/cost",
+        stock_views.receipt_line_cost,
+    ),
+    path("c/<str:cmp>/warehouse/purchases", stock_views.purchase_list),
+    path("c/<str:cmp>/warehouse/purchases/<uuid:purchase_id>", stock_views.purchase_detail),
+    path(
+        "c/<str:cmp>/warehouse/purchases/<uuid:purchase_id>/cancel-rest",
+        stock_views.purchase_cancel_rest,
+    ),
     path("c/<str:cmp>/warehouse/imports/template", views.import_template),
     path("c/<str:cmp>/warehouse/imports", views.import_list),
     path("c/<str:cmp>/warehouse/imports/<uuid:operation_id>", views.import_detail),

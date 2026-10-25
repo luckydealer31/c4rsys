@@ -10,6 +10,7 @@ import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { EmployeesList } from "../settings/EmployeesPage";
+import { CounterpartiesList } from "./Counterparties";
 
 export function clientName(client: Pick<Client, "kind" | "first_name" | "last_name" | "company_name">) {
   return client.kind === "company" ? client.company_name : `${client.first_name} ${client.last_name}`.trim();
@@ -18,13 +19,12 @@ export function clientName(client: Pick<Client, "kind" | "first_name" | "last_na
 /** Clients: list with search when allowed (§ 6.2.2), creation with possible matches (§ 6.1.11). */
 type PeopleTab = "clients" | "counterparties" | "employees";
 
-/** Tabs the employee may see (decision of 24.10.2026): each is shown only with its rights.
- * Counterparties have no rights of their own yet (module of a later stage), so the tab follows
- * the client list — TODO(spec): rights of counterparties. */
+/** Tabs the employee may see (decision of 24.10.2026): each is shown only with its rights
+ * (§ 23.8.2: clients and counterparties have rights of their own). */
 export function peopleTabs(can: (permission: string) => boolean): PeopleTab[] {
   const tabs: PeopleTab[] = [];
   if (can("client.list") || can("client.create")) tabs.push("clients");
-  if (can("client.list")) tabs.push("counterparties");
+  if (can("counterparty.view") || can("counterparty.create")) tabs.push("counterparties");
   if (can("employee.invite") || can("employee.rights.manage") || can("employee.access.block")) {
     tabs.push("employees");
   }
@@ -66,11 +66,7 @@ export function ClientsPage() {
         ))}
       </div>
       {tab === "clients" ? <ClientsList /> : null}
-      {tab === "counterparties" ? (
-        <Card>
-          <p className="muted">{t("clients.counterparties_later")}</p>
-        </Card>
-      ) : null}
+      {tab === "counterparties" ? <CounterpartiesList /> : null}
       {tab === "employees" ? <EmployeesList /> : null}
     </div>
   );

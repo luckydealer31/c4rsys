@@ -52,6 +52,12 @@ PERMISSIONS: dict[str, str] = {
     "client.list": "client",
     "client.create": "client",
     "client.edit": "client",
+    # Counterparties (§ 23.8.2), the minimal list of the warehouse stage.
+    "counterparty.view": "counterparty",
+    "counterparty.create": "counterparty",
+    "counterparty.edit": "counterparty",
+    "counterparty.archive": "counterparty",
+    "counterparty.restore": "counterparty",
     "rental.view": "rental",
     "rental.issue": "rental",
     "rental.accept_return": "rental",
@@ -119,6 +125,9 @@ SYSTEM_SETS: dict[str, tuple[str, ...]] = {
         "warehouse.write_off",
         "warehouse.tags.edit",
         "warehouse.price.set",
+        # PROPOSAL: a missing supplier is added right at a receipt (§ 11.2.8).
+        "counterparty.view",
+        "counterparty.create",
     ),
 }
 

@@ -445,3 +445,154 @@ export type ImportOperation = {
   warnings: { code: string; column?: string; import?: string; loaded?: number; skipped?: number }[];
   rows?: ImportRow[];
 };
+
+/** A counterparty — a supplier of the company (§ 6.1.4), a list apart from clients. */
+export type Counterparty = {
+  id: string;
+  version: number;
+  name: string;
+  kind: "person" | "company";
+  first_name: string;
+  last_name: string;
+  middle_name: string;
+  company_name: string;
+  comment: string;
+  state: "active" | "archived";
+  contacts: ClientContact[];
+};
+
+export type ItemBrief = {
+  id: string;
+  name: string;
+  unit: WarehouseItem["unit"];
+  accounting: "individual" | "batch";
+  article: string;
+};
+
+/** A receipt to the warehouse of a location (§ 11.2.7). */
+export type Receipt = {
+  id: string;
+  number: number;
+  version: number;
+  state: "draft" | "posted";
+  source: "purchase" | "initial";
+  context: { id: string; location_id: string; location_name: string };
+  supplier: { id: string; name: string } | null;
+  purchase: { id: string; number: number } | null;
+  document_id: string | null;
+  currency: string;
+  comment: string;
+  received_at: string;
+  created_at: string;
+  posted_at: string | null;
+  total_cost: string;
+  cost_incomplete: boolean;
+  lines: ReceiptLine[];
+};
+
+export type ReceiptLine = {
+  id: string;
+  item: ItemBrief;
+  quantity: string;
+  packaging_id: string | null;
+  packaging_quantity: string | null;
+  packs: number | null;
+  expected_quantity: string | null;
+  discrepancy: string | null;
+  unit_cost: string | null;
+  total_cost: string | null;
+  tags: string[];
+  serial_numbers: string[];
+  lot: { id: string; public_id: string } | null;
+  new_lot: boolean;
+  lot_external_number: string;
+  lot_production_date: string | null;
+  lot_expiry_date: string | null;
+  purchase_line_id: string | null;
+  assets: string[];
+};
+
+/** A purchase received in one or several receipts (§ 11.2.11). */
+export type Purchase = {
+  id: string;
+  number: number;
+  version: number;
+  state: "open" | "completed";
+  supplier: { id: string; name: string } | null;
+  currency: string;
+  comment: string;
+  created_at: string;
+  lines: {
+    id: string;
+    item: ItemBrief;
+    ordered_quantity: string;
+    received_quantity: string;
+    cancelled_quantity: string;
+    expected_quantity: string;
+    unit_cost: string | null;
+  }[];
+  receipts: { id: string; number: number; state: Receipt["state"] }[];
+};
+
+/** A row of the stock: an item with its quantity by warehouse and joint tags (§ 11.1.10). */
+export type StockRow = {
+  item: ItemBrief;
+  quantity: string;
+  tags: string[];
+  places: { context_id: string; location_name: string; quantity: string; tags: string[] }[];
+};
+
+/** The expanded stock of an item: assets or lots per warehouse (§ 11.1.10, § 11.2.13). */
+export type ItemStock = {
+  item_id: string;
+  places: {
+    context_id: string;
+    location_name: string;
+    quantity: string;
+    assets: {
+      id: string;
+      public_id: string;
+      serial_number: string;
+      tags: string[];
+      purchase_cost: string | null;
+      currency: string;
+      receipt_number: number | null;
+      received_at: string;
+    }[];
+    lots: {
+      id: string;
+      public_id: string;
+      external_number: string;
+      production_date: string | null;
+      expiry_date: string | null;
+      expired: boolean;
+      tags: string[];
+      quantity: string;
+      currency: string;
+      stock: { packaging_id: string | null; packaging_quantity: string | null; packs: number | null; quantity: string }[];
+      layers: {
+        receipt_number: number | null;
+        received_at: string;
+        received_quantity: string;
+        remaining: string;
+        unit_cost: string | null;
+      }[];
+    }[];
+  }[];
+};
+
+export type LotChoice = {
+  id: string;
+  public_id: string;
+  external_number: string;
+  production_date: string | null;
+  expiry_date: string | null;
+  matches: boolean;
+};
+
+export type SupplierArticle = {
+  id: string;
+  supplier: { id: string; name: string };
+  article: string;
+  supplier_name: string;
+};

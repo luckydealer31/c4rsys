@@ -1,4 +1,4 @@
-"""HTTP API of the client base (ТЗ § 6.1.11, § 6.2.1–6.2.2, § 6.2.7–6.2.8)."""
+"""HTTP API of the client base and the counterparties (ТЗ § 6.1.11, § 6.2.1–6.2.8)."""
 
 from datetime import date
 from typing import Any
@@ -11,8 +11,8 @@ from c4rsys.accounts.middleware import require_user
 from c4rsys.companies import access
 from c4rsys.companies import services as companies
 from c4rsys.companies.views import run_and_respond
-from c4rsys.parties import services
-from c4rsys.parties.models import ClientCard
+from c4rsys.parties import counterparties, services
+from c4rsys.parties.models import ClientCard, Counterparty
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
@@ -180,3 +180,134 @@ def client_matches(request: HttpRequest, cmp: str) -> JsonResponse:
     return JsonResponse(
         {"matches": [{"client": _payload(c), "matched": reasons} for c, reasons in found]}
     )
+
+
+# --- Counterparties (§ 6.1.4–6.1.9, § 23.8.2; customer's decision of 25.10.2026) ----------------
+
+COMMENT_MAX = 2000
+
+
+def _counterparty_payload(card: Counterparty) -> dict[str, Any]:
+    return {
+        "id": str(card.id),
+        "version": card.version,
+        "name": counterparties.display_name(card),
+        **counterparties.snapshot(card),
+    }
+
+
+@require_http_methods(["GET", "POST"])
+def counterparty_list(request: HttpRequest, cmp: str) -> JsonResponse:
+    context, actor = _actor(request, cmp)
+    if request.method == "GET":
+        _require(actor, "counterparty.view")
+        state = request.GET.get("state", Counterparty.State.ACTIVE)
+        if state not in ("", *Counterparty.State.values):
+            raise errors.validation_error("state")
+        text = request.GET.get("q", "")[:100]
+        found = counterparties.search(context.company.id, text, state)[:LIST_LIMIT]
+        return JsonResponse({"counterparties": [_counterparty_payload(c) for c in found]})
+
+    _require(actor, "counterparty.create")
+    data = parse_json(request)
+    card_data = counterparties.CounterpartyData(
+        kind=get_str(data, "kind", max_length=10),
+        first_name=_name(data, "first_name"),
+        last_name=_name(data, "last_name"),
+        middle_name=_name(data, "middle_name"),
+        company_name=_name(data, "company_name", COMPANY_NAME_MAX),
+        comment=get_str(data, "comment", max_length=COMMENT_MAX, required=False),
+    )
+    card_data.check_minimum()
+    contacts = services.parse_contacts(data.get("contacts", []), required=True)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        card = counterparties.create(ctx, context.company, card_data, contacts)
+        card = counterparties.get(context.company.id, card.id)
+        return CommandResult(201, {"counterparty": _counterparty_payload(card)})
+
+    payload = {
+        "kind": card_data.kind,
+        "first_name": card_data.first_name,
+        "last_name": card_data.last_name,
+        "middle_name": card_data.middle_name,
+        "company_name": card_data.company_name,
+        "comment": card_data.comment,
+        "contacts": [c.as_dict() for c in contacts],
+    }
+    return run_and_respond(request, "counterparty.create", actor, payload, handler)
+
+
+@require_http_methods(["GET", "PATCH"])
+def counterparty_detail(request: HttpRequest, cmp: str, counterparty_id: UUID) -> JsonResponse:
+    context, actor = _actor(request, cmp)
+    if request.method == "GET":
+        _require(actor, "counterparty.view")
+        card = counterparties.get(context.company.id, counterparty_id)
+        return JsonResponse({"counterparty": _counterparty_payload(card)})
+
+    _require(actor, "counterparty.edit")
+    counterparties.get(context.company.id, counterparty_id)
+    data = parse_json(request)
+    if "kind" in data:
+        raise errors.validation_error("kind", code="COUNTERPARTY_KIND_IMMUTABLE")
+    expected_version = get_int(data, "expected_version")
+    changes: dict[str, Any] = {}
+    for key in ("first_name", "last_name", "middle_name"):
+        if key in data:
+            changes[key] = _name(data, key)
+    if "company_name" in data:
+        changes["company_name"] = _name(data, "company_name", COMPANY_NAME_MAX)
+    if "comment" in data:
+        changes["comment"] = get_str(data, "comment", max_length=COMMENT_MAX, required=False)
+    contacts = (
+        services.parse_contacts(data["contacts"], required=True) if "contacts" in data else None
+    )
+    if not changes and contacts is None:
+        raise errors.validation_error("body", code="NOTHING_TO_CHANGE")
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        counterparties.update(
+            ctx, context.company.id, counterparty_id, changes, contacts, expected_version
+        )
+        card = counterparties.get(context.company.id, counterparty_id)
+        return CommandResult(200, {"counterparty": _counterparty_payload(card)})
+
+    payload: dict[str, Any] = {
+        "counterparty_id": str(counterparty_id),
+        **changes,
+        "expected_version": expected_version,
+    }
+    if contacts is not None:
+        payload["contacts"] = [c.as_dict() for c in contacts]
+    return run_and_respond(request, "counterparty.update", actor, payload, handler)
+
+
+def _counterparty_state(
+    request: HttpRequest, cmp: str, counterparty_id: UUID, archived: bool
+) -> JsonResponse:
+    """Archiving and restoring are separate rights (§ 6.6.4, § 23.8.2)."""
+    context, actor = _actor(request, cmp)
+    _require(actor, "counterparty.archive" if archived else "counterparty.restore")
+    expected_version = get_int(parse_json(request), "expected_version")
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        counterparties.set_archived(
+            ctx, context.company.id, counterparty_id, archived, expected_version
+        )
+        card = counterparties.get(context.company.id, counterparty_id)
+        return CommandResult(200, {"counterparty": _counterparty_payload(card)})
+
+    payload = {"counterparty_id": str(counterparty_id), "expected_version": expected_version}
+    name = "counterparty.archive" if archived else "counterparty.restore"
+    return run_and_respond(request, name, actor, payload, handler)
+
+
+@require_POST
+def counterparty_archive(request: HttpRequest, cmp: str, counterparty_id: UUID) -> JsonResponse:
+    return _counterparty_state(request, cmp, counterparty_id, archived=True)
+
+
+@require_POST
+def counterparty_restore(request: HttpRequest, cmp: str, counterparty_id: UUID) -> JsonResponse:
+    return _counterparty_state(request, cmp, counterparty_id, archived=False)

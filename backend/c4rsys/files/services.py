@@ -53,6 +53,26 @@ def image_type(content: bytes) -> str:
     raise errors.validation_error("file", code="FILE_TYPE_NOT_ALLOWED")
 
 
+# Purposes that also take a PDF; others are images only.
+DOCUMENT_PURPOSES = {"warehouse_document"}
+# PROPOSAL: a scanned document may be larger than a photo.
+MAX_DOCUMENT_BYTES = 10 * 1024 * 1024
+
+
+def document_type(content: bytes) -> str:
+    """An image by `image_type`, or a PDF by its signature."""
+    if not content:
+        raise errors.validation_error("file", code="FIELD_REQUIRED")
+    if len(content) > MAX_DOCUMENT_BYTES:
+        raise errors.validation_error("file", code="FILE_TOO_LARGE", max_bytes=MAX_DOCUMENT_BYTES)
+    if content.startswith(b"%PDF-"):
+        return "application/pdf"
+    for content_type, matches in IMAGE_SIGNATURES.items():
+        if matches(content[:16]):
+            return content_type
+    raise errors.validation_error("file", code="FILE_TYPE_NOT_ALLOWED")
+
+
 def store(*, purpose: str, uploaded_by: UUID, content: bytes, content_type: str) -> StoredFile:
     """Writes the content, then the details. Call inside the command's transaction: if it is
     rolled back, an unreferenced file may remain on disk, but no record points to it."""

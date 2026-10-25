@@ -9,6 +9,7 @@ import { useCommand } from "../../api/useCommand";
 import { ImagePicker } from "../../components/images";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
+import { ItemStockCard, SupplierArticles } from "./Stock";
 
 const OTHER = "__other";
 
@@ -93,8 +94,10 @@ export function ItemPage() {
     <>
       <ItemForm key={item.data.item.version} item={item.data.item} />
       <div className="page" style={{ paddingTop: 0 }}>
+        <ItemStockCard item={item.data.item} />
         {item.data.item.accounting === "batch" ? <Packagings item={item.data.item} /> : null}
         <Barcodes item={item.data.item} />
+        <SupplierArticles item={item.data.item} />
         <ItemState item={item.data.item} />
       </div>
     </>

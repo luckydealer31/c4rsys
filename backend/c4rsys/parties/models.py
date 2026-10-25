@@ -1,4 +1,4 @@
-"""Local client cards of a company (ТЗ § 6.1, § 6.2).
+"""Local client cards and counterparties of a company (ТЗ § 6.1, § 6.2).
 
 A card is a company's own record, not a c4rsys profile (§ 6.2.4); it works without an account
 (§ 6.2.10). Linking to a profile (§ 6.2.5–6.2.6) comes later; `linked_user_id` is kept for it.
@@ -94,6 +94,91 @@ class ClientContact(models.Model):
         indexes = [
             models.Index(
                 fields=["company", "kind", "value_normalized"], name="client_contact_search_idx"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.kind}:{self.value}"
+
+
+class Counterparty(models.Model):
+    """A supplier of goods or services to the company (§ 6.1.4–6.1.5): a person or a company. It is
+    a list of its own, apart from the clients (§ 6.1.7), shared by the whole company (§ 6.1.9).
+    Minimal list of the warehouse stage (customer's decision of 25.10.2026): linking to a profile,
+    requests and merging come later; `linked_user_id` is kept for them."""
+
+    class Kind(models.TextChoices):
+        PERSON = "person"
+        COMPANY = "company"
+
+    class State(models.TextChoices):
+        ACTIVE = "active"
+        ARCHIVED = "archived"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    kind = models.CharField(max_length=10, choices=Kind.choices)
+    first_name = models.CharField(max_length=150, blank=True, default="")
+    last_name = models.CharField(max_length=150, blank=True, default="")
+    middle_name = models.CharField(max_length=150, blank=True, default="")
+    company_name = models.CharField(max_length=200, blank=True, default="")
+    comment = models.TextField(blank=True, default="")
+    linked_user_id = models.UUIDField(null=True, blank=True)
+    state = models.CharField(max_length=10, choices=State.choices, default=State.ACTIVE)
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+    updated_at = models.DateTimeField(auto_now=True)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "counterparty"
+        constraints = [
+            models.UniqueConstraint(fields=["company", "id"], name="counterparty_company_id_uniq"),
+            # Minimum of § 6.2.7–6.2.8 and § 22.3.3; the contact minimum is checked by the commands.
+            models.CheckConstraint(
+                condition=(
+                    Q(kind="person") & ~Q(first_name="") & ~Q(last_name="") & Q(company_name="")
+                )
+                | (
+                    Q(kind="company")
+                    & ~Q(company_name="")
+                    & Q(first_name="")
+                    & Q(last_name="")
+                    & Q(middle_name="")
+                ),
+                name="counterparty_minimum_by_kind",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        if self.kind == self.Kind.COMPANY:
+            return self.company_name
+        return f"{self.last_name} {self.first_name}"
+
+
+class CounterpartyContact(models.Model):
+    """Phone or email of a counterparty. `counterparty` is bound to the same company by a
+    composite foreign key (migration)."""
+
+    class Kind(models.TextChoices):
+        PHONE = "phone"
+        EMAIL = "email"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    counterparty = models.ForeignKey(
+        Counterparty, on_delete=models.PROTECT, related_name="contacts"
+    )
+    kind = models.CharField(max_length=10, choices=Kind.choices)
+    value = models.CharField(max_length=254)
+    value_normalized = models.CharField(max_length=254)
+
+    class Meta:
+        db_table = "counterparty_contact"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["counterparty", "kind", "value_normalized"],
+                name="counterparty_contact_uniq",
             ),
         ]
 

@@ -18,6 +18,8 @@ class StoredFile(models.Model):
         COMPANY_LOGO = "company_logo"  # § 3.1.1, § 3.1.5
         ITEM_PHOTO = "item_photo"  # photo of a catalog item (§ 22.4.1)
         IMPORT_FILE = "import_file"  # source file of an import (§ 22.2.4)
+        # Invoice, receipt or another document of a warehouse receipt (§ 11.2.8).
+        WAREHOUSE_DOCUMENT = "warehouse_document"
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     purpose = models.CharField(max_length=30, choices=Purpose.choices)

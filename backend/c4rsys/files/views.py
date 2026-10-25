@@ -26,12 +26,12 @@ def upload(request: HttpRequest) -> JsonResponse:
     uploaded = request.FILES.get("file")
     if uploaded is None:
         raise errors.validation_error("file", code="FIELD_REQUIRED")
-    if uploaded.size is not None and uploaded.size > services.MAX_IMAGE_BYTES:
-        raise errors.validation_error(
-            "file", code="FILE_TOO_LARGE", max_bytes=services.MAX_IMAGE_BYTES
-        )
+    document = purpose in services.DOCUMENT_PURPOSES
+    limit = services.MAX_DOCUMENT_BYTES if document else services.MAX_IMAGE_BYTES
+    if uploaded.size is not None and uploaded.size > limit:
+        raise errors.validation_error("file", code="FILE_TOO_LARGE", max_bytes=limit)
     data = uploaded.read()
-    content_type = services.image_type(data)
+    content_type = services.document_type(data) if document else services.image_type(data)
     payload = {"purpose": purpose, "sha256": hashlib.sha256(data).hexdigest()}
 
     def handler(ctx: CommandContext) -> CommandResult:

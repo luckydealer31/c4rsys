@@ -8,33 +8,42 @@ import { Icon } from "../../components/icons";
 import { Card, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { useVehicles } from "../vehicles/VehiclesPage";
+import { PurchasesList } from "./Purchases";
+import { ReceiptsList } from "./Receipts";
+import { StockList } from "./Stock";
 
-type Tab = "items" | "storages";
+const TABS = ["stock", "items", "receipts", "purchases", "storages"] as const;
+type Tab = (typeof TABS)[number];
 
-/** Section «Warehouse» (ТЗ гл. 11), part С1: the catalog of the company and its places of
- * warehouses by location; stock appears with receipts (part С2). */
+/** Section «Warehouse» (ТЗ гл. 11): stock, the catalog, receipts, purchases and the warehouses
+ * of locations. PROPOSAL: the stock is the first tab. */
 export function WarehousePage() {
   const { t } = useTranslation();
   const [params, setParams] = useSearchParams();
-  const tab: Tab = params.get("tab") === "storages" ? "storages" : "items";
+  const wanted = params.get("tab") as Tab | null;
+  const tab: Tab = wanted && TABS.includes(wanted) ? wanted : "stock";
   return (
     <div className="page">
       <h1>{t("nav.warehouse")}</h1>
       <div className="tabs" role="tablist">
-        {(["items", "storages"] as const).map((key) => (
+        {TABS.map((key) => (
           <button
             key={key}
             type="button"
             role="tab"
             aria-selected={tab === key}
             className={tab === key ? "active" : ""}
-            onClick={() => setParams(key === "items" ? {} : { tab: key })}
+            onClick={() => setParams(key === "stock" ? {} : { tab: key })}
           >
             {t(`warehouse.tab_${key}`)}
           </button>
         ))}
       </div>
-      {tab === "items" ? <Items /> : <Storages />}
+      {tab === "stock" ? <StockList /> : null}
+      {tab === "items" ? <Items /> : null}
+      {tab === "receipts" ? <ReceiptsList /> : null}
+      {tab === "purchases" ? <PurchasesList /> : null}
+      {tab === "storages" ? <Storages /> : null}
     </div>
   );
 }
@@ -145,7 +154,6 @@ function Storages() {
           {storage.state !== "enabled" || storage.location_deactivated ? (
             <span className="badge warn">{t("locations.context_disabled")}</span>
           ) : null}
-          <p className="muted small">{t("warehouse.stock_later")}</p>
           <StoredVehicles
             items={(vehicles.data?.vehicles ?? []).filter((v) => v.storage?.context_id === storage.context_id)}
             path={(id) => companyPath(company, `/vehicles/${id}`)}
