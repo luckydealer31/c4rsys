@@ -146,10 +146,7 @@ def add_context(
     try:
         with transaction.atomic():
             context = ActivityContext.objects.create(
-                company_id=company_id,
-                location=location,
-                type=context_type,
-                storage_enabled=context_type == ActivityContext.Type.WAREHOUSE,
+                company_id=company_id, location=location, type=context_type
             )
     except IntegrityError as exc:
         raise errors.business_rule("CONTEXT_ALREADY_EXISTS", field="type") from exc
@@ -267,53 +264,15 @@ def set_context_enabled(
     return context
 
 
-# --- Storage of a context (§ 11.1.5–11.1.7) ----------------------------------------------------
-
-# (company_id, context_id) -> codes of what keeps the storage on: stock, reserves, operations.
-StorageBlockers = Callable[[UUID, UUID], list[str]]
-_storage_blockers: list[StorageBlockers] = []
-
-
-def register_storage_blockers(check: StorageBlockers) -> None:
-    _storage_blockers.append(check)
-
-
-def set_storage(
-    ctx: CommandContext, company_id: UUID, location_id: UUID, context_id: UUID, enabled: bool
-) -> ActivityContext:
-    """Storage of a rental or service context is switched on and off (§ 11.1.5); the warehouse
-    context always stores. Switching off needs the stock released and reserves and operations
-    settled (§ 4.4.2). The history stays."""
-    location = _lock(company_id, location_id)
-    context = ActivityContext.objects.filter(location=location, pk=context_id).first()
-    if context is None:
-        raise errors.not_found()
-    if context.type == ActivityContext.Type.WAREHOUSE:
-        raise errors.business_rule("STORAGE_ALWAYS_ON")
-    if context.storage_enabled == enabled:
-        raise errors.business_rule("STORAGE_ALREADY_IN_STATE", enabled=enabled)
-    if not enabled:
-        found = [code for check in _storage_blockers for code in check(company_id, context.id)]
-        if found:
-            raise errors.business_rule("STORAGE_HAS_STOCK", blockers=found)
-    context.storage_enabled = enabled
-    context.save(update_fields=["storage_enabled"])
-    ctx.audit(
-        "location.storage_enabled" if enabled else "location.storage_disabled",
-        object_type="activity_context",
-        object_id=context.id,
-        before={"storage_enabled": not enabled},
-        after={"location": str(location.id), "type": context.type, "storage_enabled": enabled},
-    )
-    return context
+# --- Storage (decision of 25.10.2026: only the warehouse of a location) ---------------------
 
 
 def storage_contexts(company_id: UUID) -> QuerySet[ActivityContext]:
-    """Contexts of the company that store, with their locations (§ 11.1.1)."""
+    """Warehouses of the company with their locations (§ 11.1.1): one at most per location."""
     return (
         ActivityContext.objects.select_related("location")
-        .filter(company_id=company_id, storage_enabled=True)
-        .order_by("location__name", "type")
+        .filter(company_id=company_id, type=ActivityContext.Type.WAREHOUSE)
+        .order_by("location__name")
     )
 
 

@@ -61,7 +61,7 @@ export type RequestOptions = {
 
 /** Upload of one file as multipart (the browser sets the content type and its boundary). */
 export async function uploadFile(
-  purpose: "avatar" | "company_logo" | "item_photo",
+  purpose: "avatar" | "company_logo" | "item_photo" | "warehouse_document",
   file: File,
   idempotencyKey: string = crypto.randomUUID(),
 ): Promise<{ id: string }> {

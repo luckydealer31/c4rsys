@@ -201,6 +201,9 @@ class Location(models.Model):
 class ActivityContext(models.Model):
     """Direction of work in a location (§ 4.1.6–4.1.8). At most one of each type (§ 4.1.7).
 
+    Decision of 25.10.2026: only the warehouse context stores, so a location has at most one
+    warehouse; rental and service have no storage of their own and take from the warehouse.
+
     `location` is additionally bound to the same company by a composite foreign key (migration).
     Without its own schedule the context inherits the schedule of the location (§ 4.2.3).
     """
@@ -219,18 +222,11 @@ class ActivityContext(models.Model):
     location = models.ForeignKey(Location, on_delete=models.PROTECT, related_name="contexts")
     type = models.CharField(max_length=20, choices=Type.choices)
     state = models.CharField(max_length=20, choices=State.choices, default=State.ENABLED)
-    # § 11.1.5: the warehouse context always stores; for rental and service storage is an
-    # additional setting, off by default. It gives the context its own stock.
-    storage_enabled = models.BooleanField(default=False)
     created_at = models.DateTimeField(default=now)
 
     class Meta:
         db_table = "activity_context"
         constraints = [
-            models.CheckConstraint(
-                condition=~Q(type="warehouse") | Q(storage_enabled=True),
-                name="activity_context_warehouse_stores",
-            ),
             models.UniqueConstraint(
                 fields=["company", "id"], name="activity_context_company_id_uniq"
             ),

@@ -227,3 +227,9 @@ dl.facts dd { margin: 0; }
 .toggle { background: transparent; color: var(--text); border: 1px solid var(--border);
   border-radius: 999px; padding: 4px 14px; }
 .toggle.on { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+
+/* A small action inside text or a table cell (stock tags, supplier articles). */
+button.link { background: none; border: none; padding: 0; color: var(--accent); text-decoration: underline;
+  font-size: inherit; }
+.line-card { border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+.line-card h3 { margin-top: 0; }

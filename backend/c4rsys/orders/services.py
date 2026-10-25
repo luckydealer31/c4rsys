@@ -125,6 +125,16 @@ def create_order(
     return order
 
 
+def open_order_of_client(company_id: UUID, order_id: UUID, client_id: UUID | None = None) -> Order:
+    """An open client order to add goods to (decision of 25.10.2026), locked."""
+    order = lock_open_order(company_id, order_id)
+    if order.is_internal or order.client_id is None:
+        raise errors.business_rule("ORDER_WITHOUT_CLIENT", field="order_id")
+    if client_id is not None and order.client_id != client_id:
+        raise errors.business_rule("ORDER_CLIENT_MISMATCH", field="order_id")
+    return order
+
+
 def create_internal_order(
     ctx: CommandContext, *, company_id: UUID, responsible_employment_id: UUID | None
 ) -> Order:
@@ -214,6 +224,16 @@ def record_control_versions(ctx: CommandContext, order: Order, reason: str) -> N
 
 # --- Closing (§ 12.1.9, § 12.2.3, § 23.6.5) ---------------------------------------------------
 
+# (ctx, company_id, order_id) -> None: what an operation does when its order closes, in the
+# closing transaction — for example the sale of reserved goods (§ 11.9.1).
+CloseHandler = Callable[[CommandContext, UUID, UUID], None]
+_on_close: list[CloseHandler] = []
+
+
+def register_on_close(handler: CloseHandler) -> None:
+    _on_close.append(handler)
+
+
 # Operation type -> permission of its section needed to close an order containing it.
 _section_permissions: dict[str, str] = {}
 
@@ -264,6 +284,8 @@ def close_order(
         raise errors.business_rule("ORDER_HAS_DEBT", debt={c: str(v) for c, v in debt.items()})
 
     record_control_versions(ctx, order, "closing")
+    for handler in _on_close:
+        handler(ctx, order.company_id, order.id)
     now = timezone.now()
     order.state = Order.State.CLOSED
     order.closed_at = now
@@ -284,6 +306,38 @@ def close_order(
             },
             "with_debt": bool(debt),
         },
+    )
+    return order
+
+
+def reopen_order(
+    ctx: CommandContext, company_id: UUID, order_id: UUID, expected_version: int, reason: str
+) -> Order:
+    """The closing of an order is cancelled by an employee with the separate right, to correct it
+    (§ 12.2.3). Nested operations do not reopen by themselves; corrections need their own rights.
+    The reopening and the new closing are kept in the history."""
+    if not reason.strip():
+        raise errors.validation_error("reason", code="FIELD_REQUIRED")
+    order = Order.objects.select_for_update().filter(company_id=company_id, pk=order_id).first()
+    if order is None:
+        raise errors.not_found()
+    if order.version != expected_version:
+        raise errors.version_conflict()
+    if order.state != Order.State.CLOSED:
+        raise errors.business_rule("ORDER_NOT_CLOSED")
+    closed_at = order.closed_at
+    order.state = Order.State.OPEN
+    order.closed_at = None
+    order.closed_by_user_id = None
+    order.version += 1
+    order.save(update_fields=["state", "closed_at", "closed_by_user_id", "version", "updated_at"])
+    ctx.audit(
+        "order.reopened",
+        object_type="order",
+        object_id=order.id,
+        before={"state": Order.State.CLOSED, "closed_at": closed_at},
+        after={"state": order.state},
+        reason=reason,
     )
     return order
 

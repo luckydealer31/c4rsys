@@ -231,15 +231,10 @@ function LocationCard({ location, editable }: { location: Location; editable: bo
     (body) => `${base}/contexts/${body.id}/${body.action}`,
   );
   const remove = useCommand<Record<string, never>, unknown>(base, "DELETE");
-  // § 11.1.5–11.1.7: storage of a rental or service context is a setting; the warehouse always
-  // stores.
-  const storage = useCommand<{ id: string; enabled: boolean }, unknown>(
-    (body) => `${base}/contexts/${body.id}/storage`,
-  );
   const deactivated = location.state === "deactivated";
   const missingTypes = CONTEXT_TYPES.filter((type) => !location.contexts.some((c) => c.type === type));
   const error =
-    update.error ?? addContext.error ?? state.error ?? contextState.error ?? remove.error ?? storage.error;
+    update.error ?? addContext.error ?? state.error ?? contextState.error ?? remove.error;
 
   async function save(event: FormEvent) {
     event.preventDefault();
@@ -289,22 +284,6 @@ function LocationCard({ location, editable }: { location: Location; editable: bo
                       ? t("locations.ready")
                       : t("locations.not_ready")
                     : "—"}
-              </td>
-              <td>
-                {c.type === "warehouse" ? (
-                  <span className="muted small">{t("locations.storage_always")}</span>
-                ) : editable ? (
-                  <button
-                    type="button"
-                    className="secondary"
-                    disabled={storage.pending}
-                    onClick={() => void run(storage, { id: c.id, enabled: !c.storage_enabled })}
-                  >
-                    {c.storage_enabled ? t("locations.storage_off") : t("locations.storage_on")}
-                  </button>
-                ) : c.storage_enabled ? (
-                  t("locations.storage_enabled")
-                ) : null}
               </td>
               <td>
                 {editable && !(deactivated && c.state === "disabled") ? (

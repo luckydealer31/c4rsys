@@ -1,3 +1,4 @@
+import { ReopenOrder, SaleGoods } from "../warehouse/Sales";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -145,7 +146,15 @@ export function OrderPage() {
   const open = current.state === "open" || current.state === "ready_to_close";
 
   async function refresh() {
-    for (const k of [key, ["order-history", company.public_id, id], ["orders", company.public_id], ["payments", company.public_id]]) {
+    for (const k of [
+      key,
+      ["order-history", company.public_id, id],
+      ["orders", company.public_id],
+      ["payments", company.public_id],
+      // Closing sells the goods and reopening allows their correction (§ 11.9).
+      ["sale-lines", company.public_id, id],
+      ["warehouse-stock", company.public_id],
+    ]) {
       await queryClient.invalidateQueries({ queryKey: k });
     }
   }
@@ -187,7 +196,7 @@ export function OrderPage() {
       <Card title={t("orders.lines")}>
         <table>
           <tbody>
-            {current.operations.map((op) => (
+            {current.operations.filter((op) => op.type !== "sale").map((op) => (
               <tr key={op.id}>
                 <td>
                   {op.type === "rental" ? (
@@ -203,6 +212,9 @@ export function OrderPage() {
           </tbody>
         </table>
       </Card>
+
+      <SaleGoods order={current} onChange={refresh} />
+      <ReopenOrder order={current} onDone={refresh} />
 
       <Card title={t("orders.payments")}>
         {own.length === 0 ? <p className="muted">{t("orders.no_payments")}</p> : null}

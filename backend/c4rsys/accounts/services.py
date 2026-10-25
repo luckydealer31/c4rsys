@@ -9,6 +9,7 @@ The journal entry is written in the same transaction as the change.
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
+from uuid import UUID
 
 from django.contrib.auth.hashers import check_password, make_password
 from django.contrib.auth.password_validation import validate_password
@@ -548,3 +549,13 @@ def find_user_by_email(email: str) -> UserAccount | None:
 
 def confirmed_emails(user: UserAccount) -> list[str]:
     return list(user.contacts.filter(kind=LoginContact.Kind.EMAIL).values_list("value", flat=True))
+
+
+def names(user_ids: set[UUID]) -> dict[UUID, str]:
+    """«First Last» of users, for the history shown by other modules."""
+    return {
+        user.id: f"{user.first_name} {user.last_name}".strip()
+        for user in UserAccount.objects.filter(pk__in=user_ids).only(
+            "id", "first_name", "last_name"
+        )
+    }

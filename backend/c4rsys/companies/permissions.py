@@ -31,7 +31,7 @@ PERMISSIONS: dict[str, str] = {
     "vehicle.move": "vehicle",
     # Decision of 24.10.2026: a separate right; only in «Company administrator» (PROPOSAL).
     "vehicle.transfer_to_warehouse": "vehicle",
-    # Warehouse (§ 23.7.3–23.7.5, § 23.2.6). Scope — contexts with storage. `catalog.manage`
+    # Warehouse (§ 23.7.3–23.7.5, § 23.2.6). Scope — the warehouse of a location. `catalog.manage`
     # (creating and changing items) is a PROPOSAL: the ТЗ lets an item be created at receipt.
     "warehouse.view": "warehouse",
     "warehouse.catalog.manage": "warehouse",
@@ -58,6 +58,12 @@ PERMISSIONS: dict[str, str] = {
     "client.list": "client",
     "client.create": "client",
     "client.edit": "client",
+    # Counterparties (§ 23.8.2), the minimal list of the warehouse stage.
+    "counterparty.view": "counterparty",
+    "counterparty.create": "counterparty",
+    "counterparty.edit": "counterparty",
+    "counterparty.archive": "counterparty",
+    "counterparty.restore": "counterparty",
     "rental.view": "rental",
     "rental.issue": "rental",
     "rental.accept_return": "rental",
@@ -69,6 +75,8 @@ PERMISSIONS: dict[str, str] = {
     "order.edit": "order",
     "order.close": "order",
     "order.close_with_debt": "order",
+    # § 12.2.3: cancelling the closing of an order is a separate right.
+    "order.reopen": "order",
 }
 
 COMPANY_ADMIN = "company_admin"
@@ -129,6 +137,9 @@ SYSTEM_SETS: dict[str, tuple[str, ...]] = {
         "warehouse.write_off",
         "warehouse.tags.edit",
         "warehouse.price.set",
+        # PROPOSAL: a missing supplier is added right at a receipt (§ 11.2.8).
+        "counterparty.view",
+        "counterparty.create",
     ),
 }
 

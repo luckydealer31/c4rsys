@@ -19,6 +19,7 @@ from c4rsys.files.models import StoredFile
 from c4rsys.fleet.models import VehicleMake, VehicleModel
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
+from c4rsys.warehouse import categories as part_catalog
 from c4rsys.warehouse.models import Barcode, Item, ItemApplicability, Manufacturer, Packaging
 
 INDIVIDUAL_UNITS = {Item.Unit.PIECE}
@@ -74,6 +75,9 @@ class ItemData:
     attributes: dict[str, str] = field(default_factory=dict)
     texts: dict[str, str] = field(default_factory=dict)
     photo_id: UUID | None = None
+    # Category of the platform catalog of parts (decisions К1–К7); empty — without a category.
+    part_category_id: UUID | None = None
+    part_subcategory_id: UUID | None = None
     # (make code, model code or None)
     applicability: tuple[tuple[str, str | None], ...] = ()
 
@@ -81,7 +85,7 @@ class ItemData:
 def items_of(company_id: UUID) -> QuerySet[Item]:
     return (
         Item.objects.filter(company_id=company_id)
-        .select_related("manufacturer")
+        .select_related("manufacturer", "part_category", "part_subcategory")
         .prefetch_related("packagings", "barcodes", "applicability")
         .order_by("name", "created_at")
     )
@@ -105,6 +109,12 @@ def search(company_id: UUID, text: str, state: str = Item.State.ACTIVE) -> Query
             Q(name__icontains=text)
             | Q(article__icontains=text)
             | Q(category__icontains=text)
+            | Q(part_category__name_ru__icontains=text)
+            | Q(part_category__name_en__icontains=text)
+            | Q(part_category__name_th__icontains=text)
+            | Q(part_subcategory__name_ru__icontains=text)
+            | Q(part_subcategory__name_en__icontains=text)
+            | Q(part_subcategory__name_th__icontains=text)
             | Q(manufacturer__name__icontains=text)
             | Q(manufacturer_other__icontains=text)
             | Q(barcodes__code=text)
@@ -123,6 +133,8 @@ def snapshot(item: Item) -> dict[str, Any]:
         **{key: getattr(item, key) for key in ATTRIBUTES},
         **{key: getattr(item, key) for key in TEXT_FIELDS},
         "photo": str(item.photo_id) if item.photo_id else None,
+        "part_category": str(item.part_category_id) if item.part_category_id else None,
+        "part_subcategory": str(item.part_subcategory_id) if item.part_subcategory_id else None,
         "applicability": sorted(
             f"{a.make_id}/{a.model_id or ''}" for a in item.applicability.all()
         ),
@@ -168,6 +180,9 @@ def _apply(item: Item, data: ItemData) -> None:
     for key in TEXT_FIELDS:
         setattr(item, key, data.texts.get(key, ""))
     item.photo_id = data.photo_id
+    item.part_category_id, item.part_subcategory_id = part_catalog.validate(
+        data.part_category_id, data.part_subcategory_id
+    )
 
 
 def _write_applicability(item: Item, data: ItemData) -> None:
