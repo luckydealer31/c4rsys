@@ -53,7 +53,6 @@ def _record_snapshot(movement: MoneyMovement) -> dict[str, Any]:
         "direction": movement.direction,
         "amount": movement.amount,
         "currency": movement.currency_id,
-        "method": movement.method,
         "article": str(movement.article_id) if movement.article_id else None,
         "client": str(movement.client_id) if movement.client_id else None,
         "location": str(movement.location_id) if movement.location_id else None,
@@ -108,7 +107,6 @@ class ManualRecord:
     direction: str
     amount: Decimal
     currency: str
-    method: str
     article_id: UUID
     client_id: UUID | None = None
     location_id: UUID | None = None
@@ -165,7 +163,9 @@ def record_manual(ctx: CommandContext, company_id: UUID, data: ManualRecord) -> 
         context_id=data.context_id,
         vehicle_id=data.vehicle_id,
         state=MoneyMovement.State.POSTED,
-        method=data.method,
+        # The way of an operation is not recorded: cash or non-cash is the type of the account
+        # (decision 26.10.2026).
+        method="",
         note=data.note,
         posted_at=now,
         created_by_user_id=ctx.actor.user_id,
@@ -181,6 +181,10 @@ def record_manual(ctx: CommandContext, company_id: UUID, data: ManualRecord) -> 
 
 
 # --- Balances (§ 17.2.1) ------------------------------------------------------------------------
+
+
+def balance_of(company_id: UUID, account_id: UUID) -> Decimal:
+    return balances(company_id).get(account_id) or Decimal(0)
 
 
 def movements_of(company_id: UUID, account_id: UUID) -> QuerySet[MoneyMovement]:

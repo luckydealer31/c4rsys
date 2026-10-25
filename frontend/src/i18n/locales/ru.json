@@ -30,7 +30,7 @@
     "vehicle_moved": "ТС перемещено",
     "vehicle_odometer_recorded": "Показание одометра"
   },
-  "articles": {
+  "finance_articles": {
     "archive": "В архив",
     "archived": "В архиве",
     "code_administrative": "Административные и хозяйственные расходы",
@@ -471,7 +471,8 @@
     "asset_not_of_receipt": "Экземпляр не из этого поступления.",
     "vehicle_has_operations": "ТС нельзя перевести: есть незавершённые операции или резерв в заказе.",
     "category_unknown": "Категория не найдена.",
-    "subcategory_of_other_category": "Подкатегория из другой категории."
+    "subcategory_of_other_category": "Подкатегория из другой категории.",
+    "cash_account_balance_not_zero": "В архив можно отправить только кассу или счёт с нулевым остатком. Остаток: {{balance}} {{currency}}."
   },
   "history": {
     "action": "Действие",
@@ -564,9 +565,6 @@
     "kind_payment": "Оплата клиента",
     "location": "Локация",
     "location_hint": "Для результатов по локациям; необязательно.",
-    "method": "Способ",
-    "method_cash": "Наличные",
-    "method_noncash": "Безналичные",
     "no_accounts": "Сначала добавьте кассу или счёт.",
     "no_records": "Записей пока нет.",
     "note": "Комментарий",

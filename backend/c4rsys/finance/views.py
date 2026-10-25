@@ -352,16 +352,12 @@ def money_record(request: HttpRequest, cmp: str) -> JsonResponse:
     permission = INCOME if direction == MoneyMovement.Direction.IN else PAYOUT
     if not _can(actor, permission, account_id):
         raise errors.permission_denied(permission)
-    method = get_str(data, "method", max_length=10)
-    if method not in MoneyMovement.Method.values:
-        raise errors.validation_error("method")
     currency = _currency(data)
     record = records.ManualRecord(
         cash_account_id=account_id,
         direction=direction,
         amount=_amount(data.get("amount"), "amount", currency.minor_units),
         currency=currency.code,
-        method=method,
         article_id=_uuid(data.get("article_id"), "article_id"),
         client_id=_optional_uuid(data, "client_id"),
         location_id=_optional_uuid(data, "location_id"),
@@ -382,7 +378,6 @@ def money_record(request: HttpRequest, cmp: str) -> JsonResponse:
         "direction": direction,
         "amount": str(record.amount),
         "currency": record.currency,
-        "method": method,
         "article_id": str(record.article_id),
         "client_id": optional(record.client_id),
         "location_id": optional(record.location_id),

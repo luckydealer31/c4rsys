@@ -50,7 +50,6 @@ def _record(client: Client, cmp: str, account: str, article: str, **data: Any) -
         "direction": "out",
         "amount": "300",
         "currency": "THB",
-        "method": "cash",
         "article_id": article,
         **data,
     }
@@ -87,7 +86,6 @@ def test_payout_and_receipt_change_the_balance(owner: Client, s: Scenario) -> No
         _article(owner, s.cmp, "other_income"),
         direction="in",
         amount="50.5",
-        method="noncash",
         location_id=s.location,
         note="Scrap sold",
     )
@@ -181,3 +179,18 @@ def test_posted_record_cannot_be_changed(owner: Client, s: Scenario) -> None:
 
     with pytest.raises(DatabaseError), transaction.atomic():
         MoneyMovement.objects.filter(pk=movement.pk).update(note="changed")
+
+
+def test_archive_only_with_zero_balance(owner: Client, s: Scenario) -> None:
+    # Decision 26.10.2026: the balance is moved or paid out first, then the account is archived.
+    account = _account(owner, s.cmp)
+    _opening(owner, s.cmp, account, "300")
+    path = f"/api/c/{s.cmp}/cash-accounts/{account}/archive"
+
+    refused = post(owner, path, {"expected_version": 1}, key())
+    _record(owner, s.cmp, account, _article(owner, s.cmp, "staff"))
+    archived = post(owner, path, {"expected_version": 1}, key())
+
+    assert refused.json()["error"]["code"] == "CASH_ACCOUNT_BALANCE_NOT_ZERO"
+    assert refused.json()["error"]["params"]["balance"] == "300.00"
+    assert archived.json()["cash_account"]["state"] == "archived"

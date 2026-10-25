@@ -30,7 +30,7 @@
     "vehicle_moved": "Vehicle moved",
     "vehicle_odometer_recorded": "Odometer recorded"
   },
-  "articles": {
+  "finance_articles": {
     "archive": "เก็บเข้าคลัง",
     "archived": "อยู่ในคลัง",
     "code_administrative": "ค่าใช้จ่ายด้านการบริหารและทั่วไป",
@@ -471,7 +471,8 @@
     "asset_not_of_receipt": "ชิ้นนี้ไม่ได้มาจากการรับนี้",
     "vehicle_has_operations": "ย้ายรถไม่ได้: มีรายการที่ยังไม่เสร็จหรือการจองในคำสั่งซื้อ",
     "category_unknown": "ไม่พบหมวดหมู่",
-    "subcategory_of_other_category": "หมวดหมู่ย่อยอยู่ในหมวดหมู่อื่น"
+    "subcategory_of_other_category": "หมวดหมู่ย่อยอยู่ในหมวดหมู่อื่น",
+    "cash_account_balance_not_zero": "เก็บเข้าคลังได้เฉพาะบัญชีที่มียอดคงเหลือเป็นศูนย์ ยอดคงเหลือ: {{balance}} {{currency}}"
   },
   "history": {
     "action": "Action",
@@ -564,9 +565,6 @@
     "kind_payment": "การชำระของลูกค้า",
     "location": "สาขา",
     "location_hint": "สำหรับผลลัพธ์ตามสาขา ไม่บังคับ",
-    "method": "วิธีการ",
-    "method_cash": "เงินสด",
-    "method_noncash": "ไม่ใช่เงินสด",
     "no_accounts": "เพิ่มเงินสดหรือบัญชีก่อน",
     "no_records": "ยังไม่มีรายการ",
     "note": "หมายเหตุ",

@@ -143,10 +143,6 @@ class MoneyMovement(models.Model):
         # A receipt or payout entered by hand, without an order (§ 17.2.2, § 17.2.7).
         MANUAL = "manual"
 
-    class Method(models.TextChoices):
-        CASH = "cash"
-        NONCASH = "noncash"
-
     class State(models.TextChoices):
         EXPECTED = "expected"
         POSTED = "posted"

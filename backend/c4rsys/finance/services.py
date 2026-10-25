@@ -8,10 +8,12 @@ from django.db.models import QuerySet
 from django.utils import timezone
 
 from c4rsys.companies.models import Company
+from c4rsys.finance import records
 from c4rsys.finance.models import CashAccount
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
 from c4rsys.platform.models import Currency
+from c4rsys.platform.money import round_money
 
 
 def account_exists(company_id: UUID, account_id: UUID) -> bool:
@@ -105,14 +107,20 @@ def rename_account(
 def archive_account(
     ctx: CommandContext, company_id: UUID, account_id: UUID, expected_version: int
 ) -> CashAccount:
-    """An archived account is not offered for new operations; its history stays.
-
-    TODO(spec): conditions of archiving (for example a non-zero balance) are not defined; there
-    are no money records before T15.
-    """
+    """An archived account is not offered for new operations; its history stays. Only an account
+    with a zero balance is archived (decision 26.10.2026); records lock the account first, so the
+    balance cannot change under this lock."""
     account = _locked(company_id, account_id, expected_version)
     if account.state == CashAccount.State.ARCHIVED:
         raise errors.business_rule("CASH_ACCOUNT_ARCHIVED")
+    balance = records.balance_of(company_id, account.id)
+    if balance != 0:
+        places = Currency.objects.get(code=account.currency_id).minor_units
+        raise errors.business_rule(
+            "CASH_ACCOUNT_BALANCE_NOT_ZERO",
+            balance=str(round_money(balance, places)),
+            currency=account.currency_id,
+        )
     account.state = CashAccount.State.ARCHIVED
     account.version += 1
     account.save(update_fields=["state", "version", "updated_at"])

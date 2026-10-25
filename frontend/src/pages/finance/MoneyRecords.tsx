@@ -22,7 +22,8 @@ function useRefreshMoney() {
 }
 
 /** A receipt or payout entered by hand, without an order (§ 17.2.2, § 17.2.7, § 17.2.9), in the
- * currency of the chosen account; exchange comes with § 17.1. */
+ * currency of the chosen account; exchange comes with § 17.1. The way of the operation is not
+ * asked: cash or non-cash is the type of the account (decision 26.10.2026). */
 export function MoneyRecordForm({ accounts }: { accounts: CashAccount[] }) {
   const { t } = useTranslation();
   const can = useCan();
@@ -39,7 +40,6 @@ export function MoneyRecordForm({ accounts }: { accounts: CashAccount[] }) {
     direction: directions[0] ?? "out",
     cash_account_id: "",
     amount: "",
-    method: "cash",
     article_id: "",
     location_id: "",
     note: "",
@@ -110,12 +110,6 @@ export function MoneyRecordForm({ accounts }: { accounts: CashAccount[] }) {
                 value={form.amount}
                 onChange={(e) => setForm({ ...form, amount: e.target.value.replace(",", ".") })}
               />
-            </Field>
-            <Field label={t("money.method")}>
-              <select value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value })}>
-                <option value="cash">{t("money.method_cash")}</option>
-                <option value="noncash">{t("money.method_noncash")}</option>
-              </select>
             </Field>
           </div>
           <div className="row">
@@ -216,7 +210,6 @@ export function AccountRecords({ account, onClose }: { account: CashAccount; onC
                 <td>
                   {t(`money.kind_${r.kind}`)}
                   {r.article_id ? ` · ${articleName.get(r.article_id) ?? "…"}` : ""}
-                  {r.kind === "manual" ? ` · ${t(`money.method_${r.method}`)}` : ""}
                 </td>
                 <td className={r.direction === "out" ? "negative" : undefined}>
                   {r.direction === "out" ? "−" : "+"}

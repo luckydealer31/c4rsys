@@ -30,7 +30,7 @@
     "vehicle_moved": "Vehicle moved",
     "vehicle_odometer_recorded": "Odometer recorded"
   },
-  "articles": {
+  "finance_articles": {
     "archive": "Archive",
     "archived": "Archived",
     "code_administrative": "Administrative and household expenses",
@@ -471,7 +471,8 @@
     "asset_not_of_receipt": "The unit is not of this receipt.",
     "vehicle_has_operations": "The vehicle cannot be moved: there are unfinished operations or a reserve in an order.",
     "category_unknown": "The category is not found.",
-    "subcategory_of_other_category": "The subcategory belongs to another category."
+    "subcategory_of_other_category": "The subcategory belongs to another category.",
+    "cash_account_balance_not_zero": "Only an account with a zero balance can be archived. Balance: {{balance}} {{currency}}."
   },
   "history": {
     "action": "Action",
@@ -564,9 +565,6 @@
     "kind_payment": "Client payment",
     "location": "Location",
     "location_hint": "For results by location; not required.",
-    "method": "Method",
-    "method_cash": "Cash",
-    "method_noncash": "Non-cash",
     "no_accounts": "Add a cash desk or account first.",
     "no_records": "No records yet.",
     "note": "Comment",
