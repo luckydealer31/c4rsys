@@ -91,6 +91,7 @@ urlpatterns = [
     path("c/<str:cmp>/warehouse/vehicles/<uuid:vehicle_id>/price", pr.vehicle_price),
     path("c/<str:cmp>/warehouse/vehicle-prices", pr.vehicle_prices),
     path("c/<str:cmp>/warehouse/low-stock", pr.low_stock),
+    path("c/<str:cmp>/warehouse/dashboard", pr.dashboard),
     path("c/<str:cmp>/warehouse/sales/start", sl.start),
     path("c/<str:cmp>/warehouse/sales/open-orders", sl.open_orders),
     path("c/<str:cmp>/warehouse/orders/<uuid:order_id>/sale-lines", sl.order_lines),

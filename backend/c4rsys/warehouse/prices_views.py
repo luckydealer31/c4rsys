@@ -5,18 +5,22 @@ Prices are set with «Set selling prices»; the price mode of an item changes wi
 PROPOSAL: a minimum stock is set with «Manage the catalog».
 """
 
+from datetime import date
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
 from django.http import HttpRequest, JsonResponse
+from django.utils import timezone
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
+from c4rsys.companies import locations
 from c4rsys.companies.views import run_and_respond
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext, CommandResult
 from c4rsys.platform.http import get_str, parse_json
 from c4rsys.warehouse import catalog, prices, stock
+from c4rsys.warehouse import dashboard as dashboard_service
 from c4rsys.warehouse.stock_views import _actor, _minor_units, _require, _uuid, _visible
 
 
@@ -165,3 +169,38 @@ def low_stock(request: HttpRequest, cmp: str) -> JsonResponse:
     _require(actor, "warehouse.view")
     visible = set(_visible(context.company.id, actor))
     return JsonResponse({"low_stock": prices.low_stock(context.company.id, visible)})
+
+
+@require_GET
+def dashboard(request: HttpRequest, cmp: str) -> JsonResponse:
+    """The starter dashboard «Warehouse» (§ 21.6.1) over the warehouses the employee may see
+    (§ 21.1.1). PROPOSAL: the default period is the current month up to today."""
+    context, actor = _actor(request, cmp)
+    _require(actor, "warehouse.view")
+    visible = _visible(context.company.id, actor)
+    all_count = locations.storage_contexts(context.company.id).count()
+    today = timezone.localdate()
+
+    def day(name: str, default: date) -> date:
+        value = request.GET.get(name, "")
+        if not value:
+            return default
+        try:
+            return date.fromisoformat(value)
+        except ValueError as exc:
+            raise errors.validation_error(name, code="DATE_INVALID") from exc
+
+    filters = dashboard_service.Filters(
+        date_from=day("from", today.replace(day=1)),
+        date_to=day("to", today),
+        context_id=_uuid(request.GET.get("context_id"), "context_id"),
+        category=request.GET.get("category", "")[:100].strip(),
+        item_id=_uuid(request.GET.get("item_id"), "item_id"),
+        lot_id=_uuid(request.GET.get("lot_id"), "lot_id"),
+        counterparty_id=_uuid(request.GET.get("counterparty_id"), "counterparty_id"),
+    )
+    if filters.date_to < filters.date_from:
+        raise errors.validation_error("to", code="PERIOD_INVALID")
+    return JsonResponse(
+        {"dashboard": dashboard_service.build(context.company, visible, all_count, filters)}
+    )

@@ -404,6 +404,48 @@ def transfer_to_warehouse(
     return card
 
 
+# card_id -> codes of what keeps a vehicle in the warehouse (a reserve in an open order, ...);
+# registered by the modules that own them.
+GarageBlockers = Callable[[UUID, UUID], list[str]]
+_garage_blockers: list[GarageBlockers] = []
+
+
+def register_garage_blockers(check: GarageBlockers) -> None:
+    _garage_blockers.append(check)
+
+
+def return_to_garage(
+    ctx: CommandContext, company_id: UUID, card_id: UUID, expected_version: int
+) -> VehicleCard:
+    """§ 8.4.1: the vehicle returns from the warehouse to the garage as the same vehicle — ID,
+    VIN, characteristics, documents and history stay; after it the usual readiness rules apply.
+    Related operations must be finished first (§ 8.1.5). It stays bound to the location of the
+    warehouse; operational contexts are enabled afterwards by editing the vehicle."""
+    card = lock_card(company_id, card_id)
+    if card.version != expected_version:
+        raise errors.version_conflict()
+    if card.storage_context_id is None:
+        raise errors.business_rule("VEHICLE_NOT_IN_WAREHOUSE")
+    if card.state != VehicleCard.State.ACTIVE:
+        raise errors.business_rule("VEHICLE_ARCHIVED")
+    found = [code for check in _garage_blockers for code in check(company_id, card.id)]
+    if found:
+        raise errors.business_rule("VEHICLE_HAS_OPERATIONS", blockers=found)
+    before = {"storage_context": str(card.storage_context_id)}
+    card.storage_context_id = None
+    card.stored_at = None
+    card.version += 1
+    card.save(update_fields=["storage_context", "stored_at", "version", "updated_at"])
+    ctx.audit(
+        "vehicle.returned_to_garage",
+        object_type="vehicle_card",
+        object_id=card.id,
+        before=before,
+        after={"storage_context": None, "location": str(card.accounting_location_id)},
+    )
+    return card
+
+
 def rental_readiness(card: VehicleCard) -> dict[str, Any]:
     """Own or managed, bound to a location with an enabled rental context, allowed for rental.
     An enabled context counts without a tariff; the tariff is checked at issue (decision
@@ -515,4 +557,15 @@ def stored_card(company_id: UUID, card_id: UUID) -> VehicleCard | None:
             storage_context__isnull=False,
         )
         .first()
+    )
+
+
+def stored_cards(company_id: UUID, context_ids: set[UUID]) -> list[UUID]:
+    """Active vehicles of the company kept in the given warehouses."""
+    return list(
+        VehicleCard.objects.filter(
+            company_id=company_id,
+            state=VehicleCard.State.ACTIVE,
+            storage_context_id__in=context_ids,
+        ).values_list("id", flat=True)
     )

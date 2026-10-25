@@ -303,6 +303,32 @@ def vehicle_to_warehouse(request: HttpRequest, cmp: str, card_id: UUID) -> JsonR
     return run_and_respond(request, "vehicle.transfer_to_warehouse", actor, payload, handler)
 
 
+@require_POST
+def vehicle_to_garage(request: HttpRequest, cmp: str, card_id: UUID) -> JsonResponse:
+    """Return of a vehicle from a warehouse to the garage (§ 8.4.1). PROPOSAL: the same special
+    right as the transfer to a warehouse, in the location of the warehouse."""
+    context, actor = _actor(request, cmp)
+    card = services.get_card(context.company.id, card_id)
+    if not _allowed(actor, "vehicle.view", card):
+        raise errors.not_found()
+    if card.storage_context_id is None:
+        raise errors.business_rule("VEHICLE_NOT_IN_WAREHOUSE")
+    if not access.RightsResolver().has_permission(
+        actor, "vehicle.transfer_to_warehouse", location_id=card.accounting_location_id
+    ):
+        raise errors.permission_denied("vehicle.transfer_to_warehouse")
+    expected_version = get_int(parse_json(request), "expected_version")
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        services.return_to_garage(ctx, context.company.id, card_id, expected_version)
+        return CommandResult(
+            200, {"vehicle": _payload(services.get_card(context.company.id, card_id))}
+        )
+
+    payload = {"card_id": str(card_id), "expected_version": expected_version}
+    return run_and_respond(request, "vehicle.return_to_garage", actor, payload, handler)
+
+
 def _contexts(value: Any) -> frozenset[str]:
     """Usage context types of the vehicle (§ 8.5.1); an empty list switches all off."""
     if not isinstance(value, list) or not all(isinstance(x, str) for x in value):

@@ -327,6 +327,7 @@ export function VehiclePage() {
       {data.relation === "own" && !stored && data.contexts.length === 0 ? (
         <TransferToWarehouse vehicle={data} />
       ) : null}
+      {stored && data.state === "active" ? <ReturnToGarage vehicle={data} /> : null}
       {isClient ? null : <VehicleTariffs vehicleId={data.id} />}
       {isClient ? null : <VehicleMoves vehicle={data} />}
       {!isClient && can("rental.view") ? (
@@ -350,6 +351,37 @@ export function VehiclePage() {
         </Card>
       ) : null}
     </div>
+  );
+}
+
+/** A vehicle in a warehouse goes back to the garage as the same vehicle with its history
+ * (§ 8.4.1); operational contexts are allowed afterwards. */
+function ReturnToGarage({ vehicle }: { vehicle: Vehicle }) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const can = useCan();
+  const client = useQueryClient();
+  const back = useCommand<{ expected_version: number }, unknown>(`/c/${company.public_id}/vehicles/${vehicle.id}/to-garage`);
+  if (!can("vehicle.transfer_to_warehouse")) return null;
+  return (
+    <Card title={t("vehicles.garage_title")}>
+      <p>{t("vehicles.garage_text")}</p>
+      <ErrorMessage error={back.error} />
+      <div className="actions">
+        <button
+          type="button"
+          disabled={back.pending}
+          onClick={async () => {
+            if ((await back.run({ expected_version: vehicle.version })) !== null) {
+              await client.invalidateQueries({ queryKey: ["vehicle", company.public_id, vehicle.id] });
+              await client.invalidateQueries({ queryKey: ["vehicles", company.public_id] });
+            }
+          }}
+        >
+          {t("vehicles.garage_button")}
+        </button>
+      </div>
+    </Card>
   );
 }
 

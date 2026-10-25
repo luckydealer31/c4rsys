@@ -23,3 +23,13 @@ class WarehouseConfig(AppConfig):
         orders.register_operations(sales.operations_for_order)
         orders.register_on_close(sales.on_order_close)
         orders.register_section_permission("sale", "warehouse.sell")
+
+        from c4rsys.fleet import services as fleet
+        from c4rsys.warehouse import reserves
+
+        # § 8.1.5: a vehicle reserved in an open order does not leave the warehouse.
+        fleet.register_garage_blockers(
+            lambda company_id, card_id: (
+                ["sale_reserve"] if reserves.vehicle_reserved(card_id) else []
+            )
+        )

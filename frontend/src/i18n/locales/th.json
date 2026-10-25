@@ -290,7 +290,7 @@
     "packaging_unknown": "The packaging is not found.",
     "password_same_as_current": "The new password is the same as the current one.",
     "password_too_weak": "The password is too weak: at least 8 characters, not only digits, not a common password.",
-    "period_invalid": "The end must be after the start.",
+    "period_invalid": "วันสิ้นสุดก่อนวันเริ่มต้น",
     "permission_denied": "You do not have the right for this action.",
     "permission_set_unknown": "Unknown permission set.",
     "permission_unknown": "Unknown permission.",
@@ -331,7 +331,7 @@
     "username_taken": "This username is taken.",
     "validation_error": "Check the field «{{field}}».",
     "value_unknown": "Unknown value.",
-    "vehicle_archived": "The vehicle is archived.",
+    "vehicle_archived": "รถถูกเก็บถาวร",
     "vehicle_busy": "The vehicle is in an active rental and cannot be moved.",
     "vehicle_context_has_unfinished": "Cannot switch off: the vehicle has unfinished operations (bookings, rentals or returns not formalized).",
     "vehicle_field_not_editable": "This field of the vehicle cannot be changed.",
@@ -407,7 +407,7 @@
     "price_mode_for_materials_only": "โหมดราคาใช้กับวัสดุที่แบ่งได้เท่านั้น",
     "price_mode_already": "ใช้โหมดนี้อยู่แล้ว",
     "prices_only_for_item_mode": "ระบุราคาใหม่เฉพาะเมื่อเปลี่ยนเป็นราคารวม",
-    "vehicle_not_in_warehouse": "รถไม่อยู่ในคลัง — ตั้งราคาขายไม่ได้",
+    "vehicle_not_in_warehouse": "รถไม่อยู่ในคลัง",
     "price_not_set": "ยังไม่ได้ตั้งราคาขาย — ตั้งราคาที่รายการก่อน",
     "vehicle_reserved": "รถอยู่ในคำสั่งซื้อแล้ว",
     "sale_line_state": "ทำไม่ได้กับรายการนี้: สถานะ «{{state}}»",
@@ -418,7 +418,8 @@
     "return_purchase_receipts_only": "คืนได้เฉพาะสินค้าจากการรับสินค้าจากการซื้อที่บันทึกแล้ว",
     "return_exceeds_receipt": "มากกว่าที่เหลือจากการรับนี้: มี {{available}}",
     "receipt_line_unknown": "ไม่พบรายการรับสินค้า",
-    "asset_not_of_receipt": "ชิ้นนี้ไม่ได้มาจากการรับนี้"
+    "asset_not_of_receipt": "ชิ้นนี้ไม่ได้มาจากการรับนี้",
+    "vehicle_has_operations": "ย้ายรถไม่ได้: มีรายการที่ยังไม่เสร็จหรือการจองในคำสั่งซื้อ"
   },
   "history": {
     "action": "Action",
@@ -1105,7 +1106,10 @@
     "vehicle_type": "Type",
     "vin": "VIN",
     "vin_hint": "Usually 17 characters. An unusual VIN is saved with a warning.",
-    "year": "Year"
+    "year": "Year",
+    "garage_title": "คืนเข้าโรงรถ",
+    "garage_text": "รถจะกลับจากคลังเข้าโรงรถเป็นคันเดิม ID ข้อมูล เอกสาร และประวัติยังอยู่ จากนั้นอนุญาตเช่าหรือบริการได้",
+    "garage_button": "คืนเข้าโรงรถ"
   },
   "warehouse": {
     "action_create": "Create",
@@ -1560,5 +1564,35 @@
     "hint": "คืนได้เฉพาะสิ่งที่มาจากการรับสินค้านี้ การคืนเงิน ลดหนี้ หรือเปลี่ยนสินค้าจัดการแยกต่างหาก",
     "submit": "บันทึกการคืน",
     "returned": "คืนผู้จำหน่ายแล้ว: {{value}}"
+  },
+  "dashboard": {
+    "title": "แดชบอร์ด «คลังสินค้า»",
+    "from": "ตั้งแต่",
+    "to": "ถึง",
+    "all": "ทั้งหมด",
+    "scope": "คลัง: {{warehouses}} · เขตเวลา {{zone}}",
+    "partial": "คำนวณเฉพาะคลังที่คุณเข้าถึงได้",
+    "value": "มูลค่าสต็อก",
+    "cost": "ตามราคาทุน",
+    "sale": "ตามราคาขายปัจจุบัน",
+    "incomplete": "ไม่ครบ: มีราคาที่ไม่ทราบ",
+    "period": "ในช่วงเวลา",
+    "period_receipts": "การรับสินค้า",
+    "period_consume": "การใช้กับรถ",
+    "period_issue": "การเบิก",
+    "period_move": "การโอนย้าย",
+    "period_write_off": "การตัดจำหน่าย",
+    "period_supplier_return": "การคืนผู้จำหน่าย",
+    "period_sale": "การขาย",
+    "stock": "สต็อก",
+    "actual": "จริง",
+    "reserved": "จองไว้",
+    "available": "พร้อมใช้",
+    "below_minimum": "ต่ำกว่าขั้นต่ำ",
+    "expiring": "หมดอายุแล้วหรือจะหมดใน {{days}} วัน",
+    "issued": "เบิกแล้วยังไม่คืน",
+    "in_transit": "ระหว่างขนส่ง",
+    "purchases": "การสั่งซื้อ: ยังรออยู่",
+    "none": "ไม่มี"
   }
 }

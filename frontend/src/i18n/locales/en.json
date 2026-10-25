@@ -290,7 +290,7 @@
     "packaging_unknown": "The packaging is not found.",
     "password_same_as_current": "The new password is the same as the current one.",
     "password_too_weak": "The password is too weak: at least 8 characters, not only digits, not a common password.",
-    "period_invalid": "The end must be after the start.",
+    "period_invalid": "The end of the period is before its start.",
     "permission_denied": "You do not have the right for this action.",
     "permission_set_unknown": "Unknown permission set.",
     "permission_unknown": "Unknown permission.",
@@ -407,7 +407,7 @@
     "price_mode_for_materials_only": "The price mode is for divisible materials only.",
     "price_mode_already": "This mode is already in force.",
     "prices_only_for_item_mode": "New prices are given only when switching to prices of the item.",
-    "vehicle_not_in_warehouse": "The vehicle is not in a warehouse — no selling price.",
+    "vehicle_not_in_warehouse": "The vehicle is not in a warehouse.",
     "price_not_set": "No selling price — set it on the item first.",
     "vehicle_reserved": "The vehicle is already in an order.",
     "sale_line_state": "Not possible for this line: it is «{{state}}».",
@@ -418,7 +418,8 @@
     "return_purchase_receipts_only": "Only goods of a posted purchase receipt go back to the supplier.",
     "return_exceeds_receipt": "More than is left of this receipt: {{available}} available.",
     "receipt_line_unknown": "The receipt line is not found.",
-    "asset_not_of_receipt": "The unit is not of this receipt."
+    "asset_not_of_receipt": "The unit is not of this receipt.",
+    "vehicle_has_operations": "The vehicle cannot be moved: there are unfinished operations or a reserve in an order."
   },
   "history": {
     "action": "Action",
@@ -1105,7 +1106,10 @@
     "vehicle_type": "Type",
     "vin": "VIN",
     "vin_hint": "Usually 17 characters. An unusual VIN is saved with a warning.",
-    "year": "Year"
+    "year": "Year",
+    "garage_title": "Return to the garage",
+    "garage_text": "The vehicle returns from the warehouse to the garage as the same vehicle: ID, characteristics, documents and history stay. Then rental or service can be allowed.",
+    "garage_button": "Return to the garage"
   },
   "warehouse": {
     "action_create": "Create",
@@ -1560,5 +1564,35 @@
     "hint": "Only what this receipt brought goes back. A refund, a smaller debt or a replacement is settled separately.",
     "submit": "Post the return",
     "returned": "returned to the supplier: {{value}}"
+  },
+  "dashboard": {
+    "title": "Dashboard «Warehouse»",
+    "from": "From",
+    "to": "To",
+    "all": "All",
+    "scope": "Warehouses: {{warehouses}} · time zone {{zone}}",
+    "partial": "calculated over the warehouses available to you only",
+    "value": "Value of the stock",
+    "cost": "At purchase costs",
+    "sale": "At current selling prices",
+    "incomplete": "incomplete: some prices are unknown",
+    "period": "In the period",
+    "period_receipts": "Receipts",
+    "period_consume": "Use on vehicles",
+    "period_issue": "Issues",
+    "period_move": "Moves",
+    "period_write_off": "Write-offs",
+    "period_supplier_return": "Returns to suppliers",
+    "period_sale": "Sales",
+    "stock": "Stock",
+    "actual": "Actual",
+    "reserved": "Reserved",
+    "available": "Available",
+    "below_minimum": "Below the minimum",
+    "expiring": "Expired or expiring within {{days}} days",
+    "issued": "Issued and not returned",
+    "in_transit": "In transit",
+    "purchases": "Purchases: still expected",
+    "none": "None."
   }
 }
