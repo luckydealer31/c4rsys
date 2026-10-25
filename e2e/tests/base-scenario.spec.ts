@@ -98,7 +98,8 @@ test("base example from registration to closing survives a restart", async ({ pa
   await location.getByRole("button", { name: t("locations.create") }).click();
   await expect(page.getByRole("heading", { name: "Пхукет" })).toBeVisible();
 
-  await page.goto(`${base}/finance`);
+  // Cash desks are on the «Cash desks and accounts» tab of the finance section.
+  await page.goto(`${base}/finance?tab=accounts`);
   const desk = card(page, t("cash.create_title"));
   await desk.getByLabel(t("cash.name")).fill("Касса Пхукет");
   await desk.getByLabel(t("cash.type")).selectOption("cash");
