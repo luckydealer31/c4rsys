@@ -6,6 +6,7 @@ import { useApi } from "../../api/queries";
 import type { Counterparty, Storage } from "../../api/types";
 import { Card, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
+import { useCategoryName, usePartCategories } from "./Categories";
 import { useMoney, useQuantity } from "./Stock";
 
 type Unit = { id?: string; name: string; unit: string };
@@ -37,7 +38,7 @@ export function WarehouseDashboard() {
   const can = useCan();
   const quantity = useQuantity();
   const money = useMoney();
-  const [filters, setFilters] = useState({ from: "", to: "", context_id: "", category: "", item_id: "", lot_id: "", counterparty_id: "" });
+  const [filters, setFilters] = useState({ from: "", to: "", context_id: "", part_category: "", item_id: "", lot_id: "", counterparty_id: "" });
   const query = new URLSearchParams(Object.entries(filters).filter(([, v]) => v)).toString();
   const board = useApi<{ dashboard: Board }>(
     ["warehouse-dashboard", company.public_id, query],
@@ -45,7 +46,8 @@ export function WarehouseDashboard() {
     can("warehouse.view"),
   );
   const storages = useApi<{ storages: Storage[] }>(["warehouse-storages", company.public_id], `/c/${company.public_id}/warehouse/storages`);
-  const categories = useApi<{ categories: string[] }>(["warehouse-categories", company.public_id], `/c/${company.public_id}/warehouse/categories`);
+  const categories = usePartCategories();
+  const categoryName = useCategoryName();
   const suppliers = useApi<{ counterparties: Counterparty[] }>(
     ["counterparties", company.public_id, "", false],
     `/c/${company.public_id}/counterparties?q=&state=active`,
@@ -76,12 +78,12 @@ export function WarehouseDashboard() {
               ))}
             </select>
           </Field>
-          <Field label={t("warehouse.category")}>
-            <select value={filters.category} onChange={set("category")}>
+          <Field label={t("categories.category")}>
+            <select value={filters.part_category} onChange={set("part_category")}>
               <option value="">{t("dashboard.all")}</option>
               {(categories.data?.categories ?? []).map((c) => (
-                <option key={c} value={c}>
-                  {c}
+                <option key={c.id} value={c.id}>
+                  {categoryName(c.names)}
                 </option>
               ))}
             </select>

@@ -30,6 +30,7 @@ from c4rsys.files.models import StoredFile
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
 from c4rsys.warehouse import catalog
+from c4rsys.warehouse import categories as part_catalog
 from c4rsys.warehouse.models import Barcode, ImportOperation, Item, Manufacturer
 
 TEMPLATE = "items"
@@ -389,12 +390,20 @@ def decide(
 def _item_data(row: dict[str, Any]) -> tuple[str, catalog.ItemData]:
     values = row["values"]
     maker = _manufacturer(values["manufacturer"]) if values.get("manufacturer") else None
+    # К5: a category given in the file wins; otherwise it is chosen by the name.
+    part_category, part_subcategory = part_catalog.by_text(values.get("category", ""))
+    if part_category is None:
+        found = part_catalog.suggest(values["name"])
+        if found:
+            part_category, part_subcategory = found[0].category_id, found[0].subcategory_id
     data = catalog.ItemData(
         name=values["name"],
         manufacturer_id=maker.id if maker else None,
         manufacturer_other="" if maker else values.get("manufacturer", ""),
         attributes={k: values.get(k, "").strip().lower() for k in catalog.ATTRIBUTES},
         texts={k: values.get(k, "") for k in catalog.TEXT_FIELDS},
+        part_category_id=part_category,
+        part_subcategory_id=part_subcategory,
     )
     return row["unit"], data
 

@@ -53,7 +53,7 @@ class Filters:
     date_from: date
     date_to: date
     context_id: UUID | None = None
-    category: str = ""
+    part_category_id: UUID | None = None
     item_id: UUID | None = None
     lot_id: UUID | None = None
     counterparty_id: UUID | None = None
@@ -89,8 +89,8 @@ class Scope:
 
 def _items(company_id: UUID, filters: Filters) -> QuerySet[Item]:
     found = Item.objects.filter(company_id=company_id)
-    if filters.category:
-        found = found.filter(category__iexact=filters.category)
+    if filters.part_category_id:
+        found = found.filter(part_category_id=filters.part_category_id)
     if filters.item_id:
         found = found.filter(pk=filters.item_id)
     return found
@@ -164,7 +164,7 @@ def _value(scope: Scope) -> dict[str, Any]:
         sale.add(
             prices.price_for(scope.items[package.lot.item_id], lot=package.lot), package.remaining
         )
-    filtered = scope.filters.item_id or scope.filters.category or scope.filters.lot_id
+    filtered = scope.filters.item_id or scope.filters.part_category_id or scope.filters.lot_id
     if not filtered:
         for card_id in fleet.stored_cards(scope.company.id, scope.context_ids):
             sale.add(prices.vehicle_price(scope.company.id, card_id))

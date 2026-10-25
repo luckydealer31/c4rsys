@@ -32,6 +32,61 @@ class Manufacturer(models.Model):
         return self.name
 
 
+class PartCategory(models.Model):
+    """A category of the platform catalog of parts (decisions К1–К7 of 25.10.2026), from the
+    customer's file. Names are kept in every language of the interface."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    code = models.CharField(max_length=40, unique=True)
+    name_ru = models.CharField(max_length=100)
+    name_en = models.CharField(max_length=100)
+    name_th = models.CharField(max_length=100)
+    position = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        db_table = "part_category"
+
+    def __str__(self) -> str:
+        return self.code
+
+
+class PartSubcategory(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    code = models.CharField(max_length=40, unique=True)
+    category = models.ForeignKey(
+        PartCategory, on_delete=models.PROTECT, related_name="subcategories"
+    )
+    name_ru = models.CharField(max_length=100)
+    name_en = models.CharField(max_length=100)
+    name_th = models.CharField(max_length=100)
+    position = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        db_table = "part_subcategory"
+
+    def __str__(self) -> str:
+        return self.code
+
+
+class PartType(models.Model):
+    """A kind of part with its keywords in all languages — used only to choose the category by
+    the name of an item (decision К6); it is not stored on the item."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    subcategory = models.ForeignKey(PartSubcategory, on_delete=models.PROTECT, related_name="types")
+    name_ru = models.CharField(max_length=150)
+    keywords_ru = ArrayField(models.CharField(max_length=60), default=list)
+    keywords_en = ArrayField(models.CharField(max_length=60), default=list)
+    keywords_th = ArrayField(models.CharField(max_length=60), default=list)
+    position = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        db_table = "part_type"
+
+    def __str__(self) -> str:
+        return self.name_ru
+
+
 class Item(models.Model):
     """An item of the catalog (§ 11.1.11–11.1.13)."""
 
@@ -70,7 +125,15 @@ class Item(models.Model):
     condition = models.CharField(max_length=10, blank=True, default="")
     # Optional data of the catalog card (§ 22.4.1).
     article = models.CharField(max_length=100, blank=True, default="")
+    # Free text of the earlier category field, kept as a note (decision К7 of 25.10.2026).
     category = models.CharField(max_length=100, blank=True, default="")
+    # Category and subcategory of the platform catalog of parts; empty — without a category.
+    part_category = models.ForeignKey(
+        PartCategory, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    part_subcategory = models.ForeignKey(
+        PartSubcategory, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
     model_characteristic = models.CharField(max_length=200, blank=True, default="")
     photo = models.ForeignKey(
         StoredFile, on_delete=models.PROTECT, null=True, blank=True, related_name="+"

@@ -194,7 +194,7 @@ def dashboard(request: HttpRequest, cmp: str) -> JsonResponse:
         date_from=day("from", today.replace(day=1)),
         date_to=day("to", today),
         context_id=_uuid(request.GET.get("context_id"), "context_id"),
-        category=request.GET.get("category", "")[:100].strip(),
+        part_category_id=_uuid(request.GET.get("part_category"), "part_category"),
         item_id=_uuid(request.GET.get("item_id"), "item_id"),
         lot_id=_uuid(request.GET.get("lot_id"), "lot_id"),
         counterparty_id=_uuid(request.GET.get("counterparty_id"), "counterparty_id"),

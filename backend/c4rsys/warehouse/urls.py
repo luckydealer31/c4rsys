@@ -9,6 +9,8 @@ from c4rsys.warehouse import stock_views, views
 urlpatterns = [
     path("catalog/manufacturers", views.manufacturers),
     path("catalog/warehouse-options", views.options),
+    path("catalog/part-categories", views.part_categories),
+    path("catalog/part-categories/suggest", views.part_category_suggest),
     path("c/<str:cmp>/warehouse/storages", views.storages),
     path("c/<str:cmp>/warehouse/categories", views.categories),
     path("c/<str:cmp>/warehouse/items", views.item_list),

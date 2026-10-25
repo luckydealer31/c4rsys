@@ -386,6 +386,8 @@ export type WarehouseItem = {
   condition: string;
   article: string;
   category: string;
+  part_category: string | null;
+  part_subcategory: string | null;
   model_characteristic: string;
   photo: string | null;
   photo_url: string;

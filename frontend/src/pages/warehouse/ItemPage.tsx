@@ -9,6 +9,7 @@ import { useCommand } from "../../api/useCommand";
 import { ImagePicker } from "../../components/images";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
+import { PartCategoryField } from "./Categories";
 import { MinimumsCard, PricesCard } from "./Prices";
 import { ItemStockCard, SupplierArticles } from "./Stock";
 
@@ -32,6 +33,8 @@ const TEXTS = ["article", "category", "model_characteristic", "photo_url", "comm
 
 type Form = {
   name: string;
+  part_category: string;
+  part_subcategory: string;
   unit: string;
   manufacturer: string;
   manufacturer_other: string;
@@ -42,6 +45,8 @@ type Form = {
 function formOf(item?: WarehouseItem): Form {
   return {
     name: item?.name ?? "",
+    part_category: item?.part_category ?? "",
+    part_subcategory: item?.part_subcategory ?? "",
     unit: item?.unit ?? "piece",
     manufacturer: item?.manufacturer ?? (item?.manufacturer_other ? OTHER : ""),
     manufacturer_other: item?.manufacturer_other ?? "",
@@ -177,6 +182,8 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
       manufacturer: form.manufacturer && form.manufacturer !== OTHER ? form.manufacturer : "",
       manufacturer_other: form.manufacturer === OTHER ? form.manufacturer_other : "",
       photo: form.photo ?? "",
+      part_category: form.part_category || null,
+      part_subcategory: form.part_subcategory || null,
       applicability: form.applicability
         .filter((a) => a.make)
         .map((a) => (a.model ? { make: a.make, model: a.model } : { make: a.make })),
@@ -227,9 +234,17 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
               </select>
             </Field>
           </div>
+          <PartCategoryField
+            name={form.name}
+            category={form.part_category}
+            subcategory={form.part_subcategory}
+            editable={editable}
+            autoFromStart={!item || !item.part_category}
+            onChange={(category, subcategory) => set({ part_category: category, part_subcategory: subcategory })}
+          />
           <div className="row">
             {text("article")}
-            {text("category")}
+            {text("category", t("categories.note_hint"))}
             <datalist id="warehouse-categories">
               {(categories.data?.categories ?? []).map((c) => (
                 <option key={c} value={c} />

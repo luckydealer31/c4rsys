@@ -419,7 +419,9 @@
     "return_exceeds_receipt": "More than is left of this receipt: {{available}} available.",
     "receipt_line_unknown": "The receipt line is not found.",
     "asset_not_of_receipt": "The unit is not of this receipt.",
-    "vehicle_has_operations": "The vehicle cannot be moved: there are unfinished operations or a reserve in an order."
+    "vehicle_has_operations": "The vehicle cannot be moved: there are unfinished operations or a reserve in an order.",
+    "category_unknown": "The category is not found.",
+    "subcategory_of_other_category": "The subcategory belongs to another category."
   },
   "history": {
     "action": "Action",
@@ -1132,7 +1134,7 @@
     "attr_vertical": "Vertical position",
     "barcode": "Barcode",
     "barcodes": "Barcodes",
-    "category": "Category",
+    "category": "Category note",
     "comment": "Comment",
     "create_item": "New item",
     "delete_hint": "Only an item without movements can be deleted; otherwise archive it.",
@@ -1594,5 +1596,13 @@
     "in_transit": "In transit",
     "purchases": "Purchases: still expected",
     "none": "None."
+  },
+  "categories": {
+    "category": "Category",
+    "subcategory": "Subcategory",
+    "none": "Without a category",
+    "alternatives": "Also fits:",
+    "hint": "The category is chosen by the name; it can be changed or removed.",
+    "note_hint": "The earlier text category, kept as a note."
   }
 }

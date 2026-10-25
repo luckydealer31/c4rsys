@@ -419,7 +419,9 @@
     "return_exceeds_receipt": "มากกว่าที่เหลือจากการรับนี้: มี {{available}}",
     "receipt_line_unknown": "ไม่พบรายการรับสินค้า",
     "asset_not_of_receipt": "ชิ้นนี้ไม่ได้มาจากการรับนี้",
-    "vehicle_has_operations": "ย้ายรถไม่ได้: มีรายการที่ยังไม่เสร็จหรือการจองในคำสั่งซื้อ"
+    "vehicle_has_operations": "ย้ายรถไม่ได้: มีรายการที่ยังไม่เสร็จหรือการจองในคำสั่งซื้อ",
+    "category_unknown": "ไม่พบหมวดหมู่",
+    "subcategory_of_other_category": "หมวดหมู่ย่อยอยู่ในหมวดหมู่อื่น"
   },
   "history": {
     "action": "Action",
@@ -1132,7 +1134,7 @@
     "attr_vertical": "Vertical position",
     "barcode": "Barcode",
     "barcodes": "Barcodes",
-    "category": "Category",
+    "category": "หมายเหตุหมวดหมู่",
     "comment": "Comment",
     "create_item": "New item",
     "delete_hint": "Only an item without movements can be deleted; otherwise archive it.",
@@ -1594,5 +1596,13 @@
     "in_transit": "ระหว่างขนส่ง",
     "purchases": "การสั่งซื้อ: ยังรออยู่",
     "none": "ไม่มี"
+  },
+  "categories": {
+    "category": "หมวดหมู่",
+    "subcategory": "หมวดหมู่ย่อย",
+    "none": "ไม่มีหมวดหมู่",
+    "alternatives": "ยังเข้ากับ:",
+    "hint": "ระบบเลือกหมวดหมู่จากชื่อ เปลี่ยนหรือเอาออกได้",
+    "note_hint": "หมวดหมู่เดิมแบบข้อความ เก็บไว้เป็นหมายเหตุ"
   }
 }

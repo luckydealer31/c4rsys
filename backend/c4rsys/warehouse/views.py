@@ -16,6 +16,7 @@ from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
 from c4rsys.warehouse import catalog, imports
+from c4rsys.warehouse import categories as part_catalog
 from c4rsys.warehouse.models import ImportOperation, Item, Manufacturer
 
 NAME_MAX = 200
@@ -100,6 +101,8 @@ def _item_data(data: dict[str, Any]) -> catalog.ItemData:
             for key, length in catalog.TEXT_FIELDS.items()
         },
         photo_id=_uuid(data.get("photo"), "photo"),
+        part_category_id=_uuid(data.get("part_category"), "part_category"),
+        part_subcategory_id=_uuid(data.get("part_subcategory"), "part_subcategory"),
         applicability=tuple(pairs),
     )
 
@@ -112,6 +115,8 @@ def _data_payload(data: catalog.ItemData) -> dict[str, Any]:
         "attributes": data.attributes,
         "texts": data.texts,
         "photo": str(data.photo_id) if data.photo_id else None,
+        "part_category": str(data.part_category_id) if data.part_category_id else None,
+        "part_subcategory": str(data.part_subcategory_id) if data.part_subcategory_id else None,
         "applicability": [list(p) for p in data.applicability],
     }
 
@@ -481,3 +486,29 @@ def import_cancel(request: HttpRequest, cmp: str, operation_id: UUID) -> JsonRes
 
     payload = {"import": str(operation_id), "expected_version": expected_version}
     return run_and_respond(request, "warehouse.import_cancel", actor, payload, handler)
+
+
+@require_http_methods(["GET"])
+def part_categories(request: HttpRequest) -> JsonResponse:
+    """The platform catalog of categories and subcategories of parts (decision К1)."""
+    require_user(request)
+    return JsonResponse({"categories": part_catalog.tree_payload()})
+
+
+@require_http_methods(["GET"])
+def part_category_suggest(request: HttpRequest) -> JsonResponse:
+    """Categories for a name being typed: the first is applied, the others are offered (К2, К3)."""
+    require_user(request)
+    name = request.GET.get("name", "")[:200]
+    return JsonResponse(
+        {
+            "suggestions": [
+                {
+                    "category": str(c.category_id),
+                    "subcategory": str(c.subcategory_id),
+                    "matched": c.matched,
+                }
+                for c in part_catalog.suggest(name)
+            ]
+        }
+    )

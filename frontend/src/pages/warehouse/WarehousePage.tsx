@@ -8,6 +8,7 @@ import { Icon } from "../../components/icons";
 import { Card, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { useVehicles } from "../vehicles/VehiclesPage";
+import { useCategoryLabel } from "./Categories";
 import { InventoriesList } from "./Inventory";
 import { OperationsList, WarehouseSettingsCard } from "./Operations";
 import { VehiclePrice } from "./Prices";
@@ -55,6 +56,7 @@ export function WarehousePage() {
 
 function Items() {
   const { t } = useTranslation();
+  const categoryLabel = useCategoryLabel();
   const company = useCompany();
   const can = useCan();
   const [query, setQuery] = useState("");
@@ -97,7 +99,7 @@ function Items() {
               <tr>
                 <th>{t("warehouse.name")}</th>
                 <th>{t("warehouse.article")}</th>
-                <th>{t("warehouse.category")}</th>
+                <th>{t("categories.category")}</th>
                 <th>{t("warehouse.unit")}</th>
                 <th>{t("warehouse.manufacturer")}</th>
                 <th>{t("warehouse.packagings")}</th>
@@ -115,7 +117,10 @@ function Items() {
                     ) : null}
                   </td>
                   <td>{item.article || "—"}</td>
-                  <td>{item.category || "—"}</td>
+                  <td>
+                    {categoryLabel(item.part_category, item.part_subcategory) || "—"}
+                    {item.category ? <div className="small muted">{item.category}</div> : null}
+                  </td>
                   <td>{t(`warehouse.unit_short_${item.unit}`)}</td>
                   <td>{item.manufacturer_name || "—"}</td>
                   <td>
