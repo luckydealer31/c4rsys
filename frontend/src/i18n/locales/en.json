@@ -414,7 +414,11 @@
     "sale_stock_missing": "What is sold is no longer in stock — check the stock.",
     "vehicle_sale_correction_later": "Cancelling a vehicle sale needs the new owner's confirmation — comes later.",
     "order_without_client": "The order has no client.",
-    "order_not_closed": "The order is not closed."
+    "order_not_closed": "The order is not closed.",
+    "return_purchase_receipts_only": "Only goods of a posted purchase receipt go back to the supplier.",
+    "return_exceeds_receipt": "More than is left of this receipt: {{available}} available.",
+    "receipt_line_unknown": "The receipt line is not found.",
+    "asset_not_of_receipt": "The unit is not of this receipt."
   },
   "history": {
     "action": "Action",
@@ -1347,7 +1351,9 @@
     "state_consumed": "used",
     "state_in_transit": "in transit",
     "state_written_off": "written off",
-    "state_cancelled": "removed by a correction"
+    "state_cancelled": "removed by a correction",
+    "state_sold": "sold",
+    "state_returned": "returned to the supplier"
   },
   "articles": {
     "title": "Supplier articles",
@@ -1450,7 +1456,9 @@
     "reasons": "Write-off reasons",
     "new_reason": "New reason",
     "rename": "rename",
-    "rename_reason": "New name of the reason"
+    "rename_reason": "New name of the reason",
+    "kind_sale": "Sale",
+    "kind_supplier_return": "Return to the supplier"
   },
   "inventory": {
     "new_title": "New inventory",
@@ -1543,5 +1551,14 @@
     "reopen_reason": "Reason",
     "reopen_hint": "The order opens for corrections; they need their own rights, then the order is closed again.",
     "reopen": "Cancel the closing"
+  },
+  "returns": {
+    "start": "Return to the supplier",
+    "title": "Return to the supplier",
+    "available": "may be returned: {{value}}",
+    "comment": "Reason or comment",
+    "hint": "Only what this receipt brought goes back. A refund, a smaller debt or a replacement is settled separately.",
+    "submit": "Post the return",
+    "returned": "returned to the supplier: {{value}}"
   }
 }

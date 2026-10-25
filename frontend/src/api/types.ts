@@ -511,6 +511,9 @@ export type ReceiptLine = {
   purchase_line_id: string | null;
   assets: string[];
   posted_quantity: string;
+  returned_quantity: string;
+  returnable_quantity: string;
+  lot_id: string | null;
   asset_refs: { id: string; public_id: string; state: string }[];
   corrections: {
     quantity_before: string;
@@ -617,13 +620,14 @@ export type StockOperation = {
   id: string;
   number: number;
   version: number;
-  kind: "issue" | "consume" | "move" | "write_off" | "repack";
+  kind: "issue" | "consume" | "move" | "write_off" | "repack" | "sale" | "supplier_return";
   state: "done" | "in_transit" | "discrepancy" | "received";
   context: { id: string; location_name: string };
   target_context: { id: string; location_name: string } | null;
   vehicle: { id: string; name: string } | null;
   reason: WriteOffReason | null;
   parent_id: string | null;
+  receipt: { id: string; number: number } | null;
   children: { id: string; number: number; kind: StockOperation["kind"] }[];
   photos: string[];
   currency: string;

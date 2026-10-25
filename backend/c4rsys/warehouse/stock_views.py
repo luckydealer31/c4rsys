@@ -22,8 +22,8 @@ from c4rsys.parties import counterparties
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
-from c4rsys.warehouse import catalog, prices, stock
-from c4rsys.warehouse.models import Item, PurchaseOrder, Receipt
+from c4rsys.warehouse import catalog, operations, prices, stock
+from c4rsys.warehouse.models import Item, LotLayer, PurchaseOrder, Receipt
 
 LIST_LIMIT = 200
 COMMENT_MAX = 2000
@@ -215,7 +215,13 @@ def _receipt_payload(receipt: Receipt, suppliers: dict[UUID, str]) -> dict[str, 
     lines = []
     total = Decimal(0)
     incomplete = False
-    for line in receipt.lines.all():
+    all_lines = list(receipt.lines.all())
+    returned = operations.returned_by_line([line.id for line in all_lines])
+    layers = {
+        layer.receipt_line_id: layer.remaining
+        for layer in LotLayer.objects.filter(receipt_line__in=all_lines)
+    }
+    for line in all_lines:
         cost = None
         if line.unit_cost is None:
             incomplete = True
@@ -266,6 +272,14 @@ def _receipt_payload(receipt: Receipt, suppliers: dict[UUID, str]) -> dict[str, 
                     {"id": str(a.id), "public_id": a.public_id, "state": a.state}
                     for a in sorted(line.assets.all(), key=lambda a: a.created_at)
                 ],
+                # § 11.4.2: returned to the supplier, and what of this receipt is still here.
+                "returned_quantity": str(returned.get(line.id, stock.ZERO)),
+                "returnable_quantity": str(
+                    layers.get(line.id, stock.ZERO)
+                    if line.item.accounting == "batch"
+                    else sum(1 for a in line.assets.all() if a.state == "in_stock")
+                ),
+                "lot_id": str(line.lot_id) if line.lot_id else None,
                 "corrections": [
                     {
                         "quantity_before": str(c.quantity_before),

@@ -444,6 +444,7 @@ class Asset(models.Model):
         WRITTEN_OFF = "written_off"  # § 11.3.4: the record and history stay
         CANCELLED = "cancelled"  # removed by a correction of its receipt (§ 11.6.2)
         SOLD = "sold"  # sold through a closed order (§ 11.9.1)
+        RETURNED = "returned"  # returned to its supplier (§ 11.4.2)
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
@@ -595,6 +596,7 @@ class StockMovement(models.Model):
         ADJUSTMENT = "adjustment"  # a confirmed inventory adjustment (§ 11.6.3)
         SALE = "sale"  # a sale at the closing of its order (§ 11.9.1)
         SALE_CANCEL = "sale_cancel"  # a wrongly closed sale cancelled (§ 11.9.5)
+        SUPPLIER_RETURN = "supplier_return"  # goods returned to the supplier (§ 11.4.2)
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
@@ -762,6 +764,7 @@ class StockOperation(models.Model):
         WRITE_OFF = "write_off"
         REPACK = "repack"
         SALE = "sale"  # goods sold at the closing of an order (§ 11.9.1)
+        SUPPLIER_RETURN = "supplier_return"  # goods returned by their receipt (§ 11.4.2)
 
     class State(models.TextChoices):
         DONE = "done"
@@ -789,6 +792,10 @@ class StockOperation(models.Model):
     )
     reason = models.ForeignKey(
         WriteOffReason, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    # The receipt goods are returned by (§ 11.4.2).
+    receipt = models.ForeignKey(
+        Receipt, on_delete=models.PROTECT, null=True, blank=True, related_name="returns"
     )
     # A write-off of losses made by a repacking or a settled shortage of a move.
     parent = models.ForeignKey(
@@ -859,6 +866,10 @@ class OperationLine(models.Model):
         Lot, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
     expired_confirmed = models.BooleanField(default=False)
+    # The receipt line a return to the supplier refers to (§ 11.4.2).
+    receipt_line = models.ForeignKey(
+        ReceiptLine, on_delete=models.PROTECT, null=True, blank=True, related_name="returns"
+    )
     position = models.PositiveSmallIntegerField(default=0)
 
     class Meta:

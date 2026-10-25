@@ -102,6 +102,7 @@ urlpatterns = [
         "c/<str:cmp>/warehouse/orders/<uuid:order_id>/sale-lines/<uuid:line_id>/cancel",
         sl.order_line_cancel,
     ),
+    path("c/<str:cmp>/warehouse/receipts/<uuid:receipt_id>/return", ops.return_to_supplier),
     path("c/<str:cmp>/warehouse/reasons", ops.reason_list),
     path("c/<str:cmp>/warehouse/reasons/<uuid:reason_id>", ops.reason_detail),
     path("c/<str:cmp>/warehouse/settings", ops.settings),

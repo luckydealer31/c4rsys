@@ -515,6 +515,13 @@ export function OperationPage() {
             <Link to={companyPath(company, `/warehouse/operations/${c.id}`)}>{operationTitle(t, c)}</Link>
           </p>
         ))}
+        {operation.receipt ? (
+          <p className="small">
+            <Link to={companyPath(company, `/warehouse/receipts/${operation.receipt.id}`)}>
+              {t("receipts.title_number", { number: operation.receipt.number })}
+            </Link>
+          </p>
+        ) : null}
         {operation.parent_id ? (
           <p className="small">
             <Link to={companyPath(company, `/warehouse/operations/${operation.parent_id}`)}>{t("operations.parent")}</Link>

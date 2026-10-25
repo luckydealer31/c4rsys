@@ -9,6 +9,7 @@ import type {
   Counterparty,
   ItemBrief,
   LotChoice,
+  Sources,
   Purchase,
   Receipt,
   ReceiptLine,
@@ -726,6 +727,9 @@ function PostedReceipt({ receipt }: { receipt: Receipt }) {
                 </td>
                 <td>
                   {line.expected_quantity !== null ? quantity(line.expected_quantity, line.item.unit) : "—"}
+                  {Number(line.returned_quantity) > 0 ? (
+                    <div className="small">{t("returns.returned", { value: quantity(line.returned_quantity, line.item.unit) })}</div>
+                  ) : null}
                   {line.discrepancy !== null && Number(line.discrepancy) !== 0 ? (
                     <div className="badge warn">{t("receipts.discrepancy", { value: quantity(line.discrepancy, line.item.unit) })}</div>
                   ) : null}
@@ -777,6 +781,173 @@ function PostedReceipt({ receipt }: { receipt: Receipt }) {
           </tbody>
         </table>
       </Card>
+      {receipt.source === "purchase" && can("warehouse.receive") ? <SupplierReturn receipt={receipt} /> : null}
+    </div>
+  );
+}
+
+/** A return to the supplier by this receipt (§ 11.4.2): all or part of what it brought; money
+ * is settled separately (finance stage). */
+function SupplierReturn({ receipt }: { receipt: Receipt }) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const navigate = useNavigate();
+  const quantity = useQuantity();
+  const [open, setOpen] = useState(false);
+  const [amounts, setAmounts] = useState<Record<string, string>>({});
+  const [forms, setForms] = useState<Record<string, string>>({});
+  const [units, setUnits] = useState<Record<string, string[]>>({});
+  const [comment, setComment] = useState("");
+  const send = useCommand<Record<string, unknown>, { operation: { id: string } }>(
+    `/c/${company.public_id}/warehouse/receipts/${receipt.id}/return`,
+  );
+  const returnable = receipt.lines.filter((l) => Number(l.returnable_quantity) > 0);
+  if (!returnable.length) return null;
+  if (!open) {
+    return (
+      <div className="actions">
+        <button type="button" className="secondary" onClick={() => setOpen(true)}>
+          {t("returns.start")}
+        </button>
+      </div>
+    );
+  }
+  return (
+    <Card title={t("returns.title")}>
+      {returnable.map((line) => (
+        <div key={line.id} className="line-card">
+          <h3>
+            {line.item.name}{" "}
+            <span className="small muted">
+              {t("returns.available", { value: quantity(line.returnable_quantity, line.item.unit) })}
+            </span>
+          </h3>
+          {line.item.accounting === "individual" ? (
+            line.asset_refs
+              .filter((a) => a.state === "in_stock")
+              .map((a) => (
+                <label key={a.id} style={{ marginRight: 12 }}>
+                  <input
+                    type="checkbox"
+                    checked={(units[line.id] ?? []).includes(a.id)}
+                    onChange={(e) =>
+                      setUnits({
+                        ...units,
+                        [line.id]: e.target.checked ? [...(units[line.id] ?? []), a.id] : (units[line.id] ?? []).filter((x) => x !== a.id),
+                      })
+                    }
+                  />{" "}
+                  {a.public_id}
+                </label>
+              ))
+          ) : (
+            <ReturnForm
+              receipt={receipt}
+              line={line}
+              form={forms[line.id] ?? ""}
+              amount={amounts[line.id] ?? ""}
+              onForm={(value) => setForms({ ...forms, [line.id]: value })}
+              onAmount={(value) => setAmounts({ ...amounts, [line.id]: value })}
+            />
+          )}
+        </div>
+      ))}
+      <Field label={t("returns.comment")}>
+        <input value={comment} onChange={(e) => setComment(e.target.value)} />
+      </Field>
+      <p className="muted small">{t("returns.hint")}</p>
+      <ErrorMessage error={send.error} />
+      <div className="actions">
+        <button
+          type="button"
+          disabled={send.pending}
+          onClick={async () => {
+            const lines = returnable
+              .map((line) => {
+                if (line.item.accounting === "individual") {
+                  return (units[line.id] ?? []).length ? { receipt_line_id: line.id, asset_ids: units[line.id] } : null;
+                }
+                if (!amounts[line.id]) return null;
+                const [kind, id] = (forms[line.id] ?? "").split(":");
+                return {
+                  receipt_line_id: line.id,
+                  packaging_id: kind === "pack" ? id : null,
+                  opened_package_id: kind === "opened" ? id : null,
+                  quantity: amounts[line.id],
+                };
+              })
+              .filter(Boolean);
+            const result = await send.run({ lines, comment });
+            if (result) navigate(companyPath(company, `/warehouse/operations/${result.operation.id}`));
+          }}
+        >
+          {t("returns.submit")}
+        </button>
+        <button type="button" className="secondary" onClick={() => setOpen(false)}>
+          {t("common.cancel")}
+        </button>
+      </div>
+    </Card>
+  );
+}
+
+/** The form of the lot the returned quantity is taken from. */
+function ReturnForm({
+  receipt,
+  line,
+  form,
+  amount,
+  onForm,
+  onAmount,
+}: {
+  receipt: Receipt;
+  line: ReceiptLine;
+  form: string;
+  amount: string;
+  onForm: (value: string) => void;
+  onAmount: (value: string) => void;
+}) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const quantity = useQuantity();
+  const sources = useApi<Sources>(
+    ["warehouse-sources", company.public_id, line.item.id, receipt.context.id],
+    `/c/${company.public_id}/warehouse/items/${line.item.id}/sources?context_id=${receipt.context.id}`,
+  );
+  const lot = sources.data?.lots.find((l) => l.id === line.lot_id);
+  const options = lot
+    ? [
+        ...lot.forms.map((f) => ({
+          value: f.packaging_id ? `pack:${f.packaging_id}` : "loose",
+          label: f.packaging_id
+            ? t("operations.form_packs", { packs: Number(f.quantity) / Number(f.packaging_quantity), size: quantity(f.packaging_quantity ?? 0, line.item.unit) })
+            : t("operations.form_loose", { quantity: quantity(f.quantity, line.item.unit) }),
+        })),
+        ...lot.opened_packages.map((o, i) => ({
+          value: `opened:${o.id}`,
+          label: t("operations.form_opened", { n: i + 1, remaining: quantity(o.remaining, line.item.unit) }),
+        })),
+      ]
+    : [];
+  const chosen = options.some((o) => o.value === form) ? form : (options[0]?.value ?? "");
+  // The first form is chosen by default once the lot is loaded.
+  useEffect(() => {
+    if (chosen && chosen !== form) onForm(chosen);
+  });
+  return (
+    <div className="row">
+      <Field label={t("operations.form")}>
+        <select value={chosen} onChange={(e) => onForm(e.target.value)}>
+          {options.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field label={t("operations.quantity_unit", { unit: t(`warehouse.unit_short_${line.item.unit}`) })}>
+        <input inputMode="decimal" value={amount} onChange={(e) => onAmount(e.target.value)} />
+      </Field>
     </div>
   );
 }

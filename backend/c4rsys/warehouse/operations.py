@@ -18,7 +18,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from django.db.models import Q, QuerySet
+from django.db.models import Q, QuerySet, Sum
 from django.utils import timezone
 
 from c4rsys.companies import locations
@@ -1363,7 +1363,7 @@ def correct_receipt_line(
 def operations_of(company_id: UUID) -> QuerySet[StockOperation]:
     return (
         StockOperation.objects.filter(company_id=company_id)
-        .select_related("context__location", "target_context__location", "reason")
+        .select_related("context__location", "target_context__location", "reason", "receipt")
         .prefetch_related(
             "lines__item",
             "lines__asset",
@@ -1489,3 +1489,158 @@ def in_transit_count(company_id: UUID, context_ids: set[UUID]) -> int:
         kind=StockOperation.Kind.MOVE,
         state__in=[StockOperation.State.IN_TRANSIT, StockOperation.State.DISCREPANCY],
     ).count()
+
+
+# --- Return to the supplier (§ 11.4.2) ----------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ReturnLine:
+    """What goes back by one receipt line: its units, or a quantity of its lot taken from one
+    form and counted against what this very receipt brought into the lot."""
+
+    receipt_line_id: UUID
+    asset_ids: tuple[UUID, ...] = ()
+    packaging_id: UUID | None = None
+    opened_package_id: UUID | None = None
+    quantity: Decimal | None = None
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "receipt_line_id": str(self.receipt_line_id),
+            "asset_ids": [str(a) for a in self.asset_ids],
+            "packaging_id": str(self.packaging_id) if self.packaging_id else None,
+            "opened_package_id": str(self.opened_package_id) if self.opened_package_id else None,
+            "quantity": str(self.quantity) if self.quantity is not None else None,
+        }
+
+
+def return_to_supplier(
+    ctx: CommandContext,
+    company: Company,
+    receipt_id: UUID,
+    lines: tuple[ReturnLine, ...],
+    comment: str,
+) -> StockOperation:
+    """A separate operation referring to the original receipt: all or part of what it brought
+    goes back, the history stays. The physical return does not return money by itself: a refund,
+    a smaller debt or a replacement is settled separately (finance stage). PROPOSAL: goods return
+    from the warehouse of the receipt; a lot returns out of what this receipt brought into it."""
+    receipt = (
+        Receipt.objects.select_for_update().filter(company_id=company.id, pk=receipt_id).first()
+    )
+    if receipt is None:
+        raise errors.not_found()
+    if receipt.state != Receipt.State.POSTED or receipt.source != Receipt.Source.PURCHASE:
+        raise errors.business_rule("RETURN_PURCHASE_RECEIPTS_ONLY")
+    context = _warehouse(company.id, receipt.context_id)
+    if not lines:
+        raise errors.validation_error("lines", code="LINES_REQUIRED")
+    operation = _new_operation(
+        ctx, company, StockOperation.Kind.SUPPLIER_RETURN, context, receipt=receipt, comment=comment
+    )
+    position = 0
+    for index, entry in enumerate(lines):
+        where = f"lines[{index}]"
+        line = (
+            ReceiptLine.objects.select_for_update(of=("self",))
+            .select_related("item")
+            .filter(receipt=receipt, pk=entry.receipt_line_id)
+            .first()
+        )
+        if line is None:
+            raise errors.validation_error(f"{where}.receipt_line_id", code="RECEIPT_LINE_UNKNOWN")
+        if line.item.accounting == Item.Accounting.INDIVIDUAL:
+            if not entry.asset_ids:
+                raise errors.validation_error(f"{where}.asset_ids", code="FIELD_REQUIRED")
+            if Asset.objects.filter(pk__in=entry.asset_ids).exclude(receipt_line=line).exists():
+                raise errors.validation_error(f"{where}.asset_ids", code="ASSET_NOT_OF_RECEIPT")
+        take = Take(
+            item_id=line.item_id,
+            asset_ids=entry.asset_ids,
+            lot_id=line.lot_id if line.item.accounting == Item.Accounting.BATCH else None,
+            packaging_id=entry.packaging_id,
+            opened_package_id=entry.opened_package_id,
+            quantity=entry.quantity,
+        )
+        layer = None
+        if line.item.accounting == Item.Accounting.BATCH:
+            layer = LotLayer.objects.select_for_update().filter(receipt_line=line).first()
+            if layer is None or entry.quantity is None or entry.quantity > layer.remaining:
+                raise errors.business_rule(
+                    "RETURN_EXCEEDS_RECEIPT",
+                    field=f"{where}.quantity",
+                    available=str(layer.remaining if layer else ZERO),
+                )
+        taken = _take_one(
+            ctx, company.id, context, take, where, allow_open=True, check_expiry=False
+        )
+        for asset in taken.assets:
+            op_line = OperationLine.objects.create(
+                company_id=company.id,
+                operation=operation,
+                item=line.item,
+                asset=asset,
+                quantity=Decimal(1),
+                receipt_line=line,
+                position=position,
+            )
+            position += 1
+            asset.state = Asset.State.RETURNED
+            asset.save(update_fields=["state"])
+            _move(
+                ctx, StockMovement.Kind.SUPPLIER_RETURN, context, op_line, Decimal(-1), asset=asset
+            )
+        if layer is not None and taken.lot is not None:
+            op_line = OperationLine.objects.create(
+                company_id=company.id,
+                operation=operation,
+                item=line.item,
+                lot=taken.lot,
+                packaging=taken.packaging,
+                opened_package=taken.opened
+                or next((p.opened for p in taken.pieces if p.opened), None),
+                quantity=taken.quantity,
+                receipt_line=line,
+                position=position,
+            )
+            position += 1
+            # Out of this receipt's own layer, not the earliest one (§ 11.2.13).
+            layer.remaining -= taken.quantity
+            layer.save(update_fields=["remaining"])
+            LayerUse.objects.create(
+                company_id=company.id,
+                line=op_line,
+                layer=layer,
+                quantity=taken.quantity,
+                unit_cost=layer.unit_cost,
+            )
+            for piece in taken.pieces:
+                _move(
+                    ctx,
+                    StockMovement.Kind.SUPPLIER_RETURN,
+                    context,
+                    op_line,
+                    -piece.quantity,
+                    lot=taken.lot,
+                    piece=piece,
+                )
+    ctx.audit(
+        "warehouse.returned_to_supplier",
+        object_type="warehouse_receipt",
+        object_id=receipt.id,
+        after={"operation": operation.number, "lines": [entry.as_dict() for entry in lines]},
+        reason=comment,
+    )
+    return operation
+
+
+def returned_by_line(line_ids: list[UUID]) -> dict[UUID, Decimal]:
+    rows = (
+        OperationLine.objects.filter(
+            receipt_line_id__in=line_ids, operation__kind=StockOperation.Kind.SUPPLIER_RETURN
+        )
+        .values("receipt_line_id")
+        .annotate(total=Sum("quantity"))
+    )
+    return {row["receipt_line_id"]: row["total"] for row in rows}

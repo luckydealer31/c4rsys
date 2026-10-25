@@ -186,6 +186,9 @@ def _operation_payload(
         else None,
         "reason": _reason_payload(operation.reason) if operation.reason else None,
         "parent_id": str(operation.parent_id) if operation.parent_id else None,
+        "receipt": {"id": str(operation.receipt_id), "number": operation.receipt.number}
+        if operation.receipt
+        else None,
         "children": [
             {"id": str(c.id), "number": c.number, "kind": c.kind}
             for c in operation.children.order_by("number")
@@ -642,3 +645,54 @@ def settings(request: HttpRequest, cmp: str) -> JsonResponse:
 
     payload = {"expired_policy": policy, "expected_version": expected_version}
     return run_and_respond(request, "warehouse.change_settings", actor, payload, handler)
+
+
+# --- Return to the supplier (§ 11.4.2) ----------------------------------------------------------
+
+
+@require_POST
+def return_to_supplier(request: HttpRequest, cmp: str, receipt_id: UUID) -> JsonResponse:
+    """PROPOSAL: a return to the supplier needs the right of receiving in that warehouse."""
+    context, actor = _actor(request, cmp)
+    receipt = stock.get_receipt(context.company.id, receipt_id)
+    _require_in(actor, "warehouse.receive", receipt.context)
+    data = parse_json(request)
+    raw = data.get("lines")
+    if not isinstance(raw, list):
+        raise errors.validation_error("lines")
+    lines = []
+    for index, entry in enumerate(raw):
+        where = f"lines[{index}]"
+        if not isinstance(entry, dict):
+            raise errors.validation_error(where)
+        line_id = _uuid(entry.get("receipt_line_id"), f"{where}.receipt_line_id")
+        if line_id is None:
+            raise errors.validation_error(f"{where}.receipt_line_id", code="FIELD_REQUIRED")
+        value = entry.get("quantity")
+        lines.append(
+            operations.ReturnLine(
+                receipt_line_id=line_id,
+                asset_ids=_uuids(entry.get("asset_ids"), f"{where}.asset_ids"),
+                packaging_id=_uuid(entry.get("packaging_id"), f"{where}.packaging_id"),
+                opened_package_id=_uuid(
+                    entry.get("opened_package_id"), f"{where}.opened_package_id"
+                ),
+                quantity=None
+                if value in (None, "")
+                else catalog.quantity(value, f"{where}.quantity"),
+            )
+        )
+    comment = get_str(data, "comment", max_length=COMMENT_MAX, required=False)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        operation = operations.return_to_supplier(
+            ctx, context.company, receipt_id, tuple(lines), comment
+        )
+        return _result(201, context.company.id, operation.id)
+
+    payload = {
+        "receipt_id": str(receipt_id),
+        "lines": [line.as_dict() for line in lines],
+        "comment": comment,
+    }
+    return run_and_respond(request, "warehouse.return_to_supplier", actor, payload, handler)
