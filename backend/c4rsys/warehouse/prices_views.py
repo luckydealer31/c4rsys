@@ -11,7 +11,6 @@ from typing import Any
 from uuid import UUID
 
 from django.http import HttpRequest, JsonResponse
-from django.utils import timezone
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from c4rsys.companies import locations
@@ -179,7 +178,7 @@ def dashboard(request: HttpRequest, cmp: str) -> JsonResponse:
     _require(actor, "warehouse.view")
     visible = _visible(context.company.id, actor)
     all_count = locations.storage_contexts(context.company.id).count()
-    today = timezone.localdate()
+    today = dashboard_service.company_today(context.company)
 
     def day(name: str, default: date) -> date:
         value = request.GET.get(name, "")

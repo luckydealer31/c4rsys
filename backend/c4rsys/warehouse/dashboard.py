@@ -48,6 +48,11 @@ PERIOD_KINDS = (
 )
 
 
+def company_today(company: Company) -> date:
+    """Today in the time zone of the company, not of the server (§ 2.7.5)."""
+    return timezone.localdate(timezone=ZoneInfo(company.timezone or "UTC"))
+
+
 @dataclass(frozen=True)
 class Filters:
     date_from: date
@@ -374,7 +379,7 @@ def build(
         "issued": _issued(scope),
         "in_transit": _in_transit(scope),
         "below_minimum": low,
-        "expiring": _expiring(scope, timezone.localdate()),
+        "expiring": _expiring(scope, company_today(company)),
         "expiry_horizon_days": EXPIRY_HORIZON_DAYS,
         "period": _period(scope),
         "purchases": _purchases(scope),

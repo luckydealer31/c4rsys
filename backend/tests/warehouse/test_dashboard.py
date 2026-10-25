@@ -1,14 +1,17 @@
 """Warehouse, part С8: return of a vehicle from the warehouse to the garage and the dashboard
 «Warehouse» (ТЗ § 8.4.1, § 21.1.1, § 21.6.1)."""
 
-from datetime import timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
+from unittest import mock
 
 import pytest
 from django.test import Client
 from django.utils import timezone
 
+from c4rsys.companies.models import Company
 from c4rsys.fleet.models import VehicleCard
+from c4rsys.warehouse import dashboard
 from c4rsys.warehouse.models import Lot
 from tests.accounts.helpers import post
 from tests.companies.helpers import create_company, hire, key
@@ -180,3 +183,11 @@ def test_dashboard(owner: Client, cmp: str) -> None:
     partial = viewer.get(f"/api/c/{cmp}/warehouse/dashboard").json()["dashboard"]
     assert partial["scope"] == {"warehouses": ["Phuket"], "partial": True}
     assert krabi
+
+
+def test_today_is_in_the_company_time_zone() -> None:
+    """At 17:30 UTC it is already the next day in Bangkok (§ 2.7.5)."""
+    evening = datetime(2026, 10, 25, 17, 30, tzinfo=UTC)
+    with mock.patch("django.utils.timezone.now", return_value=evening):
+        assert dashboard.company_today(Company(timezone="Asia/Bangkok")) == date(2026, 10, 26)
+        assert dashboard.company_today(Company(timezone="")) == date(2026, 10, 25)
