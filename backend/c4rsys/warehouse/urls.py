@@ -1,5 +1,6 @@
 from django.urls import path
 
+from c4rsys.warehouse import inventory_views as inv
 from c4rsys.warehouse import operations_views as ops
 from c4rsys.warehouse import stock_views, views
 
@@ -68,6 +69,18 @@ urlpatterns = [
         "c/<str:cmp>/warehouse/receipts/<uuid:receipt_id>/lines/<uuid:line_id>/correct",
         ops.correct_receipt_line,
     ),
+    path("c/<str:cmp>/warehouse/inventories", inv.count_list),
+    path("c/<str:cmp>/warehouse/inventories/<uuid:count_id>", inv.count_detail),
+    path("c/<str:cmp>/warehouse/inventories/<uuid:count_id>/items", inv.count_items),
+    path("c/<str:cmp>/warehouse/inventories/<uuid:count_id>/counted", inv.count_counted),
+    path("c/<str:cmp>/warehouse/inventories/<uuid:count_id>/found", inv.count_found),
+    path(
+        "c/<str:cmp>/warehouse/inventories/<uuid:count_id>/lines/<uuid:line_id>",
+        inv.count_line_remove,
+    ),
+    path("c/<str:cmp>/warehouse/inventories/<uuid:count_id>/submit", inv.count_submit),
+    path("c/<str:cmp>/warehouse/inventories/<uuid:count_id>/confirm", inv.count_confirm),
+    path("c/<str:cmp>/warehouse/inventories/<uuid:count_id>/reject", inv.count_reject),
     path("c/<str:cmp>/warehouse/reasons", ops.reason_list),
     path("c/<str:cmp>/warehouse/reasons/<uuid:reason_id>", ops.reason_detail),
     path("c/<str:cmp>/warehouse/settings", ops.settings),

@@ -664,3 +664,37 @@ export type Sources = {
     opened_packages: { id: string; packaging_quantity: string; remaining: string; opened_at: string; label: string }[];
   }[];
 };
+
+/** An inventory of chosen items of one warehouse (§ 11.6). */
+export type Inventory = {
+  id: string;
+  number: number;
+  version: number;
+  state: "draft" | "submitted" | "confirmed" | "rejected";
+  context: { id: string; location_name: string };
+  comment: string;
+  created_at: string;
+  created_by: string;
+  counted_by: string[];
+  submitted_at: string | null;
+  decided_at: string | null;
+  decided_by: string | null;
+  decision_reason: string;
+  lines: {
+    id: string;
+    kind: "asset" | "lot" | "found_unit" | "found_elsewhere" | "found_vehicle";
+    item: ItemBrief | null;
+    asset: string | null;
+    lot: string | null;
+    packaging_quantity: string | null;
+    opened_package_id: string | null;
+    book_quantity: string | null;
+    counted_quantity: string | null;
+    discrepancy: string | null;
+    counted_at: string | null;
+    description: string;
+    identifiers: string;
+    applied_delta: string | null;
+    created_asset: string | null;
+  }[];
+};

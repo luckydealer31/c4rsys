@@ -394,7 +394,14 @@
     "repack_same_form": "แบ่งบรรจุเป็นบรรจุภัณฑ์เดิมไม่ได้",
     "receipt_not_posted": "แก้ไขได้เฉพาะการรับสินค้าที่บันทึกแล้ว",
     "assets_to_remove_count": "เลือกชิ้นที่จะนำออก: {{count}}",
-    "correction_blocked": "การแก้ไขจะทำให้สต็อกติดลบ รายการที่ขัดขวาง: {{operations}}"
+    "correction_blocked": "การแก้ไขจะทำให้สต็อกติดลบ รายการที่ขัดขวาง: {{operations}}",
+    "inventory_state": "การตรวจนับอยู่ในสถานะที่ทำไม่ได้",
+    "inventory_line_unknown": "ไม่พบรายการตรวจนับ",
+    "found_unit_pieces_only": "ชิ้นที่ไม่อยู่ในบัญชีใช้ได้กับสินค้าเป็นชิ้นเท่านั้น",
+    "asset_is_here": "ชิ้น {{asset}} อยู่ในคลังนี้ — ทำเครื่องหมายในการนับ",
+    "inventory_empty": "ไม่มีรายการในการตรวจนับ",
+    "inventory_not_counted": "รายการที่ยังไม่นับ: {{count}}",
+    "inventory_recheck": "สต็อกเปลี่ยนจนการปรับจะติดลบ — นับรายการใหม่"
   },
   "history": {
     "action": "Action",
@@ -1194,7 +1201,8 @@
     "tab_stock": "สต็อก",
     "tab_receipts": "การรับสินค้า",
     "tab_purchases": "การสั่งซื้อ",
-    "tab_operations": "การเคลื่อนไหว"
+    "tab_operations": "การเคลื่อนไหว",
+    "tab_inventory": "ตรวจนับ"
   },
   "warnings": {
     "client_has_debt": "The client has a debt: {{amounts}}."
@@ -1279,7 +1287,8 @@
     "correction_reason": "เหตุผลการแก้ไข",
     "correction_choose_units": "เลือกชิ้นที่ต้องนำออก:",
     "correction_hint": "บันทึกเดิมยังอยู่ หากสต็อกถูกใช้ในรายการอื่นแล้ว ระบบจะแสดงเลขที่",
-    "correction_line": "{{date}}: {{before}} → {{after}} ({{reason}})"
+    "correction_line": "{{date}}: {{before}} → {{after}} ({{reason}})",
+    "source_inventory": "ส่วนเกินจากการตรวจนับ"
   },
   "purchases": {
     "create": "สั่งซื้อใหม่",
@@ -1428,5 +1437,49 @@
     "new_reason": "เหตุผลใหม่",
     "rename": "เปลี่ยนชื่อ",
     "rename_reason": "ชื่อใหม่ของเหตุผล"
+  },
+  "inventory": {
+    "new_title": "การตรวจนับใหม่",
+    "start": "เริ่ม",
+    "hint": "ตรวจนับรายการที่เลือกของคลังหนึ่ง คลังยังทำงานได้ การนับไม่เปลี่ยนสต็อก",
+    "none": "ยังไม่มีการตรวจนับ",
+    "title": "การตรวจนับเลขที่ {{number}}",
+    "positions": "รายการ",
+    "counted_by": "ผู้นับ",
+    "confirmed_by": "ยืนยันโดย {{name}}, {{date}}",
+    "rejected_by": "ปฏิเสธโดย {{name}}, {{date}}",
+    "state_draft": "กำลังนับ",
+    "state_submitted": "รอการยืนยัน",
+    "state_confirmed": "ยืนยันแล้ว",
+    "state_rejected": "ถูกปฏิเสธ — แก้ไขแล้วส่งใหม่",
+    "add_all": "เพิ่มทั้งคลัง",
+    "no_positions": "เพิ่มรายการที่จะนับ",
+    "counted": "นับได้",
+    "book": "ตามบัญชี ณ เวลานับ",
+    "discrepancy": "ส่วนต่าง",
+    "closed_packs": "บรรจุภัณฑ์ปิดละ {{size}}",
+    "loose": "ไม่บรรจุ",
+    "unit_found": "พบ",
+    "unit_missing": "ไม่พบ",
+    "save_counts": "บันทึกการนับ",
+    "count_hint": "ยอดตามบัญชีบันทึก ณ เวลาที่กรอก บรรจุภัณฑ์ปิดนับเป็นชิ้นเต็ม",
+    "found_title": "พบระหว่างการตรวจนับ",
+    "no_found": "ไม่มีสิ่งที่พบ",
+    "found_kind": "สิ่งที่พบ",
+    "kind_found_unit": "ชิ้นที่ไม่อยู่ในบัญชี",
+    "kind_found_elsewhere": "ชิ้นที่บันทึกอยู่ที่อื่น",
+    "kind_found_vehicle": "รถที่ไม่อยู่ในบัญชี",
+    "hint_found_unit": "เมื่อยืนยันส่วนเกิน ระบบสร้างบัตรชิ้นและการรับสินค้า (ไม่ระบุราคาทุน)",
+    "hint_found_elsewhere": "ไม่สร้างบัตรใหม่: ตรวจสอบแล้วทำการโอนย้ายหรือแก้ไข",
+    "hint_found_vehicle": "บันทึกการพบเท่านั้น: สร้างรถผ่านโรงรถแล้วโอนเข้าคลัง",
+    "description": "คำอธิบาย",
+    "identifiers": "ตัวระบุ (หมายเลขซีเรียล ฯลฯ)",
+    "add_found": "เพิ่มสิ่งที่พบ",
+    "submit": "ส่งเพื่อยืนยัน",
+    "decision_title": "การยืนยันการปรับปรุง",
+    "reason": "เหตุผล",
+    "decision_hint": "เมื่อยืนยัน ส่วนต่างจะปรับกับสต็อกปัจจุบัน เมื่อปฏิเสธ สต็อกไม่เปลี่ยน",
+    "confirm": "ยืนยันการปรับปรุง",
+    "reject": "ปฏิเสธ"
   }
 }

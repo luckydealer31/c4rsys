@@ -316,6 +316,8 @@ class Receipt(models.Model):
     class Source(models.TextChoices):
         PURCHASE = "purchase"  # bought from a counterparty, with or without a purchase
         INITIAL = "initial"  # initial stock, no supplier (§ 11.2.8)
+        # A confirmed surplus of an unaccounted individual unit (§ 11.2.1–11.2.2).
+        INVENTORY = "inventory"
 
     class State(models.TextChoices):
         DRAFT = "draft"
@@ -519,6 +521,10 @@ class LotLayer(models.Model):
     source_layer = models.ForeignKey(
         "self", on_delete=models.PROTECT, null=True, blank=True, related_name="child_layers"
     )
+    # A confirmed inventory surplus of the lot, without a known cost (decision of 25.10.2026).
+    inventory_line = models.ForeignKey(
+        "InventoryLine", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
     received_quantity = models.DecimalField(max_digits=12, decimal_places=2)
     remaining = models.DecimalField(max_digits=12, decimal_places=2)
     unit_cost = models.DecimalField(max_digits=14, decimal_places=4, null=True, blank=True)
@@ -579,6 +585,7 @@ class StockMovement(models.Model):
         REPACK = "repack"
         OPEN = "open"
         CORRECTION = "correction"
+        ADJUSTMENT = "adjustment"  # a confirmed inventory adjustment (§ 11.6.3)
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
@@ -919,3 +926,111 @@ class ReceiptCorrection(models.Model):
 
     def __str__(self) -> str:
         return f"{self.line_id}:{self.quantity_before}->{self.quantity_after}"
+
+
+class InventoryCount(models.Model):
+    """An inventory of chosen items of one warehouse (§ 11.6; decision of 25.10.2026). The count
+    itself does not change the stock; a user with the separate right confirms the adjustment
+    with a reason, or rejects it — then the data are corrected and sent again. The warehouse is
+    not blocked."""
+
+    class State(models.TextChoices):
+        DRAFT = "draft"
+        SUBMITTED = "submitted"
+        CONFIRMED = "confirmed"
+        REJECTED = "rejected"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    number = models.PositiveIntegerField()
+    context = models.ForeignKey(
+        "companies.ActivityContext", on_delete=models.PROTECT, related_name="+"
+    )
+    state = models.CharField(max_length=20, choices=State.choices, default=State.DRAFT)
+    comment = models.TextField(blank=True, default="")
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+    submitted_by_user_id = models.UUIDField(null=True, blank=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    decided_by_user_id = models.UUIDField(null=True, blank=True)
+    decided_at = models.DateTimeField(null=True, blank=True)
+    decision_reason = models.TextField(blank=True, default="")
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "warehouse_inventory"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "id"], name="warehouse_inventory_company_id_uniq"
+            ),
+            models.UniqueConstraint(
+                fields=["company", "number"], name="warehouse_inventory_number_uniq"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"inventory {self.number}"
+
+
+class InventoryLine(models.Model):
+    """A counted position with the moment of the count and the book stock at that moment
+    (§ 11.6.4): a unit in stock, or a form of a lot — closed packages of a packaging, loose
+    material or an opened package. Found items are lines too: an unaccounted unit (a card and
+    a receipt after confirmation), a unit of the system that is registered elsewhere, or a
+    vehicle — these two only record the finding (§ 11.2.1)."""
+
+    class Kind(models.TextChoices):
+        ASSET = "asset"
+        LOT = "lot"
+        FOUND_UNIT = "found_unit"
+        FOUND_ELSEWHERE = "found_elsewhere"
+        FOUND_VEHICLE = "found_vehicle"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    count = models.ForeignKey(InventoryCount, on_delete=models.CASCADE, related_name="lines")
+    kind = models.CharField(max_length=20, choices=Kind.choices)
+    item = models.ForeignKey(
+        Item, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    asset = models.ForeignKey(
+        Asset, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    lot = models.ForeignKey(Lot, on_delete=models.PROTECT, null=True, blank=True, related_name="+")
+    packaging = models.ForeignKey(
+        Packaging, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    opened_package = models.ForeignKey(
+        OpenedPackage, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    book_quantity = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    counted_quantity = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    counted_at = models.DateTimeField(null=True, blank=True)
+    counted_by_user_id = models.UUIDField(null=True, blank=True)
+    description = models.CharField(max_length=500, blank=True, default="")
+    identifiers = models.CharField(max_length=200, blank=True, default="")
+    applied_delta = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    created_asset = models.ForeignKey(
+        Asset, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    position = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = "warehouse_inventory_line"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(counted_quantity__isnull=True) | Q(counted_quantity__gte=0),
+                name="warehouse_inventory_line_counted_not_negative",
+            ),
+            models.CheckConstraint(
+                condition=~Q(kind="lot") | Q(lot__isnull=False),
+                name="warehouse_inventory_line_lot",
+            ),
+            models.CheckConstraint(
+                condition=~Q(kind__in=["asset", "found_elsewhere"]) | Q(asset__isnull=False),
+                name="warehouse_inventory_line_asset",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.count_id}:{self.kind}"

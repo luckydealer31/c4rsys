@@ -394,7 +394,14 @@
     "repack_same_form": "Cannot repack into the same packaging.",
     "receipt_not_posted": "Only a posted receipt is corrected.",
     "assets_to_remove_count": "Tick the units to remove: {{count}}.",
-    "correction_blocked": "The correction would make the stock negative. Blocking operations: {{operations}}."
+    "correction_blocked": "The correction would make the stock negative. Blocking operations: {{operations}}.",
+    "inventory_state": "The inventory is in a state where this is not possible.",
+    "inventory_line_unknown": "The inventory position is not found.",
+    "found_unit_pieces_only": "An unaccounted unit is for pieces only.",
+    "asset_is_here": "Unit {{asset}} is registered in this warehouse — mark it in the count.",
+    "inventory_empty": "The inventory has no positions.",
+    "inventory_not_counted": "Positions not counted: {{count}}.",
+    "inventory_recheck": "The stock changed so the adjustment would make it negative — recount the position."
   },
   "history": {
     "action": "Action",
@@ -1194,7 +1201,8 @@
     "tab_stock": "Stock",
     "tab_receipts": "Receipts",
     "tab_purchases": "Purchases",
-    "tab_operations": "Operations"
+    "tab_operations": "Operations",
+    "tab_inventory": "Inventory"
   },
   "warnings": {
     "client_has_debt": "The client has a debt: {{amounts}}."
@@ -1279,7 +1287,8 @@
     "correction_reason": "Reason of the correction",
     "correction_choose_units": "Tick the units to remove:",
     "correction_hint": "The original record stays. If the stock was already used by other operations, their numbers are shown.",
-    "correction_line": "{{date}}: {{before}} → {{after}} ({{reason}})"
+    "correction_line": "{{date}}: {{before}} → {{after}} ({{reason}})",
+    "source_inventory": "Inventory surplus"
   },
   "purchases": {
     "create": "New purchase",
@@ -1428,5 +1437,49 @@
     "new_reason": "New reason",
     "rename": "rename",
     "rename_reason": "New name of the reason"
+  },
+  "inventory": {
+    "new_title": "New inventory",
+    "start": "Start",
+    "hint": "An inventory covers chosen items of one warehouse, which keeps working. The count changes no stock.",
+    "none": "No inventories yet.",
+    "title": "Inventory No. {{number}}",
+    "positions": "Positions",
+    "counted_by": "Counted by",
+    "confirmed_by": "Confirmed by {{name}}, {{date}}",
+    "rejected_by": "Rejected by {{name}}, {{date}}",
+    "state_draft": "Counting",
+    "state_submitted": "Awaiting confirmation",
+    "state_confirmed": "Confirmed",
+    "state_rejected": "Rejected — correct and send again",
+    "add_all": "Add the whole warehouse",
+    "no_positions": "Add positions to count.",
+    "counted": "Found",
+    "book": "Book stock at the count",
+    "discrepancy": "Discrepancy",
+    "closed_packs": "closed pkg of {{size}}",
+    "loose": "loose",
+    "unit_found": "Found",
+    "unit_missing": "Missing",
+    "save_counts": "Save the count",
+    "count_hint": "The book stock is taken at the moment the found quantity is entered; closed packages are counted whole.",
+    "found_title": "Found during the inventory",
+    "no_found": "Nothing found.",
+    "found_kind": "What was found",
+    "kind_found_unit": "Unaccounted unit",
+    "kind_found_elsewhere": "Unit registered elsewhere",
+    "kind_found_vehicle": "Unaccounted vehicle",
+    "hint_found_unit": "After the surplus is confirmed, a unit card and a receipt are created (cost not given).",
+    "hint_found_elsewhere": "No new card: after a check, make a move or a correction.",
+    "hint_found_vehicle": "The finding is only recorded: the vehicle is created in the garage and transferred to the warehouse.",
+    "description": "Description",
+    "identifiers": "Identifiers (serial number etc.)",
+    "add_found": "Add the finding",
+    "submit": "Send for confirmation",
+    "decision_title": "Confirmation of the adjustment",
+    "reason": "Reason",
+    "decision_hint": "On confirmation the discrepancies are applied to the current stock. On rejection the stock stays.",
+    "confirm": "Confirm the adjustment",
+    "reject": "Reject"
   }
 }

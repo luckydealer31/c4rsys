@@ -8,12 +8,13 @@ import { Icon } from "../../components/icons";
 import { Card, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { useVehicles } from "../vehicles/VehiclesPage";
+import { InventoriesList } from "./Inventory";
 import { OperationsList, WarehouseSettingsCard } from "./Operations";
 import { PurchasesList } from "./Purchases";
 import { ReceiptsList } from "./Receipts";
 import { StockList } from "./Stock";
 
-const TABS = ["stock", "items", "receipts", "operations", "purchases", "storages"] as const;
+const TABS = ["stock", "items", "receipts", "operations", "inventory", "purchases", "storages"] as const;
 type Tab = (typeof TABS)[number];
 
 /** Section «Warehouse» (ТЗ гл. 11): stock, the catalog, receipts, purchases and the warehouses
@@ -44,6 +45,7 @@ export function WarehousePage() {
       {tab === "items" ? <Items /> : null}
       {tab === "receipts" ? <ReceiptsList /> : null}
       {tab === "operations" ? <OperationsList /> : null}
+      {tab === "inventory" ? <InventoriesList /> : null}
       {tab === "purchases" ? <PurchasesList /> : null}
       {tab === "storages" ? <Storages /> : null}
     </div>
