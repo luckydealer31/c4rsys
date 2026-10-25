@@ -28,7 +28,8 @@
     "rental_returned": "Возврат принят",
     "vehicle_location_changed": "Локация ТС изменена",
     "vehicle_moved": "ТС перемещено",
-    "vehicle_odometer_recorded": "Показание одометра"
+    "vehicle_odometer_recorded": "Показание одометра",
+    "money_transferred": "Перевод между счетами"
   },
   "finance_articles": {
     "archive": "В архив",
@@ -472,7 +473,12 @@
     "vehicle_has_operations": "ТС нельзя перевести: есть незавершённые операции или резерв в заказе.",
     "category_unknown": "Категория не найдена.",
     "subcategory_of_other_category": "Подкатегория из другой категории.",
-    "cash_account_balance_not_zero": "В архив можно отправить только кассу или счёт с нулевым остатком. Остаток: {{balance}} {{currency}}."
+    "cash_account_balance_not_zero": "В архив можно отправить только кассу или счёт с нулевым остатком. Остаток: {{balance}} {{currency}}.",
+    "rate_unavailable": "Нет курса {{source}} → {{target}}; ручной курс требует права менять курс.",
+    "transfer_same_account": "Выберите другой счёт для перевода.",
+    "rate_same_currency": "В одной валюте курс не нужен.",
+    "order_currencies_mixed": "Начисления заказа в нескольких валютах.",
+    "amount_too_small": "Сумма слишком мала для этого курса."
   },
   "history": {
     "action": "Действие",
@@ -579,7 +585,18 @@
     "tab_accounts": "Кассы и счета",
     "tab_articles": "Статьи",
     "tab_money": "Деньги",
-    "what": "Запись"
+    "what": "Запись",
+    "kind_transfer": "Перевод",
+    "transfer_title": "Перевод между счетами",
+    "transfer_from": "Откуда",
+    "transfer_to": "Куда",
+    "transfer_submit": "Перевести",
+    "transfer_arrives": "Поступит ≈ {{amount}} {{currency}}.",
+    "transfer_to_account": "в «{{account}}»: {{amount}} {{currency}}",
+    "transfer_from_account": "из «{{account}}»: {{amount}} {{currency}}",
+    "rate_applied": "курс {{rate}}",
+    "total": "Всего в {{currency}}",
+    "total_missing": "Нет курса для {{currencies}}: эти счета не вошли в итог."
   },
   "moves": {
     "actual_end": "Фактическое окончание",
@@ -663,7 +680,9 @@
     "title": "Платежи",
     "unallocated": "не распределён",
     "when": "Дата и время",
-    "without_order": "Без заказа"
+    "without_order": "Без заказа",
+    "order_currency": "Заказ в {{currency}}; осталось оплатить {{amount}} {{currency}}.",
+    "settles": "Погасит ≈ {{amount}} {{currency}} по заказу."
   },
   "permissions": {
     "client_create": "Создавать клиентов",
@@ -730,7 +749,9 @@
     "counterparty_edit": "Изменять данные контрагентов",
     "counterparty_archive": "Архивировать контрагентов",
     "counterparty_restore": "Восстанавливать контрагентов из архива",
-    "order_reopen": "Отменять закрытие заказов"
+    "order_reopen": "Отменять закрытие заказов",
+    "finance_transfer": "Переводить между счетами",
+    "finance_rate_override": "Менять предложенный курс валют"
   },
   "positions": {
     "director": "Директор"
@@ -1688,5 +1709,16 @@
     "alternatives": "Ещё подходит:",
     "hint": "Категория подбирается по названию; её можно поменять или убрать.",
     "note_hint": "Прежняя категория текстом — сохраняется как пометка."
+  },
+  "rates": {
+    "suggested": "Предлагаемый курс: 1 {{from}} = {{rate}} {{to}}.",
+    "source": "ExchangeRate-API, получен {{time}}.",
+    "stale": "Курс устарел: проверьте его или введите вручную.",
+    "none": "Курса для этой пары нет.",
+    "none_since": "Курса для этой пары нет; курсы последний раз обновлялись {{time}}.",
+    "enter_manual": "Введите курс вручную.",
+    "no_right": "Без права менять курс операцию провести нельзя — отложите её.",
+    "manual": "Курс: 1 {{from}} = … {{to}}",
+    "manual_hint": "Оставьте пустым, чтобы применить предложенный курс."
   }
 }

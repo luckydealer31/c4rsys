@@ -13,6 +13,8 @@ urlpatterns = [
     path("c/<str:cmp>/finance-articles/<uuid:article_id>", views.article_detail),
     path("c/<str:cmp>/finance-articles/<uuid:article_id>/archive", views.article_archive),
     path("c/<str:cmp>/finance-articles/<uuid:article_id>/restore", views.article_restore),
+    path("c/<str:cmp>/exchange-rates/suggestion", views.rate_suggestion),
+    path("c/<str:cmp>/transfers", views.transfer_create),
     path("c/<str:cmp>/payments", views.payment_list),
     path("c/<str:cmp>/payments/cash", views.payment_cash),
     path("c/<str:cmp>/clients/<uuid:client_id>/balance", views.client_balance),

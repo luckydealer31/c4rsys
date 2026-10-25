@@ -425,6 +425,7 @@ def test_company_answer_lists_own_permissions(owner: Client, cmp: str) -> None:
         "finance.income.record",
         "finance.payment.receive",
         "finance.payout",
+        "finance.transfer",
         "order.view",
         "rental.view",
         "warehouse.price.set",

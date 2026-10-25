@@ -28,7 +28,8 @@
     "rental_returned": "Return accepted",
     "vehicle_location_changed": "Vehicle location changed",
     "vehicle_moved": "Vehicle moved",
-    "vehicle_odometer_recorded": "Odometer recorded"
+    "vehicle_odometer_recorded": "Odometer recorded",
+    "money_transferred": "โอนระหว่างบัญชี"
   },
   "finance_articles": {
     "archive": "เก็บเข้าคลัง",
@@ -472,7 +473,12 @@
     "vehicle_has_operations": "ย้ายรถไม่ได้: มีรายการที่ยังไม่เสร็จหรือการจองในคำสั่งซื้อ",
     "category_unknown": "ไม่พบหมวดหมู่",
     "subcategory_of_other_category": "หมวดหมู่ย่อยอยู่ในหมวดหมู่อื่น",
-    "cash_account_balance_not_zero": "เก็บเข้าคลังได้เฉพาะบัญชีที่มียอดคงเหลือเป็นศูนย์ ยอดคงเหลือ: {{balance}} {{currency}}"
+    "cash_account_balance_not_zero": "เก็บเข้าคลังได้เฉพาะบัญชีที่มียอดคงเหลือเป็นศูนย์ ยอดคงเหลือ: {{balance}} {{currency}}",
+    "rate_unavailable": "ไม่มีอัตรา {{source}} → {{target}} การกรอกเองต้องมีสิทธิ์เปลี่ยนอัตรา",
+    "transfer_same_account": "เลือกบัญชีอื่นเพื่อโอน",
+    "rate_same_currency": "ไม่ต้องใช้อัตราในสกุลเงินเดียวกัน",
+    "order_currencies_mixed": "คำสั่งมีหลายสกุลเงิน",
+    "amount_too_small": "จำนวนเงินน้อยเกินไปสำหรับอัตรานี้"
   },
   "history": {
     "action": "Action",
@@ -579,7 +585,18 @@
     "tab_accounts": "เงินสดและบัญชี",
     "tab_articles": "หมวด",
     "tab_money": "เงิน",
-    "what": "รายการ"
+    "what": "รายการ",
+    "kind_transfer": "โอน",
+    "transfer_title": "โอนระหว่างบัญชี",
+    "transfer_from": "จาก",
+    "transfer_to": "ไปยัง",
+    "transfer_submit": "โอน",
+    "transfer_arrives": "จะได้รับ ≈ {{amount}} {{currency}}",
+    "transfer_to_account": "ไปยัง «{{account}}»: {{amount}} {{currency}}",
+    "transfer_from_account": "จาก «{{account}}»: {{amount}} {{currency}}",
+    "rate_applied": "อัตรา {{rate}}",
+    "total": "รวมเป็น {{currency}}",
+    "total_missing": "ไม่มีอัตราสำหรับ {{currencies}}: บัญชีเหล่านี้ไม่รวมในยอดรวม"
   },
   "moves": {
     "actual_end": "Actual end",
@@ -663,7 +680,9 @@
     "title": "Payments",
     "unallocated": "not allocated",
     "when": "Date and time",
-    "without_order": "Without an order"
+    "without_order": "Without an order",
+    "order_currency": "คำสั่งเป็น {{currency}} ค้างชำระ {{amount}} {{currency}}",
+    "settles": "ชำระคำสั่ง ≈ {{amount}} {{currency}}"
   },
   "permissions": {
     "client_create": "Create clients",
@@ -730,7 +749,9 @@
     "counterparty_edit": "แก้ไขข้อมูลคู่ค้า",
     "counterparty_archive": "เก็บถาวรคู่ค้า",
     "counterparty_restore": "กู้คืนคู่ค้าจากที่เก็บถาวร",
-    "order_reopen": "ยกเลิกการปิดคำสั่งซื้อ"
+    "order_reopen": "ยกเลิกการปิดคำสั่งซื้อ",
+    "finance_transfer": "โอนระหว่างบัญชี",
+    "finance_rate_override": "เปลี่ยนอัตราแลกเปลี่ยนที่เสนอ"
   },
   "positions": {
     "director": "Director"
@@ -1688,5 +1709,16 @@
     "alternatives": "ยังเข้ากับ:",
     "hint": "ระบบเลือกหมวดหมู่จากชื่อ เปลี่ยนหรือเอาออกได้",
     "note_hint": "หมวดหมู่เดิมแบบข้อความ เก็บไว้เป็นหมายเหตุ"
+  },
+  "rates": {
+    "suggested": "อัตราที่เสนอ: 1 {{from}} = {{rate}} {{to}}",
+    "source": "ExchangeRate-API ได้รับเมื่อ {{time}}",
+    "stale": "อัตราล้าสมัย: ตรวจสอบหรือกรอกเอง",
+    "none": "ไม่มีอัตราสำหรับคู่นี้",
+    "none_since": "ไม่มีอัตราสำหรับคู่นี้ อัปเดตล่าสุด {{time}}",
+    "enter_manual": "กรอกอัตราเอง",
+    "no_right": "หากไม่มีสิทธิ์เปลี่ยนอัตรา ไม่สามารถบันทึกรายการได้ ให้เลื่อนออกไป",
+    "manual": "อัตรา: 1 {{from}} = … {{to}}",
+    "manual_hint": "เว้นว่างเพื่อใช้อัตราที่เสนอ"
   }
 }

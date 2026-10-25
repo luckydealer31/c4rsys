@@ -10,6 +10,7 @@ const CASH_PERMISSIONS = [
   "finance.account.view",
   "finance.income.record",
   "finance.payout",
+  "finance.transfer",
 ];
 
 /** Rights as assignments: a ready set or a personal addition / restriction, each with its own

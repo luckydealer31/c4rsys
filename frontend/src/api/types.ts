@@ -367,7 +367,7 @@ export type Payment = {
   currency: string;
   state: string;
   method: string;
-  kind: "payment" | "opening" | "manual";
+  kind: "payment" | "opening" | "manual" | "transfer";
   direction: "in" | "out";
   article_id: string | null;
   location_id: string | null;
@@ -375,7 +375,35 @@ export type Payment = {
   vehicle_id: string | null;
   note: string;
   posted_at: string | null;
-  allocations: { order_id: string; amount: string; purpose: string; state: string }[];
+  allocations: {
+    order_id: string;
+    amount: string;
+    purpose: string;
+    state: string;
+    /** In the order's currency when it differs from the payment's (§ 17.1.4). */
+    settled_amount: string | null;
+    settled_currency: string | null;
+    applied_rate: string | null;
+  }[];
+  /** The other side of a transfer between own accounts (§ 17.1.6). */
+  transfer: {
+    id: string;
+    other_account_id: string;
+    other_amount: string;
+    other_currency: string;
+    applied_rate: string;
+    suggested_rate: string | null;
+    rate_manual: boolean;
+  } | null;
+};
+
+/** Balances of accounts valued in the main currency by the current rates (§ 17.1.2). */
+export type AccountsTotal = {
+  amount: string;
+  currency: string;
+  missing: string[];
+  rates_at: string | null;
+  stale: boolean;
 };
 
 export type VehicleMove = {

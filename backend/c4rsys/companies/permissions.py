@@ -21,6 +21,10 @@ PERMISSIONS: dict[str, str] = {
     "finance.income.record": "finance",
     "finance.payout": "finance",
     "finance.article.manage": "finance",
+    # Transfers between own accounts (§ 23.2.7) and a manual exchange rate (§ 23.7.6). Who besides
+    # the administrator gets the manual rate is OPEN.
+    "finance.transfer": "finance",
+    "finance.rate.override": "finance",
     "tariff.view": "tariff",
     "tariff.create": "tariff",
     "tariff.edit": "tariff",
@@ -119,6 +123,7 @@ SYSTEM_SETS: dict[str, tuple[str, ...]] = {
         "finance.income.record",
         "finance.payout",
         "finance.article.manage",
+        "finance.transfer",
         "order.view",
         "rental.view",
         "client.find",

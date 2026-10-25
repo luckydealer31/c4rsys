@@ -142,6 +142,8 @@ class MoneyMovement(models.Model):
         OPENING = "opening"
         # A receipt or payout entered by hand, without an order (§ 17.2.2, § 17.2.7).
         MANUAL = "manual"
+        # One side of a transfer between own accounts: neither income nor expense (§ 17.1.6).
+        TRANSFER = "transfer"
 
     class State(models.TextChoices):
         EXPECTED = "expected"
@@ -246,8 +248,21 @@ class PaymentAllocation(models.Model):
     )
     order = models.ForeignKey("orders.Order", on_delete=models.PROTECT, related_name="+")
     purpose = models.CharField(max_length=20, choices=Purpose.choices)
+    # Part of the receipt, in the currency of the payment.
     amount = models.DecimalField(max_digits=20, decimal_places=4)
     currency = models.ForeignKey(Currency, on_delete=models.PROTECT, related_name="+")
+    # What it settles in the currency of the order when that differs (§ 17.1.4); empty — the same
+    # as `amount` and `currency`.
+    settled_amount = models.DecimalField(max_digits=20, decimal_places=4, null=True, blank=True)
+    settled_currency = models.ForeignKey(
+        Currency, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    rate_fetch = models.ForeignKey(
+        "RateFetch", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    suggested_rate = models.DecimalField(max_digits=28, decimal_places=12, null=True, blank=True)
+    applied_rate = models.DecimalField(max_digits=28, decimal_places=12, null=True, blank=True)
+    rate_manual = models.BooleanField(default=False)
     state = models.CharField(max_length=10, choices=State.choices, default=State.ACTIVE)
     created_by_user_id = models.UUIDField()
     created_at = models.DateTimeField(default=now)
@@ -256,6 +271,19 @@ class PaymentAllocation(models.Model):
         db_table = "payment_allocation"
         constraints = [
             models.CheckConstraint(condition=Q(amount__gt=0), name="payment_allocation_positive"),
+            models.CheckConstraint(
+                condition=(
+                    Q(settled_amount__isnull=True)
+                    & Q(settled_currency__isnull=True)
+                    & Q(applied_rate__isnull=True)
+                )
+                | (
+                    Q(settled_amount__gt=0)
+                    & Q(settled_currency__isnull=False)
+                    & Q(applied_rate__gt=0)
+                ),
+                name="payment_allocation_exchange_complete",
+            ),
         ]
         indexes = [
             models.Index(fields=["company", "order", "state"], name="payment_allocation_order_idx"),
@@ -263,3 +291,80 @@ class PaymentAllocation(models.Model):
 
     def __str__(self) -> str:
         return f"{self.amount} {self.currency_id} → {self.order_id}"
+
+
+class RateFetch(models.Model):
+    """One download of reference exchange rates from the system source (§ 17.1.6). System data,
+    not of a company; a new download adds rows and never changes old ones."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    source = models.CharField(max_length=40)
+    base = models.ForeignKey(Currency, on_delete=models.PROTECT, related_name="+")
+    # Time of the rates at the source and the time c4rsys received them.
+    source_time = models.DateTimeField()
+    fetched_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "rate_fetch"
+        indexes = [models.Index(fields=["fetched_at"], name="rate_fetch_time_idx")]
+
+    def __str__(self) -> str:
+        return f"{self.source} {self.fetched_at:%Y-%m-%d %H:%M}"
+
+
+class ExchangeRate(models.Model):
+    """1 `base` = `rate` × `quote` at the time of its download (§ 17.1.6)."""
+
+    id = models.BigAutoField(primary_key=True)
+    fetch = models.ForeignKey(RateFetch, on_delete=models.PROTECT, related_name="rates")
+    quote = models.ForeignKey(Currency, on_delete=models.PROTECT, related_name="+")
+    rate = models.DecimalField(max_digits=28, decimal_places=12)
+
+    class Meta:
+        db_table = "exchange_rate"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["fetch", "quote"], name="exchange_rate_fetch_quote_uniq"
+            ),
+            models.CheckConstraint(condition=Q(rate__gt=0), name="exchange_rate_positive"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.quote_id} {self.rate}"
+
+
+class Transfer(models.Model):
+    """A transfer between own accounts: a linked payout from the source account and receipt to
+    the target, both amounts and the applied rate kept (§ 17.1.6). Not income or expense; a
+    posted transfer is not changed — a mistake is corrected by a reverse transfer."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    out_movement = models.OneToOneField(
+        MoneyMovement, on_delete=models.PROTECT, related_name="transfer_out"
+    )
+    in_movement = models.OneToOneField(
+        MoneyMovement, on_delete=models.PROTECT, related_name="transfer_in"
+    )
+    rate_fetch = models.ForeignKey(
+        RateFetch, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    suggested_rate = models.DecimalField(max_digits=28, decimal_places=12, null=True, blank=True)
+    applied_rate = models.DecimalField(max_digits=28, decimal_places=12)
+    rate_manual = models.BooleanField(default=False)
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "money_transfer"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "id"], name="money_transfer_company_id_uniq"
+            ),
+            models.CheckConstraint(
+                condition=Q(applied_rate__gt=0), name="money_transfer_rate_positive"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"transfer {self.out_movement_id} → {self.in_movement_id}"

@@ -7,6 +7,7 @@ import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field } from "../../components/ui";
 import { useCompany } from "../../layout/CompanyShell";
 import { useCashAccounts } from "./FinancePage";
+import { RateField, effectiveRate, useRateSuggestion } from "./Rates";
 
 export function usePayments() {
   const company = useCompany();
@@ -34,7 +35,14 @@ export function CashReceipt({
   const preferred = usable.find((a) => orderCurrencies.includes(a.currency)) ?? usable[0];
   const [accountId, setAccountId] = useState("");
   const account = usable.find((a) => a.id === (accountId || preferred?.id));
-  const remainder = order && account ? (order.amounts[account.currency]?.to_pay ?? "") : "";
+  // An order charged in one currency may be paid in another: the receipt stays in the account's
+  // currency and settles the order by the rate (§ 17.1.4).
+  const orderCurrency = orderCurrencies.length === 1 ? orderCurrencies[0] : undefined;
+  const exchange = Boolean(order && account && orderCurrency && orderCurrency !== account.currency);
+  const [manualRate, setManualRate] = useState("");
+  const suggestion = useRateSuggestion(exchange ? account?.currency : undefined, orderCurrency);
+  const rate = exchange ? effectiveRate(suggestion.data, manualRate) : null;
+  const remainder = order && account && !exchange ? (order.amounts[account.currency]?.to_pay ?? "") : "";
   const [amount, setAmount] = useState<string | null>(null);
   const [allocation, setAllocation] = useState<string | null>(null);
   const [note, setNote] = useState("");
@@ -42,6 +50,7 @@ export function CashReceipt({
   const receive = useCommand<Record<string, unknown>, { payment: Payment }>(`/c/${company.public_id}/payments/cash`);
   const amountValue = amount ?? (Number(remainder) > 0 ? remainder : "");
   const allocationValue = allocation ?? amountValue;
+  const settles = exchange && rate && allocationValue ? (Number(allocationValue) * Number(rate)).toFixed(2) : "";
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -51,13 +60,17 @@ export function CashReceipt({
       client_id: clientId,
       amount: amountValue,
       currency: account.currency,
-      allocations: order && allocationValue ? [{ order_id: order.id, amount: allocationValue }] : [],
+      allocations:
+        order && allocationValue
+          ? [{ order_id: order.id, amount: allocationValue, rate: exchange && manualRate ? manualRate : null }]
+          : [],
       note,
     });
     if (result) {
       setDone(result.payment);
       setAmount(null);
       setAllocation(null);
+      setManualRate("");
       setNote("");
       await onDone();
     }
@@ -86,6 +99,18 @@ export function CashReceipt({
             </Field>
           ) : null}
         </div>
+        {exchange && order && account && orderCurrency ? (
+          <>
+            <p className="muted">
+              {t("payments.order_currency", {
+                currency: orderCurrency,
+                amount: order.amounts[orderCurrency]?.to_pay ?? "0",
+              })}
+            </p>
+            <RateField from={account.currency} to={orderCurrency} manual={manualRate} onManual={setManualRate} />
+            {settles ? <p>{t("payments.settles", { amount: settles, currency: orderCurrency })}</p> : null}
+          </>
+        ) : null}
         <div className="row">
           <Field label={t("payments.note")}>
             <input value={note} onChange={(e) => setNote(e.target.value)} />
@@ -98,7 +123,7 @@ export function CashReceipt({
           </div>
         ) : null}
         <div className="actions">
-          <button type="submit" disabled={receive.pending || !account || !amountValue}>
+          <button type="submit" disabled={receive.pending || !account || !amountValue || (exchange && !rate)}>
             {t("payments.receive")}
           </button>
         </div>

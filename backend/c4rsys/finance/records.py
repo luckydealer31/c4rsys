@@ -14,13 +14,15 @@ from django.db.models import Case, DecimalField, F, QuerySet, Sum, When
 from django.utils import timezone
 
 from c4rsys.companies.models import ActivityContext, Location
-from c4rsys.finance import articles
+from c4rsys.finance import articles, rates
 from c4rsys.finance.models import CashAccount, FinanceArticle, MoneyMovement
 from c4rsys.fleet.models import VehicleCard
 from c4rsys.parties import services as parties
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
 from c4rsys.platform.counters import next_number
+from c4rsys.platform.models import Currency
+from c4rsys.platform.money import round_money
 
 IN = MoneyMovement.Direction.IN
 OUT = MoneyMovement.Direction.OUT
@@ -181,6 +183,45 @@ def record_manual(ctx: CommandContext, company_id: UUID, data: ManualRecord) -> 
 
 
 # --- Balances (§ 17.2.1) ------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Total:
+    """Balances of accounts valued in one currency by the current rates (§ 17.1.2, § 17.1.5).
+    Accounts without a rate are listed apart and are not in the amount."""
+
+    amount: Decimal
+    currency: str
+    missing: tuple[str, ...]
+    fetch: Any  # RateFetch | None — the newest download used
+    stale: bool
+
+
+def total(balances_by_account: list[tuple[str, Decimal]], currency: str) -> Total:
+    amount = Decimal(0)
+    missing: set[str] = set()
+    newest = None
+    stale = False
+    for account_currency, balance in balances_by_account:
+        if account_currency == currency:
+            amount += balance
+            continue
+        suggestion = rates.suggest(account_currency, currency)
+        if suggestion is None:
+            missing.add(account_currency)
+            continue
+        amount += balance * suggestion.rate
+        stale = stale or suggestion.stale
+        if newest is None or suggestion.fetch.fetched_at > newest.fetched_at:
+            newest = suggestion.fetch
+    places = Currency.objects.get(code=currency).minor_units
+    return Total(
+        amount=round_money(amount, places),
+        currency=currency,
+        missing=tuple(sorted(missing)),
+        fetch=newest,
+        stale=stale,
+    )
 
 
 def balance_of(company_id: UUID, account_id: UUID) -> Decimal:

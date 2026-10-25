@@ -5,6 +5,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 from uuid import UUID
 
+from django.db.models import Q
 from django.http import HttpRequest, JsonResponse
 from django.views.decorators.http import require_http_methods, require_POST
 
@@ -12,8 +13,8 @@ from c4rsys.accounts.middleware import require_user
 from c4rsys.companies import access
 from c4rsys.companies import services as companies
 from c4rsys.companies.views import run_and_respond
-from c4rsys.finance import articles, payments, records, services
-from c4rsys.finance.models import CashAccount, FinanceArticle, MoneyMovement
+from c4rsys.finance import articles, payments, rates, records, services, transfers
+from c4rsys.finance.models import CashAccount, FinanceArticle, MoneyMovement, Transfer
 from c4rsys.parties import services as parties
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
@@ -27,7 +28,9 @@ VIEW = "finance.account.view"
 INCOME = "finance.income.record"
 PAYOUT = "finance.payout"
 ARTICLES = "finance.article.manage"
-ACCOUNT_RIGHTS = (MANAGE, RECEIVE, VIEW, INCOME, PAYOUT)
+TRANSFER = "finance.transfer"
+RATE = "finance.rate.override"
+ACCOUNT_RIGHTS = (MANAGE, RECEIVE, VIEW, INCOME, PAYOUT, TRANSFER)
 NAME_MAX = 150
 NOTE_MAX = 500
 
@@ -79,12 +82,29 @@ def account_list(request: HttpRequest, cmp: str) -> JsonResponse:
     if request.method == "GET":
         # The balance is shown to those who may view the account's money (§ 23.2.7).
         balances = records.balances(context.company.id)
-        items = [
-            _account_payload(a, balances.get(a.id), with_balance=_can(actor, VIEW, a.id))
-            for a in services.accounts_of(context.company.id)
-            if _visible(actor, a.id)
-        ]
-        return JsonResponse({"cash_accounts": items})
+        items = []
+        valued = []
+        for account in services.accounts_of(context.company.id):
+            if not _visible(actor, account.id):
+                continue
+            shown = _can(actor, VIEW, account.id)
+            items.append(_account_payload(account, balances.get(account.id), with_balance=shown))
+            if shown:
+                valued.append((account.currency_id, balances.get(account.id) or Decimal(0)))
+        body: dict[str, Any] = {"cash_accounts": items}
+        main = context.company.main_currency_id
+        if valued and main:
+            # The common balance in the main currency by the current rates; it does not change
+            # the currencies of accounts (§ 17.1.2, § 17.1.5).
+            total = records.total(valued, main)
+            body["total"] = {
+                "amount": str(total.amount),
+                "currency": total.currency,
+                "missing": list(total.missing),
+                "rates_at": total.fetch.fetched_at.isoformat() if total.fetch else None,
+                "stale": total.stale,
+            }
+        return JsonResponse(body)
 
     if not access.RightsResolver().has_permission(actor, MANAGE):
         raise errors.permission_denied(MANAGE)
@@ -165,6 +185,13 @@ def _amount(value: Any, field: str, places: int) -> Decimal:
     return number
 
 
+def _rate(value: Any, field: str) -> Decimal | None:
+    """An optional manual exchange rate: positive, up to 12 decimal places (§ 17.1.8)."""
+    if value in (None, ""):
+        return None
+    return _amount(value, field, rates.RATE_PLACES)
+
+
 def _uuid(value: Any, field: str) -> UUID:
     try:
         return UUID(str(value))
@@ -210,9 +237,36 @@ def _movement_payload(movement: MoneyMovement) -> dict[str, Any]:
                 "amount": str(round_money(a.amount, places)),
                 "purpose": a.purpose,
                 "state": a.state,
+                # What it settles in the order's currency when that differs (§ 17.1.4).
+                "settled_amount": str(a.settled_amount) if a.settled_amount is not None else None,
+                "settled_currency": a.settled_currency_id,
+                "applied_rate": str(a.applied_rate) if a.applied_rate is not None else None,
             }
             for a in movement.allocations.order_by("created_at")
         ],
+        "transfer": _transfer_side(movement),
+    }
+
+
+def _transfer_side(movement: MoneyMovement) -> dict[str, Any] | None:
+    """The other account and the rate of a transfer (§ 17.1.6)."""
+    if movement.kind != MoneyMovement.Kind.TRANSFER:
+        return None
+    transfer = Transfer.objects.select_related("out_movement", "in_movement").get(
+        Q(out_movement=movement) | Q(in_movement=movement)
+    )
+    other = (
+        transfer.in_movement if transfer.out_movement_id == movement.id else transfer.out_movement
+    )
+    places = Currency.objects.get(code=other.currency_id).minor_units
+    return {
+        "id": str(transfer.id),
+        "other_account_id": str(other.cash_account_id),
+        "other_amount": str(round_money(other.amount, places)),
+        "other_currency": other.currency_id,
+        "applied_rate": str(transfer.applied_rate),
+        "suggested_rate": str(transfer.suggested_rate) if transfer.suggested_rate else None,
+        "rate_manual": transfer.rate_manual,
     }
 
 
@@ -242,6 +296,7 @@ def payment_cash(request: HttpRequest, cmp: str) -> JsonResponse:
             payments.Allocation(
                 order_id=_uuid(item.get("order_id"), f"{where}.order_id"),
                 amount=_amount(item.get("amount"), f"{where}.amount", currency.minor_units),
+                rate=_rate(item.get("rate"), f"{where}.rate"),
             )
         )
     if len({a.order_id for a in allocations}) != len(allocations):
@@ -255,8 +310,10 @@ def payment_cash(request: HttpRequest, cmp: str) -> JsonResponse:
         note=get_str(data, "note", max_length=500, required=False),
     )
 
+    may_override = _can(actor, RATE)
+
     def handler(ctx: CommandContext) -> CommandResult:
-        movement = payments.receive(ctx, receipt)
+        movement = payments.receive(ctx, receipt, may_override_rate=may_override)
         return CommandResult(201, {"payment": _movement_payload(movement)})
 
     payload = {
@@ -265,7 +322,12 @@ def payment_cash(request: HttpRequest, cmp: str) -> JsonResponse:
         "amount": str(receipt.amount),
         "currency": receipt.currency,
         "allocations": [
-            {"order_id": str(a.order_id), "amount": str(a.amount)} for a in receipt.allocations
+            {
+                "order_id": str(a.order_id),
+                "amount": str(a.amount),
+                "rate": str(a.rate) if a.rate is not None else None,
+            }
+            for a in receipt.allocations
         ],
         "note": receipt.note,
     }
@@ -485,3 +547,79 @@ def article_archive(request: HttpRequest, cmp: str, article_id: UUID) -> JsonRes
 @require_POST
 def article_restore(request: HttpRequest, cmp: str, article_id: UUID) -> JsonResponse:
     return _article_state(request, cmp, article_id, FinanceArticle.State.ACTIVE)
+
+
+# --- Exchange rates and transfers (§ 17.1) --------------------------------------------------
+
+
+@require_http_methods(["GET"])
+def rate_suggestion(request: HttpRequest, cmp: str) -> JsonResponse:
+    """The rate offered for an operation (§ 17.1.8): the last system rate, its time and source,
+    and whether it is outdated; `rate` is null when there is none. `may_override` tells the
+    interface whether the employee may enter another rate (§ 23.7.6)."""
+    _, actor = _actor(request, cmp)
+    if not any(_can(actor, p) for p in ACCOUNT_RIGHTS):
+        raise errors.permission_denied(VIEW)
+    codes = []
+    for field in ("from", "to"):
+        code = request.GET.get(field, "").upper()
+        if not Currency.objects.filter(code=code).exists():
+            raise errors.validation_error(field, code="CURRENCY_INVALID")
+        codes.append(code)
+    suggestion = rates.suggest(codes[0], codes[1])
+    latest = rates.latest_fetch()
+    return JsonResponse(
+        {
+            "from": codes[0],
+            "to": codes[1],
+            "rate": str(suggestion.rate) if suggestion else None,
+            "source": suggestion.fetch.source if suggestion else None,
+            "fetched_at": suggestion.fetch.fetched_at.isoformat() if suggestion else None,
+            "stale": suggestion.stale if suggestion else None,
+            "latest_fetch_at": latest.fetched_at.isoformat() if latest else None,
+            "may_override": _can(actor, RATE),
+        }
+    )
+
+
+@require_POST
+def transfer_create(request: HttpRequest, cmp: str) -> JsonResponse:
+    """A transfer between own accounts; the right covers both accounts (§ 17.1.6, § 23.2.7)."""
+    context, actor = _actor(request, cmp)
+    data = parse_json(request)
+    from_id = _uuid(data.get("from_account_id"), "from_account_id")
+    to_id = _uuid(data.get("to_account_id"), "to_account_id")
+    for account_id in (from_id, to_id):
+        if not _visible(actor, account_id):
+            raise errors.not_found()
+        if not _can(actor, TRANSFER, account_id):
+            raise errors.permission_denied(TRANSFER)
+    source = services.get_account(context.company.id, from_id)
+    places = Currency.objects.get(code=source.currency_id).minor_units
+    new = transfers.NewTransfer(
+        from_account_id=from_id,
+        to_account_id=to_id,
+        amount=_amount(data.get("amount"), "amount", places),
+        rate=_rate(data.get("rate"), "rate"),
+        note=get_str(data, "note", max_length=NOTE_MAX, required=False),
+    )
+    may_override = _can(actor, RATE)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        transfer = transfers.create(ctx, context.company.id, new, may_override_rate=may_override)
+        return CommandResult(
+            201,
+            {
+                "out": _movement_payload(transfer.out_movement),
+                "in": _movement_payload(transfer.in_movement),
+            },
+        )
+
+    payload = {
+        "from_account_id": str(from_id),
+        "to_account_id": str(to_id),
+        "amount": str(new.amount),
+        "rate": str(new.rate) if new.rate is not None else None,
+        "note": new.note,
+    }
+    return run_and_respond(request, "money.transfer", actor, payload, handler)

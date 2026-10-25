@@ -28,7 +28,8 @@
     "rental_returned": "Return accepted",
     "vehicle_location_changed": "Vehicle location changed",
     "vehicle_moved": "Vehicle moved",
-    "vehicle_odometer_recorded": "Odometer recorded"
+    "vehicle_odometer_recorded": "Odometer recorded",
+    "money_transferred": "Transfer between accounts"
   },
   "finance_articles": {
     "archive": "Archive",
@@ -472,7 +473,12 @@
     "vehicle_has_operations": "The vehicle cannot be moved: there are unfinished operations or a reserve in an order.",
     "category_unknown": "The category is not found.",
     "subcategory_of_other_category": "The subcategory belongs to another category.",
-    "cash_account_balance_not_zero": "Only an account with a zero balance can be archived. Balance: {{balance}} {{currency}}."
+    "cash_account_balance_not_zero": "Only an account with a zero balance can be archived. Balance: {{balance}} {{currency}}.",
+    "rate_unavailable": "There is no exchange rate for {{source}} → {{target}}; a manual rate needs the right to change it.",
+    "transfer_same_account": "Choose another account to transfer to.",
+    "rate_same_currency": "No rate is needed in one currency.",
+    "order_currencies_mixed": "The order is charged in several currencies.",
+    "amount_too_small": "The amount is too small for this rate."
   },
   "history": {
     "action": "Action",
@@ -579,7 +585,18 @@
     "tab_accounts": "Cash desks and accounts",
     "tab_articles": "Articles",
     "tab_money": "Money",
-    "what": "Record"
+    "what": "Record",
+    "kind_transfer": "Transfer",
+    "transfer_title": "Transfer between accounts",
+    "transfer_from": "From",
+    "transfer_to": "To",
+    "transfer_submit": "Transfer",
+    "transfer_arrives": "Arrives ≈ {{amount}} {{currency}}.",
+    "transfer_to_account": "to «{{account}}»: {{amount}} {{currency}}",
+    "transfer_from_account": "from «{{account}}»: {{amount}} {{currency}}",
+    "rate_applied": "rate {{rate}}",
+    "total": "Total in {{currency}}",
+    "total_missing": "No rate for {{currencies}}: those accounts are not in the total."
   },
   "moves": {
     "actual_end": "Actual end",
@@ -663,7 +680,9 @@
     "title": "Payments",
     "unallocated": "not allocated",
     "when": "Date and time",
-    "without_order": "Without an order"
+    "without_order": "Without an order",
+    "order_currency": "The order is in {{currency}}; left to pay {{amount}} {{currency}}.",
+    "settles": "Settles ≈ {{amount}} {{currency}} of the order."
   },
   "permissions": {
     "client_create": "Create clients",
@@ -730,7 +749,9 @@
     "counterparty_edit": "Change counterparties",
     "counterparty_archive": "Archive counterparties",
     "counterparty_restore": "Restore counterparties from the archive",
-    "order_reopen": "Cancel the closing of orders"
+    "order_reopen": "Cancel the closing of orders",
+    "finance_transfer": "Transfer between accounts",
+    "finance_rate_override": "Change the suggested exchange rate"
   },
   "positions": {
     "director": "Director"
@@ -1688,5 +1709,16 @@
     "alternatives": "Also fits:",
     "hint": "The category is chosen by the name; it can be changed or removed.",
     "note_hint": "The earlier text category, kept as a note."
+  },
+  "rates": {
+    "suggested": "Suggested rate: 1 {{from}} = {{rate}} {{to}}.",
+    "source": "ExchangeRate-API, received {{time}}.",
+    "stale": "The rate is outdated: check it or enter one by hand.",
+    "none": "There is no rate for this pair.",
+    "none_since": "There is no rate for this pair; rates were last updated {{time}}.",
+    "enter_manual": "Enter the rate by hand.",
+    "no_right": "Without the right to change the rate the operation cannot be posted; postpone it.",
+    "manual": "Rate: 1 {{from}} = … {{to}}",
+    "manual_hint": "Leave empty to apply the suggested rate."
   }
 }

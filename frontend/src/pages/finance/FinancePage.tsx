@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router";
 
 import { useApi } from "../../api/queries";
-import type { CashAccount, Client } from "../../api/types";
+import type { AccountsTotal, CashAccount, Client, Payment } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
@@ -15,10 +15,11 @@ import { ClientFinder } from "../rentals/IssuePage";
 import { Articles, useArticleName, useArticles } from "./Articles";
 import { CashReceipt, usePayments } from "./CashReceipt";
 import { AccountRecords, MoneyRecordForm } from "./MoneyRecords";
+import { TransferForm } from "./Transfers";
 
 export function useCashAccounts() {
   const company = useCompany();
-  return useApi<{ cash_accounts: CashAccount[] }>(
+  return useApi<{ cash_accounts: CashAccount[]; total?: AccountsTotal }>(
     ["cash-accounts", company.public_id],
     `/c/${company.public_id}/cash-accounts`,
   );
@@ -57,6 +58,7 @@ export function FinancePage() {
         <>
           {can("finance.payment.receive") ? <Receipt /> : null}
           <MoneyRecordForm accounts={accounts.data?.cash_accounts ?? []} />
+          <TransferForm accounts={accounts.data?.cash_accounts ?? []} />
           <PaymentsList />
         </>
       ) : null}
@@ -155,7 +157,12 @@ function PaymentsList() {
                 </td>
                 <td>
                   {p.kind !== "payment"
-                    ? [t(`money.kind_${p.kind}`), p.article_id ? articleName.get(p.article_id) : null, p.note]
+                    ? [
+                        t(`money.kind_${p.kind}`),
+                        p.article_id ? articleName.get(p.article_id) : null,
+                        transferText(t, p, accountName),
+                        p.note,
+                      ]
                         .filter(Boolean)
                         .join(" · ")
                     : p.allocations.length
@@ -165,6 +172,9 @@ function PaymentsList() {
                             № {orderNumber.get(a.order_id) ?? "…"}
                           </Link>{" "}
                           · {a.amount}
+                          {a.settled_amount
+                            ? ` → ${a.settled_amount} ${a.settled_currency} · ${t("money.rate_applied", { rate: Number(a.applied_rate) })}`
+                            : ""}
                         </div>
                       ))
                     : t("payments.unallocated")}
@@ -216,6 +226,7 @@ export function CashAccountsEditor() {
             </tbody>
           </table>
         )}
+        {accounts.data?.total ? <TotalLine total={accounts.data.total} /> : null}
       </Card>
       {openedAccount ? (
         <AccountRecords
@@ -226,6 +237,48 @@ export function CashAccountsEditor() {
       ) : null}
       {can("finance.cash_account.manage") ? <CreateAccount /> : null}
     </>
+  );
+}
+
+/** The other side of a transfer: account, its amount and the applied rate (§ 17.1.6). */
+export function transferText(
+  t: (key: string, options?: Record<string, unknown>) => string,
+  record: Payment,
+  accountName: Map<string, string>,
+): string {
+  const transfer = record.transfer;
+  if (!transfer) return "";
+  const text = t(record.direction === "out" ? "money.transfer_to_account" : "money.transfer_from_account", {
+    account: accountName.get(transfer.other_account_id) ?? "…",
+    amount: transfer.other_amount,
+    currency: transfer.other_currency,
+  });
+  return transfer.other_currency === record.currency
+    ? text
+    : `${text} · ${t("money.rate_applied", { rate: Number(transfer.applied_rate) })}`;
+}
+
+/** The common balance in the main currency by the current rates; the accounts keep their own
+ * currencies (§ 17.1.2, § 17.1.5). Accounts without a rate are named and left out. */
+function TotalLine({ total }: { total: AccountsTotal }) {
+  const { t, i18n } = useTranslation();
+  const company = useCompany();
+  return (
+    <div className="stack">
+      <p>
+        {t("money.total", { currency: total.currency })}: <strong>{total.amount} {total.currency}</strong>
+        {total.rates_at ? (
+          <span className="muted">
+            {" "}
+            · {t("rates.source", { time: formatMoment(total.rates_at, company.timezone ?? "UTC", i18n.language) })}
+          </span>
+        ) : null}
+      </p>
+      {total.stale ? <p className="alert error">{t("rates.stale")}</p> : null}
+      {total.missing.length ? (
+        <p className="alert error">{t("money.total_missing", { currencies: total.missing.join(", ") })}</p>
+      ) : null}
+    </div>
   );
 }
 

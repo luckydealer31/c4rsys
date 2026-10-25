@@ -10,6 +10,7 @@ import { useCan, useCompany } from "../../layout/CompanyShell";
 import { formatMoment } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
 import { useArticleName, useArticles } from "./Articles";
+import { transferText, useCashAccounts } from "./FinancePage";
 
 function useRefreshMoney() {
   const client = useQueryClient();
@@ -171,6 +172,8 @@ export function AccountRecords({ account, onClose }: { account: CashAccount; onC
     `/c/${company.public_id}/cash-accounts/${account.id}/records`,
   );
   const articleName = new Map((articles.data?.articles ?? []).map((a) => [a.id, nameOf(a)]));
+  const accounts = useCashAccounts();
+  const accountName = new Map((accounts.data?.cash_accounts ?? []).map((a) => [a.id, a.name]));
   const records = data.data?.records ?? [];
   const hasOpening = records.some((r) => r.kind === "opening");
 
@@ -210,6 +213,7 @@ export function AccountRecords({ account, onClose }: { account: CashAccount; onC
                 <td>
                   {t(`money.kind_${r.kind}`)}
                   {r.article_id ? ` · ${articleName.get(r.article_id) ?? "…"}` : ""}
+                  {r.transfer ? ` · ${transferText(t, r, accountName)}` : ""}
                 </td>
                 <td className={r.direction === "out" ? "negative" : undefined}>
                   {r.direction === "out" ? "−" : "+"}
