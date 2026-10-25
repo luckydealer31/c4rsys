@@ -220,13 +220,21 @@ def _receipt_payload(receipt: Receipt, suppliers: dict[UUID, str]) -> dict[str, 
         if line.unit_cost is None:
             incomplete = True
         else:
-            cost = line.unit_cost * line.quantity
+            cost = line.unit_cost * (
+                line.corrected_quantity if line.corrected_quantity is not None else line.quantity
+            )
             total += cost
         lines.append(
             {
                 "id": str(line.id),
                 "item": _item_brief(line.item),
-                "quantity": str(line.quantity),
+                # After a correction (§ 11.6.2) the corrected quantity; the posted one stays.
+                "quantity": str(
+                    line.corrected_quantity
+                    if line.corrected_quantity is not None
+                    else line.quantity
+                ),
+                "posted_quantity": str(line.quantity),
                 "packaging_id": str(line.packaging_id) if line.packaging_id else None,
                 "packaging_quantity": _decimal(line.packaging.quantity) if line.packaging else None,
                 "packs": line.packs,
@@ -253,6 +261,21 @@ def _receipt_payload(receipt: Receipt, suppliers: dict[UUID, str]) -> dict[str, 
                 "purchase_line_id": str(line.purchase_line_id) if line.purchase_line_id else None,
                 "assets": [
                     a.public_id for a in sorted(line.assets.all(), key=lambda a: a.created_at)
+                ],
+                "asset_refs": [
+                    {"id": str(a.id), "public_id": a.public_id, "state": a.state}
+                    for a in sorted(line.assets.all(), key=lambda a: a.created_at)
+                ],
+                "corrections": [
+                    {
+                        "quantity_before": str(c.quantity_before),
+                        "quantity_after": str(c.quantity_after),
+                        "unit_cost_before": stock.money_text(c.unit_cost_before, receipt.currency),
+                        "unit_cost_after": stock.money_text(c.unit_cost_after, receipt.currency),
+                        "reason": c.reason,
+                        "created_at": c.created_at.isoformat(),
+                    }
+                    for c in sorted(line.corrections.all(), key=lambda c: c.created_at)
                 ],
             }
         )

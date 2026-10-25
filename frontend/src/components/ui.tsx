@@ -8,7 +8,11 @@ export function ErrorMessage({ error }: { error: ApiError | null }) {
   const { t } = useTranslation();
   if (!error) return null;
   const key = `errors.${error.code.toLowerCase()}`;
-  const text = t(key, { ...error.params, defaultValue: t("errors.unknown", { code: error.code }) });
+  const text = t(key, {
+    field: error.field ?? "",
+    ...error.params,
+    defaultValue: t("errors.unknown", { code: error.code }),
+  });
   return (
     <div className="alert error" role="alert">
       {text}

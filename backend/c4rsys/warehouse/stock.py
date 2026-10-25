@@ -16,6 +16,7 @@ from uuid import UUID
 
 from django.db import IntegrityError, transaction
 from django.db.models import Prefetch, QuerySet, Sum
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from c4rsys.companies import locations
@@ -33,9 +34,11 @@ from c4rsys.warehouse import catalog
 from c4rsys.warehouse.models import (
     Asset,
     Item,
+    LayerUse,
     Lot,
     LotLayer,
     LotStock,
+    OpenedPackage,
     Packaging,
     PurchaseLine,
     PurchaseOrder,
@@ -610,8 +613,7 @@ def set_line_cost(
 ) -> ReceiptLine:
     """A cost that was not given is entered later (§ 11.2.6) for the line, its assets and its lot
     layer; the history stays in the journal. Changing a cost already given is a correction of a
-    posted receipt (part С3). Supplementing the cost of used material (§ 11.2.5) comes with
-    consumption."""
+    posted receipt (§ 11.6.2). What was already taken from the line gets the cost too (§ 11.2.5)."""
     receipt = _lock_receipt(company.id, receipt_id)
     line = ReceiptLine.objects.select_for_update().filter(receipt=receipt, pk=line_id).first()
     if line is None:
@@ -621,8 +623,7 @@ def set_line_cost(
     line.unit_cost = unit_cost
     line.save(update_fields=["unit_cost"])
     if receipt.state == Receipt.State.POSTED:
-        Asset.objects.filter(receipt_line=line).update(purchase_cost=unit_cost)
-        LotLayer.objects.filter(receipt_line=line).update(unit_cost=unit_cost)
+        propagate_line_cost(line, unit_cost)
     ctx.audit(
         "warehouse.receipt_cost_entered",
         object_type="warehouse_receipt",
@@ -631,6 +632,18 @@ def set_line_cost(
         after={"line": str(line.id), "unit_cost": str(unit_cost)},
     )
     return line
+
+
+def propagate_line_cost(line: ReceiptLine, unit_cost: Decimal | None) -> None:
+    """The cost of the units of a receipt line, of its layer, of what was already taken from it
+    and of child layers made from it (§ 11.2.5, § 11.3.3). Prices for clients do not change."""
+    Asset.objects.filter(receipt_line=line).update(purchase_cost=unit_cost)
+    layers = list(LotLayer.objects.filter(receipt_line=line))
+    while layers:
+        ids = [layer.id for layer in layers]
+        LotLayer.objects.filter(pk__in=ids).update(unit_cost=unit_cost)
+        LayerUse.objects.filter(layer_id__in=ids).update(unit_cost=unit_cost)
+        layers = list(LotLayer.objects.filter(source_layer_id__in=ids))
 
 
 # --- Reading receipts --------------------------------------------------------------------------
@@ -648,6 +661,7 @@ def receipts_of(company_id: UUID) -> QuerySet[Receipt]:
                 ),
             ),
             "lines__assets",
+            "lines__corrections",
         )
         .order_by("-number")
     )
@@ -745,7 +759,8 @@ def received_by_line(line_ids: list[UUID]) -> dict[UUID, Decimal]:
             purchase_line_id__in=line_ids, receipt__state=Receipt.State.POSTED
         )
         .values("purchase_line_id")
-        .annotate(total=Sum("quantity"))
+        # After a correction of a posted line its corrected quantity counts (§ 11.6.2).
+        .annotate(total=Sum(Coalesce("corrected_quantity", "quantity")))
     )
     return {row["purchase_line_id"]: row["total"] for row in rows}
 
@@ -942,14 +957,24 @@ def totals(company_id: UUID, context_ids: set[UUID]) -> dict[UUID, dict[UUID, di
             "id", "item_id", "context_id", "tags"
         )
     }
+    amounts: dict[UUID, Decimal] = defaultdict(lambda: ZERO)
     for row in (
         LotStock.objects.filter(lot_id__in=lots).values("lot_id").annotate(total=Sum("quantity"))
     ):
-        if row["total"] <= 0:
+        amounts[row["lot_id"]] += row["total"]
+    # Rests of opened packages belong to the stock of their lot (§ 11.1.17).
+    for row in (
+        OpenedPackage.objects.filter(lot_id__in=lots)
+        .values("lot_id")
+        .annotate(total=Sum("remaining"))
+    ):
+        amounts[row["lot_id"]] += row["total"]
+    for lot_id, amount in amounts.items():
+        if amount <= 0:
             continue
-        lot = lots[row["lot_id"]]
+        lot = lots[lot_id]
         entry = cell(lot.item_id, lot.context_id)
-        entry["quantity"] += row["total"]
+        entry["quantity"] += amount
         entry["tags"].update(lot.tags)
     return result
 
@@ -1010,11 +1035,15 @@ def item_stock(company_id: UUID, item_id: UUID, context_ids: set[UUID]) -> dict[
         today = timezone.localdate()
         for lot in (
             Lot.objects.filter(company_id=company_id, item=item, context_id__in=context_ids)
-            .prefetch_related("stock", "layers")
+            .select_related("parent")
+            .prefetch_related("stock", "layers", "opened_packages")
             .order_by("created_at")
         ):
             stock = [row for row in lot.stock.all() if row.quantity > 0]
-            quantity = sum((row.quantity for row in stock), ZERO)
+            opened = [o for o in lot.opened_packages.all() if o.remaining > 0]
+            quantity = sum((row.quantity for row in stock), ZERO) + sum(
+                (o.remaining for o in opened), ZERO
+            )
             if quantity <= 0:
                 continue
             entry = place(lot.context_id)
@@ -1047,9 +1076,21 @@ def item_stock(company_id: UUID, item_id: UUID, context_ids: set[UUID]) -> dict[
                             stock, key=lambda r: (r.packaging_id is None, str(r.packaging_id))
                         )
                     ],
+                    "opened_packages": [
+                        {
+                            "id": str(o.id),
+                            "packaging_quantity": str(packaging_names[o.packaging_id].quantity),
+                            "remaining": str(o.remaining),
+                            "opened_at": o.opened_at.isoformat(),
+                        }
+                        for o in sorted(opened, key=lambda o: o.opened_at)
+                    ],
+                    "parent": lot.parent.public_id if lot.parent_id and lot.parent else None,
                     "layers": [
                         {
-                            "receipt_number": numbers.get(layer.receipt_line_id),
+                            "receipt_number": numbers.get(layer.receipt_line_id)
+                            if layer.receipt_line_id
+                            else None,
                             "received_at": layer.received_at.isoformat(),
                             "received_quantity": str(layer.received_quantity),
                             "remaining": str(layer.remaining),

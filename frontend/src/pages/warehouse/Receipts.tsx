@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 
@@ -651,6 +651,7 @@ function PostedReceipt({ receipt }: { receipt: Receipt }) {
   const { t } = useTranslation();
   const company = useCompany();
   const can = useCan();
+  const [correcting, setCorrecting] = useState<string | null>(null);
   const quantity = useQuantity();
   const money = useMoney();
   return (
@@ -710,7 +711,8 @@ function PostedReceipt({ receipt }: { receipt: Receipt }) {
           </thead>
           <tbody>
             {receipt.lines.map((line) => (
-              <tr key={line.id}>
+              <Fragment key={line.id}>
+              <tr>
                 <td>
                   <Link to={companyPath(company, `/warehouse/items/${line.item.id}`)}>{line.item.name}</Link>
                 </td>
@@ -737,13 +739,40 @@ function PostedReceipt({ receipt }: { receipt: Receipt }) {
                 </td>
                 <td>{line.total_cost === null ? "—" : money(line.total_cost, receipt.currency)}</td>
                 <td className="small">
-                  {line.assets.length ? line.assets.join(", ") : null}
+                  {line.asset_refs.length
+                    ? line.asset_refs
+                        .map((a) => (a.state === "in_stock" ? a.public_id : `${a.public_id} (${t(`stock.state_${a.state}`)})`))
+                        .join(", ")
+                    : null}
                   {line.lot ? line.lot.public_id : null}
                   {line.serial_numbers.some(Boolean) ? (
                     <div className="muted">{line.serial_numbers.filter(Boolean).join(", ")}</div>
                   ) : null}
+                  {line.corrections.map((c, i) => (
+                    <div key={i} className="muted">
+                      {t("receipts.correction_line", {
+                        date: new Date(c.created_at).toLocaleDateString(),
+                        before: c.quantity_before,
+                        after: c.quantity_after,
+                        reason: c.reason,
+                      })}
+                    </div>
+                  ))}
+                  {can("warehouse.correct") ? (
+                    <button type="button" className="link" onClick={() => setCorrecting(correcting === line.id ? null : line.id)}>
+                      {t("receipts.correct")}
+                    </button>
+                  ) : null}
                 </td>
               </tr>
+              {correcting === line.id ? (
+                <tr>
+                  <td colSpan={6}>
+                    <CorrectLine receipt={receipt} line={line} onDone={() => setCorrecting(null)} />
+                  </td>
+                </tr>
+              ) : null}
+              </Fragment>
             ))}
           </tbody>
         </table>
@@ -779,6 +808,75 @@ function LateCost({ receipt, line }: { receipt: Receipt; line: ReceiptLine }) {
         </button>
       </div>
       <ErrorMessage error={enter.error} />
+    </div>
+  );
+}
+
+/** A correction of a posted line with a reason (§ 11.6.2): the stock never goes below zero; for
+ * pieces, the units to remove are chosen. */
+function CorrectLine({ receipt, line, onDone }: { receipt: Receipt; line: ReceiptLine; onDone: () => void }) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const client = useQueryClient();
+  const [quantity, setQuantity] = useState(line.quantity);
+  const [cost, setCost] = useState(line.unit_cost ?? "");
+  const [reason, setReason] = useState("");
+  const [remove, setRemove] = useState<string[]>([]);
+  const correct = useCommand<Record<string, unknown>, unknown>(
+    `/c/${company.public_id}/warehouse/receipts/${receipt.id}/lines/${line.id}/correct`,
+  );
+  const fewer = line.item.accounting === "individual" && Number(quantity) < Number(line.quantity);
+  return (
+    <div className="line-card">
+      <div className="row">
+        <Field label={t("receipts.quantity")}>
+          <input inputMode="decimal" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+        </Field>
+        <Field label={t("receipts.unit_cost")}>
+          <input inputMode="decimal" value={cost} onChange={(e) => setCost(e.target.value)} />
+        </Field>
+        <Field label={t("receipts.correction_reason")}>
+          <input value={reason} onChange={(e) => setReason(e.target.value)} />
+        </Field>
+      </div>
+      {fewer ? (
+        <div className="stack">
+          <p className="small">{t("receipts.correction_choose_units")}</p>
+          {line.asset_refs.filter((a) => a.state === "in_stock").map((a) => (
+            <label key={a.id}>
+              <input
+                type="checkbox"
+                checked={remove.includes(a.id)}
+                onChange={(e) => setRemove(e.target.checked ? [...remove, a.id] : remove.filter((x) => x !== a.id))}
+              />{" "}
+              {a.public_id}
+            </label>
+          ))}
+        </div>
+      ) : null}
+      <ErrorMessage error={correct.error} />
+      <div className="actions">
+        <button
+          type="button"
+          disabled={correct.pending || !reason.trim()}
+          onClick={async () => {
+            const body: Record<string, unknown> = { reason, remove_asset_ids: remove };
+            if (quantity !== line.quantity) body.quantity = quantity;
+            if (cost !== (line.unit_cost ?? "")) body.unit_cost = cost || null;
+            if ((await correct.run(body)) !== null) {
+              await client.invalidateQueries({ queryKey: ["warehouse-receipt", company.public_id, receipt.id] });
+              await client.invalidateQueries({ queryKey: ["warehouse-stock", company.public_id] });
+              onDone();
+            }
+          }}
+        >
+          {t("receipts.correct_save")}
+        </button>
+        <button type="button" className="secondary" onClick={onDone}>
+          {t("common.cancel")}
+        </button>
+      </div>
+      <p className="muted small">{t("receipts.correction_hint")}</p>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 from django.urls import path
 
+from c4rsys.warehouse import operations_views as ops
 from c4rsys.warehouse import stock_views, views
 
 urlpatterns = [
@@ -49,6 +50,27 @@ urlpatterns = [
         "c/<str:cmp>/warehouse/purchases/<uuid:purchase_id>/cancel-rest",
         stock_views.purchase_cancel_rest,
     ),
+    path("c/<str:cmp>/warehouse/items/<uuid:item_id>/sources", ops.item_sources),
+    path("c/<str:cmp>/warehouse/items/<uuid:item_id>/issued", ops.item_issued),
+    path("c/<str:cmp>/warehouse/vehicles", ops.company_vehicles),
+    path("c/<str:cmp>/warehouse/operations", ops.operation_list),
+    path("c/<str:cmp>/warehouse/operations/issue", ops.issue),
+    path("c/<str:cmp>/warehouse/operations/consume", ops.consume),
+    path("c/<str:cmp>/warehouse/operations/move", ops.move),
+    path("c/<str:cmp>/warehouse/operations/write-off", ops.write_off),
+    path("c/<str:cmp>/warehouse/operations/repack", ops.repack),
+    path("c/<str:cmp>/warehouse/operations/<uuid:operation_id>", ops.operation_detail),
+    path("c/<str:cmp>/warehouse/operations/<uuid:operation_id>/return", ops.return_issued),
+    path("c/<str:cmp>/warehouse/operations/<uuid:operation_id>/consume", ops.consume_issued),
+    path("c/<str:cmp>/warehouse/operations/<uuid:operation_id>/receive", ops.receive),
+    path("c/<str:cmp>/warehouse/operations/<uuid:operation_id>/settle", ops.settle),
+    path(
+        "c/<str:cmp>/warehouse/receipts/<uuid:receipt_id>/lines/<uuid:line_id>/correct",
+        ops.correct_receipt_line,
+    ),
+    path("c/<str:cmp>/warehouse/reasons", ops.reason_list),
+    path("c/<str:cmp>/warehouse/reasons/<uuid:reason_id>", ops.reason_detail),
+    path("c/<str:cmp>/warehouse/settings", ops.settings),
     path("c/<str:cmp>/warehouse/imports/template", views.import_template),
     path("c/<str:cmp>/warehouse/imports", views.import_list),
     path("c/<str:cmp>/warehouse/imports/<uuid:operation_id>", views.import_detail),

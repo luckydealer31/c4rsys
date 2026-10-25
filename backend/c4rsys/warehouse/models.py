@@ -391,6 +391,8 @@ class ReceiptLine(models.Model):
     )
     packs = models.PositiveIntegerField(null=True, blank=True)
     expected_quantity = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    # The quantity after corrections of the posted line (§ 11.6.2); `quantity` stays as posted.
+    corrected_quantity = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     unit_cost = models.DecimalField(max_digits=14, decimal_places=4, null=True, blank=True)
     tags = ArrayField(models.CharField(max_length=50), default=list, blank=True)
     serial_numbers = ArrayField(models.CharField(max_length=100), default=list, blank=True)
@@ -430,11 +432,20 @@ class Asset(models.Model):
 
     class State(models.TextChoices):
         IN_STOCK = "in_stock"
+        ISSUED = "issued"  # handed out with a return possible (§ 11.4.1)
+        CONSUMED = "consumed"  # actually used (§ 11.4.1, § 11.4.4)
+        IN_TRANSIT = "in_transit"  # sent and not yet received (§ 11.5.1)
+        WRITTEN_OFF = "written_off"  # § 11.3.4: the record and history stay
+        CANCELLED = "cancelled"  # removed by a correction of its receipt (§ 11.6.2)
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
     public_id = models.CharField(max_length=40, unique=True)
     item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name="assets")
+    # Where an issued or consumed unit went: a vehicle of the company (decision of 25.10.2026).
+    vehicle = models.ForeignKey(
+        "fleet.VehicleCard", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
     context = models.ForeignKey(
         "companies.ActivityContext", on_delete=models.PROTECT, related_name="+"
     )
@@ -501,7 +512,13 @@ class LotLayer(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
     lot = models.ForeignKey(Lot, on_delete=models.PROTECT, related_name="layers")
-    receipt_line = models.OneToOneField(ReceiptLine, on_delete=models.PROTECT, related_name="layer")
+    # A layer comes from a receipt, or — in a child lot — from a layer of the parent (§ 11.3.3).
+    receipt_line = models.ForeignKey(
+        ReceiptLine, on_delete=models.PROTECT, null=True, blank=True, related_name="layers"
+    )
+    source_layer = models.ForeignKey(
+        "self", on_delete=models.PROTECT, null=True, blank=True, related_name="child_layers"
+    )
     received_quantity = models.DecimalField(max_digits=12, decimal_places=2)
     remaining = models.DecimalField(max_digits=12, decimal_places=2)
     unit_cost = models.DecimalField(max_digits=14, decimal_places=4, null=True, blank=True)
@@ -552,6 +569,16 @@ class StockMovement(models.Model):
 
     class Kind(models.TextChoices):
         RECEIPT = "receipt"
+        ISSUE = "issue"
+        RETURN = "return"
+        CONSUME = "consume"
+        MOVE_OUT = "move_out"
+        MOVE_IN = "move_in"
+        MOVE_BACK = "move_back"
+        WRITE_OFF = "write_off"
+        REPACK = "repack"
+        OPEN = "open"
+        CORRECTION = "correction"
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
@@ -570,6 +597,12 @@ class StockMovement(models.Model):
     quantity = models.DecimalField(max_digits=12, decimal_places=2)
     receipt_line = models.ForeignKey(
         ReceiptLine, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    operation_line = models.ForeignKey(
+        "OperationLine", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    opened_package = models.ForeignKey(
+        "OpenedPackage", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
     actor_user_id = models.UUIDField()
     created_at = models.DateTimeField(default=now)
@@ -616,3 +649,273 @@ class SupplierArticle(models.Model):
 
     def __str__(self) -> str:
         return f"{self.supplier_id}:{self.article}"
+
+
+class OpenedPackage(models.Model):
+    """An opened package of a lot: its own rest of the content, not merged with other opened
+    packages (§ 11.1.17). It keeps the LOT and the expiry of the lot; at zero it stays in the
+    history."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    lot = models.ForeignKey(Lot, on_delete=models.PROTECT, related_name="opened_packages")
+    packaging = models.ForeignKey(Packaging, on_delete=models.PROTECT, related_name="+")
+    remaining = models.DecimalField(max_digits=12, decimal_places=2)
+    label = models.CharField(max_length=50, blank=True, default="")
+    opened_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "warehouse_opened_package"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(remaining__gte=0), name="warehouse_opened_package_not_negative"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.lot_id}:{self.remaining}"
+
+
+class WriteOffReason(models.Model):
+    """A reason of a write-off (§ 11.3.4). The starter reasons have a code and a translated name;
+    a renamed or own reason shows its name as entered. Reasons are archived, not deleted."""
+
+    class State(models.TextChoices):
+        ACTIVE = "active"
+        ARCHIVED = "archived"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    code = models.CharField(max_length=30, blank=True, default="")
+    name = models.CharField(max_length=100, blank=True, default="")
+    state = models.CharField(max_length=10, choices=State.choices, default=State.ACTIVE)
+    created_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "warehouse_write_off_reason"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "id"], name="warehouse_reason_company_id_uniq"
+            ),
+            models.UniqueConstraint(
+                fields=["company", "code"],
+                condition=~Q(code=""),
+                name="warehouse_reason_code_uniq",
+            ),
+            models.CheckConstraint(
+                condition=~Q(code="") | ~Q(name=""), name="warehouse_reason_named"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return self.name or self.code
+
+
+class WarehouseSettings(models.Model):
+    """Settings of the warehouse of a company. Expired lots (§ 11.2.15): a warning with an
+    explicit confirmation by default, or a full ban on issue and use."""
+
+    class ExpiredPolicy(models.TextChoices):
+        WARN = "warn"
+        FORBID = "forbid"
+
+    company = models.OneToOneField(
+        Company, on_delete=models.PROTECT, primary_key=True, related_name="+"
+    )
+    expired_policy = models.CharField(
+        max_length=10, choices=ExpiredPolicy.choices, default=ExpiredPolicy.WARN
+    )
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "warehouse_settings"
+
+    def __str__(self) -> str:
+        return f"{self.company_id}:{self.expired_policy}"
+
+
+class StockOperation(models.Model):
+    """A posted operation with the stock (§ 11.3–11.6): issue with a return possible and actual
+    consumption on a vehicle of the company (§ 11.4.1; decision of 25.10.2026), a move between
+    warehouses (§ 11.5), a write-off (§ 11.3.4) and a repacking (§ 11.3.3)."""
+
+    class Kind(models.TextChoices):
+        ISSUE = "issue"
+        CONSUME = "consume"
+        MOVE = "move"
+        WRITE_OFF = "write_off"
+        REPACK = "repack"
+
+    class State(models.TextChoices):
+        DONE = "done"
+        IN_TRANSIT = "in_transit"  # a move sent and not yet received
+        DISCREPANCY = "discrepancy"  # a move received with less than sent, awaiting a decision
+        RECEIVED = "received"  # a move received in full or with the shortage settled
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    number = models.PositiveIntegerField()
+    kind = models.CharField(max_length=20, choices=Kind.choices)
+    state = models.CharField(max_length=20, choices=State.choices, default=State.DONE)
+    context = models.ForeignKey(
+        "companies.ActivityContext", on_delete=models.PROTECT, related_name="+"
+    )
+    target_context = models.ForeignKey(
+        "companies.ActivityContext",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    vehicle = models.ForeignKey(
+        "fleet.VehicleCard", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    reason = models.ForeignKey(
+        WriteOffReason, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    # A write-off of losses made by a repacking or a settled shortage of a move.
+    parent = models.ForeignKey(
+        "self", on_delete=models.PROTECT, null=True, blank=True, related_name="children"
+    )
+    photos = ArrayField(models.UUIDField(), default=list, blank=True)
+    comment = models.TextField(blank=True, default="")
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+    received_by_user_id = models.UUIDField(null=True, blank=True)
+    received_at = models.DateTimeField(null=True, blank=True)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "warehouse_operation"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "id"], name="warehouse_operation_company_id_uniq"
+            ),
+            models.UniqueConstraint(
+                fields=["company", "number"], name="warehouse_operation_number_uniq"
+            ),
+            models.CheckConstraint(
+                condition=~Q(kind__in=["issue", "consume"]) | Q(vehicle__isnull=False),
+                name="warehouse_operation_vehicle_for_issue",
+            ),
+            models.CheckConstraint(
+                condition=~Q(kind="move") | Q(target_context__isnull=False),
+                name="warehouse_operation_target_for_move",
+            ),
+            models.CheckConstraint(
+                condition=~Q(kind="write_off") | Q(reason__isnull=False),
+                name="warehouse_operation_reason_for_write_off",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.kind} {self.number}"
+
+
+class OperationLine(models.Model):
+    """One position of an operation: a unit (asset) or a quantity of a lot taken from a form —
+    closed packages of a packaging, an opened package or loose material. For an issue the
+    returned and consumed parts are kept; for a move the received and settled parts; for a
+    repacking `output` marks what was obtained."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    operation = models.ForeignKey(StockOperation, on_delete=models.PROTECT, related_name="lines")
+    item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name="+")
+    asset = models.ForeignKey(
+        Asset, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    lot = models.ForeignKey(Lot, on_delete=models.PROTECT, null=True, blank=True, related_name="+")
+    packaging = models.ForeignKey(
+        Packaging, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    opened_package = models.ForeignKey(
+        OpenedPackage, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    output = models.BooleanField(default=False)
+    quantity = models.DecimalField(max_digits=12, decimal_places=2)
+    returned_quantity = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    consumed_quantity = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    received_quantity = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    settled_quantity = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    target_lot = models.ForeignKey(
+        Lot, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    expired_confirmed = models.BooleanField(default=False)
+    position = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        db_table = "warehouse_operation_line"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(quantity__gt=0), name="warehouse_operation_line_positive"
+            ),
+            models.CheckConstraint(
+                condition=(Q(asset__isnull=False) & Q(lot__isnull=True))
+                | (Q(asset__isnull=True) & Q(lot__isnull=False)),
+                name="warehouse_operation_line_asset_or_lot",
+            ),
+            models.CheckConstraint(
+                condition=Q(returned_quantity__gte=0)
+                & Q(consumed_quantity__gte=0)
+                & Q(quantity__gte=models.F("returned_quantity") + models.F("consumed_quantity")),
+                name="warehouse_operation_line_issue_range",
+            ),
+            models.CheckConstraint(
+                condition=Q(received_quantity__gte=0)
+                & Q(settled_quantity__gte=0)
+                & Q(quantity__gte=models.F("received_quantity") + models.F("settled_quantity")),
+                name="warehouse_operation_line_move_range",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.operation_id}:{self.quantity}"
+
+
+class LayerUse(models.Model):
+    """Which receipt layers an outgoing quantity of a lot came from, earlier receipts first
+    (§ 11.2.13), with their purchase cost. The cost is supplemented when a cost that was not
+    given is entered later (§ 11.2.5); `quantity` goes down when issued material is returned."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    line = models.ForeignKey(OperationLine, on_delete=models.PROTECT, related_name="layer_uses")
+    layer = models.ForeignKey(LotLayer, on_delete=models.PROTECT, related_name="uses")
+    quantity = models.DecimalField(max_digits=12, decimal_places=2)
+    received_quantity = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    unit_cost = models.DecimalField(max_digits=14, decimal_places=4, null=True, blank=True)
+
+    class Meta:
+        db_table = "warehouse_layer_use"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(quantity__gte=0) & Q(received_quantity__gte=0),
+                name="warehouse_layer_use_not_negative",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.layer_id}:{self.quantity}"
+
+
+class ReceiptCorrection(models.Model):
+    """A correction of a posted receipt line (§ 11.6.2): the original record stays, the change,
+    its reason and author are kept."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    line = models.ForeignKey(ReceiptLine, on_delete=models.PROTECT, related_name="corrections")
+    quantity_before = models.DecimalField(max_digits=12, decimal_places=2)
+    quantity_after = models.DecimalField(max_digits=12, decimal_places=2)
+    unit_cost_before = models.DecimalField(max_digits=14, decimal_places=4, null=True, blank=True)
+    unit_cost_after = models.DecimalField(max_digits=14, decimal_places=4, null=True, blank=True)
+    reason = models.CharField(max_length=500)
+    user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "warehouse_receipt_correction"
+
+    def __str__(self) -> str:
+        return f"{self.line_id}:{self.quantity_before}->{self.quantity_after}"

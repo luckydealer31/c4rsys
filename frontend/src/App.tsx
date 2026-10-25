@@ -14,6 +14,7 @@ import { CompanyPage } from "./pages/company/CompanyPage";
 import { ImportPage } from "./pages/warehouse/ImportPage";
 import { ItemPage, NewItemPage } from "./pages/warehouse/ItemPage";
 import { NewPurchasePage, PurchasePage } from "./pages/warehouse/Purchases";
+import { NewOperationPage, OperationPage, RepackPage } from "./pages/warehouse/Operations";
 import { ReceiptPage } from "./pages/warehouse/Receipts";
 import { WarehousePage } from "./pages/warehouse/WarehousePage";
 import { DashboardsPage } from "./pages/company/DashboardsPage";
@@ -103,6 +104,9 @@ export function App() {
         <Route path="warehouse/items/:id" element={<ItemPage />} />
         <Route path="warehouse/receipts/new" element={<ReceiptPage />} />
         <Route path="warehouse/receipts/:id" element={<ReceiptPage />} />
+        <Route path="warehouse/operations/new" element={<NewOperationPage />} />
+        <Route path="warehouse/operations/:id" element={<OperationPage />} />
+        <Route path="warehouse/repack" element={<RepackPage />} />
         <Route path="warehouse/purchases/new" element={<NewPurchasePage />} />
         <Route path="warehouse/purchases/:id" element={<PurchasePage />} />
         <Route path="finance" element={<FinancePage />} />

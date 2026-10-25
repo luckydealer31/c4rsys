@@ -510,6 +510,16 @@ export type ReceiptLine = {
   lot_expiry_date: string | null;
   purchase_line_id: string | null;
   assets: string[];
+  posted_quantity: string;
+  asset_refs: { id: string; public_id: string; state: string }[];
+  corrections: {
+    quantity_before: string;
+    quantity_after: string;
+    unit_cost_before: string | null;
+    unit_cost_after: string | null;
+    reason: string;
+    created_at: string;
+  }[];
 };
 
 /** A purchase received in one or several receipts (§ 11.2.11). */
@@ -570,6 +580,8 @@ export type ItemStock = {
       quantity: string;
       currency: string;
       stock: { packaging_id: string | null; packaging_quantity: string | null; packs: number | null; quantity: string }[];
+      opened_packages: { id: string; packaging_quantity: string; remaining: string; opened_at: string }[];
+      parent: string | null;
       layers: {
         receipt_number: number | null;
         received_at: string;
@@ -595,4 +607,60 @@ export type SupplierArticle = {
   supplier: { id: string; name: string };
   article: string;
   supplier_name: string;
+};
+
+export type WriteOffReason = { id: string; code: string; name: string; state: "active" | "archived" };
+
+/** An operation with the stock (§ 11.3–11.6). */
+export type StockOperation = {
+  id: string;
+  number: number;
+  version: number;
+  kind: "issue" | "consume" | "move" | "write_off" | "repack";
+  state: "done" | "in_transit" | "discrepancy" | "received";
+  context: { id: string; location_name: string };
+  target_context: { id: string; location_name: string } | null;
+  vehicle: { id: string; name: string } | null;
+  reason: WriteOffReason | null;
+  parent_id: string | null;
+  children: { id: string; number: number; kind: StockOperation["kind"] }[];
+  photos: string[];
+  currency: string;
+  comment: string;
+  created_at: string;
+  received_at: string | null;
+  lines: {
+    id: string;
+    item: ItemBrief;
+    asset: { id: string; public_id: string } | null;
+    lot: { id: string; public_id: string } | null;
+    packaging_quantity: string | null;
+    opened_package_id: string | null;
+    output: boolean;
+    quantity: string;
+    returned_quantity: string;
+    consumed_quantity: string;
+    outstanding: string;
+    received_quantity: string;
+    settled_quantity: string;
+    shortage: string;
+    target_lot: string | null;
+    expired_confirmed: boolean;
+    cost: string | null;
+    cost_known: boolean;
+  }[];
+};
+
+/** What can be taken from a warehouse: units or lots with their forms (§ 11.3.1). */
+export type Sources = {
+  assets: { id: string; public_id: string; serial_number: string; tags: string[] }[];
+  lots: {
+    id: string;
+    public_id: string;
+    external_number: string;
+    expiry_date: string | null;
+    expired: boolean;
+    forms: { packaging_id: string | null; packaging_quantity: string | null; quantity: string }[];
+    opened_packages: { id: string; packaging_quantity: string; remaining: string; opened_at: string; label: string }[];
+  }[];
 };

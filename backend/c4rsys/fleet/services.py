@@ -463,3 +463,22 @@ def location_blockers(company_id: UUID, location_id: UUID, context_type: str | N
         company_id=company_id, accounting_location_id=location_id, state=VehicleCard.State.ACTIVE
     ).exists()
     return ["vehicles_in_location"] if present else []
+
+
+def company_vehicle(company_id: UUID, card_id: UUID) -> VehicleCard | None:
+    """A vehicle of the company that materials are issued to or used on (customer's decision of
+    25.10.2026): an active own or managed vehicle in the garage — not a client's vehicle and not
+    one transferred to a warehouse (PROPOSAL)."""
+    return VehicleCard.objects.filter(
+        company_id=company_id,
+        pk=card_id,
+        relation__in=[VehicleCard.Relation.OWN, VehicleCard.Relation.MANAGED],
+        state=VehicleCard.State.ACTIVE,
+        storage_context__isnull=True,
+    ).first()
+
+
+def card_names(company_id: UUID, ids: set[UUID]) -> dict[UUID, str]:
+    return dict(
+        VehicleCard.objects.filter(company_id=company_id, pk__in=ids).values_list("id", "name")
+    )

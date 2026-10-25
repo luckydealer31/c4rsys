@@ -147,14 +147,26 @@ export function ItemStockCard({ item }: { item: WarehouseItem }) {
                 {lot.expired ? <span className="badge warn">{t("stock.expired")}</span> : null}
               </p>
               <p className="small">
-                {lot.stock
-                  .map((s) =>
+                {[
+                  ...lot.stock.map((s) =>
                     s.packaging_id
                       ? t("stock.packs", { packs: s.packs, size: quantity(s.packaging_quantity ?? 0, item.unit) })
                       : t("stock.loose", { quantity: quantity(s.quantity, item.unit) }),
-                  )
-                  .join("; ")}
+                  ),
+                  ...lot.opened_packages.map((o) =>
+                    t("stock.opened", { remaining: quantity(o.remaining, item.unit), size: quantity(o.packaging_quantity, item.unit) }),
+                  ),
+                ].join("; ")}
+                {lot.parent ? ` · ${t("stock.parent", { lot: lot.parent })}` : ""}
               </p>
+              {can("warehouse.repack") ? (
+                <Link
+                  className="button secondary"
+                  to={companyPath(company, `/warehouse/repack?item=${item.id}&lot=${lot.id}&context=${place.context_id}`)}
+                >
+                  {t("operations.repack")}
+                </Link>
+              ) : null}
               <table>
                 <thead>
                   <tr>
@@ -182,7 +194,34 @@ export function ItemStockCard({ item }: { item: WarehouseItem }) {
           ))}
         </div>
       ))}
+      <IssuedList item={item} />
     </Card>
+  );
+}
+
+/** Issued with a return possible and still out (§ 11.4.1). */
+function IssuedList({ item }: { item: WarehouseItem }) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const quantity = useQuantity();
+  const issued = useApi<{ issued: { operation_id: string; number: number; vehicle_name: string; asset: string | null; lot: string | null; quantity: string }[] }>(
+    ["warehouse-item-issued", company.public_id, item.id],
+    `/c/${company.public_id}/warehouse/items/${item.id}/issued`,
+  );
+  const rows = issued.data?.issued ?? [];
+  if (!rows.length) return null;
+  return (
+    <>
+      <h3>{t("stock.issued_title")}</h3>
+      <ul>
+        {rows.map((row) => (
+          <li key={`${row.operation_id}-${row.asset ?? row.lot}`}>
+            <Link to={companyPath(company, `/warehouse/operations/${row.operation_id}`)}>№ {row.number}</Link> ·{" "}
+            {row.vehicle_name} · {row.asset ?? row.lot} · {quantity(row.quantity, item.unit)}
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }
 
