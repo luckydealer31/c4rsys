@@ -47,6 +47,11 @@ export function StockList() {
           <Link className="button" to={companyPath(company, "/warehouse/receipts/new")}>
             {t("receipts.create")}
           </Link>
+          {can("warehouse.sell") ? (
+            <Link className="button secondary" to={companyPath(company, "/warehouse/sale")}>
+              {t("sales.sell")}
+            </Link>
+          ) : null}
         </div>
       ) : null}
       <Card>

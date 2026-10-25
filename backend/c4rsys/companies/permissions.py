@@ -69,6 +69,8 @@ PERMISSIONS: dict[str, str] = {
     "order.edit": "order",
     "order.close": "order",
     "order.close_with_debt": "order",
+    # § 12.2.3: cancelling the closing of an order is a separate right.
+    "order.reopen": "order",
 }
 
 COMPANY_ADMIN = "company_admin"

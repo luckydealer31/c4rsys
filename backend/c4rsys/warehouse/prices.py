@@ -239,6 +239,11 @@ def set_vehicle_price(
     )
 
 
+def vehicle_price(company_id: UUID, card_id: UUID) -> Decimal | None:
+    found = VehicleSalePrice.objects.filter(company_id=company_id, vehicle_id=card_id).first()
+    return found.amount if found else None
+
+
 def vehicle_prices(company_id: UUID) -> dict[UUID, tuple[str | None, str]]:
     return {
         p.vehicle_id: (money_text(p.amount, p.currency), p.currency)

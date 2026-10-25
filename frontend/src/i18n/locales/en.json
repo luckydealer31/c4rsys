@@ -407,7 +407,14 @@
     "price_mode_for_materials_only": "The price mode is for divisible materials only.",
     "price_mode_already": "This mode is already in force.",
     "prices_only_for_item_mode": "New prices are given only when switching to prices of the item.",
-    "vehicle_not_in_warehouse": "The vehicle is not in a warehouse — no selling price."
+    "vehicle_not_in_warehouse": "The vehicle is not in a warehouse — no selling price.",
+    "price_not_set": "No selling price — set it on the item first.",
+    "vehicle_reserved": "The vehicle is already in an order.",
+    "sale_line_state": "Not possible for this line: it is «{{state}}».",
+    "sale_stock_missing": "What is sold is no longer in stock — check the stock.",
+    "vehicle_sale_correction_later": "Cancelling a vehicle sale needs the new owner's confirmation — comes later.",
+    "order_without_client": "The order has no client.",
+    "order_not_closed": "The order is not closed."
   },
   "history": {
     "action": "Action",
@@ -631,7 +638,8 @@
     "counterparty_create": "Create counterparties",
     "counterparty_edit": "Change counterparties",
     "counterparty_archive": "Archive counterparties",
-    "counterparty_restore": "Restore counterparties from the archive"
+    "counterparty_restore": "Restore counterparties from the archive",
+    "order_reopen": "Cancel the closing of orders"
   },
   "positions": {
     "director": "Director"
@@ -1508,5 +1516,32 @@
     "minimum_hint": "Below the threshold the item is marked in the stock. Empty — no threshold; no purchase is created automatically.",
     "below_minimum": "below minimum",
     "minimum_short": "min. {{value}}"
+  },
+  "sales": {
+    "sell": "Sell",
+    "start_title": "Sale from the warehouse",
+    "new_order": "New order for a client",
+    "new_order_hint": "Choose a client — an order is created, then add goods to it. No client — create one in «Contacts».",
+    "open_orders": "Or add to an open order of a client",
+    "no_open_orders": "No open client orders.",
+    "goods": "Goods",
+    "price": "Price",
+    "state_reserved": "Reserved",
+    "state_sold": "Sold",
+    "state_removed": "Removed",
+    "state_cancelled": "Sale cancelled",
+    "cancel": "Cancel the sale",
+    "cancel_reason": "Reason of the cancellation",
+    "cancel_hint": "The goods return to the warehouse, the charge is corrected; a payment becomes an overpayment.",
+    "hint": "Added goods are reserved at once at the fixed price; the sale happens when the order closes. A removed line releases the reserve.",
+    "add": "Add goods or a vehicle",
+    "add_button": "Add to the order",
+    "vehicles": "Vehicles in this warehouse",
+    "form_loose": "Loose: {{quantity}}",
+    "form_hint": "Closed packages sell whole; loose sale comes from loose material or an opened package.",
+    "reopen_title": "Cancel the closing of the order",
+    "reopen_reason": "Reason",
+    "reopen_hint": "The order opens for corrections; they need their own rights, then the order is closed again.",
+    "reopen": "Cancel the closing"
   }
 }

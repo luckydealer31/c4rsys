@@ -482,3 +482,37 @@ def card_names(company_id: UUID, ids: set[UUID]) -> dict[UUID, str]:
     return dict(
         VehicleCard.objects.filter(company_id=company_id, pk__in=ids).values_list("id", "name")
     )
+
+
+def record_sale(ctx: CommandContext, company_id: UUID, card_id: UUID, order_id: UUID) -> None:
+    """A vehicle sold from a warehouse through a closed order: the seller's ownership ends
+    (§ 8.3.9). The card leaves the active garage and the warehouse; its ID and history stay.
+    PROPOSAL: the card is archived."""
+    card = VehicleCard.objects.select_for_update().filter(company_id=company_id, pk=card_id).first()
+    if card is None:
+        raise errors.not_found()
+    if card.storage_context_id is None:
+        raise errors.business_rule("VEHICLE_NOT_IN_WAREHOUSE")
+    card.state = VehicleCard.State.ARCHIVED
+    card.version += 1
+    card.save(update_fields=["state", "version", "updated_at"])
+    ctx.audit(
+        "vehicle.sold",
+        object_type="vehicle_card",
+        object_id=card.id,
+        after={"order": str(order_id), "state": card.state},
+    )
+
+
+def stored_card(company_id: UUID, card_id: UUID) -> VehicleCard | None:
+    """An active vehicle of the company transferred to a warehouse — for sale (§ 8.3.9)."""
+    return (
+        VehicleCard.objects.select_related("storage_context__location")
+        .filter(
+            company_id=company_id,
+            pk=card_id,
+            state=VehicleCard.State.ACTIVE,
+            storage_context__isnull=False,
+        )
+        .first()
+    )

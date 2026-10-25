@@ -17,6 +17,7 @@ import { NewPurchasePage, PurchasePage } from "./pages/warehouse/Purchases";
 import { InventoryPage } from "./pages/warehouse/Inventory";
 import { NewOperationPage, OperationPage, RepackPage } from "./pages/warehouse/Operations";
 import { ReceiptPage } from "./pages/warehouse/Receipts";
+import { SaleStartPage } from "./pages/warehouse/Sales";
 import { WarehousePage } from "./pages/warehouse/WarehousePage";
 import { DashboardsPage } from "./pages/company/DashboardsPage";
 import { ContextSectionPage } from "./pages/contexts/ContextLocations";
@@ -108,6 +109,7 @@ export function App() {
         <Route path="warehouse/operations/new" element={<NewOperationPage />} />
         <Route path="warehouse/operations/:id" element={<OperationPage />} />
         <Route path="warehouse/repack" element={<RepackPage />} />
+        <Route path="warehouse/sale" element={<SaleStartPage />} />
         <Route path="warehouse/inventories/:id" element={<InventoryPage />} />
         <Route path="warehouse/purchases/new" element={<NewPurchasePage />} />
         <Route path="warehouse/purchases/:id" element={<PurchasePage />} />

@@ -15,7 +15,7 @@ from c4rsys.orders import services
 from c4rsys.orders.models import Order
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
-from c4rsys.platform.http import get_int, parse_json
+from c4rsys.platform.http import get_int, get_str, parse_json
 from c4rsys.platform.models import Currency
 from c4rsys.platform.money import round_money
 
@@ -135,6 +135,32 @@ def order_close(request: HttpRequest, cmp: str, order_id: UUID) -> JsonResponse:
 
     payload = {"order_id": str(order_id), "expected_version": expected_version}
     return run_and_respond(request, "order.close", actor, payload, handler)
+
+
+@require_POST
+def order_reopen(request: HttpRequest, cmp: str, order_id: UUID) -> JsonResponse:
+    """§ 12.2.3: the closing is cancelled with the separate right «Reopen orders»."""
+    context, actor = _actor(request, cmp)
+    order = services.get_order(context.company.id, order_id)
+    operations = services.operations_of(order)
+    if not _visible(actor, operations):
+        raise errors.not_found()
+    resolver = access.RightsResolver()
+    places = {op.location_id for op in operations}
+    if not all(resolver.has_permission(actor, "order.reopen", location_id=x) for x in places):
+        raise errors.permission_denied("order.reopen")
+    data = parse_json(request)
+    expected_version = get_int(data, "expected_version")
+    reason = get_str(data, "reason", max_length=2000, required=False)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        reopened = services.reopen_order(
+            ctx, context.company.id, order_id, expected_version, reason
+        )
+        return CommandResult(200, {"order": _payload(reopened, services.operations_of(reopened))})
+
+    payload = {"order_id": str(order_id), "expected_version": expected_version, "reason": reason}
+    return run_and_respond(request, "order.reopen", actor, payload, handler)
 
 
 @require_GET

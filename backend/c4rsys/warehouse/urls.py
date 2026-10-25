@@ -3,6 +3,7 @@ from django.urls import path
 from c4rsys.warehouse import inventory_views as inv
 from c4rsys.warehouse import operations_views as ops
 from c4rsys.warehouse import prices_views as pr
+from c4rsys.warehouse import sales_views as sl
 from c4rsys.warehouse import stock_views, views
 
 urlpatterns = [
@@ -90,6 +91,17 @@ urlpatterns = [
     path("c/<str:cmp>/warehouse/vehicles/<uuid:vehicle_id>/price", pr.vehicle_price),
     path("c/<str:cmp>/warehouse/vehicle-prices", pr.vehicle_prices),
     path("c/<str:cmp>/warehouse/low-stock", pr.low_stock),
+    path("c/<str:cmp>/warehouse/sales/start", sl.start),
+    path("c/<str:cmp>/warehouse/sales/open-orders", sl.open_orders),
+    path("c/<str:cmp>/warehouse/orders/<uuid:order_id>/sale-lines", sl.order_lines),
+    path(
+        "c/<str:cmp>/warehouse/orders/<uuid:order_id>/sale-lines/<uuid:line_id>",
+        sl.order_line_remove,
+    ),
+    path(
+        "c/<str:cmp>/warehouse/orders/<uuid:order_id>/sale-lines/<uuid:line_id>/cancel",
+        sl.order_line_cancel,
+    ),
     path("c/<str:cmp>/warehouse/reasons", ops.reason_list),
     path("c/<str:cmp>/warehouse/reasons/<uuid:reason_id>", ops.reason_detail),
     path("c/<str:cmp>/warehouse/settings", ops.settings),

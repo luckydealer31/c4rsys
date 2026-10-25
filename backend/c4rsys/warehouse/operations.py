@@ -30,6 +30,7 @@ from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
 from c4rsys.platform.counters import next_number
 from c4rsys.platform.registry import allocate_public_id
+from c4rsys.warehouse import reserves
 from c4rsys.warehouse.models import (
     Asset,
     Item,
@@ -257,7 +258,11 @@ def _take_one(
         if len(assets) != len(take.asset_ids):
             raise errors.validation_error(f"{where}.asset_ids", code="ASSET_UNKNOWN")
         for asset in assets:
-            if asset.context_id != context.id or asset.state != Asset.State.IN_STOCK:
+            if (
+                asset.context_id != context.id
+                or asset.state != Asset.State.IN_STOCK
+                or reserves.asset_reserved(asset.id)
+            ):
                 # § 11.8.1: nothing beyond what is available in this warehouse.
                 raise errors.business_rule(
                     "ASSET_NOT_AVAILABLE", field=f"{where}.asset_ids", asset=asset.public_id
@@ -289,9 +294,10 @@ def _take_one(
             raise errors.validation_error(
                 f"{where}.opened_package_id", code="OPENED_PACKAGE_UNKNOWN"
             )
-        if amount > opened.remaining:
+        free = opened.remaining - reserves.reserved_in_form(lot.id, opened.packaging_id, opened.id)
+        if amount > free:
             raise errors.business_rule(
-                "STOCK_NOT_ENOUGH", field=f"{where}.quantity", available=str(opened.remaining)
+                "STOCK_NOT_ENOUGH", field=f"{where}.quantity", available=str(free)
             )
         opened.remaining -= amount
         opened.save(update_fields=["remaining"])
@@ -308,9 +314,10 @@ def _take_one(
         if rest and not allow_open:
             raise errors.validation_error(f"{where}.quantity", code="QUANTITY_NOT_WHOLE_PACKS")
         needed = size * (whole + (1 if rest else 0))
-        if needed > row.quantity:
+        free = row.quantity - reserves.reserved_in_form(lot.id, packaging.id, None)
+        if needed > free:
             raise errors.business_rule(
-                "STOCK_NOT_ENOUGH", field=f"{where}.quantity", available=str(row.quantity)
+                "STOCK_NOT_ENOUGH", field=f"{where}.quantity", available=str(free)
             )
         row.quantity -= needed
         row.save(update_fields=["quantity"])
@@ -336,9 +343,10 @@ def _take_one(
             taken.pieces.append(Piece(rest, opened=opened))
     else:
         row = _stock_row(lot, None)
-        if amount > row.quantity:
+        free = row.quantity - reserves.reserved_in_form(lot.id, None, None)
+        if amount > free:
             raise errors.business_rule(
-                "STOCK_NOT_ENOUGH", field=f"{where}.quantity", available=str(row.quantity)
+                "STOCK_NOT_ENOUGH", field=f"{where}.quantity", available=str(free)
             )
         row.quantity -= amount
         row.save(update_fields=["quantity"])

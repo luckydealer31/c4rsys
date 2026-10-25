@@ -443,6 +443,7 @@ class Asset(models.Model):
         IN_TRANSIT = "in_transit"  # sent and not yet received (§ 11.5.1)
         WRITTEN_OFF = "written_off"  # § 11.3.4: the record and history stay
         CANCELLED = "cancelled"  # removed by a correction of its receipt (§ 11.6.2)
+        SOLD = "sold"  # sold through a closed order (§ 11.9.1)
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
@@ -592,6 +593,8 @@ class StockMovement(models.Model):
         OPEN = "open"
         CORRECTION = "correction"
         ADJUSTMENT = "adjustment"  # a confirmed inventory adjustment (§ 11.6.3)
+        SALE = "sale"  # a sale at the closing of its order (§ 11.9.1)
+        SALE_CANCEL = "sale_cancel"  # a wrongly closed sale cancelled (§ 11.9.5)
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
@@ -758,6 +761,7 @@ class StockOperation(models.Model):
         MOVE = "move"
         WRITE_OFF = "write_off"
         REPACK = "repack"
+        SALE = "sale"  # goods sold at the closing of an order (§ 11.9.1)
 
     class State(models.TextChoices):
         DONE = "done"
@@ -1128,3 +1132,89 @@ class MinimumStock(models.Model):
 
     def __str__(self) -> str:
         return f"{self.item_id}:{self.context_id}:{self.quantity}"
+
+
+class SaleLine(models.Model):
+    """A goods line of an order sold from the warehouse of a location (§ 11.9; decisions of
+    25.10.2026): units, a quantity of a lot from closed packages, loose material or an opened
+    package, or a vehicle transferred to the warehouse. While the order is open the line
+    reserves what it sells without a term and keeps the snapshot of the applied price
+    (§ 11.3.2, § 11.9.1). Closing the order sells it; removing the line releases the reserve
+    without consumption. A wrongly closed sale is cancelled with a reason; the record stays."""
+
+    class State(models.TextChoices):
+        RESERVED = "reserved"
+        SOLD = "sold"
+        REMOVED = "removed"
+        CANCELLED = "cancelled"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    order = models.ForeignKey("orders.Order", on_delete=models.PROTECT, related_name="+")
+    context = models.ForeignKey(
+        "companies.ActivityContext", on_delete=models.PROTECT, related_name="+"
+    )
+    state = models.CharField(max_length=20, choices=State.choices, default=State.RESERVED)
+    item = models.ForeignKey(
+        Item, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    asset = models.ForeignKey(
+        Asset, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    lot = models.ForeignKey(Lot, on_delete=models.PROTECT, null=True, blank=True, related_name="+")
+    packaging = models.ForeignKey(
+        Packaging, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    opened_package = models.ForeignKey(
+        OpenedPackage, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    vehicle = models.ForeignKey(
+        "fleet.VehicleCard", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    quantity = models.DecimalField(max_digits=12, decimal_places=2)
+    unit_price = models.DecimalField(max_digits=14, decimal_places=4)
+    amount = models.DecimalField(max_digits=14, decimal_places=4)
+    currency = models.CharField(max_length=3)
+    operation_line = models.ForeignKey(
+        OperationLine, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+    sold_at = models.DateTimeField(null=True, blank=True)
+    removed_at = models.DateTimeField(null=True, blank=True)
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    cancel_reason = models.TextField(blank=True, default="")
+
+    class Meta:
+        db_table = "warehouse_sale_line"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "id"], name="warehouse_sale_line_company_id_uniq"
+            ),
+            models.CheckConstraint(
+                condition=Q(quantity__gt=0), name="warehouse_sale_line_positive"
+            ),
+            models.CheckConstraint(
+                condition=Q(amount__gte=0) & Q(unit_price__gte=0), name="warehouse_sale_line_money"
+            ),
+            models.CheckConstraint(
+                condition=(Q(vehicle__isnull=False) & Q(item__isnull=True))
+                | (Q(vehicle__isnull=True) & Q(item__isnull=False)),
+                name="warehouse_sale_line_item_or_vehicle",
+            ),
+            # One active sale line per unit or vehicle.
+            models.UniqueConstraint(
+                fields=["asset"],
+                condition=Q(state__in=["reserved", "sold"]) & Q(asset__isnull=False),
+                name="warehouse_sale_line_asset_once",
+            ),
+            models.UniqueConstraint(
+                fields=["vehicle"],
+                condition=Q(state__in=["reserved", "sold"]) & Q(vehicle__isnull=False),
+                name="warehouse_sale_line_vehicle_once",
+            ),
+        ]
+        indexes = [models.Index(fields=["company", "order"], name="warehouse_sale_line_order_idx")]
+
+    def __str__(self) -> str:
+        return f"{self.order_id}:{self.quantity}"
