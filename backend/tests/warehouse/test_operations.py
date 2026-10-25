@@ -2,15 +2,18 @@
 shortages, write-off with reasons, repacking, opened packages, expired lots, correction of a
 posted receipt (ТЗ § 11.1.17, § 11.2.5, § 11.2.15, § 11.3–11.6; decisions of 25.10.2026)."""
 
-from datetime import timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
+from unittest import mock
 
 import pytest
 from django.test import Client
 from django.utils import timezone
 
+from c4rsys.companies.models import ActivityContext, Company, Location
 from c4rsys.warehouse.models import Asset, LayerUse, Lot, LotStock, OpenedPackage
+from c4rsys.warehouse.stock import expired
 from tests.accounts.helpers import post
 from tests.companies.helpers import create_company, key
 
@@ -414,3 +417,21 @@ def test_correction_of_a_posted_receipt(owner: Client, cmp: str, setup: dict[str
     priced = post(owner, url, {"unit_cost": "120", "reason": "Invoice"}, key())
     assert priced.status_code == 200
     assert {use.unit_cost for use in LayerUse.objects.all()} == {Decimal("120")}
+
+
+@pytest.mark.parametrize(
+    ("location_zone", "company_zone", "is_expired"),
+    [("Asia/Bangkok", "", True), ("", "Asia/Bangkok", True), ("", "", False)],
+)
+def test_expiry_is_judged_by_the_date_at_the_warehouse(
+    location_zone: str, company_zone: str, is_expired: bool
+) -> None:
+    """At 17:30 UTC on 25 October it is already the 26th in Bangkok (§ 2.7.5, § 11.2.15):
+    a lot expiring on the 25th is expired there. Without the zone of the location the zone of
+    the company is used (§ 3.1.6)."""
+    company = Company(timezone=company_zone)
+    context = ActivityContext(location=Location(company=company, timezone=location_zone))
+    lot = Lot(context=context, expiry_date=date(2026, 10, 25))
+    evening = datetime(2026, 10, 25, 17, 30, tzinfo=UTC)
+    with mock.patch("django.utils.timezone.now", return_value=evening):
+        assert expired(lot) is is_expired

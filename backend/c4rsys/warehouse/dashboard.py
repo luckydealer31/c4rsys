@@ -232,7 +232,7 @@ def _expiring(scope: Scope, today: date) -> list[dict[str, Any]]:
         Lot.objects.filter(
             pk__in=scope.lot_ids, expiry_date__isnull=False, expiry_date__lte=horizon
         )
-        .select_related("context__location")
+        .select_related("context__location__company")
         .prefetch_related("stock", "opened_packages")
         .order_by("expiry_date")
     )
@@ -248,7 +248,7 @@ def _expiring(scope: Scope, today: date) -> list[dict[str, Any]]:
                     "item": scope.brief(lot.item_id),
                     "location_name": lot.context.location.name,
                     "expiry_date": lot.expiry_date.isoformat() if lot.expiry_date else None,
-                    "expired": stock.expired(lot, today),
+                    "expired": stock.expired(lot),
                     "quantity": str(quantity),
                 }
             )

@@ -49,7 +49,7 @@ from c4rsys.warehouse.models import (
     WarehouseSettings,
     WriteOffReason,
 )
-from c4rsys.warehouse.stock import ZERO, expired, propagate_line_cost
+from c4rsys.warehouse.stock import ZERO, expired, local_today, propagate_line_cost
 
 MAX_LINES = 200
 MAX_PHOTOS = 10
@@ -1406,7 +1406,8 @@ def sources(company_id: UUID, item_id: UUID, context_id: UUID) -> dict[str, Any]
             ],
             "lots": [],
         }
-    today = timezone.localdate()
+    context = locations.storage_context(company_id, context_id)
+    today = local_today(context) if context else None
     lots = []
     for lot in Lot.objects.filter(
         company_id=company_id, item=item, context_id=context_id

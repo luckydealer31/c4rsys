@@ -13,6 +13,7 @@ from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from django.db import IntegrityError, transaction
 from django.db.models import Prefetch, QuerySet, Sum
@@ -932,9 +933,21 @@ def record_context(company_id: UUID, kind: str, record_id: UUID) -> ActivityCont
 # --- Reading stock (§ 11.1.1, § 11.1.10, § 11.2.13) ----------------------------------------------
 
 
+def local_today(context: ActivityContext) -> date:
+    """Today at the warehouse: in the time zone of its location (§ 2.7.5, § 4.2.1); while the
+    location has none, in the time zone of the company (§ 3.1.6)."""
+    location = context.location
+    return timezone.localdate(
+        timezone=ZoneInfo(location.timezone or location.company.timezone or "UTC")
+    )
+
+
 def expired(lot: Lot, today: date | None = None) -> bool:
-    """Past the expiry date the lot is marked expired, not written off (§ 11.2.15)."""
-    return lot.expiry_date is not None and lot.expiry_date < (today or timezone.localdate())
+    """Past the expiry date the lot is marked expired, not written off (§ 11.2.15). The date
+    is the date at the warehouse of the lot."""
+    if lot.expiry_date is None:
+        return False
+    return lot.expiry_date < (today or local_today(lot.context))
 
 
 def totals(company_id: UUID, context_ids: set[UUID]) -> dict[UUID, dict[UUID, dict[str, Any]]]:
@@ -1032,10 +1045,9 @@ def item_stock(company_id: UUID, item_id: UUID, context_ids: set[UUID]) -> dict[
             )
     else:
         packaging_names = {p.id: p for p in item.packagings.all()}
-        today = timezone.localdate()
         for lot in (
             Lot.objects.filter(company_id=company_id, item=item, context_id__in=context_ids)
-            .select_related("parent")
+            .select_related("parent", "context__location__company")
             .prefetch_related("stock", "layers", "opened_packages")
             .order_by("created_at")
         ):
@@ -1057,7 +1069,7 @@ def item_stock(company_id: UUID, item_id: UUID, context_ids: set[UUID]) -> dict[
                     if lot.production_date
                     else None,
                     "expiry_date": lot.expiry_date.isoformat() if lot.expiry_date else None,
-                    "expired": expired(lot, today),
+                    "expired": expired(lot),
                     "tags": lot.tags,
                     "quantity": str(quantity),
                     "currency": lot.currency,
