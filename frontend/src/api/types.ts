@@ -80,7 +80,6 @@ export type Location = {
     type: ContextType;
     state: string;
     ready: boolean;
-    storage_enabled: boolean;
   }[];
 };
 
@@ -408,7 +407,7 @@ export type WarehouseOptions = {
   >;
 };
 
-/** A context with storage (§ 11.1.5). */
+/** The warehouse of a location — the only place stock is kept (decision of 25.10.2026). */
 export type Storage = {
   context_id: string;
   type: ContextType;

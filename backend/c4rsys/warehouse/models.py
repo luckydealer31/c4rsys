@@ -1,6 +1,6 @@
 """Catalog of the warehouse (ТЗ § 11.1).
 
-The catalog is shared by the whole company; stock belongs to contexts with storage (§ 11.1.1).
+The catalog is shared by the whole company; stock belongs to the warehouses of locations (§ 11.1.1).
 The accounting method follows the base unit (§ 11.1.11): a piece or an instance is accounted
 individually, divisible units by lots. The base unit never changes after creation.
 """

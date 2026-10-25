@@ -18,10 +18,6 @@ urlpatterns = [
         "c/<str:cmp>/locations/<uuid:location_id>/contexts/<uuid:context_id>/enable",
         views.context_enable,
     ),
-    path(
-        "c/<str:cmp>/locations/<uuid:location_id>/contexts/<uuid:context_id>/storage",
-        views.context_storage,
-    ),
     path("c/<str:cmp>/employees", staff_views.employee_list),
     path("c/<str:cmp>/permission-catalog", staff_views.permission_catalog),
     path("c/<str:cmp>/employees/invitations", staff_views.invitation_create),

@@ -280,7 +280,7 @@ def barcode_lookup(request: HttpRequest, cmp: str, code: str) -> JsonResponse:
 
 @require_http_methods(["GET"])
 def storages(request: HttpRequest, cmp: str) -> JsonResponse:
-    """Contexts with storage the employee may see (§ 11.1.1, § 23.7.3): stock is kept apart by
+    """Warehouses of locations the employee may see (§ 11.1.1, § 23.7.3): stock is kept apart by
     them. Stock itself comes with receipts."""
     context, actor = _actor(request, cmp)
     resolver = access.RightsResolver()

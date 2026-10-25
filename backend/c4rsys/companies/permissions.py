@@ -25,7 +25,7 @@ PERMISSIONS: dict[str, str] = {
     "vehicle.move": "vehicle",
     # Decision of 24.10.2026: a separate right; only in «Company administrator» (PROPOSAL).
     "vehicle.transfer_to_warehouse": "vehicle",
-    # Warehouse (§ 23.7.3–23.7.5, § 23.2.6). Scope — contexts with storage. `catalog.manage`
+    # Warehouse (§ 23.7.3–23.7.5, § 23.2.6). Scope — the warehouse of a location. `catalog.manage`
     # (creating and changing items) is a PROPOSAL: the ТЗ lets an item be created at receipt.
     "warehouse.view": "warehouse",
     "warehouse.catalog.manage": "warehouse",

@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 from django.test import Client
 
-from c4rsys.companies.models import ActivityContext, PermissionSet
+from c4rsys.companies.models import PermissionSet
 from c4rsys.platform.models import AuditEvent
 from c4rsys.warehouse.models import Item
 from tests.accounts.helpers import post
@@ -33,34 +33,23 @@ def item(owner: Client, cmp: str, **data: Any) -> Any:
     return post(owner, f"/api/c/{cmp}/warehouse/items", {"name": "Oil 5W-30", **data}, key())
 
 
-# --- Storage of contexts (§ 11.1.5–11.1.7) -----------------------------------------------------
+# --- Storage: only the warehouse of a location (decision of 25.10.2026) -----------------------
 
 
-def test_warehouse_always_stores_rental_and_service_by_setting(owner: Client, cmp: str) -> None:
+def test_only_the_warehouse_of_a_location_stores(owner: Client, cmp: str) -> None:
     created = location(owner, cmp, "rental", "service", "warehouse")
-    by_type = {c["type"]: c for c in created["contexts"]}
-    assert by_type["warehouse"]["storage_enabled"] is True
-    assert by_type["rental"]["storage_enabled"] is False
-    assert by_type["service"]["storage_enabled"] is False
-
-    base = f"/api/c/{cmp}/locations/{created['id']}/contexts"
-    on = post(owner, f"{base}/{by_type['service']['id']}/storage", {"enabled": True}, key())
-    assert on.status_code == 200, on.content
-    always = post(owner, f"{base}/{by_type['warehouse']['id']}/storage", {"enabled": False}, key())
-    assert always.json()["error"]["code"] == "STORAGE_ALWAYS_ON"
+    assert all("storage_enabled" not in c for c in created["contexts"])
+    body = {"name": "Krabi", "contexts": ["rental"]}
+    rental_only = post(owner, f"/api/c/{cmp}/locations", body, key()).json()["location"]
 
     storages = owner.get(f"/api/c/{cmp}/warehouse/storages").json()["storages"]
-    assert sorted(s["type"] for s in storages) == ["service", "warehouse"]
+    assert [(s["type"], s["location_id"]) for s in storages] == [("warehouse", created["id"])]
+    assert rental_only["id"] not in {s["location_id"] for s in storages}
 
-
-def test_warehouse_context_without_storage_is_refused_by_the_database(
-    owner: Client, cmp: str
-) -> None:
-    created = location(owner, cmp, "warehouse")
-    with pytest.raises(Exception):  # noqa: B017 — the CHECK constraint
-        ActivityContext.objects.filter(id=created["contexts"][0]["id"]).update(
-            storage_enabled=False
-        )
+    service = next(c for c in created["contexts"] if c["type"] == "service")
+    base = f"/api/c/{cmp}/locations/{created['id']}/contexts"
+    refused = post(owner, f"{base}/{service['id']}/storage", {"enabled": True}, key())
+    assert refused.status_code == 404
 
 
 # --- Catalog (§ 11.1.11–11.1.13) ---------------------------------------------------------------

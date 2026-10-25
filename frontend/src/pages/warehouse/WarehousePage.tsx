@@ -12,7 +12,7 @@ import { useVehicles } from "../vehicles/VehiclesPage";
 type Tab = "items" | "storages";
 
 /** Section «Warehouse» (ТЗ гл. 11), part С1: the catalog of the company and its places of
- * storage; stock appears with receipts (part С2). */
+ * warehouses by location; stock appears with receipts (part С2). */
 export function WarehousePage() {
   const { t } = useTranslation();
   const [params, setParams] = useSearchParams();
@@ -120,7 +120,7 @@ function Items() {
   );
 }
 
-/** Contexts with storage, each with its own stock (§ 11.1.1, § 11.1.8). */
+/** Warehouses of locations, each with its own stock (§ 11.1.1); a location has one at most. */
 function Storages() {
   const { t } = useTranslation();
   const company = useCompany();
@@ -140,7 +140,7 @@ function Storages() {
       {(storages.data?.storages ?? []).map((storage) => (
         <Card
           key={storage.context_id}
-          title={`${t(`warehouse.storage_${storage.type}`)} — ${storage.location_name}`}
+          title={`${t("warehouse.storage_warehouse")} — ${storage.location_name}`}
         >
           {storage.state !== "enabled" || storage.location_deactivated ? (
             <span className="badge warn">{t("locations.context_disabled")}</span>

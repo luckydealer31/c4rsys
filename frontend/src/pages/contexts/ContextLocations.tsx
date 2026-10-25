@@ -38,8 +38,8 @@ function contextState(location: Location, type: ContextType): string {
 
 /** Service and warehouse are divided by location (decision of 24.10.2026): each location with
  * such a context is a section of its own. The modules come with later stages; until then a
- * section shows only its location and state. A separate storage of a service context (§ 11.1.5)
- * appears with the service module. */
+ * section shows only its location and state. Service has no storage of its own: parts are taken
+ * from the warehouse (decision of 25.10.2026). */
 export function ContextSectionPage({ type }: { type: Exclude<ContextType, "rental"> }) {
   const { t } = useTranslation();
   const company = useCompany();

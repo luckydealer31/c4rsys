@@ -222,7 +222,6 @@ def _location_payload(location: Location) -> dict[str, Any]:
                 "id": str(c.id),
                 "type": c.type,
                 "state": c.state,
-                "storage_enabled": c.storage_enabled,
                 "ready": locations.context_ready(c),
             }
             for c in contexts
@@ -397,28 +396,6 @@ def _context_state_command(
     payload = {"location_id": str(location_id), "context_id": str(context_id)}
     name = "location.enable_context" if enabled else "location.disable_context"
     return run_and_respond(request, name, actor, payload, handler)
-
-
-@require_POST
-def context_storage(
-    request: HttpRequest, cmp: str, location_id: UUID, context_id: UUID
-) -> JsonResponse:
-    """Storage of a rental or service context (§ 11.1.5). § 11.1.7: anyone who may create
-    locations sets it — here the right of company settings, which creates locations."""
-    context, actor = _settings_actor(request, cmp)
-    locations.get_location(context.company.id, location_id)
-    data = parse_json(request)
-    enabled = data.get("enabled")
-    if not isinstance(enabled, bool):
-        raise errors.validation_error("enabled")
-
-    def handler(ctx: CommandContext) -> CommandResult:
-        locations.set_storage(ctx, context.company.id, location_id, context_id, enabled)
-        location = locations.get_location(context.company.id, location_id)
-        return CommandResult(200, {"location": _location_payload(location)})
-
-    payload = {"location_id": str(location_id), "context_id": str(context_id), "enabled": enabled}
-    return run_and_respond(request, "location.set_storage", actor, payload, handler)
 
 
 @require_POST
