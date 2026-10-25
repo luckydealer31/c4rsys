@@ -6,3 +6,5 @@ dj-database-url>=2.2,<4
 argon2-cffi>=23.1,<30
 django-anymail[amazon-ses]>=15.2,<16
 gunicorn>=26.2,<27
+# XLSX import (§ 22.2).
+openpyxl>=3.1,<4

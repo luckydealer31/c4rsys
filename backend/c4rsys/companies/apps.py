@@ -25,3 +25,5 @@ class CompaniesConfig(AppConfig):
             )
 
         files.register_reader(StoredFile.Purpose.COMPANY_LOGO, logo_reader)
+        # A photo of a catalog item is seen like the logo: by the company's employees.
+        files.register_reader(StoredFile.Purpose.ITEM_PHOTO, logo_reader)

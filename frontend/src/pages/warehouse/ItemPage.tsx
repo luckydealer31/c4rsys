@@ -6,23 +6,36 @@ import { Link, useNavigate, useParams } from "react-router";
 import { useApi } from "../../api/queries";
 import type { CatalogMake, CatalogModel, WarehouseItem, WarehouseOptions } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
+import { ImagePicker } from "../../components/images";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 
 const OTHER = "__other";
+
+type PairKey = "side" | "longitudinal" | "vertical" | "placement";
+type ChoiceKey = "originality" | "condition";
+// Attributes of a spare part as toggle buttons (decision of 25.10.2026): both pressed — «both»,
+// none — not given. Originality and condition: one of two or none.
+const PAIRS: [PairKey, string, string][] = [
+  ["side", "left", "right"],
+  ["longitudinal", "front", "rear"],
+  ["vertical", "upper", "lower"],
+  ["placement", "inner", "outer"],
+];
+const CHOICES: [ChoiceKey, string, string][] = [
+  ["originality", "original", "analog"],
+  ["condition", "new", "used"],
+];
+const TEXTS = ["article", "category", "model_characteristic", "photo_url", "comment", "external_id"] as const;
 
 type Form = {
   name: string;
   unit: string;
   manufacturer: string;
   manufacturer_other: string;
-  side: string;
-  longitudinal: string;
-  vertical: string;
-  placement: string;
-  originality: string;
+  photo: string | null;
   applicability: { make: string; model: string }[];
-};
+} & Record<PairKey | ChoiceKey | (typeof TEXTS)[number], string>;
 
 function formOf(item?: WarehouseItem): Form {
   return {
@@ -35,8 +48,24 @@ function formOf(item?: WarehouseItem): Form {
     vertical: item?.vertical ?? "",
     placement: item?.placement ?? "",
     originality: item?.originality ?? "",
+    condition: item?.condition ?? "",
+    article: item?.article ?? "",
+    category: item?.category ?? "",
+    model_characteristic: item?.model_characteristic ?? "",
+    photo_url: item?.photo_url ?? "",
+    comment: item?.comment ?? "",
+    external_id: item?.external_id ?? "",
+    photo: item?.photo ?? null,
     applicability: (item?.applicability ?? []).map((a) => ({ make: a.make, model: a.model ?? "" })),
   };
+}
+
+/** Next value of a pair: one, the other, both or none. */
+function togglePair(value: string, pressed: string, other: string): string {
+  const on = new Set(value === "both" ? [pressed, other] : value ? [value] : []);
+  if (on.has(pressed)) on.delete(pressed);
+  else on.add(pressed);
+  return on.size === 2 ? "both" : ([...on][0] ?? "");
 }
 
 /** New item of the catalog (§ 11.1.11): name and base unit are required; the accounting method
@@ -45,7 +74,7 @@ export function NewItemPage() {
   return <ItemForm />;
 }
 
-/** Item card: its data, packagings and barcodes (§ 11.1.11–11.1.16). */
+/** Item card: its data, packagings and barcodes (§ 11.1.11–11.1.16, § 22.4.1). */
 export function ItemPage() {
   const company = useCompany();
   const { id = "" } = useParams();
@@ -77,8 +106,33 @@ function useRefresh(item?: WarehouseItem) {
   const company = useCompany();
   return async () => {
     await client.invalidateQueries({ queryKey: ["warehouse-items", company.public_id] });
+    await client.invalidateQueries({ queryKey: ["warehouse-categories", company.public_id] });
     if (item) await client.invalidateQueries({ queryKey: ["warehouse-item", company.public_id, item.id] });
   };
+}
+
+function ToggleButton({
+  pressed,
+  disabled,
+  label,
+  onClick,
+}: {
+  pressed: boolean;
+  disabled: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`toggle${pressed ? " on" : ""}`}
+      aria-pressed={pressed}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      {label}
+    </button>
+  );
 }
 
 function ItemForm({ item }: { item?: WarehouseItem }) {
@@ -96,6 +150,10 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
     ["vehicle-makes", "passenger_car"],
     "/catalog/vehicle-makes?type=passenger_car",
   );
+  const categories = useApi<{ categories: string[] }>(
+    ["warehouse-categories", company.public_id],
+    `/c/${company.public_id}/warehouse/categories`,
+  );
   const [form, setForm] = useState<Form>(formOf(item));
   const [saved, setSaved] = useState(false);
   const save = useCommand<Record<string, unknown>, { item: WarehouseItem }>(
@@ -103,7 +161,7 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
     item ? "PATCH" : "POST",
   );
   const editable = can("warehouse.catalog.manage");
-  const set = (changes: Partial<Form>) => setForm({ ...form, ...changes });
+  const set = (changes: Partial<Form>) => setForm((prev) => ({ ...prev, ...changes }));
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -112,15 +170,14 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
       name: form.name,
       manufacturer: form.manufacturer && form.manufacturer !== OTHER ? form.manufacturer : "",
       manufacturer_other: form.manufacturer === OTHER ? form.manufacturer_other : "",
-      side: form.side,
-      longitudinal: form.longitudinal,
-      vertical: form.vertical,
-      placement: form.placement,
-      originality: form.originality,
+      photo: form.photo ?? "",
       applicability: form.applicability
         .filter((a) => a.make)
         .map((a) => (a.model ? { make: a.make, model: a.model } : { make: a.make })),
     };
+    for (const [key] of PAIRS) body[key] = form[key];
+    for (const [key] of CHOICES) body[key] = form[key];
+    for (const key of TEXTS) body[key] = form[key];
     if (item) body.expected_version = item.version;
     else body.unit = form.unit;
     const result = await save.run(body);
@@ -131,16 +188,14 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
     }
   }
 
-  const attribute = (key: "side" | "longitudinal" | "vertical" | "placement" | "originality") => (
-    <Field label={t(`warehouse.attr_${key}`)}>
-      <select value={form[key]} disabled={!editable} onChange={(e) => set({ [key]: e.target.value })}>
-        <option value="">{t("warehouse.not_given")}</option>
-        {(options.data?.attributes[key] ?? []).map((value) => (
-          <option key={value} value={value}>
-            {t(`warehouse.value_${value}`)}
-          </option>
-        ))}
-      </select>
+  const text = (key: (typeof TEXTS)[number], hint?: string) => (
+    <Field label={t(`warehouse.${key}`)} hint={hint}>
+      <input
+        value={form[key]}
+        disabled={!editable}
+        list={key === "category" ? "warehouse-categories" : undefined}
+        onChange={(e) => set({ [key]: e.target.value })}
+      />
     </Field>
   );
 
@@ -156,18 +211,24 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
             <Field label={t("warehouse.name")}>
               <input value={form.name} disabled={!editable} onChange={(e) => set({ name: e.target.value })} />
             </Field>
-            <Field
-              label={t("warehouse.unit")}
-              hint={item ? t("warehouse.unit_immutable") : t("warehouse.unit_hint")}
-            >
+            <Field label={t("warehouse.unit")} hint={t("warehouse.unit_hint")}>
               <select value={form.unit} disabled={Boolean(item)} onChange={(e) => set({ unit: e.target.value })}>
                 {(options.data?.units ?? []).map((u) => (
                   <option key={u.code} value={u.code}>
-                    {t(`warehouse.unit_${u.code}`)} — {t(`warehouse.accounting_${u.accounting}`)}
+                    {t(`warehouse.unit_${u.code}`)}
                   </option>
                 ))}
               </select>
             </Field>
+          </div>
+          <div className="row">
+            {text("article")}
+            {text("category")}
+            <datalist id="warehouse-categories">
+              {(categories.data?.categories ?? []).map((c) => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
           </div>
           <div className="row">
             <Field label={t("warehouse.manufacturer")}>
@@ -194,18 +255,42 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
                 />
               </Field>
             ) : null}
+            {text("model_characteristic")}
           </div>
         </Card>
         <Card title={t("warehouse.section_parts")}>
-          <p className="muted small">{t("warehouse.parts_hint")}</p>
-          <div className="row">
-            {attribute("side")}
-            {attribute("longitudinal")}
-            {attribute("vertical")}
-            {attribute("placement")}
-            {attribute("originality")}
+          <p className="muted small">{t("warehouse.toggles_hint")}</p>
+          <div className="toggle-grid">
+            {PAIRS.map(([key, a, b]) => (
+              <div key={key} className="toggle-row">
+                <span className="muted small">{t(`warehouse.attr_${key}`)}</span>
+                {[a, b].map((value) => (
+                  <ToggleButton
+                    key={value}
+                    pressed={form[key] === value || form[key] === "both"}
+                    disabled={!editable}
+                    label={t(`warehouse.value_${value}`)}
+                    onClick={() => set({ [key]: togglePair(form[key], value, value === a ? b : a) })}
+                  />
+                ))}
+              </div>
+            ))}
+            {CHOICES.map(([key, a, b]) => (
+              <div key={key} className="toggle-row">
+                <span className="muted small">{t(`warehouse.attr_${key}`)}</span>
+                {[a, b].map((value) => (
+                  <ToggleButton
+                    key={value}
+                    pressed={form[key] === value}
+                    disabled={!editable}
+                    label={t(`warehouse.value_${value}`)}
+                    onClick={() => set({ [key]: form[key] === value ? "" : value })}
+                  />
+                ))}
+              </div>
+            ))}
           </div>
-          <div className="field">
+          <div className="field" style={{ marginTop: 12 }}>
             <span>{t("warehouse.applicability")}</span>
             {form.applicability.map((row, index) => (
               <ApplicabilityRow
@@ -232,6 +317,25 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
               </button>
             ) : null}
           </div>
+        </Card>
+        <Card title={t("warehouse.section_more")}>
+          <Field label={t("warehouse.photo")}>
+            <ImagePicker
+              purpose="item_photo"
+              value={form.photo}
+              name={form.name}
+              square
+              disabled={!editable}
+              onChange={(photo) => set({ photo })}
+            />
+          </Field>
+          <div className="row">
+            {text("photo_url")}
+            {text("external_id", t("warehouse.external_id_hint"))}
+          </div>
+          <Field label={t("warehouse.comment")}>
+            <textarea rows={3} value={form.comment} disabled={!editable} onChange={(e) => set({ comment: e.target.value })} />
+          </Field>
         </Card>
         <ErrorMessage error={save.error} />
         {saved ? <div className="alert ok">{t("common.saved")}</div> : null}

@@ -374,7 +374,7 @@ export type WarehouseItem = {
   id: string;
   version: number;
   name: string;
-  unit: "piece" | "instance" | "liter" | "kilogram" | "meter";
+  unit: "piece" | "liter" | "kilogram" | "meter";
   accounting: "individual" | "batch";
   manufacturer: string | null;
   manufacturer_other: string;
@@ -384,6 +384,16 @@ export type WarehouseItem = {
   vertical: string;
   placement: string;
   originality: string;
+  condition: string;
+  article: string;
+  category: string;
+  model_characteristic: string;
+  photo: string | null;
+  photo_url: string;
+  comment: string;
+  external_id: string;
+  possible_duplicate: boolean;
+  import_operation: string | null;
   state: "active" | "archived";
   applicability: { make: string; model: string | null }[];
   packagings: { id: string; name: string; quantity: string; state: string }[];
@@ -392,7 +402,10 @@ export type WarehouseItem = {
 
 export type WarehouseOptions = {
   units: { code: string; accounting: string }[];
-  attributes: Record<"side" | "longitudinal" | "vertical" | "placement" | "originality", string[]>;
+  attributes: Record<
+    "side" | "longitudinal" | "vertical" | "placement" | "originality" | "condition",
+    string[]
+  >;
 };
 
 /** A context with storage (§ 11.1.5). */
@@ -403,4 +416,33 @@ export type Storage = {
   location_id: string;
   location_name: string;
   location_deactivated: boolean;
+};
+
+/** A row of an import check (§ 22.2.2–22.2.3). */
+export type ImportRow = {
+  code: string;
+  number: number;
+  values: Record<string, string>;
+  errors: { field: string; code: string }[];
+  matches: { id: string; name: string; by: string }[];
+  action: "create" | "skip" | "link" | "create_duplicate" | "error";
+  target: string | null;
+  result: "created" | "linked" | "skipped" | "conflict" | null;
+  item_id: string | null;
+};
+
+export type ImportOperation = {
+  id: string;
+  version: number;
+  kind: string;
+  state: "checked" | "posted" | "cancelled";
+  file_name: string;
+  created_at: string;
+  posted_at: string | null;
+  cancelled_at: string | null;
+  loaded_count: number;
+  skipped_count: number;
+  rows_count: number;
+  warnings: { code: string; column?: string; import?: string; loaded?: number; skipped?: number }[];
+  rows?: ImportRow[];
 };

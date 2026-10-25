@@ -42,7 +42,7 @@ export function ImagePicker({
   disabled,
   square,
 }: {
-  purpose: "avatar" | "company_logo";
+  purpose: "avatar" | "company_logo" | "item_photo";
   value: string | null;
   name: string;
   onChange: (file: string | null) => void;

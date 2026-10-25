@@ -44,6 +44,10 @@ PERMISSIONS: dict[str, str] = {
     "warehouse.sale.correct": "warehouse",
     "warehouse.price.set": "warehouse",
     "warehouse.price.policy": "warehouse",
+    # Import (§ 22.5.1): running it, cancelling a posted one, seeing the history and files.
+    "import.run": "import",
+    "import.cancel": "import",
+    "import.history.view": "import",
     "client.find": "client",
     "client.list": "client",
     "client.create": "client",

@@ -219,3 +219,11 @@ dl.facts dd { margin: 0; }
   color: var(--accent); }
 .context-icon.off { color: var(--muted); opacity: 0.6; }
 .choice-row { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+
+/* Toggle buttons of item attributes (decision of 25.10.2026). */
+.toggle-grid { display: grid; gap: 8px; }
+.toggle-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.toggle-row > span:first-child { min-width: 220px; }
+.toggle { background: transparent; color: var(--text); border: 1px solid var(--border);
+  border-radius: 999px; padding: 4px 14px; }
+.toggle.on { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }

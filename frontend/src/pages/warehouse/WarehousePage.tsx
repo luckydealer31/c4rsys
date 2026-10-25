@@ -58,6 +58,11 @@ function Items() {
           <Link className="button" to={companyPath(company, "/warehouse/items/new")}>
             <Icon name="plus" size={18} /> {t("warehouse.create_item")}
           </Link>
+          {can("import.run") ? (
+            <Link className="button secondary" to={companyPath(company, "/warehouse/import")}>
+              {t("warehouse.import")}
+            </Link>
+          ) : null}
         </div>
       ) : null}
       <Card>
@@ -77,6 +82,8 @@ function Items() {
             <thead>
               <tr>
                 <th>{t("warehouse.name")}</th>
+                <th>{t("warehouse.article")}</th>
+                <th>{t("warehouse.category")}</th>
                 <th>{t("warehouse.unit")}</th>
                 <th>{t("warehouse.manufacturer")}</th>
                 <th>{t("warehouse.packagings")}</th>
@@ -87,11 +94,15 @@ function Items() {
                 <tr key={item.id}>
                   <td>
                     <Link to={companyPath(company, `/warehouse/items/${item.id}`)}>{item.name}</Link>
+                    {item.possible_duplicate ? (
+                      <span className="badge warn" style={{ marginLeft: 6 }}>
+                        {t("warehouse.possible_duplicate")}
+                      </span>
+                    ) : null}
                   </td>
-                  <td>
-                    {t(`warehouse.unit_${item.unit}`)}{" "}
-                    <span className="muted small">{t(`warehouse.accounting_${item.accounting}`)}</span>
-                  </td>
+                  <td>{item.article || "—"}</td>
+                  <td>{item.category || "—"}</td>
+                  <td>{t(`warehouse.unit_short_${item.unit}`)}</td>
                   <td>{item.manufacturer_name || "—"}</td>
                   <td>
                     {item.packagings

@@ -68,7 +68,7 @@ def test_warehouse_context_without_storage_is_refused_by_the_database(
 
 @pytest.mark.parametrize(
     ("unit", "accounting"),
-    [("piece", "individual"), ("instance", "individual"), ("liter", "batch"), ("meter", "batch")],
+    [("piece", "individual"), ("liter", "batch"), ("kilogram", "batch"), ("meter", "batch")],
 )
 def test_accounting_follows_the_unit(owner: Client, cmp: str, unit: str, accounting: str) -> None:
     response = item(owner, cmp, unit=unit)
@@ -204,3 +204,33 @@ def test_storekeeper_set_and_rights(owner: Client, cmp: str) -> None:
     viewer, _ = hire(owner, cmp, "viewer@example.com", rights)
     assert viewer.get(f"/api/c/{cmp}/warehouse/items").status_code == 200
     assert item(viewer, cmp, unit="piece").status_code == 403
+
+
+def test_instance_is_not_a_unit_any_more(owner: Client, cmp: str) -> None:
+    # Customer's decision of 25.10.2026: a piece and an instance are one unit.
+    assert item(owner, cmp, unit="instance").json()["error"]["field"] == "unit"
+
+
+def test_card_fields_of_22_4_1_and_condition(owner: Client, cmp: str) -> None:
+    response = item(
+        owner,
+        cmp,
+        unit="piece",
+        article="04465-0D010",
+        category="Тормоза",
+        model_characteristic="Колодки передние",
+        comment="Проверить толщину",
+        external_id="BRK-1",
+        condition="used",
+        originality="analog",
+    )
+
+    body = response.json()["item"]
+    assert body["article"] == "04465-0D010" and body["category"] == "Тормоза"
+    assert body["condition"] == "used"
+    assert owner.get(f"/api/c/{cmp}/warehouse/categories").json()["categories"] == ["Тормоза"]
+    found = owner.get(f"/api/c/{cmp}/warehouse/items?q=04465").json()["items"]
+    assert [i["id"] for i in found] == [body["id"]]
+    assert (
+        item(owner, cmp, unit="piece", condition="broken").json()["error"]["field"] == "condition"
+    )

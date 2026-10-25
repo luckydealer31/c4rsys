@@ -61,7 +61,7 @@ export type RequestOptions = {
 
 /** Upload of one file as multipart (the browser sets the content type and its boundary). */
 export async function uploadFile(
-  purpose: "avatar" | "company_logo",
+  purpose: "avatar" | "company_logo" | "item_photo",
   file: File,
   idempotencyKey: string = crypto.randomUUID(),
 ): Promise<{ id: string }> {
@@ -87,6 +87,32 @@ export async function uploadFile(
     throw new ApiError(response.status, (data as ErrorBody | null)?.error ?? null);
   }
   return (data as { file: { id: string } }).file;
+}
+
+/** Upload of an import file (§ 22.2.2): the server checks it and stores the operation. */
+export async function uploadImport<T>(path: string, file: File): Promise<T> {
+  const body = new FormData();
+  body.append("file", file);
+  let response: Response;
+  try {
+    response = await fetch(`/api${path}`, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "X-CSRFToken": await csrfToken(),
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+      credentials: "same-origin",
+      body,
+    });
+  } catch {
+    throw new ApiError(0, null);
+  }
+  const data: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new ApiError(response.status, (data as ErrorBody | null)?.error ?? null);
+  }
+  return data as T;
 }
 
 export function fileUrl(id: string): string {

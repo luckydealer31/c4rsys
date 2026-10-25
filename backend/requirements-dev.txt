@@ -4,3 +4,4 @@ pytest-django>=4.9,<6
 ruff>=0.6,<1
 mypy>=1.11,<3
 django-stubs[compatible-mypy]>=5.1,<7
+types-openpyxl>=3.1,<4

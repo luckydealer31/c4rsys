@@ -14,12 +14,14 @@ from django.db import IntegrityError, transaction
 from django.db.models import ProtectedError, Q, QuerySet
 
 from c4rsys.companies.models import Company
+from c4rsys.files import services as files
+from c4rsys.files.models import StoredFile
 from c4rsys.fleet.models import VehicleMake, VehicleModel
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
 from c4rsys.warehouse.models import Barcode, Item, ItemApplicability, Manufacturer, Packaging
 
-INDIVIDUAL_UNITS = {Item.Unit.PIECE, Item.Unit.INSTANCE}
+INDIVIDUAL_UNITS = {Item.Unit.PIECE}
 # Values of the attributes of spare parts (§ 11.1.13); «both» is the explicit universal value.
 ATTRIBUTES: dict[str, list[str]] = {
     "side": ["left", "right", "both"],
@@ -27,6 +29,17 @@ ATTRIBUTES: dict[str, list[str]] = {
     "vertical": ["upper", "lower", "both"],
     "placement": ["inner", "outer", "both"],
     "originality": ["original", "analog"],
+    # Customer's decision of 25.10.2026.
+    "condition": ["new", "used"],
+}
+# Optional text data of the card (§ 22.4.1) with their maximum length.
+TEXT_FIELDS = {
+    "article": 100,
+    "category": 100,
+    "model_characteristic": 200,
+    "photo_url": 500,
+    "comment": 2000,
+    "external_id": 100,
 }
 HUNDREDTH = Decimal("0.01")
 
@@ -59,6 +72,8 @@ class ItemData:
     manufacturer_id: UUID | None = None
     manufacturer_other: str = ""
     attributes: dict[str, str] = field(default_factory=dict)
+    texts: dict[str, str] = field(default_factory=dict)
+    photo_id: UUID | None = None
     # (make code, model code or None)
     applicability: tuple[tuple[str, str | None], ...] = ()
 
@@ -88,9 +103,12 @@ def search(company_id: UUID, text: str, state: str = Item.State.ACTIVE) -> Query
     if text:
         found = found.filter(
             Q(name__icontains=text)
+            | Q(article__icontains=text)
+            | Q(category__icontains=text)
             | Q(manufacturer__name__icontains=text)
             | Q(manufacturer_other__icontains=text)
             | Q(barcodes__code=text)
+            | Q(external_id=text)
         ).distinct()
     return found
 
@@ -103,11 +121,24 @@ def snapshot(item: Item) -> dict[str, Any]:
         "manufacturer": str(item.manufacturer_id) if item.manufacturer_id else None,
         "manufacturer_other": item.manufacturer_other,
         **{key: getattr(item, key) for key in ATTRIBUTES},
+        **{key: getattr(item, key) for key in TEXT_FIELDS},
+        "photo": str(item.photo_id) if item.photo_id else None,
         "applicability": sorted(
             f"{a.make_id}/{a.model_id or ''}" for a in item.applicability.all()
         ),
         "state": item.state,
     }
+
+
+def categories(company_id: UUID) -> list[str]:
+    """Categories already used in the company, as suggestions (PROPOSAL: a category is text)."""
+    return sorted(
+        set(
+            Item.objects.filter(company_id=company_id)
+            .exclude(category="")
+            .values_list("category", flat=True)
+        )
+    )
 
 
 def _validate(data: ItemData) -> None:
@@ -123,12 +154,20 @@ def _validate(data: ItemData) -> None:
             raise errors.validation_error("applicability", code="MODEL_UNKNOWN")
 
 
+def _check_photo(data: ItemData, user_id: UUID, current: UUID | None) -> None:
+    if data.photo_id is not None and data.photo_id != current:
+        files.usable(data.photo_id, purpose=StoredFile.Purpose.ITEM_PHOTO, user_id=user_id)
+
+
 def _apply(item: Item, data: ItemData) -> None:
     item.name = data.name
     item.manufacturer_id = data.manufacturer_id
     item.manufacturer_other = "" if data.manufacturer_id else data.manufacturer_other
     for key in ATTRIBUTES:
         setattr(item, key, data.attributes.get(key, ""))
+    for key in TEXT_FIELDS:
+        setattr(item, key, data.texts.get(key, ""))
+    item.photo_id = data.photo_id
 
 
 def _write_applicability(item: Item, data: ItemData) -> None:
@@ -139,18 +178,31 @@ def _write_applicability(item: Item, data: ItemData) -> None:
     )
 
 
-def create_item(ctx: CommandContext, company: Company, unit: str, data: ItemData) -> Item:
+def create_item(
+    ctx: CommandContext,
+    company: Company,
+    unit: str,
+    data: ItemData,
+    *,
+    import_operation_id: UUID | None = None,
+    possible_duplicate: bool = False,
+) -> Item:
     if unit not in Item.Unit.values:
         raise errors.validation_error("unit")
     _validate(data)
+    _check_photo(data, ctx.actor.user_id, None)
     item = Item(
         company=company,
         unit=unit,
         accounting=accounting_for(unit),
         created_by_user_id=ctx.actor.user_id,
+        import_operation_id=import_operation_id,
+        possible_duplicate=possible_duplicate,
     )
     _apply(item, data)
     item.save(force_insert=True)
+    if item.photo_id:
+        files.attach_to_company(item.photo_id, company.id)
     _write_applicability(item, data)
     ctx.audit(
         "warehouse.item_created",
@@ -176,10 +228,13 @@ def update_item(
     """Everything but the base unit and the accounting method (§ 11.1.11, § 11.8.5)."""
     item = _lock(company_id, item_id, expected_version)
     _validate(data)
+    _check_photo(data, ctx.actor.user_id, item.photo_id)
     before = snapshot(item)
     _apply(item, data)
     item.version += 1
     item.save()
+    if item.photo_id:
+        files.attach_to_company(item.photo_id, company_id)
     _write_applicability(item, data)
     after = snapshot(item)
     changed = [k for k in after if before[k] != after[k]]

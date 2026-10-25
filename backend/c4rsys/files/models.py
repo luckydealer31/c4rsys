@@ -16,12 +16,14 @@ class StoredFile(models.Model):
     class Purpose(models.TextChoices):
         AVATAR = "avatar"  # profile photo (§ 2.1.5)
         COMPANY_LOGO = "company_logo"  # § 3.1.1, § 3.1.5
+        ITEM_PHOTO = "item_photo"  # photo of a catalog item (§ 22.4.1)
+        IMPORT_FILE = "import_file"  # source file of an import (§ 22.2.4)
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     purpose = models.CharField(max_length=30, choices=Purpose.choices)
     uploaded_by = models.UUIDField()
     company_id = models.UUIDField(null=True, blank=True)
-    content_type = models.CharField(max_length=60)
+    content_type = models.CharField(max_length=100)
     size = models.PositiveIntegerField()
     sha256 = models.CharField(max_length=64)
     created_at = models.DateTimeField(default=timezone.now)
