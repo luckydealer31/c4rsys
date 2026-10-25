@@ -4,6 +4,7 @@
 """
 
 import zoneinfo
+from collections.abc import Callable
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
@@ -30,6 +31,14 @@ from c4rsys.platform.registry import allocate_public_id
 
 FULL_SHARE = Decimal("100")
 _TIMEZONES = frozenset(zoneinfo.available_timezones())
+
+# Modules that set up their data of a new company in the creating transaction (finance: starting
+# income and expense articles, § 17.2.8).
+_on_created: list[Callable[[UUID], None]] = []
+
+
+def register_created(handler: Callable[[UUID], None]) -> None:
+    _on_created.append(handler)
 
 
 def validate_timezone(value: str, field: str = "timezone") -> str:
@@ -112,6 +121,9 @@ def create_company(ctx: CommandContext, user: UserAccount, data: NewCompany) -> 
         started_at=now,
         created_at=now,
     )
+
+    for handler in _on_created:
+        handler(company.id)
 
     # The fact of creation stays in the history regardless of later changes (§ 3.1.4).
     ctx.audit(

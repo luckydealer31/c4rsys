@@ -15,6 +15,12 @@ PERMISSIONS: dict[str, str] = {
     "employee.access.restore": "employee",
     "finance.cash_account.manage": "finance",
     "finance.payment.receive": "finance",
+    # Finance stage (§ 23.7.1, § 23.2.7): balances and records of accounts, payouts, articles.
+    # `income.record` — a manual receipt without an order — is a PROPOSAL.
+    "finance.account.view": "finance",
+    "finance.income.record": "finance",
+    "finance.payout": "finance",
+    "finance.article.manage": "finance",
     "tariff.view": "tariff",
     "tariff.create": "tariff",
     "tariff.edit": "tariff",
@@ -101,6 +107,10 @@ SYSTEM_SETS: dict[str, tuple[str, ...]] = {
     # § 23.2.7; § 23.7.4: the accountant sets selling prices.
     ACCOUNTANT: (
         "finance.payment.receive",
+        "finance.account.view",
+        "finance.income.record",
+        "finance.payout",
+        "finance.article.manage",
         "order.view",
         "rental.view",
         "client.find",

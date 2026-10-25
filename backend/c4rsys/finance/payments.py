@@ -142,10 +142,13 @@ def paid_for_order(company_id: UUID, order_id: UUID) -> dict[str, Decimal]:
 def client_balance(company_id: UUID, client_id: UUID) -> dict[str, Decimal]:
     """Settlement balance of the client per currency: money received minus charges (§ 6.7.2,
     § 17.2.13). Positive — advance or overpayment, negative — debt."""
+    # TODO(spec): a manual receipt naming the client (§ 17.2.7) is not counted as available
+    # funds of the client; whether it should be is not set.
     received = (
         MoneyMovement.objects.filter(
             company_id=company_id,
             client_id=client_id,
+            kind=MoneyMovement.Kind.PAYMENT,
             direction=MoneyMovement.Direction.IN,
             state=MoneyMovement.State.POSTED,
         )

@@ -91,6 +91,20 @@ export type CashAccount = {
   currency: string;
   state: "active" | "archived";
   version: number;
+  /** Shown with the right to view the account's money (§ 23.2.7). */
+  balance?: string;
+};
+
+/** Income or expense article (§ 17.2.8): a starting one is translated by `code` while `name`
+ * is empty. */
+export type FinanceArticle = {
+  id: string;
+  kind: "income" | "expense";
+  code: string | null;
+  name: string | null;
+  state: "active" | "archived";
+  used: boolean;
+  version: number;
 };
 
 export type Scope = "all" | string[];
@@ -354,6 +368,13 @@ export type Payment = {
   currency: string;
   state: string;
   method: string;
+  kind: "payment" | "opening" | "manual";
+  direction: "in" | "out";
+  article_id: string | null;
+  location_id: string | null;
+  context_id: string | null;
+  vehicle_id: string | null;
+  note: string;
   posted_at: string | null;
   allocations: { order_id: string; amount: string; purpose: string; state: string }[];
 };

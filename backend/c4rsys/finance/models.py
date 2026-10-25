@@ -1,4 +1,5 @@
-"""Cash desks and bank accounts of the company (ТЗ § 17.2.1, § 17.2.5, § 22.1.7)."""
+"""Money of the company: cash desks and bank accounts, income and expense articles, accruals and
+money records (ТЗ § 17.2, § 22.1.7)."""
 
 from django.db import models
 from django.db.models import Q
@@ -47,6 +48,52 @@ class CashAccount(models.Model):
         return self.name
 
 
+class FinanceArticle(models.Model):
+    """An income or expense article of the company (§ 17.2.8). A starting article has a constant
+    `code` and a translated name until the company renames it; own articles have no code. The
+    name is shown as entered, without translation. An archived article is not offered for new
+    records but stays in the old ones."""
+
+    class Kind(models.TextChoices):
+        INCOME = "income"
+        EXPENSE = "expense"
+
+    class State(models.TextChoices):
+        ACTIVE = "active"
+        ARCHIVED = "archived"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    kind = models.CharField(max_length=10, choices=Kind.choices)
+    code = models.CharField(max_length=40, blank=True, default="")
+    name = models.CharField(max_length=150, blank=True, default="")
+    state = models.CharField(max_length=10, choices=State.choices, default=State.ACTIVE)
+    created_by_user_id = models.UUIDField(null=True, blank=True)
+    created_at = models.DateTimeField(default=now)
+    updated_at = models.DateTimeField(auto_now=True)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "finance_article"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "id"], name="finance_article_company_id_uniq"
+            ),
+            models.UniqueConstraint(
+                fields=["company", "code"],
+                condition=~Q(code=""),
+                name="finance_article_company_code_uniq",
+            ),
+            # A starting article may keep its translated name; an own article needs a name.
+            models.CheckConstraint(
+                condition=~Q(code="") | ~Q(name=""), name="finance_article_named"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return self.name or self.code
+
+
 class ChargeEntry(models.Model):
     """An accrual to a client in an order, append-only (§ 12.2.4, § 17.2.6). The current charge
     of a source (for example the base cost of a rental) is the sum of its entries; a recalculation
@@ -88,6 +135,18 @@ class MoneyMovement(models.Model):
         IN = "in"
         OUT = "out"
 
+    class Kind(models.TextChoices):
+        # A client payment received to orders (§ 12.2.5, § 17.2.10).
+        PAYMENT = "payment"
+        # The initial balance of an account: not a receipt of money (§ 22.1.7, § 17.2.14).
+        OPENING = "opening"
+        # A receipt or payout entered by hand, without an order (§ 17.2.2, § 17.2.7).
+        MANUAL = "manual"
+
+    class Method(models.TextChoices):
+        CASH = "cash"
+        NONCASH = "noncash"
+
     class State(models.TextChoices):
         EXPECTED = "expected"
         POSTED = "posted"
@@ -98,11 +157,29 @@ class MoneyMovement(models.Model):
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
     number = models.PositiveBigIntegerField()
     cash_account = models.ForeignKey(CashAccount, on_delete=models.PROTECT, related_name="+")
+    kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.PAYMENT)
     direction = models.CharField(max_length=3, choices=Direction.choices)
     amount = models.DecimalField(max_digits=20, decimal_places=4)
     currency = models.ForeignKey(Currency, on_delete=models.PROTECT, related_name="+")
     client = models.ForeignKey(
         "parties.ClientCard", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    article = models.ForeignKey(
+        FinanceArticle, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    # Analytic dimensions of the result (§ 17.2.4, § 17.3.1); they do not multiply the record.
+    location = models.ForeignKey(
+        "companies.Location", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    context = models.ForeignKey(
+        "companies.ActivityContext",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    vehicle = models.ForeignKey(
+        "fleet.VehicleCard", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
     state = models.CharField(max_length=10, choices=State.choices)
     method = models.CharField(max_length=10)
@@ -127,10 +204,30 @@ class MoneyMovement(models.Model):
                 condition=~Q(state="posted") | Q(posted_at__isnull=False),
                 name="money_movement_posted_has_time",
             ),
+            # One initial balance per account, entered as money on it (§ 22.1.7).
+            models.UniqueConstraint(
+                fields=["cash_account"],
+                condition=Q(kind="opening"),
+                name="money_movement_one_opening_per_account",
+            ),
+            models.CheckConstraint(
+                condition=~Q(kind="opening") | (Q(direction="in") & Q(client__isnull=True)),
+                name="money_movement_opening_shape",
+            ),
+            models.CheckConstraint(
+                condition=~Q(kind="manual") | Q(article__isnull=False),
+                name="money_movement_manual_has_article",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["company", "cash_account", "posted_at"],
+                name="money_movement_account_idx",
+            ),
         ]
 
     def __str__(self) -> str:
-        return f"payment {self.number}"
+        return f"{self.kind} {self.number}"
 
 
 class PaymentAllocation(models.Model):

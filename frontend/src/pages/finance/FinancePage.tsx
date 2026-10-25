@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 
 import { useApi } from "../../api/queries";
 import type { CashAccount, Client } from "../../api/types";
@@ -12,7 +12,9 @@ import { currencies, formatMoment } from "../../time";
 import { clientName } from "../clients/ClientsPage";
 import { useOrders } from "../orders/OrdersPage";
 import { ClientFinder } from "../rentals/IssuePage";
+import { Articles, useArticleName, useArticles } from "./Articles";
 import { CashReceipt, usePayments } from "./CashReceipt";
+import { AccountRecords, MoneyRecordForm } from "./MoneyRecords";
 
 export function useCashAccounts() {
   const company = useCompany();
@@ -22,16 +24,44 @@ export function useCashAccounts() {
   );
 }
 
-/** Finance: cash desks and accounts (§ 17.2.5, § 22.1.7), cash receipt and payments. */
+type Tab = "money" | "accounts" | "articles";
+const TABS: Tab[] = ["money", "accounts", "articles"];
+
+/** Finance (ТЗ гл. 17): money records — client payments and manual receipts and payouts; cash
+ * desks and accounts with their balances (§ 17.2.1, § 17.2.5, § 22.1.7); income and expense
+ * articles (§ 17.2.8). */
 export function FinancePage() {
   const { t } = useTranslation();
   const can = useCan();
+  const accounts = useCashAccounts();
+  const [params, setParams] = useSearchParams();
+  const tab: Tab = TABS.find((key) => key === params.get("tab")) ?? "money";
   return (
     <div className="page">
       <h1>{t("nav.finance")}</h1>
-      {can("finance.payment.receive") ? <Receipt /> : null}
-      <PaymentsList />
-      <CashAccountsEditor />
+      <div className="tabs" role="tablist">
+        {TABS.map((key) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={tab === key}
+            className={tab === key ? "active" : ""}
+            onClick={() => setParams(key === "money" ? {} : { tab: key })}
+          >
+            {t(`money.tab_${key}`)}
+          </button>
+        ))}
+      </div>
+      {tab === "money" ? (
+        <>
+          {can("finance.payment.receive") ? <Receipt /> : null}
+          <MoneyRecordForm accounts={accounts.data?.cash_accounts ?? []} />
+          <PaymentsList />
+        </>
+      ) : null}
+      {tab === "accounts" ? <CashAccountsEditor /> : null}
+      {tab === "articles" ? <Articles /> : null}
     </div>
   );
 }
@@ -94,6 +124,9 @@ function PaymentsList() {
   const orders = useOrders();
   const accountName = new Map((accounts.data?.cash_accounts ?? []).map((a) => [a.id, a.name]));
   const orderNumber = new Map((orders.data?.orders ?? []).map((o) => [o.id, o.number]));
+  const articles = useArticles();
+  const nameOf = useArticleName();
+  const articleName = new Map((articles.data?.articles ?? []).map((a) => [a.id, nameOf(a)]));
   const items = payments.data?.payments ?? [];
   return (
     <Card title={t("payments.title")}>
@@ -107,7 +140,7 @@ function PaymentsList() {
               <th>{t("payments.when")}</th>
               <th>{t("payments.account")}</th>
               <th>{t("payments.amount", { currency: "" })}</th>
-              <th>{t("payments.orders")}</th>
+              <th>{t("money.purpose")}</th>
             </tr>
           </thead>
           <tbody>
@@ -117,10 +150,15 @@ function PaymentsList() {
                 <td>{formatMoment(p.posted_at, company.timezone ?? "UTC", i18n.language)}</td>
                 <td>{accountName.get(p.cash_account_id) ?? "—"}</td>
                 <td>
+                  {p.direction === "out" ? "−" : ""}
                   {p.amount} {p.currency}
                 </td>
                 <td>
-                  {p.allocations.length
+                  {p.kind !== "payment"
+                    ? [t(`money.kind_${p.kind}`), p.article_id ? articleName.get(p.article_id) : null, p.note]
+                        .filter(Boolean)
+                        .join(" · ")
+                    : p.allocations.length
                     ? p.allocations.map((a) => (
                         <div key={a.order_id}>
                           <Link to={companyPath(company, `/orders/${a.order_id}`)}>
@@ -144,6 +182,10 @@ export function CashAccountsEditor() {
   const { t } = useTranslation();
   const can = useCan();
   const accounts = useCashAccounts();
+  const [opened, setOpened] = useState<string | null>(null);
+  const list = accounts.data?.cash_accounts ?? [];
+  const withBalance = list.some((a) => a.balance !== undefined);
+  const openedAccount = list.find((a) => a.id === opened);
   return (
     <>
       <Card title={t("cash.title")}>
@@ -157,21 +199,31 @@ export function CashAccountsEditor() {
                 <th>{t("cash.name")}</th>
                 <th>{t("cash.type")}</th>
                 <th>{t("cash.currency")}</th>
+                {withBalance ? <th>{t("money.balance")}</th> : null}
                 <th />
               </tr>
             </thead>
             <tbody>
-              {(accounts.data?.cash_accounts ?? []).map((account) => (
+              {list.map((account) => (
                 <AccountRow
                   key={account.id}
                   account={account}
                   editable={can("finance.cash_account.manage")}
+                  withBalance={withBalance}
+                  onOpen={account.balance !== undefined ? () => setOpened(account.id) : undefined}
                 />
               ))}
             </tbody>
           </table>
         )}
       </Card>
+      {openedAccount ? (
+        <AccountRecords
+          key={openedAccount.id}
+          account={openedAccount}
+          onClose={() => setOpened(null)}
+        />
+      ) : null}
       {can("finance.cash_account.manage") ? <CreateAccount /> : null}
     </>
   );
@@ -190,9 +242,13 @@ function useRefresh() {
 function AccountRow({
   account,
   editable,
+  withBalance,
+  onOpen,
 }: {
   account: CashAccount;
   editable: boolean;
+  withBalance: boolean;
+  onOpen?: () => void;
 }) {
   const { t } = useTranslation();
   const company = useCompany();
@@ -218,7 +274,13 @@ function AccountRow({
       </td>
       <td>{t(`cash.type_${account.type}`)}</td>
       <td>{account.currency}</td>
+      {withBalance ? <td>{account.balance ?? "—"}</td> : null}
       <td>
+        {onOpen ? (
+          <button type="button" className="secondary" onClick={onOpen}>
+            {t("money.open_records")}
+          </button>
+        ) : null}
         {account.state === "archived" ? (
           <span className="badge">{t("cash.archived")}</span>
         ) : editable ? (

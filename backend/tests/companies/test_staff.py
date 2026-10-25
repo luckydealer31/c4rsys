@@ -420,7 +420,11 @@ def test_company_answer_lists_own_permissions(owner: Client, cmp: str) -> None:
     assert driver.get(f"/api/c/{cmp}").json()["permissions"] == []
     assert accountant.get(f"/api/c/{cmp}").json()["permissions"] == [
         "client.find",
+        "finance.account.view",
+        "finance.article.manage",
+        "finance.income.record",
         "finance.payment.receive",
+        "finance.payout",
         "order.view",
         "rental.view",
         "warehouse.price.set",

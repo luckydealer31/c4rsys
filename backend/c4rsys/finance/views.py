@@ -1,4 +1,5 @@
-"""HTTP API of cash desks and bank accounts (ТЗ § 17.2.5, § 22.1.7, § 23.1.11–23.1.12)."""
+"""HTTP API of finance: accounts and their records, articles, payments (ТЗ гл. 17, § 22.1.7,
+§ 23.1.11–23.1.12, § 23.7.1)."""
 
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -11,8 +12,8 @@ from c4rsys.accounts.middleware import require_user
 from c4rsys.companies import access
 from c4rsys.companies import services as companies
 from c4rsys.companies.views import run_and_respond
-from c4rsys.finance import payments, services
-from c4rsys.finance.models import CashAccount, MoneyMovement
+from c4rsys.finance import articles, payments, records, services
+from c4rsys.finance.models import CashAccount, FinanceArticle, MoneyMovement
 from c4rsys.parties import services as parties
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
@@ -22,11 +23,19 @@ from c4rsys.platform.money import round_money
 
 MANAGE = "finance.cash_account.manage"
 RECEIVE = "finance.payment.receive"
+VIEW = "finance.account.view"
+INCOME = "finance.income.record"
+PAYOUT = "finance.payout"
+ARTICLES = "finance.article.manage"
+ACCOUNT_RIGHTS = (MANAGE, RECEIVE, VIEW, INCOME, PAYOUT)
 NAME_MAX = 150
+NOTE_MAX = 500
 
 
-def _account_payload(account: CashAccount) -> dict[str, Any]:
-    return {
+def _account_payload(
+    account: CashAccount, balance: Decimal | None = None, *, with_balance: bool = False
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
         "id": str(account.id),
         "name": account.name,
         "type": account.type,
@@ -34,6 +43,10 @@ def _account_payload(account: CashAccount) -> dict[str, Any]:
         "state": account.state,
         "version": account.version,
     }
+    if with_balance:
+        places = Currency.objects.get(code=account.currency_id).minor_units
+        payload["balance"] = str(round_money(balance or Decimal(0), places))
+    return payload
 
 
 def _actor(request: HttpRequest, cmp: str) -> tuple[companies.CompanyContext, Actor]:
@@ -44,9 +57,13 @@ def _actor(request: HttpRequest, cmp: str) -> tuple[companies.CompanyContext, Ac
 
 def _visible(actor: Actor, account_id: UUID) -> bool:
     """An account is visible within the scope of the employee's finance rights (decision
-    22.10.2026): managing accounts or receiving payments."""
+    22.10.2026): managing accounts, receiving payments, viewing, recording money."""
     resolver = access.RightsResolver()
-    return any(resolver.has_permission(actor, p, resource_id=account_id) for p in (MANAGE, RECEIVE))
+    return any(resolver.has_permission(actor, p, resource_id=account_id) for p in ACCOUNT_RIGHTS)
+
+
+def _can(actor: Actor, permission: str, account_id: UUID | None = None) -> bool:
+    return access.RightsResolver().has_permission(actor, permission, resource_id=account_id)
 
 
 def _require_manage(actor: Actor, account_id: UUID) -> None:
@@ -60,8 +77,10 @@ def _require_manage(actor: Actor, account_id: UUID) -> None:
 def account_list(request: HttpRequest, cmp: str) -> JsonResponse:
     context, actor = _actor(request, cmp)
     if request.method == "GET":
+        # The balance is shown to those who may view the account's money (§ 23.2.7).
+        balances = records.balances(context.company.id)
         items = [
-            _account_payload(a)
+            _account_payload(a, balances.get(a.id), with_balance=_can(actor, VIEW, a.id))
             for a in services.accounts_of(context.company.id)
             if _visible(actor, a.id)
         ]
@@ -153,13 +172,33 @@ def _uuid(value: Any, field: str) -> UUID:
         raise errors.validation_error(field) from exc
 
 
+def _optional_uuid(data: dict[str, Any], field: str) -> UUID | None:
+    value = data.get(field)
+    return None if value in (None, "") else _uuid(value, field)
+
+
+def _currency(data: dict[str, Any]) -> Currency:
+    code = get_str(data, "currency", max_length=3).upper()
+    currency = Currency.objects.filter(code=code).first()
+    if currency is None:
+        raise errors.validation_error("currency", code="CURRENCY_INVALID")
+    return currency
+
+
 def _movement_payload(movement: MoneyMovement) -> dict[str, Any]:
     places = Currency.objects.get(code=movement.currency_id).minor_units
     return {
         "id": str(movement.id),
         "number": movement.number,
+        "kind": movement.kind,
+        "direction": movement.direction,
         "cash_account_id": str(movement.cash_account_id),
         "client_id": str(movement.client_id) if movement.client_id else None,
+        "article_id": str(movement.article_id) if movement.article_id else None,
+        "location_id": str(movement.location_id) if movement.location_id else None,
+        "context_id": str(movement.context_id) if movement.context_id else None,
+        "vehicle_id": str(movement.vehicle_id) if movement.vehicle_id else None,
+        "note": movement.note,
         "amount": str(round_money(movement.amount, places)),
         "currency": movement.currency_id,
         "state": movement.state,
@@ -256,3 +295,198 @@ def client_balance(request: HttpRequest, cmp: str, client_id: UUID) -> JsonRespo
     return JsonResponse(
         {"balance": {c: str(round_money(v, places[c])) for c, v in sorted(balance.items())}}
     )
+
+
+# --- Money of an account (§ 17.2.1, § 22.1.7) -----------------------------------------------
+
+
+@require_http_methods(["GET"])
+def account_records(request: HttpRequest, cmp: str, account_id: UUID) -> JsonResponse:
+    """Balance and posted records of one account."""
+    context, actor = _actor(request, cmp)
+    if not _visible(actor, account_id):
+        raise errors.not_found()
+    if not _can(actor, VIEW, account_id):
+        raise errors.permission_denied(VIEW)
+    account = services.get_account(context.company.id, account_id)
+    balance = records.balances(context.company.id).get(account.id)
+    movements = records.movements_of(context.company.id, account.id)[:200]
+    return JsonResponse(
+        {
+            "cash_account": _account_payload(account, balance, with_balance=True),
+            "records": [_movement_payload(m) for m in movements],
+        }
+    )
+
+
+@require_POST
+def account_opening(request: HttpRequest, cmp: str, account_id: UUID) -> JsonResponse:
+    """Initial balance: part of setting up the account (§ 22.1.7), so it needs the right to
+    manage accounts."""
+    context, actor = _actor(request, cmp)
+    _require_manage(actor, account_id)
+    data = parse_json(request)
+    currency = _currency(data)
+    amount = _amount(data.get("amount"), "amount", currency.minor_units)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        movement = records.set_opening(ctx, context.company.id, account_id, amount, currency.code)
+        return CommandResult(201, {"record": _movement_payload(movement)})
+
+    payload = {"account_id": str(account_id), "amount": str(amount), "currency": currency.code}
+    return run_and_respond(request, "cash_account.set_opening", actor, payload, handler)
+
+
+@require_POST
+def money_record(request: HttpRequest, cmp: str) -> JsonResponse:
+    """A receipt (`in`, finance.income.record) or payout (`out`, finance.payout) entered by hand,
+    in the scope of the chosen account (§ 17.2.7, § 23.7.1–23.7.2)."""
+    context, actor = _actor(request, cmp)
+    data = parse_json(request)
+    direction = get_str(data, "direction", max_length=3)
+    if direction not in MoneyMovement.Direction.values:
+        raise errors.validation_error("direction")
+    account_id = _uuid(data.get("cash_account_id"), "cash_account_id")
+    if not _visible(actor, account_id):
+        raise errors.not_found()
+    permission = INCOME if direction == MoneyMovement.Direction.IN else PAYOUT
+    if not _can(actor, permission, account_id):
+        raise errors.permission_denied(permission)
+    method = get_str(data, "method", max_length=10)
+    if method not in MoneyMovement.Method.values:
+        raise errors.validation_error("method")
+    currency = _currency(data)
+    record = records.ManualRecord(
+        cash_account_id=account_id,
+        direction=direction,
+        amount=_amount(data.get("amount"), "amount", currency.minor_units),
+        currency=currency.code,
+        method=method,
+        article_id=_uuid(data.get("article_id"), "article_id"),
+        client_id=_optional_uuid(data, "client_id"),
+        location_id=_optional_uuid(data, "location_id"),
+        context_id=_optional_uuid(data, "context_id"),
+        vehicle_id=_optional_uuid(data, "vehicle_id"),
+        note=get_str(data, "note", max_length=NOTE_MAX, required=False),
+    )
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        movement = records.record_manual(ctx, context.company.id, record)
+        return CommandResult(201, {"record": _movement_payload(movement)})
+
+    def optional(value: UUID | None) -> str | None:
+        return str(value) if value else None
+
+    payload = {
+        "cash_account_id": str(account_id),
+        "direction": direction,
+        "amount": str(record.amount),
+        "currency": record.currency,
+        "method": method,
+        "article_id": str(record.article_id),
+        "client_id": optional(record.client_id),
+        "location_id": optional(record.location_id),
+        "context_id": optional(record.context_id),
+        "vehicle_id": optional(record.vehicle_id),
+        "note": record.note,
+    }
+    return run_and_respond(request, "money.record", actor, payload, handler)
+
+
+# --- Income and expense articles (§ 17.2.8) -------------------------------------------------
+
+
+def _article_payload(article: FinanceArticle, used: set[UUID]) -> dict[str, Any]:
+    return {
+        "id": str(article.id),
+        "kind": article.kind,
+        # The interface translates a starting article by its code while `name` is empty.
+        "code": article.code or None,
+        "name": article.name or None,
+        "state": article.state,
+        "used": article.id in used,
+        "version": article.version,
+    }
+
+
+def _require_articles(actor: Actor) -> None:
+    if not _can(actor, ARTICLES):
+        raise errors.permission_denied(ARTICLES)
+
+
+@require_http_methods(["GET", "POST"])
+def article_list(request: HttpRequest, cmp: str) -> JsonResponse:
+    """Articles are seen by those with any finance right; managed with finance.article.manage."""
+    context, actor = _actor(request, cmp)
+    if request.method == "GET":
+        if not any(_can(actor, p) for p in (*ACCOUNT_RIGHTS, ARTICLES)):
+            raise errors.permission_denied(ARTICLES)
+        used = articles.used_ids(context.company.id)
+        items = [_article_payload(a, used) for a in articles.articles_of(context.company.id)]
+        return JsonResponse({"articles": items})
+
+    _require_articles(actor)
+    data = parse_json(request)
+    kind = get_str(data, "kind", max_length=10)
+    if kind not in FinanceArticle.Kind.values:
+        raise errors.validation_error("kind")
+    name = get_str(data, "name", max_length=NAME_MAX)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        article = articles.create_article(ctx, context.company.id, kind, name)
+        return CommandResult(201, {"article": _article_payload(article, set())})
+
+    return run_and_respond(
+        request, "finance_article.create", actor, {"kind": kind, "name": name}, handler
+    )
+
+
+@require_http_methods(["PATCH", "DELETE"])
+def article_detail(request: HttpRequest, cmp: str, article_id: UUID) -> JsonResponse:
+    context, actor = _actor(request, cmp)
+    _require_articles(actor)
+    data = parse_json(request)
+    expected_version = get_int(data, "expected_version")
+    company_id = context.company.id
+
+    if request.method == "DELETE":
+
+        def delete(ctx: CommandContext) -> CommandResult:
+            articles.delete_article(ctx, company_id, article_id, expected_version)
+            return CommandResult(200, {"deleted": True})
+
+        payload = {"article_id": str(article_id), "expected_version": expected_version}
+        return run_and_respond(request, "finance_article.delete", actor, payload, delete)
+
+    name = get_str(data, "name", max_length=NAME_MAX)
+
+    def rename(ctx: CommandContext) -> CommandResult:
+        article = articles.rename_article(ctx, company_id, article_id, name, expected_version)
+        return CommandResult(200, {"article": _article_payload(article, set())})
+
+    payload = {"article_id": str(article_id), "name": name, "expected_version": expected_version}
+    return run_and_respond(request, "finance_article.rename", actor, payload, rename)
+
+
+def _article_state(request: HttpRequest, cmp: str, article_id: UUID, state: str) -> JsonResponse:
+    context, actor = _actor(request, cmp)
+    _require_articles(actor)
+    expected_version = get_int(parse_json(request), "expected_version")
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        article = articles.set_state(ctx, context.company.id, article_id, state, expected_version)
+        used = articles.used_ids(context.company.id)
+        return CommandResult(200, {"article": _article_payload(article, used)})
+
+    payload = {"article_id": str(article_id), "state": state, "expected_version": expected_version}
+    return run_and_respond(request, f"finance_article.set_{state}", actor, payload, handler)
+
+
+@require_POST
+def article_archive(request: HttpRequest, cmp: str, article_id: UUID) -> JsonResponse:
+    return _article_state(request, cmp, article_id, FinanceArticle.State.ARCHIVED)
+
+
+@require_POST
+def article_restore(request: HttpRequest, cmp: str, article_id: UUID) -> JsonResponse:
+    return _article_state(request, cmp, article_id, FinanceArticle.State.ACTIVE)

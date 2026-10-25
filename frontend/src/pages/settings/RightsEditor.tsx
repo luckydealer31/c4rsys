@@ -4,7 +4,13 @@ import type { Location, PermissionCatalog, RightSpec } from "../../api/types";
 import { useCashAccounts } from "../finance/FinancePage";
 
 // Permissions whose action is limited by cash accounts (§ 23.1.11, § 23.7.2).
-const CASH_PERMISSIONS = ["finance.payment.receive", "finance.cash_account.manage"];
+const CASH_PERMISSIONS = [
+  "finance.payment.receive",
+  "finance.cash_account.manage",
+  "finance.account.view",
+  "finance.income.record",
+  "finance.payout",
+];
 
 /** Rights as assignments: a ready set or a personal addition / restriction, each with its own
  * scope — the whole company or selected locations (§ 23.1.1–23.1.2, § 23.1.13) and, for finance
