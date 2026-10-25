@@ -73,9 +73,23 @@ export function StockList() {
                     <Link to={companyPath(company, `/warehouse/items/${row.item.id}`)}>{row.item.name}</Link>
                   </td>
                   <td>{row.item.article || "—"}</td>
-                  <td>{quantity(row.quantity, row.item.unit)}</td>
+                  <td>
+                    {quantity(row.quantity, row.item.unit)}
+                    {row.below_minimum ? (
+                      <span className="badge warn" style={{ marginLeft: 6 }}>
+                        {t("prices.below_minimum")}
+                      </span>
+                    ) : null}
+                  </td>
                   <td className="small">
-                    {row.places.map((p) => `${p.location_name}: ${quantity(p.quantity, row.item.unit)}`).join("; ")}
+                    {row.places
+                      .map(
+                        (p) =>
+                          `${p.location_name}: ${quantity(p.quantity, row.item.unit)}${
+                            p.minimum ? ` (${t("prices.minimum_short", { value: quantity(p.minimum, row.item.unit) })})` : ""
+                          }`,
+                      )
+                      .join("; ")}
                   </td>
                   <td className="small muted">{row.tags.join(", ") || "—"}</td>
                 </tr>

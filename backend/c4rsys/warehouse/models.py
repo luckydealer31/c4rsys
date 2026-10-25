@@ -80,6 +80,10 @@ class Item(models.Model):
     external_id = models.CharField(max_length=100, blank=True, default="")
     # Created by an import as a possible duplicate of an existing card (§ 22.4.1).
     possible_duplicate = models.BooleanField(default=False)
+    # § 11.7.5: a material sells at prices of the item or of each lot.
+    price_mode = models.CharField(
+        max_length=10, choices=[("item", "item"), ("lot", "lot")], default="item"
+    )
     import_operation = models.ForeignKey(
         "ImportOperation", on_delete=models.PROTECT, null=True, blank=True, related_name="items"
     )
@@ -456,6 +460,8 @@ class Asset(models.Model):
     tags = ArrayField(models.CharField(max_length=50), default=list, blank=True)
     # Purchase cost of this very unit (§ 11.2.13); empty — «Cost not given» (§ 11.2.6).
     purchase_cost = models.DecimalField(max_digits=14, decimal_places=4, null=True, blank=True)
+    # Its own selling price over the price of the item (§ 11.7.4); empty — the item's price.
+    sale_price = models.DecimalField(max_digits=14, decimal_places=4, null=True, blank=True)
     currency = models.CharField(max_length=3)
     receipt_line = models.ForeignKey(
         ReceiptLine, on_delete=models.PROTECT, null=True, blank=True, related_name="assets"
@@ -1034,3 +1040,91 @@ class InventoryLine(models.Model):
 
     def __str__(self) -> str:
         return f"{self.count_id}:{self.kind}"
+
+
+class SalePrice(models.Model):
+    """A selling price (§ 11.7.5–11.7.6): of the item or — in the lot mode — of one lot, for one
+    packaging or, without a packaging, for the base unit sold loose (a piece for an individual
+    item). Prices of packagings and of loose sale are independent, never derived. A change
+    applies to new additions to orders; a line already in an order keeps its snapshot."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name="prices")
+    lot = models.ForeignKey(
+        Lot, on_delete=models.PROTECT, null=True, blank=True, related_name="prices"
+    )
+    packaging = models.ForeignKey(
+        Packaging, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    amount = models.DecimalField(max_digits=14, decimal_places=4)
+    currency = models.CharField(max_length=3)
+    updated_by_user_id = models.UUIDField()
+    updated_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "warehouse_sale_price"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["item", "lot", "packaging"],
+                name="warehouse_sale_price_uniq",
+                nulls_distinct=False,
+            ),
+            models.CheckConstraint(
+                condition=Q(amount__gte=0), name="warehouse_sale_price_not_negative"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.item_id}:{self.lot_id}:{self.packaging_id}:{self.amount}"
+
+
+class VehicleSalePrice(models.Model):
+    """The selling price of a vehicle transferred to a warehouse (§ 11.7.4)."""
+
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    vehicle = models.OneToOneField(
+        "fleet.VehicleCard", on_delete=models.PROTECT, primary_key=True, related_name="+"
+    )
+    amount = models.DecimalField(max_digits=14, decimal_places=4)
+    currency = models.CharField(max_length=3)
+    updated_by_user_id = models.UUIDField()
+    updated_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "warehouse_vehicle_price"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(amount__gte=0), name="warehouse_vehicle_price_not_negative"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.vehicle_id}:{self.amount}"
+
+
+class MinimumStock(models.Model):
+    """A minimum stock of an item in one warehouse (§ 11.7.8): below it a warning is shown.
+    Without a threshold there is no warning; no purchase is created automatically."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name="minimums")
+    context = models.ForeignKey(
+        "companies.ActivityContext", on_delete=models.PROTECT, related_name="+"
+    )
+    quantity = models.DecimalField(max_digits=12, decimal_places=2)
+
+    class Meta:
+        db_table = "warehouse_minimum_stock"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["item", "context"], name="warehouse_minimum_stock_uniq"
+            ),
+            models.CheckConstraint(
+                condition=Q(quantity__gt=0), name="warehouse_minimum_stock_positive"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.item_id}:{self.context_id}:{self.quantity}"

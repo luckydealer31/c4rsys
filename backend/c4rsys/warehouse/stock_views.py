@@ -22,7 +22,7 @@ from c4rsys.parties import counterparties
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
-from c4rsys.warehouse import catalog, stock
+from c4rsys.warehouse import catalog, prices, stock
 from c4rsys.warehouse.models import Item, PurchaseOrder, Receipt
 
 LIST_LIMIT = 200
@@ -589,6 +589,12 @@ def stock_list(request: HttpRequest, cmp: str) -> JsonResponse:
     if context_id is not None:
         visible = {k: v for k, v in visible.items() if k == context_id}
     found = stock.totals(context.company.id, set(visible))
+    # § 11.7.8: an item below its minimum is shown even when none is left.
+    thresholds = prices.minimums(context.company.id, set(visible))
+    for item_id, context_id in thresholds:
+        found.setdefault(item_id, {}).setdefault(
+            context_id, {"quantity": stock.ZERO, "tags": set()}
+        )
     items = catalog.search(context.company.id, request.GET.get("q", "")[:100], "").filter(
         pk__in=found
     )
@@ -596,17 +602,26 @@ def stock_list(request: HttpRequest, cmp: str) -> JsonResponse:
     for item in items[:LIST_LIMIT]:
         places = found[item.id]
         quantity = sum((p["quantity"] for p in places.values()), stock.ZERO)
+        below = any(
+            p["quantity"] < thresholds[(item.id, cid)]
+            for cid, p in places.items()
+            if (item.id, cid) in thresholds
+        )
         rows.append(
             {
                 "item": _item_brief(item),
                 "quantity": str(quantity),
                 "tags": sorted({t for p in places.values() for t in p["tags"]}),
+                "below_minimum": below,
                 "places": [
                     {
                         "context_id": str(cid),
                         "location_name": visible[cid].location.name,
                         "quantity": str(p["quantity"]),
                         "tags": sorted(p["tags"]),
+                        "minimum": str(thresholds[(item.id, cid)])
+                        if (item.id, cid) in thresholds
+                        else None,
                     }
                     for cid, p in sorted(
                         places.items(), key=lambda kv: visible[kv[0]].location.name

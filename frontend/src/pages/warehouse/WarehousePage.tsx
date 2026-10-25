@@ -10,6 +10,7 @@ import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { useVehicles } from "../vehicles/VehiclesPage";
 import { InventoriesList } from "./Inventory";
 import { OperationsList, WarehouseSettingsCard } from "./Operations";
+import { VehiclePrice } from "./Prices";
 import { PurchasesList } from "./Purchases";
 import { ReceiptsList } from "./Receipts";
 import { StockList } from "./Stock";
@@ -172,17 +173,30 @@ function Storages() {
 /** Vehicles transferred to this warehouse as stock items (§ 8.1.5). */
 function StoredVehicles({ items, path }: { items: Vehicle[]; path: (id: string) => string }) {
   const { t } = useTranslation();
+  const company = useCompany();
+  const prices = useApi<{ prices: Record<string, string | null> }>(
+    ["warehouse-vehicle-prices", company.public_id],
+    `/c/${company.public_id}/warehouse/vehicle-prices`,
+    items.length > 0,
+  );
   if (items.length === 0) return null;
   return (
     <>
       <h3 style={{ marginTop: 12 }}>{t("vehicles.stored_title")}</h3>
-      <ul>
-        {items.map((v) => (
-          <li key={v.id}>
-            <Link to={path(v.id)}>{v.name}</Link> <span className="muted small">{v.vehicle_id}</span>
-          </li>
-        ))}
-      </ul>
+      <table>
+        <tbody>
+          {items.map((v) => (
+            <tr key={v.id}>
+              <td>
+                <Link to={path(v.id)}>{v.name}</Link> <span className="muted small">{v.vehicle_id}</span>
+              </td>
+              <td>
+                <VehiclePrice vehicleId={v.id} value={prices.data?.prices[v.id] ?? ""} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </>
   );
 }

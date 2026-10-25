@@ -401,7 +401,13 @@
     "asset_is_here": "Unit {{asset}} is registered in this warehouse — mark it in the count.",
     "inventory_empty": "The inventory has no positions.",
     "inventory_not_counted": "Positions not counted: {{count}}.",
-    "inventory_recheck": "The stock changed so the adjustment would make it negative — recount the position."
+    "inventory_recheck": "The stock changed so the adjustment would make it negative — recount the position.",
+    "price_lot_required": "In the lot mode choose a lot.",
+    "price_item_mode": "Prices of the item are in force — no lot is given.",
+    "price_mode_for_materials_only": "The price mode is for divisible materials only.",
+    "price_mode_already": "This mode is already in force.",
+    "prices_only_for_item_mode": "New prices are given only when switching to prices of the item.",
+    "vehicle_not_in_warehouse": "The vehicle is not in a warehouse — no selling price."
   },
   "history": {
     "action": "Action",
@@ -1481,5 +1487,26 @@
     "decision_hint": "On confirmation the discrepancies are applied to the current stock. On rejection the stock stays.",
     "confirm": "Confirm the adjustment",
     "reject": "Reject"
+  },
+  "prices": {
+    "title": "Selling prices",
+    "mode": "Price mode",
+    "mode_item": "prices of the item",
+    "mode_lot": "prices by lot",
+    "loose": "Loose, per {{unit}}",
+    "piece": "Per piece",
+    "pack": "Package {{size}} {{name}}",
+    "not_set": "not set",
+    "own_title": "Own prices of units",
+    "own_hint": "A unit's own price is used over the item's price; the purchase cost stays.",
+    "to_lots": "Switch to prices by lot",
+    "to_lots_hint": "The current prices of each packaging and of loose sale go to every lot; then each can be changed.",
+    "to_item": "Switch to prices of the item",
+    "to_item_hint": "State the new prices explicitly — no average is used.",
+    "snapshot_hint": "A changed price applies to new additions to orders; lines already added keep their price.",
+    "minimum_title": "Minimum stock",
+    "minimum_hint": "Below the threshold the item is marked in the stock. Empty — no threshold; no purchase is created automatically.",
+    "below_minimum": "below minimum",
+    "minimum_short": "min. {{value}}"
   }
 }

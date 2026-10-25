@@ -2,6 +2,7 @@ from django.urls import path
 
 from c4rsys.warehouse import inventory_views as inv
 from c4rsys.warehouse import operations_views as ops
+from c4rsys.warehouse import prices_views as pr
 from c4rsys.warehouse import stock_views, views
 
 urlpatterns = [
@@ -81,6 +82,14 @@ urlpatterns = [
     path("c/<str:cmp>/warehouse/inventories/<uuid:count_id>/submit", inv.count_submit),
     path("c/<str:cmp>/warehouse/inventories/<uuid:count_id>/confirm", inv.count_confirm),
     path("c/<str:cmp>/warehouse/inventories/<uuid:count_id>/reject", inv.count_reject),
+    path("c/<str:cmp>/warehouse/items/<uuid:item_id>/prices", pr.item_prices),
+    path("c/<str:cmp>/warehouse/items/<uuid:item_id>/price", pr.set_price),
+    path("c/<str:cmp>/warehouse/items/<uuid:item_id>/price-mode", pr.set_mode),
+    path("c/<str:cmp>/warehouse/items/<uuid:item_id>/minimum", pr.minimum),
+    path("c/<str:cmp>/warehouse/assets/<uuid:asset_id>/price", pr.asset_price),
+    path("c/<str:cmp>/warehouse/vehicles/<uuid:vehicle_id>/price", pr.vehicle_price),
+    path("c/<str:cmp>/warehouse/vehicle-prices", pr.vehicle_prices),
+    path("c/<str:cmp>/warehouse/low-stock", pr.low_stock),
     path("c/<str:cmp>/warehouse/reasons", ops.reason_list),
     path("c/<str:cmp>/warehouse/reasons/<uuid:reason_id>", ops.reason_detail),
     path("c/<str:cmp>/warehouse/settings", ops.settings),

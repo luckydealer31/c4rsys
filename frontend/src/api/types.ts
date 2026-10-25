@@ -549,7 +549,8 @@ export type StockRow = {
   item: ItemBrief;
   quantity: string;
   tags: string[];
-  places: { context_id: string; location_name: string; quantity: string; tags: string[] }[];
+  below_minimum: boolean;
+  places: { context_id: string; location_name: string; quantity: string; tags: string[]; minimum: string | null }[];
 };
 
 /** The expanded stock of an item: assets or lots per warehouse (§ 11.1.10, § 11.2.13). */
@@ -697,4 +698,16 @@ export type Inventory = {
     applied_delta: string | null;
     created_asset: string | null;
   }[];
+};
+
+export type PriceEntry = { packaging_id: string | null; amount: string; updated_at: string };
+
+/** Selling prices and minimums of an item (§ 11.7.4–11.7.8). */
+export type ItemPrices = {
+  mode: "item" | "lot";
+  currency: string;
+  item_prices: PriceEntry[];
+  lots: { id: string; public_id: string; prices: PriceEntry[] }[];
+  assets: { id: string; public_id: string; sale_price: string | null }[];
+  minimums: { context_id: string; location_name: string; quantity: string | null }[];
 };
