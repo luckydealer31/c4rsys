@@ -87,6 +87,8 @@ PERMISSIONS: dict[str, str] = {
     "rental.exception.authorize": "rental",
     "rental.exception.decide": "rental",
     "rental.accept_return": "rental",
+    # § 13.5.1: fuel or another manual charge in a rental (customer's decision Т6).
+    "rental.manual_charge": "rental",
     "rental.complete_formalization": "rental",
     "inspection.create": "inspection",
     "inspection.conduct": "inspection",
@@ -121,6 +123,7 @@ SYSTEM_SETS: dict[str, tuple[str, ...]] = {
         "rental.book",
         "rental.issue",
         "rental.accept_return",
+        "rental.manual_charge",
         "rental.complete_formalization",
         "inspection.create",
         "inspection.conduct",

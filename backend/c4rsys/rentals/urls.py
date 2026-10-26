@@ -1,6 +1,7 @@
 from django.urls import path
 
 from c4rsys.rentals import booking_views as bv
+from c4rsys.rentals import charge_views as cv
 from c4rsys.rentals import views
 
 urlpatterns = [
@@ -31,6 +32,20 @@ urlpatterns = [
         bv.booking_exception_revoke,
     ),
     path("c/<str:cmp>/rentals/<uuid:rental_id>/issue-exception/decide", bv.exception_decide),
+    path("c/<str:cmp>/rentals/<uuid:rental_id>/free-time", cv.free_time_add),
+    path(
+        "c/<str:cmp>/rentals/<uuid:rental_id>/free-time/<uuid:interval_id>",
+        cv.free_time_change,
+    ),
+    path(
+        "c/<str:cmp>/rentals/<uuid:rental_id>/free-time/<uuid:interval_id>/remove",
+        cv.free_time_remove,
+    ),
+    path("c/<str:cmp>/rentals/<uuid:rental_id>/manual-charges", cv.manual_charge_add),
+    path(
+        "c/<str:cmp>/rentals/<uuid:rental_id>/manual-charges/<uuid:charge_id>/cancel",
+        cv.manual_charge_cancel,
+    ),
     path("c/<str:cmp>/rentals/issue", views.rental_issue),
     path("c/<str:cmp>/rentals/quote", views.rental_quote),
     path("c/<str:cmp>/vehicles/<uuid:card_id>/tariffs", views.vehicle_tariffs),

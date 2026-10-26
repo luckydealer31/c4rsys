@@ -530,3 +530,73 @@ class IssueException(models.Model):
 
     def __str__(self) -> str:
         return f"issue exception {self.rental_id}: {self.state}"
+
+
+class RentalFreeInterval(models.Model):
+    """Free time entered by hand in an issued rental (§ 13.3.2): it reduces the billable time,
+    the vehicle stays occupied. Given by its end or by a number of tariff units (`units`); added,
+    changed and removed with history by the rental's rights (customer's decisions Т2–Т4)."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    rental = models.ForeignKey(Rental, on_delete=models.PROTECT, related_name="free_intervals")
+    start = models.DateTimeField()
+    end = models.DateTimeField()
+    units = models.PositiveIntegerField(null=True, blank=True)
+    comment = models.CharField(max_length=500, blank=True, default="")
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+    updated_at = models.DateTimeField(auto_now=True)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "rental_free_interval"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(end__gt=models.F("start")), name="rental_free_interval_not_empty"
+            ),
+            models.CheckConstraint(
+                condition=Q(units__isnull=True) | Q(units__gte=1),
+                name="rental_free_interval_units_positive",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"free {self.start}–{self.end}"
+
+
+class RentalManualCharge(models.Model):
+    """A manual charge in a rental (§ 13.5.1): fuel or charge, or another one, apart from the
+    base cost; in the currency of the rental's tariff with a reason. Cancelled by a reversing
+    charge entry with a reason, never deleted (customer's decision Т6)."""
+
+    class Kind(models.TextChoices):
+        FUEL = "fuel"
+        OTHER = "other"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    rental = models.ForeignKey(Rental, on_delete=models.PROTECT, related_name="manual_charges")
+    kind = models.CharField(max_length=10, choices=Kind.choices)
+    amount = models.DecimalField(max_digits=20, decimal_places=4)
+    currency = models.ForeignKey(Currency, on_delete=models.PROTECT, related_name="+")
+    reason = models.CharField(max_length=500)
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    cancelled_by_user_id = models.UUIDField(null=True, blank=True)
+    cancel_reason = models.CharField(max_length=500, blank=True, default="")
+
+    class Meta:
+        db_table = "rental_manual_charge"
+        constraints = [
+            models.CheckConstraint(condition=Q(amount__gt=0), name="rental_manual_charge_positive"),
+            models.CheckConstraint(condition=~Q(reason=""), name="rental_manual_charge_reason"),
+            models.CheckConstraint(
+                condition=Q(cancelled_at__isnull=True) | ~Q(cancel_reason=""),
+                name="rental_manual_charge_cancel_reason",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.kind} {self.amount} {self.currency_id}"

@@ -14,8 +14,9 @@ from c4rsys.inspections.models import Inspection
 from c4rsys.orders.services import OperationSummary
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
+from c4rsys.platform.money import round_money
 from c4rsys.rentals import pricing
-from c4rsys.rentals.models import Rental, RentalCalculation
+from c4rsys.rentals.models import Rental, RentalCalculation, RentalFreeInterval
 
 
 def rentals_of(company_id: UUID) -> QuerySet[Rental]:
@@ -85,39 +86,116 @@ def returned_with_deposit_term(before: datetime) -> QuerySet[Rental]:
     )
 
 
-def current_calculation(rental: Rental, now: datetime | None = None) -> dict[str, Any] | None:
-    """While the rental is active the end is the current moment and the result is the current,
-    not the actual, cost (§ 13.6.7). Free time is not entered at stage 1."""
+def terms_of(rental: Rental) -> pricing.TariffTerms:
+    """The tariff snapshot with the time zone of the issue location kept in the rental, which
+    settlement days and calendar months follow (§ 13.2.7)."""
     if rental.tariff_snapshot is None:
-        return None
+        raise RuntimeError("A rental without a tariff is not priced")
+    return pricing.terms_from_snapshot(rental.tariff_snapshot, rental.calc_timezone)
+
+
+def free_intervals_of(rental: Rental) -> list[pricing.Interval]:
+    return [
+        pricing.Interval(i.start, i.end)
+        for i in RentalFreeInterval.objects.filter(rental_id=rental.id).order_by("start")
+    ]
+
+
+def calculate(rental: Rental, end: datetime) -> pricing.Calculation:
+    """Base cost from the actual start to `end` with the free time of the rental (§ 13.3). Before
+    the return the period is not over, so only the free time up to `end` counts."""
     if rental.actual_start is None:
-        # A booking: the preliminary cost of the planned period (§ 13.6.7); not before the
-        # tariff is chosen (§ 14.1.9).
-        if rental.planned_start is None or rental.planned_end is None:
-            return None
-        terms = pricing.terms_from_snapshot(rental.tariff_snapshot)
-        result = pricing.calculate(terms, rental.planned_start, rental.planned_end)
-        return {
-            "kind": "preliminary",
-            "end": rental.planned_end.astimezone(UTC).isoformat(),
-            "billable_minutes": int(result.billable.total_seconds() // 60),
-            "units": result.units,
-            "rate": str(result.rate) if result.rate is not None else None,
-            "base_amount": str(result.base_amount),
-            "currency": result.currency,
-        }
-    end = rental.actual_end or (now or timezone.now())
-    terms = pricing.terms_from_snapshot(rental.tariff_snapshot)
-    result = pricing.calculate(terms, rental.actual_start, max(end, rental.actual_start))
+        raise RuntimeError("Only an issued rental is priced by its actual start")
+    end = max(end, rental.actual_start)
+    intervals = free_intervals_of(rental)
+    if rental.actual_end is None:
+        intervals = pricing.clipped(intervals, rental.actual_start, end)
+    return pricing.calculate(terms_of(rental), rental.actual_start, end, intervals)
+
+
+def _calculation_payload(kind: str, end: datetime, result: pricing.Calculation) -> dict[str, Any]:
     return {
-        "kind": "actual" if rental.actual_end else "current",
+        "kind": kind,
         "end": end.astimezone(UTC).isoformat(),
+        "unit": None,
         "billable_minutes": int(result.billable.total_seconds() // 60),
+        "free_minutes": int(result.free.total_seconds() // 60),
         "units": result.units,
         "rate": str(result.rate) if result.rate is not None else None,
         "base_amount": str(result.base_amount),
         "currency": result.currency,
     }
+
+
+def current_calculation(rental: Rental, now: datetime | None = None) -> dict[str, Any] | None:
+    """While the rental is active the end is the current moment and the result is the current,
+    not the actual, cost (§ 13.6.7)."""
+    if rental.tariff_snapshot is None:
+        return None
+    unit = rental.tariff_snapshot.get("unit")
+    if rental.actual_start is None:
+        # A booking: the preliminary cost of the planned period (§ 13.6.7); not before the
+        # tariff is chosen (§ 14.1.9).
+        if rental.planned_start is None or rental.planned_end is None:
+            return None
+        result = pricing.calculate(terms_of(rental), rental.planned_start, rental.planned_end)
+        return {**_calculation_payload("preliminary", rental.planned_end, result), "unit": unit}
+    end = rental.actual_end or (now or timezone.now())
+    result = calculate(rental, end)
+    kind = "actual" if rental.actual_end else "current"
+    return {**_calculation_payload(kind, end, result), "unit": unit}
+
+
+def mileage(rental: Rental) -> dict[str, Any] | None:
+    """Mileage of the whole rental against its included limit (§ 13.4.1–13.4.3): the limit is the
+    included mileage per unit times the billable units after free time (§ 13.4.2); the overage is
+    priced in the vehicle's odometer unit. None until both readings are known."""
+    snapshot = rental.tariff_snapshot or {}
+    terms = snapshot.get("vehicle_terms", {}).get("mileage") or {}
+    if not terms or rental.actual_start is None:
+        return None
+    by_kind = {
+        i.kind: i
+        for i in Inspection.objects.filter(rental_id=rental.id).exclude(
+            state=Inspection.State.INVALID
+        )
+    }
+    issued, returned = by_kind.get("issue"), by_kind.get("return")
+    if (
+        issued is None
+        or returned is None
+        or issued.odometer_value is None
+        or returned.odometer_value is None
+        or rental.actual_end is None
+    ):
+        return {
+            "mode": terms.get("mode"),
+            "distance": None,
+            "unit": snapshot["vehicle_terms"].get("mileage_unit"),
+        }
+    distance = returned.odometer_value - issued.odometer_value
+    result: dict[str, Any] = {
+        "mode": terms.get("mode"),
+        "unit": snapshot["vehicle_terms"].get("mileage_unit"),
+        "distance": distance,
+        "included": None,
+        "overage": Decimal(0),
+        "amount": Decimal(0),
+        "currency": snapshot.get("currency"),
+    }
+    if terms.get("mode") != "included":
+        return result
+    units = calculate(rental, rental.actual_end).units
+    included = Decimal(terms["included_per_unit"]) * units
+    overage = max(distance - included, Decimal(0))
+    result.update(
+        included=included,
+        overage=overage,
+        amount=round_money(
+            overage * Decimal(terms["overage_price"]), int(snapshot["currency_minor_units"])
+        ),
+    )
+    return result
 
 
 def operations_for_order(company_id: UUID, order_id: UUID) -> list[OperationSummary]:
@@ -153,8 +231,7 @@ def record_control_versions(
         if rental.actual_start is None or rental.tariff_snapshot is None:
             continue
         end = rental.actual_end or max(now, rental.actual_start)
-        terms = pricing.terms_from_snapshot(rental.tariff_snapshot)
-        result = pricing.calculate(terms, rental.actual_start, end)
+        result = calculate(rental, end)
         seq = (
             RentalCalculation.objects.filter(rental=rental).aggregate(m=Max("seq"))["m"] or 0
         ) + 1
@@ -169,7 +246,10 @@ def record_control_versions(
                 "end": end.isoformat(),
                 "tariff_id": rental.tariff_snapshot.get("tariff_id"),
                 "tariff_version": rental.tariff_snapshot.get("tariff_version"),
-                "free_intervals": [],
+                "free_intervals": [
+                    {"start": i.start.isoformat(), "end": i.end.isoformat()}
+                    for i in free_intervals_of(rental)
+                ],
             },
             billable_minutes=int(result.billable.total_seconds() // 60),
             units=result.units,

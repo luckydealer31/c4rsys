@@ -113,10 +113,27 @@ def test_range_structure_of_13_2_8(owner: Client, cmp: str, ranges: Any, code: s
     assert not Tariff.objects.exists()
 
 
-def test_only_daily_from_issue_at_stage_one(owner: Client, cmp: str) -> None:
-    for data in ({"unit": "hour"}, {"day_mode": "fixed_boundary"}):
-        response = _create(owner, cmp, **data)
-        assert response.json()["error"]["code"] == "TARIFF_UNIT_NOT_AVAILABLE"
+def test_tariff_units_and_settlement_days(owner: Client, cmp: str) -> None:
+    # § 13.1.4: minute, hour, day and month; settlement days need their daily boundary.
+    for unit in ("minute", "hour", "month"):
+        created = _create(owner, cmp, name=unit, unit=unit)
+        assert created.status_code == 201, created.content
+        assert (created.json()["tariff"]["unit"], created.json()["tariff"]["day_mode"]) == (
+            unit,
+            None,
+        )
+    without_time = _create(owner, cmp, name="Noon", day_mode="fixed_boundary")
+    noon = _create(owner, cmp, name="Noon", day_mode="fixed_boundary", day_boundary="12:00")
+
+    assert without_time.json()["error"]["code"] == "TIME_INVALID"
+    assert noon.json()["tariff"]["day_boundary"] == "12:00"
+    changed = owner.patch(
+        f"/api/c/{cmp}/tariffs/{noon.json()['tariff']['id']}",
+        data={"day_boundary": "10:00", "expected_version": 1},
+        content_type="application/json",
+        headers=key(),
+    )
+    assert changed.json()["error"]["code"] == "TARIFF_FIELD_IMMUTABLE"
 
 
 def test_rental_context_is_ready_with_available_tariff(owner: Client, cmp: str) -> None:

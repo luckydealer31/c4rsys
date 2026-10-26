@@ -17,6 +17,7 @@ import { useVehicles } from "../vehicles/VehiclesPage";
 import { BookingCard } from "./Booking";
 import { DepositCard } from "./Deposit";
 import { IssueExceptionView, placeText } from "./IssueRules";
+import { FreeTime, ManualCharges, MileageView } from "./RentalCharges";
 import { CalculationView, Warnings } from "./IssuePage";
 
 type RentalResponse = { rental: Rental };
@@ -137,6 +138,20 @@ export function RentalPage() {
           <p className="muted">{t("bookings.no_calculation")}</p>
         )}
       </Card>
+
+      {operated ? (
+        <>
+          <Card title={t("charges.free_title")}>
+            <FreeTime rental={current} onDone={refresh} />
+          </Card>
+          <Card title={t("charges.mileage_title")}>
+            <MileageView rental={current} />
+          </Card>
+          <Card title={t("charges.manual_title")}>
+            <ManualCharges rental={current} onDone={refresh} />
+          </Card>
+        </>
+      ) : null}
 
       <Card title={t("deposit.title")}>
         <DepositCard rental={current} onDone={() => refresh()} />

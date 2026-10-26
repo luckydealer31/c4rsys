@@ -18,7 +18,21 @@ export function useTariffs() {
   return useApi<{ tariffs: Tariff[] }>(["tariffs", company.public_id], `/c/${company.public_id}/tariffs`);
 }
 
-/** Tariff catalog: a daily tariff «24 hours from issue» with price ranges (§ 13.1–13.2). */
+/** Unit of a tariff as one choice: minute, hour, a day «24 hours from issue», settlement days with
+ * a daily boundary, calendar month (§ 13.1.4, § 13.2). */
+export function unitText(tariff: { unit: string; day_mode: string | null; day_boundary?: string | null }, t: TFunction) {
+  if (tariff.unit === "day" && tariff.day_mode === "fixed_boundary") {
+    return t("tariffs.kind_fixed_boundary", { time: tariff.day_boundary ?? "" });
+  }
+  return t(`tariffs.kind_${tariff.unit === "day" ? "from_issue" : tariff.unit}`);
+}
+
+/** Short name of the billable unit: «min», «h», «days», «months». */
+export function unitShort(unit: string | null | undefined, t: TFunction) {
+  return t(`tariffs.short_${unit ?? "day"}`);
+}
+
+/** Tariff catalog: tariffs of any unit with price ranges (§ 13.1–13.2). */
 export function TariffsPage() {
   const { t } = useTranslation();
   const company = useCompany();
@@ -35,7 +49,7 @@ export function TariffsPage() {
             <strong>{tariff.name}</strong>{" "}
             {tariff.state === "archived" ? <span className="badge">{t("tariffs.archived")}</span> : null}
             <div className="muted small">
-              {t("tariffs.daily_from_issue")} · {tariff.currency} · {rangesText(tariff.ranges, t)}
+              {unitText(tariff, t)} · {tariff.currency} · {rangesText(tariff.ranges, t, tariff.unit)}
             </div>
           </Link>
         ))}
@@ -45,14 +59,24 @@ export function TariffsPage() {
   );
 }
 
-export function rangesText(ranges: PriceRange[], t: TFunction) {
+export function rangesText(ranges: PriceRange[], t: TFunction, unit = "day") {
+  const short = unitShort(unit, t);
   return ranges
     .map((r) =>
       r.to === null
-        ? t("tariffs.range_open", { from: r.from, rate: Number(r.rate) })
-        : t("tariffs.range_closed", { from: r.from, to: r.to, rate: Number(r.rate) }),
+        ? t("tariffs.range_open", { from: r.from, rate: Number(r.rate), unit: short })
+        : t("tariffs.range_closed", { from: r.from, to: r.to, rate: Number(r.rate), unit: short }),
     )
     .join("; ");
+}
+
+const KINDS = ["minute", "hour", "from_issue", "fixed_boundary", "month"] as const;
+type Kind = (typeof KINDS)[number];
+
+function kindBody(kind: Kind, boundary: string): Record<string, unknown> {
+  if (kind === "from_issue") return { unit: "day", day_mode: "from_issue" };
+  if (kind === "fixed_boundary") return { unit: "day", day_mode: "fixed_boundary", day_boundary: boundary };
+  return { unit: kind };
 }
 
 type RangeRow = { from: string; to: string; rate: string };
@@ -63,7 +87,15 @@ function toRows(ranges: PriceRange[]): RangeRow[] {
 
 /** Range rows; the next «from» follows the previous «to» (§ 13.2.8). The server checks the
  * structure. */
-function RangesEditor({ rows, onChange }: { rows: RangeRow[]; onChange: (rows: RangeRow[]) => void }) {
+function RangesEditor({
+  rows,
+  onChange,
+  unit,
+}: {
+  rows: RangeRow[];
+  onChange: (rows: RangeRow[]) => void;
+  unit: string;
+}) {
   const { t } = useTranslation();
   function set(index: number, key: keyof RangeRow, value: string) {
     const next = rows.map((row, i) => (i === index ? { ...row, [key]: value } : row));
@@ -78,9 +110,9 @@ function RangesEditor({ rows, onChange }: { rows: RangeRow[]; onChange: (rows: R
       <table>
         <thead>
           <tr>
-            <th>{t("tariffs.from")}</th>
-            <th>{t("tariffs.to")}</th>
-            <th>{t("tariffs.rate")}</th>
+            <th>{t("tariffs.from", { unit: unitShort(unit, t) })}</th>
+            <th>{t("tariffs.to", { unit: unitShort(unit, t) })}</th>
+            <th>{t("tariffs.rate", { unit: unitShort(unit, t) })}</th>
             <th />
           </tr>
         </thead>
@@ -149,6 +181,8 @@ function TariffForm({ tariff }: { tariff?: Tariff }) {
     tariff && !tariff.all_locations ? tariff.locations : "all",
   );
   const [saved, setSaved] = useState(false);
+  const [kind, setKind] = useState<Kind>("from_issue");
+  const [boundary, setBoundary] = useState("12:00");
   const save = useCommand<Record<string, unknown>, { tariff: Tariff }>(
     tariff ? `/c/${company.public_id}/tariffs/${tariff.id}` : `/c/${company.public_id}/tariffs`,
     tariff ? "PATCH" : "POST",
@@ -159,7 +193,10 @@ function TariffForm({ tariff }: { tariff?: Tariff }) {
     setSaved(false);
     const body: Record<string, unknown> = { name, ranges: fromRows(rows), locations: scope };
     if (tariff) body.expected_version = tariff.version;
-    else if (currency) body.currency = currency;
+    else {
+      Object.assign(body, kindBody(kind, boundary));
+      if (currency) body.currency = currency;
+    }
     const result = await save.run(body);
     if (result) {
       setSaved(true);
@@ -190,12 +227,31 @@ function TariffForm({ tariff }: { tariff?: Tariff }) {
               ))}
             </select>
           </Field>
-          <Field label={t("tariffs.unit")}>
-            <input value={t("tariffs.daily_from_issue")} disabled />
+          <Field label={t("tariffs.unit")} hint={tariff ? t("tariffs.unit_fixed") : undefined}>
+            {tariff ? (
+              <input value={unitText(tariff, t)} disabled />
+            ) : (
+              <select value={kind} onChange={(e) => setKind(e.target.value as Kind)}>
+                {KINDS.map((k) => (
+                  <option key={k} value={k}>
+                    {t(`tariffs.kind_${k}`, { time: "…" })}
+                  </option>
+                ))}
+              </select>
+            )}
           </Field>
+          {!tariff && kind === "fixed_boundary" ? (
+            <Field label={t("tariffs.day_boundary")} hint={t("tariffs.day_boundary_hint")}>
+              <input type="time" value={boundary} onChange={(e) => setBoundary(e.target.value)} />
+            </Field>
+          ) : null}
         </div>
         <h3>{t("tariffs.ranges")}</h3>
-        <RangesEditor rows={rows} onChange={setRows} />
+        <RangesEditor
+          rows={rows}
+          onChange={setRows}
+          unit={tariff ? tariff.unit : kind === "from_issue" || kind === "fixed_boundary" ? "day" : kind}
+        />
         <div className="small">
           {t("tariffs.availability")}:{" "}
           <label>

@@ -22,8 +22,8 @@ from c4rsys.inspections.models import Inspection
 from c4rsys.orders import services as orders
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
-from c4rsys.rentals import issue_policies, pricing
-from c4rsys.rentals.models import Rental
+from c4rsys.rentals import issue_policies, rentals
+from c4rsys.rentals.models import Rental, RentalFreeInterval
 
 
 @dataclass(frozen=True)
@@ -47,7 +47,8 @@ def acceptance_location(rental: Rental, place_kind: str, location_id: UUID) -> U
 
 
 def recalculate(ctx: CommandContext, rental: Rental, reason: str) -> ChargeEntry | None:
-    """Base cost by the actual period (§ 14.5.3) as the rental's charge."""
+    """Base cost by the actual period with the free time (§ 14.5.3, § 13.3) and the mileage
+    overage (§ 13.4.4) as separate charges of the rental."""
     snapshot, start, end, client_id = (
         rental.tariff_snapshot,
         rental.actual_start,
@@ -56,8 +57,8 @@ def recalculate(ctx: CommandContext, rental: Rental, reason: str) -> ChargeEntry
     )
     if end is None or start is None or snapshot is None or client_id is None:
         raise RuntimeError("Only a finished period of an issued rental is charged")
-    terms = pricing.terms_from_snapshot(snapshot)
-    result = pricing.calculate(terms, start, end)
+    result = rentals.calculate(rental, end)
+    _charge_mileage(ctx, rental, client_id, reason)
     return charges.set_charge(
         ctx,
         company_id=rental.company_id,
@@ -72,12 +73,33 @@ def recalculate(ctx: CommandContext, rental: Rental, reason: str) -> ChargeEntry
             "actual_start": start.isoformat(),
             "actual_end": end.isoformat(),
             "billable_minutes": int(result.billable.total_seconds() // 60),
+            "free_minutes": int(result.free.total_seconds() // 60),
             "units": result.units,
             "rate": str(result.rate) if result.rate is not None else None,
             "base_amount": str(result.base_amount),
             "tariff_id": snapshot.get("tariff_id"),
             "tariff_version": snapshot.get("tariff_version"),
         },
+    )
+
+
+def _charge_mileage(ctx: CommandContext, rental: Rental, client_id: UUID, reason: str) -> None:
+    """The overage of the included mileage as its own charge (§ 13.4.3–13.4.4; decision Т5);
+    without both readings nothing is charged yet."""
+    result = rentals.mileage(rental)
+    if result is None or result.get("currency") is None:
+        return
+    charges.set_charge(
+        ctx,
+        company_id=rental.company_id,
+        order_id=rental.order_id,
+        client_id=client_id,
+        source_type=ChargeEntry.SourceType.RENTAL_MILEAGE,
+        source_id=rental.id,
+        amount=result["amount"],
+        currency=result["currency"],
+        reason=reason,
+        calculation={k: str(v) if v is not None else None for k, v in result.items()},
     )
 
 
@@ -101,6 +123,15 @@ def accept_return(ctx: CommandContext, request: ReturnRequest) -> tuple[Rental, 
         raise errors.business_rule("FUTURE_TIME_NOT_ALLOWED", field="actual_end")
     if rental.actual_start is None or request.actual_end <= rental.actual_start:
         raise errors.validation_error("actual_end", code="PERIOD_INVALID")
+    # § 13.3.2: free time past the new end is a conflict; the manager moves or shortens it by
+    # hand, nothing is cut automatically.
+    outside = RentalFreeInterval.objects.filter(rental_id=rental.id, end__gt=request.actual_end)
+    if outside.exists():
+        raise errors.business_rule(
+            "FREE_INTERVAL_OUTSIDE_RENTAL",
+            field="actual_end",
+            intervals=[str(i.id) for i in outside],
+        )
     location_id = acceptance_location(rental, request.place_kind, request.return_location_id)
     locations.require_usable(company_id, location_id, "return_location_id")
 
@@ -199,4 +230,7 @@ def save_return_readings(
         source_type="inspection",
         source_id=saved.id,
     )
+    # With both readings the mileage overage can be charged now (customer's decision Т5).
+    if rental.client_id is not None:
+        _charge_mileage(ctx, rental, rental.client_id, "readings")
     return saved

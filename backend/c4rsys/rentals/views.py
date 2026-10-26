@@ -23,8 +23,10 @@ from c4rsys.platform.http import get_int, get_str, parse_json
 from c4rsys.rentals import (
     bookings,
     formalization,
+    free_time,
     issue,
     issue_policies,
+    manual_charges,
     places,
     pricing,
     rentals,
@@ -87,15 +89,16 @@ def tariff_list(request: HttpRequest, cmp: str) -> JsonResponse:
     data = parse_json(request)
     availability = _availability(data)
     _require(actor, "tariff.create", availability)
-    if data.get("unit", "day") != "day" or data.get("day_mode", "from_issue") != "from_issue":
-        # Stage 1: only the daily tariff «24 hours from issue» (STAGE1_PLAN, T07).
-        raise errors.validation_error("unit", code="TARIFF_UNIT_NOT_AVAILABLE")
+    unit, day_mode, day_boundary = tariffs.parse_unit(data)
     tariffs.validate_locations(context.company.id, availability.location_ids)
     new = tariffs.NewTariff(
         name=get_str(data, "name", max_length=NAME_MAX),
         currency=get_str(data, "currency", max_length=3, required=False).upper(),
         ranges=tariffs.parse_ranges(data.get("ranges")),
         location_ids=None if availability.all_locations else availability.location_ids,
+        unit=unit,
+        day_mode=day_mode,
+        day_boundary=day_boundary,
     )
 
     def handler(ctx: CommandContext) -> CommandResult:
@@ -107,6 +110,9 @@ def tariff_list(request: HttpRequest, cmp: str) -> JsonResponse:
         "currency": new.currency,
         "ranges": [r.as_dict() for r in new.ranges],
         "locations": "all" if new.location_ids is None else sorted(map(str, new.location_ids)),
+        "unit": unit,
+        "day_mode": day_mode,
+        "day_boundary": day_boundary.isoformat() if day_boundary else None,
     }
     return run_and_respond(request, "tariff.create", actor, payload, handler)
 
@@ -120,7 +126,7 @@ def tariff_detail(request: HttpRequest, cmp: str, tariff_id: UUID) -> JsonRespon
 
     data = parse_json(request)
     expected_version = get_int(data, "expected_version")
-    if {"currency", "unit", "day_mode"} & data.keys():
+    if {"currency", "unit", "day_mode", "day_boundary"} & data.keys():
         raise errors.validation_error("currency", code="TARIFF_FIELD_IMMUTABLE")
     new_availability = _availability(data) if "locations" in data else None
     changes = tariffs.TariffChanges(
@@ -355,6 +361,13 @@ def _inspections_payload(rental: Rental) -> dict[str, Any]:
     return {"issue": view(issued), "return": view(returned), "fuel_differs": fuel_differs}
 
 
+def _mileage_payload(rental: Rental) -> dict[str, Any] | None:
+    result = rentals.mileage(rental)
+    if result is None:
+        return None
+    return {k: str(v) if isinstance(v, Decimal) else v for k, v in result.items()}
+
+
 def _rental_payload(rental: Rental) -> dict[str, Any]:
     overdue = (
         rental.state == Rental.State.ACTIVE
@@ -401,6 +414,10 @@ def _rental_payload(rental: Rental) -> dict[str, Any]:
         "actual_end": _utc(rental.actual_end),
         "tariff_snapshot": rental.tariff_snapshot,
         "calculation": rentals.current_calculation(rental),
+        # § 13.3: free time; § 13.4.1–13.4.4: mileage against its limit; § 13.5.1: manual charges.
+        "free_intervals": free_time.payload(rental),
+        "mileage": _mileage_payload(rental),
+        "manual_charges": manual_charges.payload(rental),
         # § 14.7.3: required, received, held and the rest of the deposit; a missing deposit is
         # shown apart from the debt for the rental (§ 14.3.3).
         "deposit": deposits.payload(rental),
@@ -734,8 +751,9 @@ def rental_quote(request: HttpRequest, cmp: str) -> JsonResponse:
         raise errors.validation_error("planned_end", code="PERIOD_INVALID")
     tariff = Tariff.objects.select_related("currency").get(pk=tariff.pk)
     snapshot = tariffs.rental_snapshot(tariff, terms)
-    result = pricing.calculate(pricing.terms_from_snapshot(snapshot), start, end)
     location_id = _optional_uuid(data, "issue_location_id") or card.accounting_location_id
+    zone = issue_policies.zone_of(context.company.id, location_id)
+    result = pricing.calculate(pricing.terms_from_snapshot(snapshot, zone), start, end)
     booking_id = _optional_uuid(data, "booking_id")
     order_id = _optional_uuid(data, "order_id")
     if booking_id is not None:

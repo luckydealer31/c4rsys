@@ -85,6 +85,8 @@ def test_base_example_return_charges_2000(
     assert returned["calculation"] == {
         "kind": "actual",
         "end": "2026-11-03T03:00:00+00:00",
+        "unit": "day",
+        "free_minutes": 0,
         "billable_minutes": 2880,
         "units": 2,
         "rate": "1000.0000",

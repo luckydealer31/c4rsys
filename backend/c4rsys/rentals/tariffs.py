@@ -1,6 +1,7 @@
 """Tariff catalog: creation, change, archiving and availability (ТЗ § 13.1–13.2, § 23.4.4)."""
 
 from dataclasses import dataclass
+from datetime import time
 from decimal import Decimal, InvalidOperation
 from typing import Any
 from uuid import UUID
@@ -144,6 +145,9 @@ def snapshot(tariff: Tariff) -> dict[str, Any]:
         "currency": tariff.currency_id,
         "unit": tariff.unit,
         "day_mode": tariff.day_mode or None,
+        "day_boundary": tariff.day_boundary_time.isoformat(timespec="minutes")
+        if tariff.day_boundary_time
+        else None,
         "all_locations": tariff.all_locations,
         "locations": sorted(
             str(x)
@@ -194,11 +198,35 @@ class NewTariff:
     currency: str  # empty: the company's main currency is proposed (§ 22.1.7)
     ranges: list[PriceRange]
     location_ids: frozenset[UUID] | None  # None: the whole company (§ 13.1.3)
+    # § 13.1.4: minute, hour, day or month; a day is «24 hours from issue» or settlement days
+    # with a fixed daily boundary (§ 13.2.2).
+    unit: str = Tariff.Unit.DAY
+    day_mode: str = Tariff.DayMode.FROM_ISSUE
+    day_boundary: time | None = None
+
+
+def parse_unit(data: dict[str, Any]) -> tuple[str, str, time | None]:
+    unit = str(data.get("unit") or Tariff.Unit.DAY)
+    if unit not in Tariff.Unit.values:
+        raise errors.validation_error("unit", code="CHOICE_REQUIRED")
+    if unit != Tariff.Unit.DAY:
+        return unit, "", None
+    mode = str(data.get("day_mode") or Tariff.DayMode.FROM_ISSUE)
+    if mode not in Tariff.DayMode.values:
+        raise errors.validation_error("day_mode", code="CHOICE_REQUIRED")
+    if mode == Tariff.DayMode.FROM_ISSUE:
+        return unit, mode, None
+    raw = data.get("day_boundary")
+    try:
+        boundary = time.fromisoformat(str(raw)).replace(second=0, microsecond=0)
+    except ValueError as exc:
+        raise errors.validation_error("day_boundary", code="TIME_INVALID") from exc
+    return unit, mode, boundary
 
 
 def create_tariff(ctx: CommandContext, company: Company, data: NewTariff) -> Tariff:
-    """A daily tariff «24 hours from issue» (§ 13.2.2); other units and the fixed day boundary come
-    at stage 2."""
+    """A tariff of any unit of § 13.1.4; unit, day mode and currency do not change later
+    (decision 22.10.2026)."""
     code = data.currency or (company.main_currency_id or "")
     if not code:
         raise errors.validation_error("currency", code="FIELD_REQUIRED")
@@ -209,8 +237,9 @@ def create_tariff(ctx: CommandContext, company: Company, data: NewTariff) -> Tar
         company=company,
         name=data.name,
         currency=currency,
-        unit=Tariff.Unit.DAY,
-        day_mode=Tariff.DayMode.FROM_ISSUE,
+        unit=data.unit,
+        day_mode=data.day_mode,
+        day_boundary_time=data.day_boundary,
         all_locations=data.location_ids is None,
         created_by_user_id=ctx.actor.user_id,
         created_at=timezone.now(),

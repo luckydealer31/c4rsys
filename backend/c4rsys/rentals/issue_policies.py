@@ -133,6 +133,12 @@ class Assessment:
         return bool(self.policy["inspection"] == IssuePolicy.Inspection.REQUIRED)
 
 
+def zone_of(company_id: UUID, location_id: UUID | None) -> str:
+    """The time zone settlement days and months of a new rental follow (§ 13.2.7)."""
+    info = locations.location_info(company_id, location_id) if location_id else None
+    return (info.timezone if info else None) or "UTC"
+
+
 def _rounded(amounts: dict[str, Decimal]) -> dict[str, str]:
     places = {c.code: c.minor_units for c in Currency.objects.filter(code__in=amounts)}
     return {c: str(round_money(v, places[c])) for c, v in sorted(amounts.items())}
@@ -167,7 +173,9 @@ def assess(
         if strict:
             result.warnings.append({"code": "PAYMENT_NOT_CHECKED"})
         return result
-    cost = pricing.calculate(pricing.terms_from_snapshot(snapshot), start, planned_end)
+    cost = pricing.calculate(
+        pricing.terms_from_snapshot(snapshot, zone_of(company_id, location_id)), start, planned_end
+    )
     available = Decimal(0)
     if order_id is not None:
         order = orders.get_order(company_id, order_id)

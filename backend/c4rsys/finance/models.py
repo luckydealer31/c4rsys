@@ -101,6 +101,8 @@ class ChargeEntry(models.Model):
 
     class SourceType(models.TextChoices):
         RENTAL_BASE = "rental_base"
+        RENTAL_MILEAGE = "rental_mileage"  # § 13.4.4: overage apart from the base cost
+        RENTAL_MANUAL = "rental_manual"  # § 13.5.1: fuel or another manual charge
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")

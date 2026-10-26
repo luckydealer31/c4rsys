@@ -184,6 +184,7 @@ export type Tariff = {
   currency: string;
   unit: string;
   day_mode: string | null;
+  day_boundary: string | null;
   all_locations: boolean;
   locations: string[];
   ranges: PriceRange[];
@@ -371,11 +372,39 @@ export type DepositInfo = {
 export type Calculation = {
   kind: "current" | "actual" | "preliminary";
   end?: string;
+  unit?: string | null;
   billable_minutes: number;
+  free_minutes?: number;
   units: number;
   rate: string | null;
   base_amount: string;
   currency: string;
+};
+
+/** Free time entered by hand (§ 13.3.2): by its end or by a number of tariff units. */
+export type FreeInterval = { id: string; start: string; end: string; units: number | null; comment: string; version: number };
+
+/** Mileage of the rental against its included limit (§ 13.4.1–13.4.4). */
+export type Mileage = {
+  mode: "unlimited" | "included";
+  unit: string;
+  distance: string | null;
+  included?: string | null;
+  overage?: string;
+  amount?: string;
+  currency?: string;
+};
+
+/** A manual charge of the rental (§ 13.5.1), cancelled with a reason. */
+export type ManualCharge = {
+  id: string;
+  kind: "fuel" | "other";
+  amount: string;
+  currency: string;
+  reason: string;
+  created_at: string;
+  cancelled_at: string | null;
+  cancel_reason: string;
 };
 
 export type InspectionView = {
@@ -404,6 +433,9 @@ export type Rental = RentalSummary & {
   formalization: { completed_at: string | null; missing: string[] };
   tariff_snapshot: { name: string; currency: string; ranges: PriceRange[] } | null;
   calculation: Calculation | null;
+  free_intervals?: FreeInterval[];
+  mileage?: Mileage | null;
+  manual_charges?: ManualCharge[];
   version: number;
 };
 

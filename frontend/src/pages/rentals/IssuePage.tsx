@@ -20,6 +20,7 @@ import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { fromLocalInput, toLocalInput } from "../../time";
 import { ClientForm, clientName } from "../clients/ClientsPage";
 import { useLocations } from "../settings/LocationsPage";
+import { unitShort } from "../tariffs/TariffsPage";
 import { useRentals, useVehicles } from "../vehicles/VehiclesPage";
 import {
   EMPTY_PLACE,
@@ -428,8 +429,9 @@ export function CalculationView({ calculation }: { calculation: Calculation }) {
   const { t } = useTranslation();
   return (
     <p>
-      {t(`rentals.calc_${calculation.kind}`)}: {calculation.billable_minutes} {t("rentals.minutes")} →{" "}
-      {calculation.units} {t("rentals.days")} → {calculation.rate ? Number(calculation.rate) : "—"} →{" "}
+      {t(`rentals.calc_${calculation.kind}`)}: {calculation.billable_minutes} {t("rentals.minutes")}
+      {calculation.free_minutes ? ` (${t("charges.free_minutes", { value: calculation.free_minutes })})` : ""} →{" "}
+      {calculation.units} {unitShort(calculation.unit, t)} → {calculation.rate ? Number(calculation.rate) : "—"} →{" "}
       <strong>
         {calculation.base_amount} {calculation.currency}
       </strong>

@@ -5,7 +5,7 @@ from issue; 1 000 THB for any positive number of days unless stated otherwise
 (docs/DOMAIN_PRICING.md, E01–E06; base example of TECHNICAL_ARCHITECTURE.md).
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
@@ -17,6 +17,7 @@ from c4rsys.rentals.pricing import (
     PriceRange,
     PricingError,
     TariffTerms,
+    advance,
     calculate,
     terms_from_snapshot,
 )
@@ -158,9 +159,9 @@ def test_invalid_inputs() -> None:
         calculate(FLAT, nov(2, 10), nov(1, 10))
     with pytest.raises(PricingError, match="TIME_WITHOUT_ZONE"):
         calculate(FLAT, datetime(2026, 11, 1, 10), nov(2, 10))  # noqa: DTZ001
-    hourly = TariffTerms("hour", None, "THB", 2, FLAT.ranges)
+    no_boundary = TariffTerms("day", "fixed_boundary", "THB", 2, FLAT.ranges)
     with pytest.raises(PricingError, match="TARIFF_UNIT_NOT_SUPPORTED"):
-        calculate(hourly, nov(1, 10), nov(2, 10))
+        calculate(no_boundary, nov(1, 10), nov(2, 10))
 
 
 def test_terms_from_snapshot() -> None:
@@ -176,3 +177,76 @@ def test_terms_from_snapshot() -> None:
     }
 
     assert terms_from_snapshot(snapshot) == STEPPED
+
+
+# --- Units of stage «Rental» (§ 13.1.4, § 13.2.1–13.2.4, § 13.2.7, § 13.3.6–13.3.7) ----------
+
+ONE = (PriceRange(1, None, Decimal("10")),)
+
+
+def _terms(unit: str, mode: str | None = None, boundary: time | None = None) -> TariffTerms:
+    return TariffTerms(unit, mode, "THB", 2, ONE, boundary, "Asia/Bangkok")
+
+
+@pytest.mark.parametrize(
+    ("unit", "end", "units"),
+    [
+        ("minute", nov(1, 10, 30), 30),
+        ("minute", nov(1, 10, 30) + timedelta(seconds=1), 31),
+        ("hour", nov(1, 12), 2),
+        ("hour", nov(1, 12, 1), 3),
+    ],
+)
+def test_minutes_and_hours_round_up(unit: str, end: datetime, units: int) -> None:
+    # § 13.2.1: a part of a unit is a unit; an exact number is not increased.
+    assert calculate(_terms(unit), nov(1, 10), end).units == units
+
+
+@pytest.mark.parametrize(
+    ("start", "end", "units"),
+    [
+        (nov(1, 10), nov(1, 11), 1),  # inside the day that ends at 12:00
+        (nov(1, 10), nov(1, 12), 1),  # an end exactly on the boundary adds nothing
+        (nov(1, 10), nov(1, 12, 1), 2),
+        (nov(1, 13), nov(2, 12), 1),
+        (nov(1, 13), nov(3, 9), 2),
+    ],
+)
+def test_settlement_days_with_a_boundary(start: datetime, end: datetime, units: int) -> None:
+    # § 13.2.2, § 13.3.7: a part of a settlement day is a whole day.
+    terms = _terms("day", "fixed_boundary", time(12, 0))
+    assert calculate(terms, start, end).units == units
+
+
+def test_calendar_months_from_the_start() -> None:
+    # § 13.2.3–13.2.4, § 13.2.7: 31 January → 28 February → 31 March; a part is a whole month.
+    terms = _terms("month")
+    start = datetime(2027, 1, 31, 10, tzinfo=BKK)
+
+    assert calculate(terms, start, datetime(2027, 2, 28, 10, tzinfo=BKK)).units == 1
+    assert calculate(terms, start, datetime(2027, 2, 28, 11, tzinfo=BKK)).units == 2
+    assert calculate(terms, start, datetime(2027, 3, 31, 10, tzinfo=BKK)).units == 2
+    assert calculate(terms, start, datetime(2027, 3, 31, 10, 1, tzinfo=BKK)).units == 3
+
+
+def test_free_time_shortens_the_period_from_its_end() -> None:
+    # § 13.3.6–13.3.7: two months minus 10 free days is still more than one month.
+    terms = _terms("month")
+    start = datetime(2027, 1, 10, 10, tzinfo=BKK)
+    free = [Interval(datetime(2027, 1, 20, 10, tzinfo=BKK), datetime(2027, 1, 30, 10, tzinfo=BKK))]
+
+    result = calculate(terms, start, datetime(2027, 3, 10, 10, tzinfo=BKK), free)
+
+    assert (result.units, result.free) == (2, timedelta(days=10))
+    all_free = [Interval(start, datetime(2027, 1, 12, 10, tzinfo=BKK))]
+    zero = calculate(terms, start, datetime(2027, 1, 12, 10, tzinfo=BKK), all_free)
+    assert (zero.units, zero.base_amount) == (0, Decimal("0.00"))
+
+
+def test_free_units_give_the_end_by_the_tariff() -> None:
+    # § 13.3.2: the end of N units from the start.
+    start = nov(1, 10)
+    assert advance(_terms("hour"), start, 3) == nov(1, 13)
+    assert advance(_terms("day", "fixed_boundary", time(12, 0)), start, 2) == nov(2, 12)
+    jan = datetime(2027, 1, 31, 10, tzinfo=BKK)
+    assert advance(_terms("month"), jan, 1) == datetime(2027, 2, 28, 10, tzinfo=BKK)
