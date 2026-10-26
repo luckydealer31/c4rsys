@@ -367,8 +367,20 @@ export type Payment = {
   currency: string;
   state: string;
   method: string;
-  kind: "payment" | "opening" | "manual" | "transfer";
+  kind: "payment" | "opening" | "manual" | "transfer" | "supplier" | "refund" | "reversal";
   direction: "in" | "out";
+  counterparty_id: string | null;
+  /** A reversal names the record it cancels; a reversed record names its reversal (§ 23.2.7). */
+  reverses_id: string | null;
+  reversed_by_id: string | null;
+  reason: string;
+  /** A refund in another currency: what left the client's funds (§ 17.2.17). */
+  funds_amount: string | null;
+  funds_currency: string | null;
+  applied_rate: string | null;
+  supplier_links: { purchase_id: string | null; receipt_id: string | null; amount: string; state: string }[];
+  /** Split of an expense between vehicles and orders (§ 17.3.3). */
+  shares: { vehicle_id: string | null; order_id: string | null; amount: string }[];
   article_id: string | null;
   location_id: string | null;
   context_id: string | null;
@@ -376,6 +388,7 @@ export type Payment = {
   note: string;
   posted_at: string | null;
   allocations: {
+    id: string;
     order_id: string;
     amount: string;
     purpose: string;

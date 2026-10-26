@@ -17,7 +17,7 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from c4rsys.finance import charges, rates
-from c4rsys.finance.models import CashAccount, ChargeEntry, MoneyMovement, PaymentAllocation
+from c4rsys.finance.models import CashAccount, MoneyMovement, PaymentAllocation
 from c4rsys.orders import services as orders
 from c4rsys.parties import services as parties
 from c4rsys.platform import errors
@@ -191,46 +191,11 @@ def paid_for_order(company_id: UUID, order_id: UUID) -> dict[str, Decimal]:
 
 
 def client_balance(company_id: UUID, client_id: UUID) -> dict[str, Decimal]:
-    """Settlement balance of the client per currency: money received minus charges (§ 6.7.2,
-    § 17.2.13). Positive — advance or overpayment, negative — debt.
+    """Settlement balance of the client per currency (§ 6.7.2, § 17.2.13). Positive — advance or
+    overpayment, negative — debt. See settlements.client_figures."""
+    from c4rsys.finance import settlements
 
-    An allocation in another currency moves the money from the payment's currency to the order's:
-    it leaves the client's funds in the payment currency and settles the charges in the order
-    currency by the applied rate (§ 17.1.4)."""
-    # TODO(spec): a manual receipt naming the client (§ 17.2.7) is not counted as available
-    # funds of the client; whether it should be is not set.
-    received = (
-        MoneyMovement.objects.filter(
-            company_id=company_id,
-            client_id=client_id,
-            kind=MoneyMovement.Kind.PAYMENT,
-            direction=MoneyMovement.Direction.IN,
-            state=MoneyMovement.State.POSTED,
-        )
-        .values("currency_id")
-        .annotate(total=Sum("amount"))
-    )
-    charged = (
-        ChargeEntry.objects.filter(company_id=company_id, client_id=client_id)
-        .values("currency_id")
-        .annotate(total=Sum("amount"))
-    )
-    balance: dict[str, Decimal] = {}
-    for row in received:
-        balance[row["currency_id"]] = balance.get(row["currency_id"], Decimal(0)) + row["total"]
-    for row in charged:
-        balance[row["currency_id"]] = balance.get(row["currency_id"], Decimal(0)) - row["total"]
-    exchanged = PaymentAllocation.objects.filter(
-        company_id=company_id,
-        money_movement__client_id=client_id,
-        state=PaymentAllocation.State.ACTIVE,
-        settled_currency__isnull=False,
-    )
-    for row in exchanged.values("currency_id").annotate(total=Sum("amount")):
-        balance[row["currency_id"]] = balance.get(row["currency_id"], Decimal(0)) - row["total"]
-    for currency, total in _settled(exchanged).items():
-        balance[currency] = balance.get(currency, Decimal(0)) + total
-    return balance
+    return settlements.client_figures(company_id, client_id).balance
 
 
 def client_debt(company_id: UUID, client_id: UUID) -> dict[str, Decimal]:

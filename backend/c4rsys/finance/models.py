@@ -144,6 +144,13 @@ class MoneyMovement(models.Model):
         MANUAL = "manual"
         # One side of a transfer between own accounts: neither income nor expense (§ 17.1.6).
         TRANSFER = "transfer"
+        # A payment to a supplier (out) or money back from one (in), linked to purchases and
+        # receipts (§ 11.2.4, § 11.4.2).
+        SUPPLIER = "supplier"
+        # Available funds paid back to the client (§ 17.2.10, § 17.2.17).
+        REFUND = "refund"
+        # A correction: the opposite of a posted record, which stays in history (§ 23.2.7).
+        REVERSAL = "reversal"
 
     class State(models.TextChoices):
         EXPECTED = "expected"
@@ -162,9 +169,29 @@ class MoneyMovement(models.Model):
     client = models.ForeignKey(
         "parties.ClientCard", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
+    counterparty = models.ForeignKey(
+        "parties.Counterparty", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
     article = models.ForeignKey(
         FinanceArticle, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
+    # A reversal names the record it cancels out; that one stays as it was (§ 23.2.7).
+    reverses = models.OneToOneField(
+        "self", on_delete=models.PROTECT, null=True, blank=True, related_name="reversed_by"
+    )
+    reason = models.CharField(max_length=500, blank=True, default="")
+    # A refund in another currency: what leaves the client's funds, by the applied rate
+    # (§ 17.2.17). Empty — the same as `amount` and `currency`.
+    funds_amount = models.DecimalField(max_digits=20, decimal_places=4, null=True, blank=True)
+    funds_currency = models.ForeignKey(
+        Currency, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    rate_fetch = models.ForeignKey(
+        "RateFetch", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    suggested_rate = models.DecimalField(max_digits=28, decimal_places=12, null=True, blank=True)
+    applied_rate = models.DecimalField(max_digits=28, decimal_places=12, null=True, blank=True)
+    rate_manual = models.BooleanField(default=False)
     # Analytic dimensions of the result (§ 17.2.4, § 17.3.1); they do not multiply the record.
     location = models.ForeignKey(
         "companies.Location", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
@@ -216,6 +243,23 @@ class MoneyMovement(models.Model):
                 condition=~Q(kind="manual") | Q(article__isnull=False),
                 name="money_movement_manual_has_article",
             ),
+            models.CheckConstraint(
+                condition=Q(client__isnull=True) | Q(counterparty__isnull=True),
+                name="money_movement_one_party",
+            ),
+            models.CheckConstraint(
+                condition=~Q(kind="supplier") | Q(counterparty__isnull=False),
+                name="money_movement_supplier_has_counterparty",
+            ),
+            models.CheckConstraint(
+                condition=~Q(kind="refund") | (Q(direction="out") & Q(client__isnull=False)),
+                name="money_movement_refund_shape",
+            ),
+            models.CheckConstraint(
+                condition=(Q(kind="reversal") & Q(reverses__isnull=False) & ~Q(reason=""))
+                | (~Q(kind="reversal") & Q(reverses__isnull=True)),
+                name="money_movement_reversal_shape",
+            ),
         ]
         indexes = [
             models.Index(
@@ -264,6 +308,10 @@ class PaymentAllocation(models.Model):
     applied_rate = models.DecimalField(max_digits=28, decimal_places=12, null=True, blank=True)
     rate_manual = models.BooleanField(default=False)
     state = models.CharField(max_length=10, choices=State.choices, default=State.ACTIVE)
+    # The allocation this one replaces when the link to an order is changed (§ 17.2.11).
+    replaces = models.OneToOneField(
+        "self", on_delete=models.PROTECT, null=True, blank=True, related_name="replaced_by"
+    )
     created_by_user_id = models.UUIDField()
     created_at = models.DateTimeField(default=now)
 
@@ -368,3 +416,248 @@ class Transfer(models.Model):
 
     def __str__(self) -> str:
         return f"transfer {self.out_movement_id} → {self.in_movement_id}"
+
+
+class SupplierAllocation(models.Model):
+    """Part of a supplier payment (or of money back from a supplier) linked to a purchase or a
+    receipt (§ 11.2.4): prepayment before receipt, partial payment and payment of received goods.
+    A change is a new record; the replaced one stays cancelled."""
+
+    class State(models.TextChoices):
+        ACTIVE = "active"
+        CANCELLED = "cancelled"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    money_movement = models.ForeignKey(
+        MoneyMovement, on_delete=models.PROTECT, related_name="supplier_allocations"
+    )
+    purchase = models.ForeignKey(
+        "warehouse.PurchaseOrder", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    receipt = models.ForeignKey(
+        "warehouse.Receipt", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    amount = models.DecimalField(max_digits=20, decimal_places=4)
+    state = models.CharField(max_length=10, choices=State.choices, default=State.ACTIVE)
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "supplier_allocation"
+        constraints = [
+            models.CheckConstraint(condition=Q(amount__gt=0), name="supplier_allocation_positive"),
+            models.CheckConstraint(
+                condition=Q(purchase__isnull=True) ^ Q(receipt__isnull=True),
+                name="supplier_allocation_one_target",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.amount} → {self.purchase_id or self.receipt_id}"
+
+
+class SettlementEntry(models.Model):
+    """An obligation between the company and a party that is not a movement of money
+    (§ 17.2.3): an initial debt or advance when accounting starts in c4rsys (§ 17.2.14), or a
+    smaller debt to a supplier after goods were returned (§ 11.4.2). Never changed; a mistake is
+    corrected by a cancelling entry."""
+
+    class Kind(models.TextChoices):
+        OPENING = "opening"
+        RETURN_CREDIT = "return_credit"
+        CANCELLATION = "cancellation"
+
+    class Debtor(models.TextChoices):
+        PARTY = "party"  # the client or counterparty owes the company
+        COMPANY = "company"  # the company owes the party (incl. a client's advance)
+
+    class ReturnResult(models.TextChoices):
+        # What the supplier does for the returned goods (§ 11.4.2). The debt goes down in each
+        # case; money back is a separate receipt, a replacement comes as a new receipt.
+        MONEY_BACK = "money_back"
+        DEBT_REDUCED = "debt_reduced"
+        REPLACEMENT = "replacement"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    kind = models.CharField(max_length=20, choices=Kind.choices)
+    client = models.ForeignKey(
+        "parties.ClientCard", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    counterparty = models.ForeignKey(
+        "parties.Counterparty", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    debtor = models.CharField(max_length=10, choices=Debtor.choices)
+    amount = models.DecimalField(max_digits=20, decimal_places=4)
+    currency = models.ForeignKey(Currency, on_delete=models.PROTECT, related_name="+")
+    as_of = models.DateField()
+    # The return a credit settles, and the entry a cancellation cancels.
+    stock_operation = models.OneToOneField(
+        "warehouse.StockOperation",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    return_result = models.CharField(
+        max_length=20, choices=ReturnResult.choices, blank=True, default=""
+    )
+    # A cancellation has the opposite debtor, so the sum of entries is the obligation.
+    cancels = models.OneToOneField(
+        "self", on_delete=models.PROTECT, null=True, blank=True, related_name="cancelled_by"
+    )
+    note = models.CharField(max_length=500, blank=True, default="")
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "settlement_entry"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "id"], name="settlement_entry_company_id_uniq"
+            ),
+            models.CheckConstraint(condition=Q(amount__gt=0), name="settlement_entry_positive"),
+            models.CheckConstraint(
+                condition=Q(client__isnull=True) ^ Q(counterparty__isnull=True),
+                name="settlement_entry_one_party",
+            ),
+            models.CheckConstraint(
+                condition=~Q(kind="return_credit")
+                | (
+                    Q(stock_operation__isnull=False)
+                    & Q(counterparty__isnull=False)
+                    & Q(debtor="party")
+                ),
+                name="settlement_entry_return_credit_shape",
+            ),
+            models.CheckConstraint(
+                condition=Q(kind="cancellation", cancels__isnull=False)
+                | (~Q(kind="cancellation") & Q(cancels__isnull=True)),
+                name="settlement_entry_cancellation_shape",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.kind} {self.amount} {self.currency_id}"
+
+
+class Offset(models.Model):
+    """A set-off of the client's available funds against the debt of an order (§ 17.2.10,
+    § 17.2.13): it lowers both by the same amount without a new receipt of money. A correction
+    cancels it and creates a new one that names it; cancelled ones stay in history (§ 17.2.15).
+    Funds in another currency settle the order by the applied rate (§ 17.1.4)."""
+
+    class State(models.TextChoices):
+        ACTIVE = "active"
+        CANCELLED = "cancelled"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    client = models.ForeignKey("parties.ClientCard", on_delete=models.PROTECT, related_name="+")
+    # What is settled: the debt of an order, or an initial debt of the client (§ 17.2.14).
+    order = models.ForeignKey(
+        "orders.Order", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    opening = models.ForeignKey(
+        SettlementEntry, on_delete=models.PROTECT, null=True, blank=True, related_name="offsets"
+    )
+    # Taken from the client's funds, in their currency.
+    amount = models.DecimalField(max_digits=20, decimal_places=4)
+    currency = models.ForeignKey(Currency, on_delete=models.PROTECT, related_name="+")
+    settled_amount = models.DecimalField(max_digits=20, decimal_places=4, null=True, blank=True)
+    settled_currency = models.ForeignKey(
+        Currency, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    rate_fetch = models.ForeignKey(
+        RateFetch, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    suggested_rate = models.DecimalField(max_digits=28, decimal_places=12, null=True, blank=True)
+    applied_rate = models.DecimalField(max_digits=28, decimal_places=12, null=True, blank=True)
+    rate_manual = models.BooleanField(default=False)
+    state = models.CharField(max_length=10, choices=State.choices, default=State.ACTIVE)
+    replaces = models.OneToOneField(
+        "self", on_delete=models.PROTECT, null=True, blank=True, related_name="replaced_by"
+    )
+    comment = models.CharField(max_length=500, blank=True, default="")
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+    cancelled_by_user_id = models.UUIDField(null=True, blank=True)
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "finance_offset"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "id"], name="finance_offset_company_id_uniq"
+            ),
+            models.CheckConstraint(condition=Q(amount__gt=0), name="finance_offset_positive"),
+            models.CheckConstraint(
+                condition=Q(order__isnull=True) ^ Q(opening__isnull=True),
+                name="finance_offset_one_target",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(settled_amount__isnull=True)
+                    & Q(settled_currency__isnull=True)
+                    & Q(applied_rate__isnull=True)
+                )
+                | (
+                    Q(settled_amount__gt=0)
+                    & Q(settled_currency__isnull=False)
+                    & Q(applied_rate__gt=0)
+                ),
+                name="finance_offset_exchange_complete",
+            ),
+            models.CheckConstraint(
+                condition=Q(state="active", cancelled_at__isnull=True)
+                | Q(state="cancelled", cancelled_at__isnull=False),
+                name="finance_offset_cancelled_at",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["company", "client", "state"], name="finance_offset_client_idx"),
+            models.Index(fields=["company", "order", "state"], name="finance_offset_order_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"offset {self.amount} {self.currency_id} → {self.order_id}"
+
+
+class ExpenseShare(models.Model):
+    """Part of one expense attributed to a vehicle or an order (§ 17.3.3). The shares of a record
+    add up to its amount; they are analytic and do not multiply the payout. A new split cancels
+    the previous shares, which stay in history."""
+
+    class State(models.TextChoices):
+        ACTIVE = "active"
+        CANCELLED = "cancelled"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    money_movement = models.ForeignKey(
+        MoneyMovement, on_delete=models.PROTECT, related_name="shares"
+    )
+    vehicle = models.ForeignKey(
+        "fleet.VehicleCard", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    order = models.ForeignKey(
+        "orders.Order", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    amount = models.DecimalField(max_digits=20, decimal_places=4)
+    state = models.CharField(max_length=10, choices=State.choices, default=State.ACTIVE)
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "expense_share"
+        constraints = [
+            models.CheckConstraint(condition=Q(amount__gt=0), name="expense_share_positive"),
+            models.CheckConstraint(
+                condition=Q(vehicle__isnull=True) ^ Q(order__isnull=True),
+                name="expense_share_one_object",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.amount} → {self.vehicle_id or self.order_id}"

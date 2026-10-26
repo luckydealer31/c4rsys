@@ -10,6 +10,7 @@ import { useCan, useCompany } from "../../layout/CompanyShell";
 import { formatMoment } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
 import { useArticleName, useArticles } from "./Articles";
+import { RecordActions } from "./Corrections";
 import { transferText, useCashAccounts } from "./FinancePage";
 
 function useRefreshMoney() {
@@ -203,6 +204,7 @@ export function AccountRecords({ account, onClose }: { account: CashAccount; onC
               <th>{t("money.what")}</th>
               <th>{t("payments.amount", { currency: account.currency })}</th>
               <th>{t("money.note")}</th>
+              <th />
             </tr>
           </thead>
           <tbody>
@@ -220,6 +222,9 @@ export function AccountRecords({ account, onClose }: { account: CashAccount; onC
                   {r.amount}
                 </td>
                 <td>{r.note}</td>
+                <td>
+                  <RecordActions record={r} />
+                </td>
               </tr>
             ))}
           </tbody>

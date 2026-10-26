@@ -25,6 +25,12 @@ PERMISSIONS: dict[str, str] = {
     # the administrator gets the manual rate is OPEN.
     "finance.transfer": "finance",
     "finance.rate.override": "finance",
+    # Settlements with parties (§ 23.2.7, § 23.7.1): initial obligations and results of returns
+    # to suppliers, set-off of available funds, corrections of posted records. The split into
+    # these three rights is a PROPOSAL.
+    "finance.settlement.manage": "finance",
+    "finance.offset": "finance",
+    "finance.correct": "finance",
     "tariff.view": "tariff",
     "tariff.create": "tariff",
     "tariff.edit": "tariff",
@@ -124,6 +130,9 @@ SYSTEM_SETS: dict[str, tuple[str, ...]] = {
         "finance.payout",
         "finance.article.manage",
         "finance.transfer",
+        "finance.settlement.manage",
+        "finance.offset",
+        "finance.correct",
         "order.view",
         "rental.view",
         "client.find",

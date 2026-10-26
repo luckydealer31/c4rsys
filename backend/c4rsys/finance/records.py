@@ -17,6 +17,7 @@ from c4rsys.companies.models import ActivityContext, Location
 from c4rsys.finance import articles, rates
 from c4rsys.finance.models import CashAccount, FinanceArticle, MoneyMovement
 from c4rsys.fleet.models import VehicleCard
+from c4rsys.parties import counterparties
 from c4rsys.parties import services as parties
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
@@ -57,6 +58,7 @@ def _record_snapshot(movement: MoneyMovement) -> dict[str, Any]:
         "currency": movement.currency_id,
         "article": str(movement.article_id) if movement.article_id else None,
         "client": str(movement.client_id) if movement.client_id else None,
+        "counterparty": str(movement.counterparty_id) if movement.counterparty_id else None,
         "location": str(movement.location_id) if movement.location_id else None,
         "context": str(movement.context_id) if movement.context_id else None,
         "vehicle": str(movement.vehicle_id) if movement.vehicle_id else None,
@@ -111,6 +113,7 @@ class ManualRecord:
     currency: str
     article_id: UUID
     client_id: UUID | None = None
+    counterparty_id: UUID | None = None
     location_id: UUID | None = None
     context_id: UUID | None = None
     vehicle_id: UUID | None = None
@@ -139,12 +142,18 @@ def record_manual(ctx: CommandContext, company_id: UUID, data: ManualRecord) -> 
     stays an independent record (§ 17.2.11).
 
     TODO(spec): whether a payout may exceed the balance of the account is not set; it is not
-    blocked. A counterparty or vehicle owner as the party comes with their cards (§ 17.2.3)."""
+    blocked. The party is a client or a counterparty (§ 17.2.3); a vehicle owner as a party comes
+    with owners' cards."""
     account = _active_account(company_id, data.cash_account_id)
     _same_currency(account, data.currency)
     kind = FinanceArticle.Kind.INCOME if data.direction == IN else FinanceArticle.Kind.EXPENSE
     article = articles.usable(company_id, data.article_id, kind)
+    if data.client_id and data.counterparty_id:
+        raise errors.validation_error("counterparty_id", code="PARTY_ONE_ONLY")
     client = parties.get_client(company_id, data.client_id) if data.client_id else None
+    counterparty = (
+        counterparties.get(company_id, data.counterparty_id) if data.counterparty_id else None
+    )
     _dimensions(company_id, data)
     location_id = data.location_id
     if data.context_id is not None and location_id is None:
@@ -160,6 +169,7 @@ def record_manual(ctx: CommandContext, company_id: UUID, data: ManualRecord) -> 
         amount=data.amount,
         currency_id=data.currency,
         client=client,
+        counterparty=counterparty,
         article=article,
         location_id=location_id,
         context_id=data.context_id,

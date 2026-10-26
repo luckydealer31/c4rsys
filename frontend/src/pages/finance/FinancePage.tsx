@@ -13,8 +13,10 @@ import { clientName } from "../clients/ClientsPage";
 import { useOrders } from "../orders/OrdersPage";
 import { ClientFinder } from "../rentals/IssuePage";
 import { Articles, useArticleName, useArticles } from "./Articles";
+import { RelinkAllocation } from "./Corrections";
 import { CashReceipt, usePayments } from "./CashReceipt";
 import { AccountRecords, MoneyRecordForm } from "./MoneyRecords";
+import { Settlements } from "./Settlements";
 import { TransferForm } from "./Transfers";
 
 export function useCashAccounts() {
@@ -25,8 +27,8 @@ export function useCashAccounts() {
   );
 }
 
-type Tab = "money" | "accounts" | "articles";
-const TABS: Tab[] = ["money", "accounts", "articles"];
+type Tab = "money" | "settlements" | "accounts" | "articles";
+const TABS: Tab[] = ["money", "settlements", "accounts", "articles"];
 
 /** Finance (ТЗ гл. 17): money records — client payments and manual receipts and payouts; cash
  * desks and accounts with their balances (§ 17.2.1, § 17.2.5, § 22.1.7); income and expense
@@ -63,6 +65,7 @@ export function FinancePage() {
         </>
       ) : null}
       {tab === "accounts" ? <CashAccountsEditor /> : null}
+      {tab === "settlements" ? <Settlements /> : null}
       {tab === "articles" ? <Articles /> : null}
     </div>
   );
@@ -167,14 +170,15 @@ function PaymentsList() {
                         .join(" · ")
                     : p.allocations.length
                     ? p.allocations.map((a) => (
-                        <div key={a.order_id}>
+                        <div key={a.id}>
                           <Link to={companyPath(company, `/orders/${a.order_id}`)}>
                             № {orderNumber.get(a.order_id) ?? "…"}
                           </Link>{" "}
-                          · {a.amount}
+                          {a.state === "cancelled" ? <s> · {a.amount}</s> : <> · {a.amount}</>}
                           {a.settled_amount
                             ? ` → ${a.settled_amount} ${a.settled_currency} · ${t("money.rate_applied", { rate: Number(a.applied_rate) })}`
                             : ""}
+                          {a.state === "active" ? <RelinkAllocation record={p} allocationId={a.id} /> : null}
                         </div>
                       ))
                     : t("payments.unallocated")}

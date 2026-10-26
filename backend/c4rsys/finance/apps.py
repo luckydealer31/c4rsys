@@ -10,10 +10,12 @@ class FinanceConfig(AppConfig):
 
     def ready(self) -> None:
         from c4rsys.companies import services as companies
-        from c4rsys.finance import articles, charges, payments
+        from c4rsys.finance import articles, charges, offsets, payments
         from c4rsys.orders import services as orders
 
         companies.register_created(articles.create_starting)
         orders.register_charged(charges.charged_for_order)
         orders.register_paid(payments.paid_for_order)
+        orders.register_paid(offsets.paid_for_order)
         orders.register_history(payments.history_for_order)
+        orders.register_history(offsets.history_for_order)

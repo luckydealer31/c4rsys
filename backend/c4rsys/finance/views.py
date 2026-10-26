@@ -221,7 +221,32 @@ def _movement_payload(movement: MoneyMovement) -> dict[str, Any]:
         "direction": movement.direction,
         "cash_account_id": str(movement.cash_account_id),
         "client_id": str(movement.client_id) if movement.client_id else None,
+        "counterparty_id": str(movement.counterparty_id) if movement.counterparty_id else None,
         "article_id": str(movement.article_id) if movement.article_id else None,
+        # A reversal names the record it cancels; a reversed record names its reversal.
+        "reverses_id": str(movement.reverses_id) if movement.reverses_id else None,
+        "reversed_by_id": _reversal_of(movement),
+        "reason": movement.reason,
+        "funds_amount": _rounded(movement.funds_amount, movement.funds_currency_id),
+        "funds_currency": movement.funds_currency_id,
+        "applied_rate": str(movement.applied_rate) if movement.applied_rate is not None else None,
+        "supplier_links": [
+            {
+                "purchase_id": str(link.purchase_id) if link.purchase_id else None,
+                "receipt_id": str(link.receipt_id) if link.receipt_id else None,
+                "amount": str(round_money(link.amount, places)),
+                "state": link.state,
+            }
+            for link in movement.supplier_allocations.order_by("created_at")
+        ],
+        "shares": [
+            {
+                "vehicle_id": str(share.vehicle_id) if share.vehicle_id else None,
+                "order_id": str(share.order_id) if share.order_id else None,
+                "amount": str(round_money(share.amount, places)),
+            }
+            for share in movement.shares.filter(state="active").order_by("created_at")
+        ],
         "location_id": str(movement.location_id) if movement.location_id else None,
         "context_id": str(movement.context_id) if movement.context_id else None,
         "vehicle_id": str(movement.vehicle_id) if movement.vehicle_id else None,
@@ -233,6 +258,7 @@ def _movement_payload(movement: MoneyMovement) -> dict[str, Any]:
         "posted_at": movement.posted_at.isoformat() if movement.posted_at else None,
         "allocations": [
             {
+                "id": str(a.id),
                 "order_id": str(a.order_id),
                 "amount": str(round_money(a.amount, places)),
                 "purpose": a.purpose,
@@ -246,6 +272,17 @@ def _movement_payload(movement: MoneyMovement) -> dict[str, Any]:
         ],
         "transfer": _transfer_side(movement),
     }
+
+
+def _rounded(amount: Decimal | None, currency: str | None) -> str | None:
+    if amount is None or currency is None:
+        return None
+    return str(round_money(amount, Currency.objects.get(code=currency).minor_units))
+
+
+def _reversal_of(movement: MoneyMovement) -> str | None:
+    reversal = MoneyMovement.objects.filter(reverses=movement).values_list("id", flat=True).first()
+    return str(reversal) if reversal else None
 
 
 def _transfer_side(movement: MoneyMovement) -> dict[str, Any] | None:
@@ -422,6 +459,7 @@ def money_record(request: HttpRequest, cmp: str) -> JsonResponse:
         currency=currency.code,
         article_id=_uuid(data.get("article_id"), "article_id"),
         client_id=_optional_uuid(data, "client_id"),
+        counterparty_id=_optional_uuid(data, "counterparty_id"),
         location_id=_optional_uuid(data, "location_id"),
         context_id=_optional_uuid(data, "context_id"),
         vehicle_id=_optional_uuid(data, "vehicle_id"),
@@ -442,6 +480,7 @@ def money_record(request: HttpRequest, cmp: str) -> JsonResponse:
         "currency": record.currency,
         "article_id": str(record.article_id),
         "client_id": optional(record.client_id),
+        "counterparty_id": optional(record.counterparty_id),
         "location_id": optional(record.location_id),
         "context_id": optional(record.context_id),
         "vehicle_id": optional(record.vehicle_id),
