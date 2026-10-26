@@ -17,9 +17,10 @@ from uuid import UUID
 
 from django.db import transaction
 from django.db.models import Sum
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 
-from c4rsys.finance import rates
+from c4rsys.finance import charges, rates
 from c4rsys.finance.models import CashAccount, DepositEntry, MoneyMovement
 from c4rsys.orders import services as orders
 from c4rsys.orders.models import Order
@@ -153,13 +154,11 @@ def client_adjustments(company_id: UUID, client_id: UUID) -> dict[str, Decimal]:
         currency = entry.money_currency_id or entry.currency_id
         amount = entry.money_amount if entry.money_amount is not None else entry.amount
         result[currency] = result.get(currency, ZERO) - amount
-    rows = (
-        entries.filter(kind__in=[K.TO_BALANCE, K.OFFSET])
-        .values("currency_id")
-        .annotate(total=Sum("amount"))
-    )
-    for row in rows:
-        result[row["currency_id"]] = result.get(row["currency_id"], ZERO) + row["total"]
+    for entry in entries.filter(kind__in=[K.TO_BALANCE, K.OFFSET]):
+        # A set-off pays the order in the order's currency.
+        currency = entry.money_currency_id or entry.currency_id
+        amount = entry.money_amount if entry.money_amount is not None else entry.amount
+        result[currency] = result.get(currency, ZERO) + amount
     return result
 
 
@@ -183,10 +182,14 @@ def paid_for_order(company_id: UUID, order_id: UUID) -> dict[str, Decimal]:
     """Provider for orders: set-offs from deposits count as paid (§ 14.7.2)."""
     rows = (
         DepositEntry.objects.filter(company_id=company_id, order_id=order_id, kind=K.OFFSET)
-        .values("currency_id")
-        .annotate(total=Sum("amount"))
+        .annotate(
+            order_currency=Coalesce("money_currency_id", "currency_id"),
+            settled=Coalesce("money_amount", "amount"),
+        )
+        .values("order_currency")
+        .annotate(total=Sum("settled"))
     )
-    return {r["currency_id"]: r["total"] for r in rows}
+    return {r["order_currency"]: r["total"] for r in rows}
 
 
 # --- Receipt (§ 14.7.3) ---------------------------------------------------------------------
@@ -343,7 +346,14 @@ def release(
 
 
 def offset(
-    ctx: CommandContext, company_id: UUID, rental_id: UUID, order_id: UUID, amount: Decimal
+    ctx: CommandContext,
+    company_id: UUID,
+    rental_id: UUID,
+    order_id: UUID,
+    amount: Decimal,
+    *,
+    rate: Decimal | None = None,
+    may_override_rate: bool = False,
 ) -> DepositEntry:
     """Sets off the held deposit against a debt of an order of the client, not above the debt
     and the held rest (§ 14.7.2–14.7.3); no money is received again."""
@@ -358,18 +368,39 @@ def offset(
         raise errors.business_rule("ORDER_CLIENT_MISMATCH", field="order_id")
     if order.state == Order.State.CANCELLED:
         raise errors.business_rule("ORDER_CANCELLED", field="order_id")
-    money = orders.amounts_of(order).get(data.currency)
+    charged = set(charges.charged_for_order(company_id, order.id))
+    if len(charged) > 1:
+        raise errors.business_rule("ORDER_CURRENCIES_MIXED", field="order_id")
+    currency = charged.pop() if charged else data.currency
+    # A debt in another currency is paid from the deposit by the applied rate (§ 17.1.4).
+    applied = None
+    settled = amount
+    if currency != data.currency:
+        applied = rates.apply(data.currency, currency, rate, may_override=may_override_rate)
+        settled = rates.convert(amount, applied.rate, currency)
+    money = orders.amounts_of(order).get(currency)
     debt = (money.charged - money.paid) if money else ZERO
-    if amount > debt:
-        # TODO(spec): a set-off into an order in another currency is not made yet (§ 17.1.4).
-        places = Currency.objects.get(code=data.currency).minor_units
+    if settled > debt:
+        places = Currency.objects.get(code=currency).minor_units
         raise errors.business_rule(
             "OFFSET_EXCEEDS_DEBT",
             field="amount",
             debt=str(round_money(max(debt, ZERO), places)),
-            currency=data.currency,
+            currency=currency,
         )
-    entry = _entry(ctx, rental, K.OFFSET, amount, order=order)
+    entry = _entry(
+        ctx,
+        rental,
+        K.OFFSET,
+        amount,
+        order=order,
+        money_amount=settled if applied else None,
+        money_currency_id=currency if applied else None,
+        rate_fetch=applied.fetch if applied else None,
+        suggested_rate=applied.suggested if applied else None,
+        applied_rate=applied.rate if applied else None,
+        rate_manual=applied.manual if applied else False,
+    )
     orders.record_control_versions(ctx, order, "payment")
     return entry
 

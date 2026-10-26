@@ -101,7 +101,10 @@ def account_list(request: HttpRequest, cmp: str) -> JsonResponse:
             if shown:
                 valued.append((account.currency_id, balances.get(account.id) or Decimal(0)))
         body: dict[str, Any] = {"cash_accounts": items}
-        main = context.company.main_currency_id
+        # Any currency may be chosen for the common balance; the main one by default (§ 17.1.2).
+        main = request.GET.get("total_currency", "").upper() or context.company.main_currency_id
+        if main and not Currency.objects.filter(code=main).exists():
+            raise errors.validation_error("total_currency", code="CURRENCY_INVALID")
         if valued and main:
             # The common balance in the main currency by the current rates; it does not change
             # the currencies of accounts (§ 17.1.2, § 17.1.5).
@@ -229,7 +232,9 @@ def _movement_payload(movement: MoneyMovement) -> dict[str, Any]:
         "kind": movement.kind,
         "direction": movement.direction,
         "cash_account_id": str(movement.cash_account_id),
-        "client_id": str(movement.client_id) if movement.client_id else None,
+        # The current client after a correction (§ 17.2.12).
+        "client_id": _optional_str(settlements.client_of(movement)),
+        "client_changed": movement.client_changes.exists(),
         "counterparty_id": str(movement.counterparty_id) if movement.counterparty_id else None,
         "article_id": str(movement.article_id) if movement.article_id else None,
         # A reversal names the record it cancels; a reversed record names its reversal.
@@ -281,6 +286,10 @@ def _movement_payload(movement: MoneyMovement) -> dict[str, Any]:
         ],
         "transfer": _transfer_side(movement),
     }
+
+
+def _optional_str(value: UUID | None) -> str | None:
+    return str(value) if value else None
 
 
 def _rounded(amount: Decimal | None, currency: str | None) -> str | None:

@@ -399,6 +399,8 @@ export type Payment = {
   kind: "payment" | "opening" | "manual" | "transfer" | "supplier" | "refund" | "reversal";
   direction: "in" | "out";
   counterparty_id: string | null;
+  /** The client was corrected after the payment (§ 17.2.12); `client_id` is the current one. */
+  client_changed: boolean;
   /** A reversal names the record it cancels; a reversed record names its reversal (§ 23.2.7). */
   reverses_id: string | null;
   reversed_by_id: string | null;

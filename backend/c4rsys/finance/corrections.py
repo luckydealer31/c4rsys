@@ -15,12 +15,14 @@ from uuid import UUID
 
 from django.utils import timezone
 
+from c4rsys.finance import charges, rates, settlements
 from c4rsys.finance.models import (
     CashAccount,
     DepositEntry,
     ExpenseShare,
     MoneyMovement,
     PaymentAllocation,
+    PaymentClientChange,
     SupplierAllocation,
     Transfer,
 )
@@ -38,6 +40,7 @@ REVERSIBLE = {
     MoneyMovement.Kind.SUPPLIER,
     MoneyMovement.Kind.REFUND,
     MoneyMovement.Kind.TRANSFER,
+    MoneyMovement.Kind.OPENING,
 }
 
 
@@ -74,7 +77,7 @@ def _opposite(ctx: CommandContext, movement: MoneyMovement, reason: str) -> Mone
         else MoneyMovement.Direction.OUT,
         amount=movement.amount,
         currency_id=movement.currency_id,
-        client_id=movement.client_id,
+        client_id=settlements.client_of(movement),
         counterparty_id=movement.counterparty_id,
         article_id=movement.article_id,
         reverses=movement,
@@ -98,8 +101,7 @@ def reverse(
 ) -> list[MoneyMovement]:
     """Cancels a posted record by the opposite one. A payment allocated to orders is first
     unlinked (its allocations are changed separately); a transfer is reversed on both accounts.
-
-    TODO(spec): the initial balance of an account is not reversed here: one per account."""
+    A reversed initial balance of an account may then be entered again (records.set_opening)."""
     movement = _locked(company_id, movement_id)
     if movement.kind not in REVERSIBLE or movement.state != MoneyMovement.State.POSTED:
         raise errors.business_rule("RECORD_NOT_REVERSIBLE")
@@ -163,7 +165,14 @@ def reverse(
 
 
 def relink_allocation(
-    ctx: CommandContext, company_id: UUID, allocation_id: UUID, order_id: UUID | None, reason: str
+    ctx: CommandContext,
+    company_id: UUID,
+    allocation_id: UUID,
+    order_id: UUID | None,
+    reason: str,
+    *,
+    rate: Decimal | None = None,
+    may_override_rate: bool = False,
 ) -> PaymentAllocation | None:
     """Removes the current link of a payment to an order or moves it to another order of the same
     client; the old link stays in history. The amount is not corrected this way (§ 17.2.11,
@@ -178,9 +187,6 @@ def relink_allocation(
         raise errors.not_found()
     if allocation.state != PaymentAllocation.State.ACTIVE:
         raise errors.business_rule("ALLOCATION_CANCELLED")
-    if allocation.settled_currency_id is not None:
-        # TODO(spec): moving a payment made in another currency needs a new rate (§ 17.1.4).
-        raise errors.business_rule("ALLOCATION_EXCHANGED")
     movement = allocation.money_movement
     new_order = None
     if order_id is not None:
@@ -191,13 +197,21 @@ def relink_allocation(
         )
         if new_order is None:
             raise errors.not_found()
-        if new_order.client_id != movement.client_id:
+        if new_order.client_id != settlements.client_of(movement):
             raise errors.business_rule("ORDER_CLIENT_MISMATCH", field="order_id")
         if new_order.state == Order.State.CANCELLED:
             raise errors.business_rule("ORDER_CANCELLED", field="order_id")
-        currencies = set(orders.amounts_of(new_order)) - {allocation.currency_id}
-        if currencies:
-            raise errors.business_rule("CURRENCY_MISMATCH", field="order_id")
+        charged = set(charges.charged_for_order(company_id, new_order.id))
+        if len(charged) > 1:
+            raise errors.business_rule("ORDER_CURRENCIES_MIXED", field="order_id")
+        target_currency = charged.pop() if charged else allocation.currency_id
+        # The payment part stays in its currency; another order's currency takes a new rate,
+        # the rate of the first link is not reused (§ 17.1.3–17.1.4).
+        applied = None
+        if target_currency != allocation.currency_id:
+            applied = rates.apply(
+                allocation.currency_id, target_currency, rate, may_override=may_override_rate
+            )
     allocation.state = PaymentAllocation.State.CANCELLED
     allocation.save(update_fields=["state"])
     replacement = None
@@ -209,6 +223,14 @@ def relink_allocation(
             purpose=allocation.purpose,
             amount=allocation.amount,
             currency_id=allocation.currency_id,
+            settled_amount=rates.convert(allocation.amount, applied.rate, target_currency)
+            if applied
+            else None,
+            settled_currency_id=target_currency if applied else None,
+            rate_fetch=applied.fetch if applied else None,
+            suggested_rate=applied.suggested if applied else None,
+            applied_rate=applied.rate if applied else None,
+            rate_manual=applied.manual if applied else False,
             replaces=allocation,
             created_by_user_id=ctx.actor.user_id,
             created_at=timezone.now(),
@@ -298,3 +320,48 @@ def set_shares(
         after={"shares": brief(created)},
     )
     return created
+
+
+def change_client(
+    ctx: CommandContext, company_id: UUID, movement_id: UUID, client_id: UUID, reason: str
+) -> PaymentClientChange:
+    """Corrects a mistakenly named client of a payment (§ 17.2.12): a separate action with the
+    finance right and a reason; the previous client stays in history. The payment is first
+    unlinked from orders, and the money must still be the previous client's available funds —
+    this is fixing a mistake, not giving one client's money to another."""
+    movement = _locked(company_id, movement_id)
+    if movement.kind != MoneyMovement.Kind.PAYMENT or movement.state != MoneyMovement.State.POSTED:
+        raise errors.business_rule("RECORD_NOT_PAYMENT")
+    if MoneyMovement.objects.filter(reverses=movement).exists():
+        raise errors.business_rule("RECORD_REVERSED")
+    if movement.allocations.filter(state=PaymentAllocation.State.ACTIVE).exists():
+        raise errors.business_rule("RECORD_ALLOCATED")
+    if DepositEntry.objects.filter(money_movement=movement).exists():
+        raise errors.business_rule("RECORD_HAS_DEPOSIT")
+    previous = settlements.client_of(movement)
+    if previous is None or previous == client_id:
+        raise errors.validation_error("client_id", code="CLIENT_SAME")
+    for locked in sorted([previous, client_id]):
+        settlements.lock_client(company_id, locked)
+    available = settlements.client_figures(company_id, previous).available.get(
+        movement.currency_id, ZERO
+    )
+    if available < movement.amount:
+        raise errors.business_rule("CLIENT_FUNDS_USED", available=str(available))
+    change = PaymentClientChange.objects.create(
+        company_id=company_id,
+        money_movement=movement,
+        previous_client_id=previous,
+        client_id=client_id,
+        reason=reason,
+        created_by_user_id=ctx.actor.user_id,
+        created_at=timezone.now(),
+    )
+    ctx.audit(
+        "payment.client_changed",
+        object_type="money_movement",
+        object_id=movement.id,
+        before={"client": str(previous)},
+        after={"client": str(client_id), "reason": reason},
+    )
+    return change

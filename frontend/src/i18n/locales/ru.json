@@ -47,7 +47,8 @@
     "deposit_release": "Претензия по залогу снята",
     "deposit_offset": "Зачёт залога",
     "deposit_refund": "Возврат залога",
-    "deposit_waiver": "Разрешено без полного залога"
+    "deposit_waiver": "Разрешено без полного залога",
+    "payment_client_changed": "Клиент платежа исправлен"
   },
   "finance_articles": {
     "archive": "В архив",
@@ -536,7 +537,10 @@
     "deposit_exceeds_claimed": "По претензии: {{limit}} {{currency}}.",
     "deposit_vehicle_not_returned": "ТС ещё не возвращено: подтвердите ранний возврат.",
     "deposit_no_conflict": "Недостающего залога нет.",
-    "record_has_deposit": "В поступлении есть часть залога."
+    "record_has_deposit": "В поступлении есть часть залога.",
+    "record_not_payment": "Клиента можно исправить только в оплате клиента.",
+    "client_same": "Выберите другого клиента.",
+    "client_funds_used": "Эти деньги клиент уже использовал."
   },
   "history": {
     "action": "Действие",
@@ -659,7 +663,8 @@
     "kind_refund": "Возврат клиенту",
     "kind_reversal": "Сторно",
     "tab_settlements": "Расчёты",
-    "kind_deposit": "Возврат залога"
+    "kind_deposit": "Возврат залога",
+    "total_currency": "Показать итог в"
   },
   "moves": {
     "actual_end": "Фактическое окончание",
@@ -1873,7 +1878,10 @@
     "left": "Осталось распределить: {{amount}} {{currency}}",
     "add_row": "Добавить часть",
     "relink": "изменить связь",
-    "unlink": "Без заказа (средства клиента)"
+    "unlink": "Без заказа (средства клиента)",
+    "change_client": "Изменить клиента",
+    "change_client_hint": "Только для исправления ошибки: прежний клиент останется в истории. Платёж не должен быть связан с заказами.",
+    "client_changed": "клиент исправлен"
   },
   "deposit": {
     "title": "Залог",

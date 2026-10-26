@@ -176,7 +176,8 @@ export function AccountRecords({ account, onClose }: { account: CashAccount; onC
   const accounts = useCashAccounts();
   const accountName = new Map((accounts.data?.cash_accounts ?? []).map((a) => [a.id, a.name]));
   const records = data.data?.records ?? [];
-  const hasOpening = records.some((r) => r.kind === "opening");
+  // A reversed initial balance may be entered again (§ 22.1.7).
+  const hasOpening = records.some((r) => r.kind === "opening" && !r.reversed_by_id);
 
   return (
     <Card title={`${account.name} · ${account.currency}`}>

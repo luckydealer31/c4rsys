@@ -73,10 +73,19 @@ def set_opening(
     ctx: CommandContext, company_id: UUID, account_id: UUID, amount: Decimal, currency: str
 ) -> MoneyMovement:
     """A separate initial record, not a receipt of money; one per account (PROPOSAL: it may be
-    entered after the account is created). TODO(spec): a negative initial balance is not set."""
+    entered after the account is created). A mistaken one is reversed first; the corrected one
+    replaces it, so the initial balances of an account form one chain. TODO(spec): a negative
+    initial balance is not set."""
     account = _active_account(company_id, account_id)
     _same_currency(account, currency)
-    if MoneyMovement.objects.filter(cash_account=account, kind=MoneyMovement.Kind.OPENING).exists():
+    latest = (
+        MoneyMovement.objects.filter(
+            cash_account=account, kind=MoneyMovement.Kind.OPENING, replaced_by__isnull=True
+        )
+        .order_by("-created_at")
+        .first()
+    )
+    if latest is not None and not MoneyMovement.objects.filter(reverses=latest).exists():
         raise errors.business_rule("OPENING_BALANCE_EXISTS", field="amount")
     now = timezone.now()
     movement = MoneyMovement.objects.create(
@@ -87,6 +96,7 @@ def set_opening(
         direction=IN,
         amount=amount,
         currency_id=currency,
+        replaces=latest,
         state=MoneyMovement.State.POSTED,
         method="",
         posted_at=now,

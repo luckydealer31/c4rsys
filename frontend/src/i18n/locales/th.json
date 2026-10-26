@@ -47,7 +47,8 @@
     "deposit_release": "ยกเลิกข้อเรียกร้องมัดจำ",
     "deposit_offset": "หักกลบมัดจำ",
     "deposit_refund": "คืนมัดจำ",
-    "deposit_waiver": "อนุญาตโดยไม่มีมัดจำเต็ม"
+    "deposit_waiver": "อนุญาตโดยไม่มีมัดจำเต็ม",
+    "payment_client_changed": "แก้ไขลูกค้าของการชำระ"
   },
   "finance_articles": {
     "archive": "เก็บเข้าคลัง",
@@ -536,7 +537,10 @@
     "deposit_exceeds_claimed": "ตามข้อเรียกร้อง: {{limit}} {{currency}}",
     "deposit_vehicle_not_returned": "รถยังไม่คืน: ยืนยันการคืนเงินก่อน",
     "deposit_no_conflict": "ไม่มีมัดจำขาด",
-    "record_has_deposit": "การรับเงินมีส่วนมัดจำ"
+    "record_has_deposit": "การรับเงินมีส่วนมัดจำ",
+    "record_not_payment": "แก้ไขลูกค้าได้เฉพาะการชำระของลูกค้า",
+    "client_same": "เลือกลูกค้าอื่น",
+    "client_funds_used": "ลูกค้าใช้เงินนี้ไปแล้ว"
   },
   "history": {
     "action": "Action",
@@ -659,7 +663,8 @@
     "kind_refund": "คืนเงินลูกค้า",
     "kind_reversal": "กลับรายการ",
     "tab_settlements": "การชำระบัญชี",
-    "kind_deposit": "คืนมัดจำ"
+    "kind_deposit": "คืนมัดจำ",
+    "total_currency": "แสดงยอดรวมเป็น"
   },
   "moves": {
     "actual_end": "Actual end",
@@ -1873,7 +1878,10 @@
     "left": "เหลือให้แบ่ง: {{amount}} {{currency}}",
     "add_row": "เพิ่มส่วน",
     "relink": "เปลี่ยนการเชื่อม",
-    "unlink": "ไม่มีคำสั่ง (เงินของลูกค้า)"
+    "unlink": "ไม่มีคำสั่ง (เงินของลูกค้า)",
+    "change_client": "เปลี่ยนลูกค้า",
+    "change_client_hint": "เพื่อแก้ไขข้อผิดพลาดเท่านั้น ลูกค้าเดิมยังอยู่ในประวัติ การชำระต้องไม่เชื่อมกับคำสั่ง",
+    "client_changed": "แก้ไขลูกค้าแล้ว"
   },
   "deposit": {
     "title": "เงินมัดจำ",

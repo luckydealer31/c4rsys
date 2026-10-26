@@ -17,7 +17,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from django.db.models import Q, QuerySet, Sum
+from django.db.models import F, OuterRef, Q, QuerySet, Subquery, Sum, UUIDField
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
@@ -29,6 +29,7 @@ from c4rsys.finance.models import (
     MoneyMovement,
     Offset,
     PaymentAllocation,
+    PaymentClientChange,
     SettlementEntry,
     SupplierAllocation,
 )
@@ -75,15 +76,40 @@ def lock_client(company_id: UUID, client_id: UUID) -> Any:
     return client
 
 
+def current_client() -> Any:
+    """The client of a money record now: of the latest correction (§ 17.2.12), or as recorded."""
+    latest = (
+        PaymentClientChange.objects.filter(money_movement=OuterRef("pk"))
+        .order_by("-created_at")
+        .values("client_id")[:1]
+    )
+    return Coalesce(Subquery(latest), F("client_id"), output_field=UUIDField())
+
+
+def client_of(movement: MoneyMovement) -> UUID | None:
+    change = movement.client_changes.order_by("-created_at").first()
+    return change.client_id if change else movement.client_id
+
+
+def movements_of_client(company_id: UUID, client_id: UUID) -> QuerySet[MoneyMovement]:
+    return (
+        MoneyMovement.objects.filter(company_id=company_id, client__isnull=False)
+        .annotate(current_client=current_client())
+        .filter(current_client=client_id)
+    )
+
+
 def _client_money(company_id: UUID, client_id: UUID) -> Amounts:
     """Money received from and paid back to the client, in the currency of their funds."""
-    query = MoneyMovement.objects.filter(
-        company_id=company_id, client_id=client_id, state=MoneyMovement.State.POSTED
-    ).filter(
-        Q(kind__in=[MoneyMovement.Kind.PAYMENT, MoneyMovement.Kind.REFUND])
-        | Q(
-            kind=MoneyMovement.Kind.REVERSAL,
-            reverses__kind__in=[MoneyMovement.Kind.PAYMENT, MoneyMovement.Kind.REFUND],
+    query = (
+        movements_of_client(company_id, client_id)
+        .filter(state=MoneyMovement.State.POSTED)
+        .filter(
+            Q(kind__in=[MoneyMovement.Kind.PAYMENT, MoneyMovement.Kind.REFUND])
+            | Q(
+                kind=MoneyMovement.Kind.REVERSAL,
+                reverses__kind__in=[MoneyMovement.Kind.PAYMENT, MoneyMovement.Kind.REFUND],
+            )
         )
     )
     rows = (
@@ -158,7 +184,7 @@ def client_figures(company_id: UUID, client_id: UUID) -> ClientFigures:
     for exchanged in (
         PaymentAllocation.objects.filter(
             company_id=company_id,
-            money_movement__client_id=client_id,
+            money_movement_id__in=movements_of_client(company_id, client_id).values("id"),
             state=PaymentAllocation.State.ACTIVE,
             settled_currency__isnull=False,
         ),
@@ -200,6 +226,11 @@ def clients_with_balance(company_id: UUID) -> list[tuple[UUID, ClientFigures]]:
     )
     ids |= set(
         ChargeEntry.objects.filter(company_id=company_id).values_list("client_id", flat=True)
+    )
+    ids |= set(
+        PaymentClientChange.objects.filter(company_id=company_id).values_list(
+            "client_id", flat=True
+        )
     )
     ids |= set(
         SettlementEntry.objects.filter(company_id=company_id, client__isnull=False).values_list(
@@ -258,6 +289,22 @@ def payable(company_id: UUID, counterparty_id: UUID) -> Payable:
             row["currency_id"],
             -row["total"] if row["direction"] == OUT else row["total"],
         )
+    # A part paid in another currency settles the purchase in its currency (§ 17.1.4): it leaves
+    # the payment's currency and pays the debt in the purchase's.
+    exchanged = SupplierAllocation.objects.filter(
+        company_id=company_id,
+        state=SupplierAllocation.State.ACTIVE,
+        settled_currency__isnull=False,
+        money_movement__in=_supplier_money(company_id, counterparty_id),
+    ).select_related("money_movement")
+    for allocation in exchanged:
+        sign = 1 if allocation.money_movement.direction == OUT else -1
+        _add(result.amounts, allocation.money_movement.currency_id, sign * allocation.amount)
+        _add(
+            result.amounts,
+            allocation.settled_currency_id or "",
+            -sign * (allocation.settled_amount or ZERO),
+        )
     return result
 
 
@@ -291,7 +338,12 @@ def _paid_to(
     if receipt_ids is not None:
         query = query.filter(receipt_id__in=receipt_ids)
     total = ZERO
-    for row in query.values("money_movement__direction").annotate(total=Sum("amount")):
+    rows = (
+        query.annotate(settled=Coalesce("settled_amount", "amount"))
+        .values("money_movement__direction")
+        .annotate(total=Sum("settled"))
+    )
+    for row in rows:
         sign = 1 if row["money_movement__direction"] == OUT else -1
         total += sign * row["total"]
     return total
@@ -507,9 +559,10 @@ def settle_return(
 
 @dataclass(frozen=True)
 class SupplierLink:
-    amount: Decimal
+    amount: Decimal  # in the currency of the payment
     purchase_id: UUID | None = None
     receipt_id: UUID | None = None
+    rate: Decimal | None = None  # manual rate to the purchase's currency; None — suggested
 
 
 @dataclass(frozen=True)
@@ -535,12 +588,13 @@ def _locked_account(company_id: UUID, account_id: UUID) -> CashAccount:
     return account
 
 
-def pay_supplier(ctx: CommandContext, company_id: UUID, data: SupplierPayment) -> MoneyMovement:
+def pay_supplier(
+    ctx: CommandContext, company_id: UUID, data: SupplierPayment, *, may_override_rate: bool = False
+) -> MoneyMovement:
     """A payment to a supplier, possibly before the goods come, in parts, or for received goods;
     the payment itself does not change the stock (§ 11.2.4). Parts may be linked to purchases and
-    receipts of this supplier; the rest stays a payment on account.
-
-    TODO(spec): a link in another currency than the purchase (§ 17.1.4) is not made yet."""
+    receipts of this supplier; the rest stays a payment on account. A part linked to a purchase
+    in another currency settles it in its own currency by the applied rate (§ 17.1.4)."""
     account = _locked_account(company_id, data.cash_account_id)
     if account.currency_id != data.currency:
         raise errors.business_rule(
@@ -550,6 +604,7 @@ def pay_supplier(ctx: CommandContext, company_id: UUID, data: SupplierPayment) -
     article = articles.usable(company_id, data.article_id, FinanceArticle.Kind.EXPENSE)
     if sum((link.amount for link in data.links), ZERO) > data.amount:
         raise errors.business_rule("ALLOCATION_EXCEEDS_PAYMENT", field="links")
+    exchanged: list[tuple[SupplierLink, str, rates.AppliedRate | None]] = []
     for index, link in enumerate(data.links):
         target = (
             warehouse.purchase(company_id, link.purchase_id)
@@ -562,8 +617,14 @@ def pay_supplier(ctx: CommandContext, company_id: UUID, data: SupplierPayment) -
             raise errors.validation_error(f"links[{index}]", code="TARGET_INVALID")
         if target.supplier_id != counterparty.id:
             raise errors.business_rule("SUPPLIER_MISMATCH", field=f"links[{index}]")
+        applied = None
         if target.currency != data.currency:
-            raise errors.business_rule("CURRENCY_MISMATCH", field=f"links[{index}]")
+            applied = rates.apply(
+                data.currency, target.currency, link.rate, may_override=may_override_rate
+            )
+        elif link.rate is not None and link.rate != 1:
+            raise errors.validation_error(f"links[{index}]", code="RATE_SAME_CURRENCY")
+        exchanged.append((link, target.currency, applied))
 
     now = timezone.now()
     movement = MoneyMovement.objects.create(
@@ -583,13 +644,20 @@ def pay_supplier(ctx: CommandContext, company_id: UUID, data: SupplierPayment) -
         created_by_user_id=ctx.actor.user_id,
         created_at=now,
     )
-    for link in data.links:
+    for link, target_currency, applied in exchanged:
+        settled = rates.convert(link.amount, applied.rate, target_currency) if applied else None
         SupplierAllocation.objects.create(
             company_id=company_id,
             money_movement=movement,
             purchase_id=link.purchase_id,
             receipt_id=link.receipt_id,
             amount=link.amount,
+            settled_amount=settled,
+            settled_currency_id=target_currency if applied else None,
+            rate_fetch=applied.fetch if applied else None,
+            suggested_rate=applied.suggested if applied else None,
+            applied_rate=applied.rate if applied else None,
+            rate_manual=applied.manual if applied else False,
             created_by_user_id=ctx.actor.user_id,
             created_at=now,
         )

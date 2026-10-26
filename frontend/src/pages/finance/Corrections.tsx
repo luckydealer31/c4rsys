@@ -2,12 +2,15 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { Payment } from "../../api/types";
+import type { Client, Payment } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { ErrorMessage } from "../../components/ui";
 import { useCan, useCompany } from "../../layout/CompanyShell";
+import { clientName } from "../clients/ClientsPage";
 import { useOrders } from "../orders/OrdersPage";
+import { ClientFinder } from "../rentals/IssuePage";
 import { useVehicles } from "../vehicles/VehiclesPage";
+import { RateField } from "./Rates";
 
 const REVERSIBLE = new Set(["manual", "payment", "supplier", "refund", "transfer"]);
 
@@ -26,15 +29,21 @@ function useRefreshMoney() {
 export function RecordActions({ record }: { record: Payment }) {
   const { t } = useTranslation();
   const can = useCan();
-  const [mode, setMode] = useState<"" | "reverse" | "split">("");
+  const [mode, setMode] = useState<"" | "reverse" | "split" | "client">("");
   const reversible =
     can("finance.correct") && REVERSIBLE.has(record.kind) && !record.reversed_by_id && record.allocations.every((a) => a.state !== "active");
+  const clientFixable =
+    can("finance.correct") &&
+    record.kind === "payment" &&
+    !record.reversed_by_id &&
+    record.allocations.every((a) => a.state !== "active");
   const splittable =
     can("finance.payout") && record.direction === "out" && (record.kind === "manual" || record.kind === "supplier") && !record.reversed_by_id;
   return (
     <div className="stack">
       {record.reversed_by_id ? <span className="badge">{t("corrections.reversed")}</span> : null}
       {record.kind === "reversal" && record.reason ? <span className="muted">{record.reason}</span> : null}
+      {record.client_changed ? <span className="muted">{t("corrections.client_changed")}</span> : null}
       {record.shares.length ? (
         <span className="muted">
           {t("corrections.split", { count: record.shares.length })}
@@ -52,10 +61,16 @@ export function RecordActions({ record }: { record: Payment }) {
               {t("corrections.split_action")}
             </button>
           ) : null}
+          {clientFixable ? (
+            <button type="button" className="secondary" onClick={() => setMode("client")}>
+              {t("corrections.change_client")}
+            </button>
+          ) : null}
         </div>
       ) : null}
       {mode === "reverse" ? <ReverseForm record={record} onDone={() => setMode("")} /> : null}
       {mode === "split" ? <SplitForm record={record} onDone={() => setMode("")} /> : null}
+      {mode === "client" ? <ClientForm record={record} onDone={() => setMode("")} /> : null}
     </div>
   );
 }
@@ -83,6 +98,50 @@ function ReverseForm({ record, onDone }: { record: Payment; onDone: () => void }
           }}
         >
           {t("corrections.reverse_submit")}
+        </button>
+        <button type="button" className="secondary" onClick={onDone}>
+          {t("common.cancel")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Corrects the mistakenly named client with a reason; the previous one stays in history. */
+function ClientForm({ record, onDone }: { record: Payment; onDone: () => void }) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const refresh = useRefreshMoney();
+  const [client, setClient] = useState<Client | null>(null);
+  const [reason, setReason] = useState("");
+  const change = useCommand<Record<string, string>, unknown>(`/c/${company.public_id}/money-records/${record.id}/client`);
+  return (
+    <div className="stack">
+      <p className="muted">{t("corrections.change_client_hint")}</p>
+      {client ? (
+        <p>
+          <strong>{clientName(client)}</strong>{" "}
+          <button type="button" className="secondary" onClick={() => setClient(null)}>
+            {t("rentals.change_client")}
+          </button>
+        </p>
+      ) : (
+        <ClientFinder onPick={setClient} />
+      )}
+      <input placeholder={t("corrections.reason")} value={reason} onChange={(e) => setReason(e.target.value)} />
+      <ErrorMessage error={change.error} />
+      <div className="actions" style={{ marginTop: 0 }}>
+        <button
+          type="button"
+          disabled={!client || !reason.trim() || change.pending}
+          onClick={async () => {
+            if (client && (await change.run({ client_id: client.id, reason })) !== null) {
+              await refresh();
+              onDone();
+            }
+          }}
+        >
+          {t("common.save")}
         </button>
         <button type="button" className="secondary" onClick={onDone}>
           {t("common.cancel")}
@@ -181,7 +240,11 @@ export function RelinkAllocation({ record, allocationId }: { record: Payment; al
   const [open, setOpen] = useState(false);
   const [target, setTarget] = useState("");
   const [reason, setReason] = useState("");
+  const [rate, setRate] = useState("");
   const relink = useCommand<Record<string, unknown>, unknown>(`/c/${company.public_id}/payment-allocations/${allocationId}/relink`);
+  const targetOrder = (orders.data?.orders ?? []).find((o) => o.id === target);
+  const targetCurrency = targetOrder ? Object.keys(targetOrder.amounts)[0] : undefined;
+  const exchange = Boolean(targetCurrency && targetCurrency !== record.currency);
   if (!can("finance.correct")) return null;
   if (!open)
     return (
@@ -202,6 +265,9 @@ export function RelinkAllocation({ record, allocationId }: { record: Payment; al
           </option>
         ))}
       </select>
+      {exchange && targetCurrency ? (
+        <RateField from={record.currency} to={targetCurrency} manual={rate} onManual={setRate} />
+      ) : null}
       <input placeholder={t("corrections.reason")} value={reason} onChange={(e) => setReason(e.target.value)} />
       <ErrorMessage error={relink.error} />
       <div className="actions" style={{ marginTop: 0 }}>
@@ -209,7 +275,7 @@ export function RelinkAllocation({ record, allocationId }: { record: Payment; al
           type="button"
           disabled={!reason.trim() || relink.pending}
           onClick={async () => {
-            if ((await relink.run({ order_id: target || null, reason })) !== null) {
+            if ((await relink.run({ order_id: target || null, reason, rate: exchange && rate ? rate : null })) !== null) {
               setOpen(false);
               await refresh();
             }

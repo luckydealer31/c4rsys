@@ -350,6 +350,7 @@ def supplier_payment(request: HttpRequest, cmp: str) -> JsonResponse:
                 amount=_amount(item.get("amount"), f"{where}.amount", currency.minor_units),
                 purchase_id=_optional_uuid(item, "purchase_id"),
                 receipt_id=_optional_uuid(item, "receipt_id"),
+                rate=_rate(item.get("rate"), f"{where}.rate"),
             )
         )
     payment = settlements.SupplierPayment(
@@ -363,8 +364,12 @@ def supplier_payment(request: HttpRequest, cmp: str) -> JsonResponse:
         note=get_str(data, "note", max_length=NOTE_MAX, required=False),
     )
 
+    may_override = _can(actor, RATE)
+
     def handler(ctx: CommandContext) -> CommandResult:
-        movement = settlements.pay_supplier(ctx, context.company.id, payment)
+        movement = settlements.pay_supplier(
+            ctx, context.company.id, payment, may_override_rate=may_override
+        )
         return CommandResult(201, {"record": _movement_payload(movement)})
 
     payload = {
@@ -379,6 +384,7 @@ def supplier_payment(request: HttpRequest, cmp: str) -> JsonResponse:
                 "amount": str(link.amount),
                 "purchase_id": str(link.purchase_id) if link.purchase_id else None,
                 "receipt_id": str(link.receipt_id) if link.receipt_id else None,
+                "rate": str(link.rate) if link.rate is not None else None,
             }
             for link in links
         ],
@@ -555,9 +561,19 @@ def allocation_relink(request: HttpRequest, cmp: str, allocation_id: UUID) -> Js
     data = parse_json(request)
     order_id = _optional_uuid(data, "order_id")
     reason = get_str(data, "reason", max_length=NOTE_MAX)
+    rate = _rate(data.get("rate"), "rate")
+    may_override = _can(actor, RATE)
 
     def handler(ctx: CommandContext) -> CommandResult:
-        corrections.relink_allocation(ctx, context.company.id, allocation_id, order_id, reason)
+        corrections.relink_allocation(
+            ctx,
+            context.company.id,
+            allocation_id,
+            order_id,
+            reason,
+            rate=rate,
+            may_override_rate=may_override,
+        )
         movement = MoneyMovement.objects.get(pk=allocation.money_movement_id)
         return CommandResult(200, {"payment": _movement_payload(movement)})
 
@@ -565,6 +581,7 @@ def allocation_relink(request: HttpRequest, cmp: str, allocation_id: UUID) -> Js
         "allocation_id": str(allocation_id),
         "order_id": str(order_id) if order_id else None,
         "reason": reason,
+        "rate": str(rate) if rate is not None else None,
     }
     return run_and_respond(request, "payment.relink", actor, payload, handler)
 
@@ -624,3 +641,25 @@ def record_shares(request: HttpRequest, cmp: str, movement_id: UUID) -> JsonResp
         ],
     }
     return run_and_respond(request, "expense.split", actor, payload, handler)
+
+
+@require_POST
+def record_client(request: HttpRequest, cmp: str, movement_id: UUID) -> JsonResponse:
+    """Corrects the mistakenly named client of a payment with a reason (§ 17.2.12)."""
+    context, actor = _actor(request, cmp)
+    movement = MoneyMovement.objects.filter(company_id=context.company.id, pk=movement_id).first()
+    if movement is None:
+        raise errors.not_found()
+    _require(actor, CORRECT, movement.cash_account_id)
+    data = parse_json(request)
+    client_id = _uuid(data.get("client_id"), "client_id")
+    reason = get_str(data, "reason", max_length=NOTE_MAX)
+    parties.get_client(context.company.id, client_id)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        corrections.change_client(ctx, context.company.id, movement_id, client_id, reason)
+        fresh = MoneyMovement.objects.get(pk=movement_id)
+        return CommandResult(200, {"record": _movement_payload(fresh)})
+
+    payload = {"movement_id": str(movement_id), "client_id": str(client_id), "reason": reason}
+    return run_and_respond(request, "payment.change_client", actor, payload, handler)

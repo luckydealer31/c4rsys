@@ -123,14 +123,25 @@ def deposit_offset(request: HttpRequest, cmp: str, rental_id: UUID) -> JsonRespo
         return {
             "order_id": _uuid(data.get("order_id"), "order_id"),
             "amount": _amount(data.get("amount"), "amount", 4),
+            "rate": _rate(data.get("rate"), "rate"),
         }
 
+    _, actor = _actor(request, cmp)
+    may_override = _can(actor, RATE)
     return _action(
         request,
         cmp,
         rental_id,
         "offset",
-        lambda ctx, c, d: deposits.offset(ctx, c, rental_id, d["order_id"], d["amount"]),
+        lambda ctx, c, d: deposits.offset(
+            ctx,
+            c,
+            rental_id,
+            d["order_id"],
+            d["amount"],
+            rate=d["rate"],
+            may_override_rate=may_override,
+        ),
         parse,
     )
 

@@ -33,6 +33,7 @@ urlpatterns = [
     path("c/<str:cmp>/offsets/<uuid:offset_id>/correct", sv.offset_correct),
     path("c/<str:cmp>/money-records/<uuid:movement_id>/reverse", sv.record_reverse),
     path("c/<str:cmp>/money-records/<uuid:movement_id>/shares", sv.record_shares),
+    path("c/<str:cmp>/money-records/<uuid:movement_id>/client", sv.record_client),
     path("c/<str:cmp>/payment-allocations/<uuid:allocation_id>/relink", sv.allocation_relink),
     path("c/<str:cmp>/rentals/<uuid:rental_id>/deposit", dv.deposit_detail),
     path("c/<str:cmp>/rentals/<uuid:rental_id>/deposit/to-balance", dv.deposit_to_balance),

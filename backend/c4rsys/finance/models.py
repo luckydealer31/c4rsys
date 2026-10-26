@@ -182,6 +182,10 @@ class MoneyMovement(models.Model):
         "self", on_delete=models.PROTECT, null=True, blank=True, related_name="reversed_by"
     )
     reason = models.CharField(max_length=500, blank=True, default="")
+    # A new initial balance of an account names the reversed one it replaces (§ 22.1.7).
+    replaces = models.OneToOneField(
+        "self", on_delete=models.PROTECT, null=True, blank=True, related_name="replaced_by"
+    )
     # A refund in another currency: what leaves the client's funds, by the applied rate
     # (§ 17.2.17). Empty — the same as `amount` and `currency`.
     funds_amount = models.DecimalField(max_digits=20, decimal_places=4, null=True, blank=True)
@@ -231,11 +235,16 @@ class MoneyMovement(models.Model):
                 condition=~Q(state="posted") | Q(posted_at__isnull=False),
                 name="money_movement_posted_has_time",
             ),
-            # One initial balance per account, entered as money on it (§ 22.1.7).
+            # One initial balance per account (§ 22.1.7); after its reversal a corrected one
+            # replaces it, each at most once, so the initial balances form one chain.
             models.UniqueConstraint(
                 fields=["cash_account"],
-                condition=Q(kind="opening"),
+                condition=Q(kind="opening", replaces__isnull=True),
                 name="money_movement_one_opening_per_account",
+            ),
+            models.CheckConstraint(
+                condition=Q(replaces__isnull=True) | Q(kind="opening"),
+                name="money_movement_replaces_only_opening",
             ),
             models.CheckConstraint(
                 condition=~Q(kind="opening") | (Q(direction="in") & Q(client__isnull=True)),
@@ -444,7 +453,19 @@ class SupplierAllocation(models.Model):
     receipt = models.ForeignKey(
         "warehouse.Receipt", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
+    # Part of the payment, in its currency.
     amount = models.DecimalField(max_digits=20, decimal_places=4)
+    # What it settles in the currency of the purchase or receipt when that differs (§ 17.1.4).
+    settled_amount = models.DecimalField(max_digits=20, decimal_places=4, null=True, blank=True)
+    settled_currency = models.ForeignKey(
+        Currency, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    rate_fetch = models.ForeignKey(
+        "RateFetch", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    suggested_rate = models.DecimalField(max_digits=28, decimal_places=12, null=True, blank=True)
+    applied_rate = models.DecimalField(max_digits=28, decimal_places=12, null=True, blank=True)
+    rate_manual = models.BooleanField(default=False)
     state = models.CharField(max_length=10, choices=State.choices, default=State.ACTIVE)
     created_by_user_id = models.UUIDField()
     created_at = models.DateTimeField(default=now)
@@ -456,6 +477,15 @@ class SupplierAllocation(models.Model):
             models.CheckConstraint(
                 condition=Q(purchase__isnull=True) ^ Q(receipt__isnull=True),
                 name="supplier_allocation_one_target",
+            ),
+            models.CheckConstraint(
+                condition=(Q(settled_amount__isnull=True) & Q(applied_rate__isnull=True))
+                | (
+                    Q(settled_amount__gt=0)
+                    & Q(settled_currency__isnull=False)
+                    & Q(applied_rate__gt=0)
+                ),
+                name="supplier_allocation_exchange_complete",
             ),
         ]
 
@@ -750,3 +780,38 @@ class DepositEntry(models.Model):
 
     def __str__(self) -> str:
         return f"{self.kind} {self.amount} {self.currency_id}"
+
+
+class PaymentClientChange(models.Model):
+    """A correction of a mistakenly named client of a payment (ТЗ § 17.2.12): a separate action
+    with a reason; the previous client stays in history. The payment itself is not changed; its
+    current client is the one of the latest change. It is not giving one client's money to
+    another, and a change of the order's client does not move payments by itself."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    money_movement = models.ForeignKey(
+        MoneyMovement, on_delete=models.PROTECT, related_name="client_changes"
+    )
+    previous_client = models.ForeignKey(
+        "parties.ClientCard", on_delete=models.PROTECT, related_name="+"
+    )
+    client = models.ForeignKey("parties.ClientCard", on_delete=models.PROTECT, related_name="+")
+    reason = models.CharField(max_length=500)
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "payment_client_change"
+        constraints = [
+            models.CheckConstraint(
+                condition=~Q(reason=""), name="payment_client_change_reason_required"
+            ),
+            models.CheckConstraint(
+                condition=~Q(previous_client=models.F("client")),
+                name="payment_client_change_different",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.money_movement_id}: {self.previous_client_id} → {self.client_id}"

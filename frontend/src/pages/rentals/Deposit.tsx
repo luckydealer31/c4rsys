@@ -126,14 +126,25 @@ function DepositAction({
   const suggestion = useRateSuggestion(exchange ? deposit.currency : undefined, account?.currency);
   const applied = exchange ? effectiveRate(suggestion.data, rate) : "1";
   const debts = (orders.data?.orders ?? []).filter(
-    (o) => o.client_id === rental.client_id && o.state !== "cancelled" && Number(o.amounts[deposit.currency]?.to_pay ?? 0) > 0,
+    (o) =>
+      o.client_id === rental.client_id &&
+      o.state !== "cancelled" &&
+      Object.values(o.amounts).some((a) => Number(a.to_pay) > 0),
   );
+  const order = debts.find((o) => o.id === orderId);
+  const orderCurrency = order ? Object.keys(order.amounts)[0] : undefined;
+  const offsetExchange = action === "offset" && Boolean(orderCurrency && orderCurrency !== deposit.currency);
+  const offsetSuggestion = useRateSuggestion(offsetExchange ? deposit.currency : undefined, orderCurrency);
+  const offsetRate = offsetExchange ? effectiveRate(offsetSuggestion.data, rate) : "1";
   const needsReason = action === "hold" || action === "release" || action === "waive";
 
   async function submit() {
     const body: Record<string, unknown> = { reason };
     if (action !== "waive") body.amount = amount;
-    if (action === "offset") body.order_id = orderId;
+    if (action === "offset") {
+      body.order_id = orderId;
+      body.rate = offsetExchange && rate ? rate : null;
+    }
     if (action === "refund") {
       body.cash_account_id = account?.id;
       body.rate = exchange && rate ? rate : null;
@@ -157,7 +168,10 @@ function DepositAction({
             <select value={orderId} onChange={(e) => setOrderId(e.target.value)}>
               {debts.map((o) => (
                 <option key={o.id} value={o.id}>
-                  № {o.number} · {o.amounts[deposit.currency]?.to_pay} {deposit.currency}
+                  № {o.number} ·{" "}
+                  {Object.entries(o.amounts)
+                    .map(([c, a]) => `${a.to_pay} ${c}`)
+                    .join(", ")}
                 </option>
               ))}
             </select>
@@ -179,6 +193,9 @@ function DepositAction({
         </Field>
       </div>
       {exchange && account ? <RateField from={deposit.currency} to={account.currency} manual={rate} onManual={setRate} /> : null}
+      {offsetExchange && orderCurrency ? (
+        <RateField from={deposit.currency} to={orderCurrency} manual={rate} onManual={setRate} />
+      ) : null}
       {action === "refund" && exchange && applied && amount ? (
         <p>{t("deposit.refund_preview", { amount: (Number(amount) * Number(applied)).toFixed(2), currency: account?.currency ?? "" })}</p>
       ) : null}
@@ -195,7 +212,7 @@ function DepositAction({
             run.pending ||
             (action !== "waive" && !amount) ||
             (needsReason && !reason.trim()) ||
-            (action === "offset" && !debts.length) ||
+            (action === "offset" && (!debts.length || !offsetRate)) ||
             (action === "refund" && (!account || !applied || (rental.state === "active" && !withClient)))
           }
           onClick={submit}

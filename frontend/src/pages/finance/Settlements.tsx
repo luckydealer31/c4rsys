@@ -729,13 +729,17 @@ function SupplierPaymentForm({
   const articles = (useArticles().data?.articles ?? []).filter((a) => a.kind === "expense" && a.state === "active");
   const nameOf = useArticleName();
   const directions = (["out", "in"] as const).filter((d) => can(d === "out" ? "finance.payout" : "finance.income.record"));
-  const [form, setForm] = useState({ direction: "", account: "", amount: "", article: "", receipt: "", note: "" });
+  const [form, setForm] = useState({ direction: "", account: "", amount: "", article: "", receipt: "", note: "", rate: "" });
   const pay = useCommand<Record<string, unknown>, unknown>(`/c/${company.public_id}/supplier-payments`);
   const direction = form.direction || directions[0];
   const account = accounts.find((a) => a.id === form.account) ?? accounts[0];
   const goods = articles.find((a) => a.code === "goods_materials");
   const article = form.article || goods?.id || "";
-  const linkable = receipts.filter((r) => r.currency === account?.currency);
+  const linkable = receipts;
+  const linked = receipts.find((r) => r.id === form.receipt);
+  const exchange = Boolean(linked && account && linked.currency !== account.currency);
+  const suggestion = useRateSuggestion(exchange ? account?.currency : undefined, linked?.currency);
+  const applied = exchange ? effectiveRate(suggestion.data, form.rate) : "1";
   if (!accounts.length || !direction) return null;
 
   async function submit(event: FormEvent) {
@@ -748,7 +752,9 @@ function SupplierPaymentForm({
       amount: form.amount,
       currency: account.currency,
       article_id: article,
-      links: form.receipt ? [{ receipt_id: form.receipt, amount: form.amount }] : [],
+      links: form.receipt
+        ? [{ receipt_id: form.receipt, amount: form.amount, rate: exchange && form.rate ? form.rate : null }]
+        : [],
       note: form.note,
     };
     if ((await pay.run(body)) !== null) {
@@ -807,9 +813,17 @@ function SupplierPaymentForm({
           <input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
         </Field>
       </div>
+      {exchange && account && linked ? (
+        <RateField
+          from={account.currency}
+          to={linked.currency}
+          manual={form.rate}
+          onManual={(value) => setForm({ ...form, rate: value })}
+        />
+      ) : null}
       <ErrorMessage error={pay.error} />
       <div className="actions">
-        <button type="submit" disabled={!form.amount || !article || pay.pending}>
+        <button type="submit" disabled={!form.amount || !article || !applied || pay.pending}>
           {t(direction === "out" ? "settlements.supplier_pay" : "settlements.supplier_money_back")}
         </button>
       </div>

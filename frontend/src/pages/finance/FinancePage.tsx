@@ -264,11 +264,30 @@ export function transferText(
 
 /** The common balance in the main currency by the current rates; the accounts keep their own
  * currencies (§ 17.1.2, § 17.1.5). Accounts without a rate are named and left out. */
-function TotalLine({ total }: { total: AccountsTotal }) {
+function TotalLine({ total: byMain }: { total: AccountsTotal }) {
   const { t, i18n } = useTranslation();
   const company = useCompany();
+  // § 17.1.2: the common balance may be shown in any chosen currency; the main one by default.
+  const [chosen, setChosen] = useState("");
+  const other = useApi<{ total?: AccountsTotal }>(
+    ["cash-accounts", company.public_id, "total", chosen],
+    `/c/${company.public_id}/cash-accounts?total_currency=${chosen}`,
+    Boolean(chosen) && chosen !== byMain.currency,
+  );
+  const total = (chosen && chosen !== byMain.currency ? other.data?.total : byMain) ?? byMain;
   return (
     <div className="stack">
+      <div className="row">
+        <Field label={t("money.total_currency")}>
+          <select value={chosen || byMain.currency} onChange={(e) => setChosen(e.target.value)}>
+            {currencies().map((code) => (
+              <option key={code} value={code}>
+                {code}
+              </option>
+            ))}
+          </select>
+        </Field>
+      </div>
       <p>
         {t("money.total", { currency: total.currency })}: <strong>{total.amount} {total.currency}</strong>
         {total.rates_at ? (

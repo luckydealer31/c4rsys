@@ -47,7 +47,8 @@
     "deposit_release": "Deposit claim ended",
     "deposit_offset": "Deposit set off",
     "deposit_refund": "Deposit refunded",
-    "deposit_waiver": "Allowed without the full deposit"
+    "deposit_waiver": "Allowed without the full deposit",
+    "payment_client_changed": "Client of the payment corrected"
   },
   "finance_articles": {
     "archive": "Archive",
@@ -536,7 +537,10 @@
     "deposit_exceeds_claimed": "Held by a claim: {{limit}} {{currency}}.",
     "deposit_vehicle_not_returned": "The vehicle is not returned: confirm the early refund.",
     "deposit_no_conflict": "There is no missing deposit.",
-    "record_has_deposit": "The receipt has a deposit part."
+    "record_has_deposit": "The receipt has a deposit part.",
+    "record_not_payment": "Only a client payment can get another client.",
+    "client_same": "Choose another client.",
+    "client_funds_used": "This money has already been used by the client."
   },
   "history": {
     "action": "Action",
@@ -659,7 +663,8 @@
     "kind_refund": "Refund to the client",
     "kind_reversal": "Reversal",
     "tab_settlements": "Settlements",
-    "kind_deposit": "Deposit refund"
+    "kind_deposit": "Deposit refund",
+    "total_currency": "Show the total in"
   },
   "moves": {
     "actual_end": "Actual end",
@@ -1873,7 +1878,10 @@
     "left": "Left to split: {{amount}} {{currency}}",
     "add_row": "Add a part",
     "relink": "change the link",
-    "unlink": "Without an order (funds of the client)"
+    "unlink": "Without an order (funds of the client)",
+    "change_client": "Change the client",
+    "change_client_hint": "Only to fix a mistake: the previous client stays in history. The payment must not be linked to orders.",
+    "client_changed": "client corrected"
   },
   "deposit": {
     "title": "Deposit",
