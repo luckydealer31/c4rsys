@@ -140,7 +140,9 @@
     "tab_clients": "Клиенты",
     "tab_counterparties": "Контрагенты",
     "tab_employees": "Сотрудники",
-    "use_existing": "Выбрать «{{name}}»"
+    "use_existing": "Выбрать «{{name}}»",
+    "balance_parts": "Доступно {{available}} {{currency}} · не оплачено {{unpaid}} {{currency}}",
+    "open_settlement": "Расчёты с клиентами"
   },
   "common": {
     "cancel": "Отмена",

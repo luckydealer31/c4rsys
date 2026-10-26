@@ -13,7 +13,7 @@ from c4rsys.accounts.middleware import require_user
 from c4rsys.companies import access
 from c4rsys.companies import services as companies
 from c4rsys.companies.views import run_and_respond
-from c4rsys.finance import articles, payments, rates, records, services, transfers
+from c4rsys.finance import articles, payments, rates, records, services, settlements, transfers
 from c4rsys.finance.models import CashAccount, FinanceArticle, MoneyMovement, Transfer
 from c4rsys.parties import services as parties
 from c4rsys.platform import errors
@@ -383,16 +383,25 @@ def payment_list(request: HttpRequest, cmp: str) -> JsonResponse:
 @require_http_methods(["GET"])
 def client_balance(request: HttpRequest, cmp: str, client_id: UUID) -> JsonResponse:
     """Settlement balance of the client (§ 6.7.2): positive — advance or overpayment, negative —
-    debt. Visible to those who may find the client."""
+    debt; with available funds and unpaid charges, whose difference it is (§ 17.2.13). Visible
+    to those who may find the client."""
     context, actor = _actor(request, cmp)
     resolver = access.RightsResolver()
     if not any(resolver.has_permission(actor, p) for p in ("client.find", "client.list")):
         raise errors.permission_denied("client.find")
     parties.get_client(context.company.id, client_id)
-    balance = payments.client_balance(context.company.id, client_id)
-    places = {c.code: c.minor_units for c in Currency.objects.filter(code__in=balance)}
+    figures = settlements.client_figures(context.company.id, client_id)
+
+    def money(amounts: dict[str, Decimal]) -> dict[str, str]:
+        places = {c.code: c.minor_units for c in Currency.objects.filter(code__in=amounts)}
+        return {c: str(round_money(v, places[c])) for c, v in sorted(amounts.items())}
+
     return JsonResponse(
-        {"balance": {c: str(round_money(v, places[c])) for c, v in sorted(balance.items())}}
+        {
+            "balance": money(figures.balance),
+            "available": money(figures.available),
+            "unpaid": money(figures.unpaid),
+        }
     )
 
 

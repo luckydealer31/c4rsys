@@ -140,7 +140,9 @@
     "tab_clients": "Clients",
     "tab_counterparties": "Counterparties",
     "tab_employees": "Employees",
-    "use_existing": "Use «{{name}}»"
+    "use_existing": "Use «{{name}}»",
+    "balance_parts": "Available {{available}} {{currency}} · unpaid {{unpaid}} {{currency}}",
+    "open_settlement": "Settlements of clients"
   },
   "common": {
     "cancel": "Cancel",

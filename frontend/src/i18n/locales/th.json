@@ -140,7 +140,9 @@
     "tab_clients": "Clients",
     "tab_counterparties": "Counterparties",
     "tab_employees": "Employees",
-    "use_existing": "Use «{{name}}»"
+    "use_existing": "Use «{{name}}»",
+    "balance_parts": "ใช้ได้ {{available}} {{currency}} · ค้างชำระ {{unpaid}} {{currency}}",
+    "open_settlement": "การชำระของลูกค้า"
   },
   "common": {
     "cancel": "Cancel",

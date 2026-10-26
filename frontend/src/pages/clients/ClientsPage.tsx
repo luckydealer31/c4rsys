@@ -281,7 +281,11 @@ export function ClientPage() {
   const can = useCan();
   const queryClient = useQueryClient();
   const card = useApi<{ client: Client }>(["client", company.public_id, id], `/c/${company.public_id}/clients/${id}`);
-  const balance = useApi<{ balance: Record<string, string> }>(
+  const balance = useApi<{
+    balance: Record<string, string>;
+    available: Record<string, string>;
+    unpaid: Record<string, string>;
+  }>(
     ["client-balance", company.public_id, id],
     `/c/${company.public_id}/clients/${id}/balance`,
   );
@@ -338,13 +342,30 @@ export function ClientPage() {
           <p className="muted">0</p>
         ) : (
           Object.entries(balance.data?.balance ?? {}).map(([currency, value]) => (
-            <p key={currency}>
-              {Number(value) < 0
-                ? t("clients.debt", { amount: -Number(value), currency })
-                : t("clients.advance", { amount: Number(value), currency })}
-            </p>
+            <div key={currency}>
+              <p>
+                <strong>
+                  {Number(value) < 0
+                    ? t("clients.debt", { amount: -Number(value), currency })
+                    : t("clients.advance", { amount: Number(value), currency })}
+                </strong>
+              </p>
+              {/* § 17.2.13: balance = available funds − unpaid charges. */}
+              <p className="muted">
+                {t("clients.balance_parts", {
+                  available: balance.data?.available[currency] ?? "0",
+                  unpaid: balance.data?.unpaid[currency] ?? "0",
+                  currency,
+                })}
+              </p>
+            </div>
           ))
         )}
+        {can("finance.account.view") || can("finance.offset") || can("finance.settlement.manage") ? (
+          <p>
+            <Link to={companyPath(company, "/finance?tab=settlements")}>{t("clients.open_settlement")}</Link>
+          </p>
+        ) : null}
       </Card>
       <Card>
         <form className="stack" onSubmit={save}>
