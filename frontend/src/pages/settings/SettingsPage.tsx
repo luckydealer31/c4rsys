@@ -12,6 +12,7 @@ export function SettingsPage() {
   const links = [
     ["setup", "/setup", can("company.settings")],
     ["company", "/settings/company", can("company.settings")],
+    ["rental", "/settings/rental", can("company.settings")],
   ] as const;
   return (
     <div className="page">

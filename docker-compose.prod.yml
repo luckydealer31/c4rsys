@@ -58,7 +58,8 @@ services:
       backend:
         condition: service_healthy
 
-  # Deposits whose hold term has passed go to the clients' balances (§ 14.7.1), every 10 minutes.
+  # Every 10 minutes: deposits whose hold term has passed go to the clients' balances (§ 14.7.1);
+  # bookings whose auto-cancel moment at no-show has passed are cancelled (§ 14.8.1).
   deposits:
     build:
       context: ./backend
@@ -70,7 +71,7 @@ services:
     environment:
       DATABASE_URL: postgres://c4rsys:${POSTGRES_PASSWORD}@db:5432/c4rsys
       DJANGO_DEBUG: "0"
-    command: sh -c "while true; do python manage.py release_deposits; sleep 600; done"
+    command: sh -c "while true; do python manage.py release_deposits; python manage.py cancel_no_shows; sleep 600; done"
     healthcheck:
       disable: true
     depends_on:

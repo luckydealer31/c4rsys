@@ -36,17 +36,29 @@ export function RentalsPage() {
           <Link className="button" to={companyPath(company, "/rentals/new")}>
             {t("rentals.issue")}
           </Link>
+          {can("rental.book") ? (
+            <Link className="button secondary" to={companyPath(company, "/rentals/book")}>
+              {t("bookings.new")}
+            </Link>
+          ) : null}
           {can("tariff.view") ? (
             <Link className="button secondary" to={companyPath(company, "/rentals/tariffs")}>
               {t("settings.tariffs")}
             </Link>
           ) : null}
         </div>
-      ) : can("tariff.view") ? (
+      ) : can("tariff.view") || can("rental.book") ? (
         <div className="actions" style={{ marginBottom: 16, marginTop: 0 }}>
-          <Link className="button secondary" to={companyPath(company, "/rentals/tariffs")}>
-            {t("settings.tariffs")}
-          </Link>
+          {can("rental.book") ? (
+            <Link className="button secondary" to={companyPath(company, "/rentals/book")}>
+              {t("bookings.new")}
+            </Link>
+          ) : null}
+          {can("tariff.view") ? (
+            <Link className="button secondary" to={companyPath(company, "/rentals/tariffs")}>
+              {t("settings.tariffs")}
+            </Link>
+          ) : null}
         </div>
       ) : null}
       <Card>
@@ -66,23 +78,34 @@ export function RentalsPage() {
           </thead>
           <tbody>
             {(rentals.data?.rentals ?? []).map((rental) => {
-              const zone = zones.get(rental.issue_location_id) ?? "UTC";
+              const zone = zones.get(rental.issue_location_id ?? "") ?? company.timezone ?? "UTC";
+              const booking = rental.booking;
+              // A booking is shown with its planned period until the issue (§ 14.1).
+              const start = rental.actual_start ?? booking?.planned_start ?? null;
+              const end = rental.actual_end ?? (rental.state === "booked" ? rental.planned_end : null);
               return (
                 <tr key={rental.id}>
                   <td>
                     <Link to={companyPath(company, `/rentals/${rental.id}`)}>
                       {vehicleName.get(rental.vehicle_card_id) ?? "—"}
                     </Link>
+                    {booking ? <div className="muted small">{t("bookings.number", { number: booking.number })}</div> : null}
                   </td>
-                  <td>{clientNames.get(rental.client_id) ?? "—"}</td>
-                  <td>{formatMoment(rental.actual_start, zone, i18n.language)}</td>
-                  <td>{places.get(rental.issue_location_id) ?? "—"}</td>
-                  <td>{formatMoment(rental.actual_end, zone, i18n.language)}</td>
+                  <td>
+                    {rental.client_id ? (clientNames.get(rental.client_id) ?? "—") : null}
+                    {booking?.client_missing && rental.state === "booked" ? (
+                      <span className="badge">{t("bookings.client_missing_badge")}</span>
+                    ) : null}
+                  </td>
+                  <td>{formatMoment(start, zone, i18n.language)}</td>
+                  <td>{places.get(rental.issue_location_id ?? "") ?? "—"}</td>
+                  <td>{formatMoment(end, zone, i18n.language)}</td>
                   <td>
                     {rental.return_location_id ? (places.get(rental.return_location_id) ?? "—") : "—"}
                   </td>
                   <td>
                     {t(`rentals.state_${rental.state}`)}
+                    {booking?.delay_conflict ? <span className="badge"> {t("bookings.delay_badge")}</span> : null}
                     {/* § 14.3.3: a missing deposit is shown apart from the debt. */}
                     {rental.deposit?.conflict ? (
                       <span className="badge">

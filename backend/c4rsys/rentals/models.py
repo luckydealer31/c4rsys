@@ -172,7 +172,11 @@ class TariffVehicleTerms(models.Model):
 
 
 class Rental(models.Model):
-    """A rental of a vehicle (ТЗ гл. 14). Stage 1: issue without a booking.
+    """A rental of a vehicle (ТЗ гл. 14): booked in advance (§ 14.1) or issued at once.
+
+    A booking holds a concrete vehicle for its planned period; until the issue the client, the
+    tariff and the issue location may be empty (§ 14.1.8–14.1.9). The issue turns the same row into
+    an active rental (§ 14.4.1). Bookings of one vehicle never overlap (`booking_period`).
 
     `actual_period` is [actual_start, actual_end); open while the vehicle is with the client. The
     database excludes two non-cancelled rentals of one vehicle with overlapping periods, so two
@@ -197,12 +201,20 @@ class Rental(models.Model):
     vehicle_card = models.ForeignKey(
         "fleet.VehicleCard", on_delete=models.PROTECT, related_name="+"
     )
-    client = models.ForeignKey("parties.ClientCard", on_delete=models.PROTECT, related_name="+")
-    tariff = models.ForeignKey(Tariff, on_delete=models.PROTECT, related_name="+")
-    tariff_snapshot = models.JSONField()
+    client = models.ForeignKey(
+        "parties.ClientCard", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    tariff = models.ForeignKey(
+        Tariff, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    tariff_snapshot = models.JSONField(null=True, blank=True)
     calc_timezone = models.CharField(max_length=64)
-    issue_location = models.ForeignKey(Location, on_delete=models.PROTECT, related_name="+")
-    issue_place_kind = models.CharField(max_length=10, choices=PlaceKind.choices)
+    issue_location = models.ForeignKey(
+        Location, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    issue_place_kind = models.CharField(
+        max_length=10, choices=PlaceKind.choices, blank=True, default=""
+    )
     issue_place_note = models.CharField(max_length=500, blank=True, default="")
     planned_end = models.DateTimeField(null=True, blank=True)
     # Any location of the company may be named at issue, without rights there (decision 22.10).
@@ -216,9 +228,24 @@ class Rental(models.Model):
         max_length=10, choices=PlaceKind.choices, blank=True, default=""
     )
     return_place_note = models.CharField(max_length=500, blank=True, default="")
-    actual_start = models.DateTimeField()
+    actual_start = models.DateTimeField(null=True, blank=True)
     actual_end = models.DateTimeField(null=True, blank=True)
-    actual_period = DateTimeRangeField()
+    actual_period = DateTimeRangeField(null=True, blank=True)
+    # Booking (§ 14.1): own number inside the company (customer's decision of 26.10.2026), the
+    # planned start and the period it holds.
+    booking_number = models.PositiveIntegerField(null=True, blank=True)
+    planned_start = models.DateTimeField(null=True, blank=True)
+    booking_period = DateTimeRangeField(null=True, blank=True)
+    booking_contact = models.CharField(max_length=200, blank=True, default="")
+    booking_comment = models.CharField(max_length=1000, blank=True, default="")
+    # Auto-cancel at no-show (§ 14.8.1): the rule applied at creation and its moment.
+    auto_cancel_rule = models.JSONField(null=True, blank=True)
+    auto_cancel_at = models.DateTimeField(null=True, blank=True)
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    cancel_reason = models.CharField(max_length=500, blank=True, default="")
+    # The deposit of this rental changed or cancelled before the issue without changing the
+    # tariff (§ 14.7.3): {"required", "amount", "reason"}.
+    deposit_override = models.JSONField(null=True, blank=True)
     state = models.CharField(max_length=10, choices=State.choices)
     formalization_completed_at = models.DateTimeField(null=True, blank=True)
     created_by_user_id = models.UUIDField()
@@ -231,6 +258,44 @@ class Rental(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["company", "id"], name="rental_company_id_uniq"),
             ExclusionConstraint(
+                name="rental_booking_no_overlap",
+                expressions=[
+                    ("vehicle_card", RangeOperators.EQUAL),
+                    ("booking_period", RangeOperators.OVERLAPS),
+                ],
+                condition=Q(state="booked"),
+            ),
+            models.UniqueConstraint(
+                fields=["company", "booking_number"],
+                condition=Q(booking_number__isnull=False),
+                name="rental_booking_number_uniq",
+            ),
+            # § 14.4.4: an issued rental has its client, tariff, issue location and start.
+            models.CheckConstraint(
+                condition=~Q(state__in=["active", "returned"])
+                | (
+                    Q(client__isnull=False)
+                    & Q(tariff__isnull=False)
+                    & Q(tariff_snapshot__isnull=False)
+                    & Q(issue_location__isnull=False)
+                    & ~Q(issue_place_kind="")
+                    & Q(actual_start__isnull=False)
+                    & Q(actual_period__isnull=False)
+                ),
+                name="rental_issued_complete",
+            ),
+            # § 14.1.9: a booking has a vehicle and planned start and end.
+            models.CheckConstraint(
+                condition=~Q(state="booked")
+                | (
+                    Q(planned_start__isnull=False)
+                    & Q(planned_end__isnull=False)
+                    & Q(booking_period__isnull=False)
+                    & Q(planned_end__gt=models.F("planned_start"))
+                ),
+                name="rental_booking_complete",
+            ),
+            ExclusionConstraint(
                 name="rental_vehicle_no_overlap",
                 expressions=[
                     ("vehicle_card", RangeOperators.EQUAL),
@@ -239,11 +304,13 @@ class Rental(models.Model):
                 condition=Q(state__in=["active", "returned"]),
             ),
             models.CheckConstraint(
-                condition=Q(issue_place_kind="location") | ~Q(issue_place_note=""),
+                condition=Q(issue_place_kind__in=["location", ""]) | ~Q(issue_place_note=""),
                 name="rental_other_place_described",
             ),
             models.CheckConstraint(
-                condition=Q(actual_end__isnull=True) | Q(actual_end__gt=models.F("actual_start")),
+                condition=Q(actual_end__isnull=True)
+                | Q(actual_start__isnull=True)
+                | Q(actual_end__gt=models.F("actual_start")),
                 name="rental_end_after_start",
             ),
             models.CheckConstraint(
@@ -297,3 +364,42 @@ class RentalCalculation(models.Model):
 
     def __str__(self) -> str:
         return f"{self.reason} #{self.seq}: {self.base_amount} {self.currency}"
+
+
+class RentalPolicy(models.Model):
+    """Auto-cancel of a booking at no-show (§ 14.8.1): off by default; turned on for the whole
+    company (location empty) or for a rental location, with the wait after the planned start.
+    A booking keeps the rule applied at its creation; a later change acts on new bookings."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    location = models.ForeignKey(
+        Location, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    auto_cancel_enabled = models.BooleanField(default=False)
+    auto_cancel_after_minutes = models.PositiveIntegerField(null=True, blank=True)
+    updated_by_user_id = models.UUIDField()
+    updated_at = models.DateTimeField(default=now)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "rental_policy"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company"],
+                condition=Q(location__isnull=True),
+                name="rental_policy_company_uniq",
+            ),
+            models.UniqueConstraint(
+                fields=["company", "location"],
+                condition=Q(location__isnull=False),
+                name="rental_policy_location_uniq",
+            ),
+            models.CheckConstraint(
+                condition=Q(auto_cancel_enabled=False) | Q(auto_cancel_after_minutes__isnull=False),
+                name="rental_policy_wait_set",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"policy {self.company_id}:{self.location_id}"

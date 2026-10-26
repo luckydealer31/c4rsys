@@ -48,29 +48,35 @@ def acceptance_location(rental: Rental, place_kind: str, location_id: UUID) -> U
 
 def recalculate(ctx: CommandContext, rental: Rental, reason: str) -> ChargeEntry | None:
     """Base cost by the actual period (§ 14.5.3) as the rental's charge."""
-    if rental.actual_end is None:
-        raise RuntimeError("Only a finished period is charged")
-    terms = pricing.terms_from_snapshot(rental.tariff_snapshot)
-    result = pricing.calculate(terms, rental.actual_start, rental.actual_end)
+    snapshot, start, end, client_id = (
+        rental.tariff_snapshot,
+        rental.actual_start,
+        rental.actual_end,
+        rental.client_id,
+    )
+    if end is None or start is None or snapshot is None or client_id is None:
+        raise RuntimeError("Only a finished period of an issued rental is charged")
+    terms = pricing.terms_from_snapshot(snapshot)
+    result = pricing.calculate(terms, start, end)
     return charges.set_charge(
         ctx,
         company_id=rental.company_id,
         order_id=rental.order_id,
-        client_id=rental.client_id,
+        client_id=client_id,
         source_type=ChargeEntry.SourceType.RENTAL_BASE,
         source_id=rental.id,
         amount=result.base_amount,
         currency=result.currency,
         reason=reason,
         calculation={
-            "actual_start": rental.actual_start.isoformat(),
-            "actual_end": rental.actual_end.isoformat(),
+            "actual_start": start.isoformat(),
+            "actual_end": end.isoformat(),
             "billable_minutes": int(result.billable.total_seconds() // 60),
             "units": result.units,
             "rate": str(result.rate) if result.rate is not None else None,
             "base_amount": str(result.base_amount),
-            "tariff_id": rental.tariff_snapshot.get("tariff_id"),
-            "tariff_version": rental.tariff_snapshot.get("tariff_version"),
+            "tariff_id": snapshot.get("tariff_id"),
+            "tariff_version": snapshot.get("tariff_version"),
         },
     )
 
@@ -93,7 +99,7 @@ def accept_return(ctx: CommandContext, request: ReturnRequest) -> tuple[Rental, 
         raise errors.business_rule("RENTAL_NOT_ACTIVE", state=rental.state)
     if request.actual_end > now:
         raise errors.business_rule("FUTURE_TIME_NOT_ALLOWED", field="actual_end")
-    if request.actual_end <= rental.actual_start:
+    if rental.actual_start is None or request.actual_end <= rental.actual_start:
         raise errors.validation_error("actual_end", code="PERIOD_INVALID")
     location_id = acceptance_location(rental, request.place_kind, request.return_location_id)
     locations.require_usable(company_id, location_id, "return_location_id")

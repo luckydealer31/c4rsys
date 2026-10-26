@@ -78,6 +78,9 @@ PERMISSIONS: dict[str, str] = {
     "counterparty.archive": "counterparty",
     "counterparty.restore": "counterparty",
     "rental.view": "rental",
+    # Bookings (§ 14.1, § 23.2.2): create, change, cancel, auto-cancel moment — one right
+    # (customer's decision of 26.10.2026).
+    "rental.book": "rental",
     "rental.issue": "rental",
     "rental.accept_return": "rental",
     "rental.complete_formalization": "rental",
@@ -111,6 +114,7 @@ SYSTEM_SETS: dict[str, tuple[str, ...]] = {
         "client.create",
         "client.edit",
         "rental.view",
+        "rental.book",
         "rental.issue",
         "rental.accept_return",
         "rental.complete_formalization",

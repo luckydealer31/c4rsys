@@ -300,6 +300,8 @@ def test_saved_inspection_is_immutable(owner: Client, s: Scenario) -> None:
 def test_database_excludes_overlapping_rentals(owner: Client, s: Scenario) -> None:
     issue(owner, s)
     rental = Rental.objects.get()
+    assert rental.actual_start is not None
+    start = rental.actual_start
 
     with pytest.raises(IntegrityError), transaction.atomic():
         Rental.objects.create(
@@ -312,8 +314,8 @@ def test_database_excludes_overlapping_rentals(owner: Client, s: Scenario) -> No
             calc_timezone="UTC",
             issue_location_id=rental.issue_location_id,
             issue_place_kind="location",
-            actual_start=rental.actual_start + timedelta(days=5),
-            actual_period=(rental.actual_start + timedelta(days=5), None),
+            actual_start=start + timedelta(days=5),
+            actual_period=(start + timedelta(days=5), None),
             state="active",
             created_by_user_id=rental.created_by_user_id,
         )

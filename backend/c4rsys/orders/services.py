@@ -96,10 +96,11 @@ def create_order(
     ctx: CommandContext,
     *,
     company_id: UUID,
-    client_id: UUID,
+    client_id: UUID | None,
     responsible_employment_id: UUID | None,
 ) -> Order:
-    """A client order created by the operation that needs it (issue of a vehicle at stage 1).
+    """A client order created by the operation that needs it (an issue or a booking). A booking
+    may create it before the client is known: «client not specified» (§ 12.1.8).
     The number is the next one inside the company; the responsible employee is the creator by
     default. Creating the order does not start its operations (§ 12.2.3)."""
     order = Order.objects.create(
@@ -116,13 +117,34 @@ def create_order(
         object_id=order.id,
         after={
             "number": order.number,
-            "client": str(client_id),
+            "client": str(client_id) if client_id else None,
             "responsible_employment": str(responsible_employment_id)
             if responsible_employment_id
             else None,
         },
     )
     return order
+
+
+def assign_client(ctx: CommandContext, order: Order, client_id: UUID) -> None:
+    """The client of an order created without one is set later; it is the same order, not a new
+    one (§ 12.1.8). A client once set is not changed this way."""
+    if order.is_internal:
+        raise errors.business_rule("ORDER_INTERNAL", field="order_id")
+    if order.client_id is not None:
+        if order.client_id != client_id:
+            raise errors.business_rule("ORDER_CLIENT_MISMATCH", field="client_id")
+        return
+    order.client_id = client_id
+    order.version += 1
+    order.save(update_fields=["client", "version", "updated_at"])
+    ctx.audit(
+        "order.client_assigned",
+        object_type="order",
+        object_id=order.id,
+        before={"client": None},
+        after={"client": str(client_id)},
+    )
 
 
 def open_order_of_client(company_id: UUID, order_id: UUID, client_id: UUID | None = None) -> Order:

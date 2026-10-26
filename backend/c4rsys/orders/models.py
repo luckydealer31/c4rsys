@@ -45,10 +45,10 @@ class Order(models.Model):
             models.UniqueConstraint(
                 fields=["company", "number"], name="orders_company_number_uniq"
             ),
-            # A client order has a client; an internal one is the company's own (§ 12.1.3).
+            # An internal order is the company's own (§ 12.1.3); a client order created by a
+            # booking may wait for its client, «client not specified» (§ 12.1.8).
             models.CheckConstraint(
-                condition=Q(is_internal=True, client__isnull=True)
-                | Q(is_internal=False, client__isnull=False),
+                condition=Q(is_internal=False) | Q(client__isnull=True),
                 name="orders_client_or_internal",
             ),
             models.CheckConstraint(

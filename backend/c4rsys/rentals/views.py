@@ -22,7 +22,16 @@ from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
 from c4rsys.platform.models import Currency
 from c4rsys.platform.money import round_money
-from c4rsys.rentals import formalization, issue, pricing, rentals, returns, setup, tariffs
+from c4rsys.rentals import (
+    bookings,
+    formalization,
+    issue,
+    pricing,
+    rentals,
+    returns,
+    setup,
+    tariffs,
+)
 from c4rsys.rentals.models import Rental, Tariff
 
 NAME_MAX = 150
@@ -312,10 +321,10 @@ def _rental_payload(rental: Rental) -> dict[str, Any]:
         "id": str(rental.id),
         "order_id": str(rental.order_id),
         "vehicle_card_id": str(rental.vehicle_card_id),
-        "client_id": str(rental.client_id),
-        "tariff_id": str(rental.tariff_id),
+        "client_id": str(rental.client_id) if rental.client_id else None,
+        "tariff_id": str(rental.tariff_id) if rental.tariff_id else None,
         "state": rental.state,
-        "issue_location_id": str(rental.issue_location_id),
+        "issue_location_id": str(rental.issue_location_id) if rental.issue_location_id else None,
         "issue_place_kind": rental.issue_place_kind,
         "issue_place_note": rental.issue_place_note,
         "calc_timezone": rental.calc_timezone,
@@ -343,6 +352,34 @@ def _rental_payload(rental: Rental) -> dict[str, Any]:
         # shown apart from the debt for the rental (§ 14.3.3).
         "deposit": deposits.payload(rental),
         "version": rental.version,
+        **_booking_payload(rental),
+    }
+
+
+def _booking_payload(rental: Rental) -> dict[str, Any]:
+    """A booking (§ 14.1): own number, planned start, contact, comment, the auto-cancel moment,
+    a late return touching it (§ 14.6.2) and a different current location of the vehicle
+    (§ 14.2.2)."""
+    if rental.booking_number is None:
+        return {"booking": None}
+    card = fleet.get_card(rental.company_id, rental.vehicle_card_id)
+    return {
+        "booking": {
+            "number": rental.booking_number,
+            "planned_start": _utc(rental.planned_start),
+            "contact": rental.booking_contact,
+            "comment": rental.booking_comment,
+            "auto_cancel_at": _utc(rental.auto_cancel_at),
+            "auto_cancel_rule": rental.auto_cancel_rule,
+            "cancelled_at": _utc(rental.cancelled_at),
+            "cancel_reason": rental.cancel_reason,
+            "deposit_override": rental.deposit_override,
+            "delay_conflict": bookings.delay_conflict(rental),
+            "vehicle_location_id": str(card.accounting_location_id)
+            if card.accounting_location_id
+            else None,
+            "client_missing": rental.client_id is None,
+        }
     }
 
 
@@ -398,6 +435,7 @@ def rental_issue(request: HttpRequest, cmp: str) -> JsonResponse:
         planned_end=_moment(data, "planned_end", required=False),
         order_id=order_id,
         planned_return_location_id=_optional_uuid(data, "planned_return_location_id"),
+        booking_id=_optional_uuid(data, "booking_id"),
     )
 
     def handler(ctx: CommandContext) -> CommandResult:
@@ -409,7 +447,9 @@ def rental_issue(request: HttpRequest, cmp: str) -> JsonResponse:
                 "inspection_id": str(inspection.id),
                 "order_created": created_order,
                 # Policies of a new company (§ 14.3.6): client debt only warns (§ 14.3.5).
-                "warnings": _debt_warning(rental.company_id, rental.client_id),
+                "warnings": _debt_warning(rental.company_id, rental.client_id)
+                if rental.client_id
+                else [],
             },
         )
 
@@ -540,6 +580,8 @@ def inspection_save(request: HttpRequest, cmp: str, inspection_id: UUID) -> Json
     data = parse_json(request)
     conducted = _flag(data, "inspection_conducted")
     location_id = rental.return_location_id or rental.issue_location_id
+    if location_id is None:  # inspections belong to issued rentals
+        raise errors.not_found()
     _require_at(actor, location_id, conducted)
     odometer = _reading(data, "odometer", "ODOMETER_REQUIRED", 1)
     fuel = _reading(data, "fuel", "FUEL_REQUIRED", 2)

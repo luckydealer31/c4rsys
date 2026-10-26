@@ -44,17 +44,27 @@ class DepositTerms:
 
 
 def deposit_terms(rental: Rental) -> DepositTerms:
-    snapshot = rental.tariff_snapshot
+    """A deposit changed or cancelled before the issue (§ 14.7.3) replaces the tariff's; a
+    booking without a tariff requires none yet."""
+    snapshot = rental.tariff_snapshot or {}
     deposit = snapshot.get("vehicle_terms", {}).get("deposit") or {}
+    if rental.deposit_override is not None:
+        deposit = {**deposit, **rental.deposit_override}
     required = bool(deposit.get("required"))
     return DepositTerms(
         required=required,
         amount=Decimal(deposit["amount"]) if required and deposit.get("amount") else Decimal(0),
-        currency=snapshot["currency"],
+        currency=snapshot.get("currency") or _company_currency(rental),
         hold_days=deposit.get("hold_days") if required else None,
         issued=rental.state in (Rental.State.ACTIVE, Rental.State.RETURNED),
         returned_at=rental.actual_end if rental.state == Rental.State.RETURNED else None,
     )
+
+
+def _company_currency(rental: Rental) -> str:
+    from c4rsys.companies.models import Company
+
+    return Company.objects.get(pk=rental.company_id).main_currency_id or "USD"
 
 
 def lock_rental(company_id: UUID, rental_id: UUID) -> Rental:
@@ -75,9 +85,27 @@ def returned_with_deposit_term(before: datetime) -> QuerySet[Rental]:
     )
 
 
-def current_calculation(rental: Rental, now: datetime | None = None) -> dict[str, Any]:
+def current_calculation(rental: Rental, now: datetime | None = None) -> dict[str, Any] | None:
     """While the rental is active the end is the current moment and the result is the current,
     not the actual, cost (§ 13.6.7). Free time is not entered at stage 1."""
+    if rental.tariff_snapshot is None:
+        return None
+    if rental.actual_start is None:
+        # A booking: the preliminary cost of the planned period (§ 13.6.7); not before the
+        # tariff is chosen (§ 14.1.9).
+        if rental.planned_start is None or rental.planned_end is None:
+            return None
+        terms = pricing.terms_from_snapshot(rental.tariff_snapshot)
+        result = pricing.calculate(terms, rental.planned_start, rental.planned_end)
+        return {
+            "kind": "preliminary",
+            "end": rental.planned_end.astimezone(UTC).isoformat(),
+            "billable_minutes": int(result.billable.total_seconds() // 60),
+            "units": result.units,
+            "rate": str(result.rate) if result.rate is not None else None,
+            "base_amount": str(result.base_amount),
+            "currency": result.currency,
+        }
     end = rental.actual_end or (now or timezone.now())
     terms = pricing.terms_from_snapshot(rental.tariff_snapshot)
     result = pricing.calculate(terms, rental.actual_start, max(end, rental.actual_start))
@@ -120,7 +148,9 @@ def record_control_versions(
     for rental in Rental.objects.select_for_update().filter(
         company_id=company_id, order_id=order_id
     ):
-        if rental.state in (Rental.State.CANCELLED, Rental.State.ANNULLED):
+        if rental.state in (Rental.State.CANCELLED, Rental.State.ANNULLED, Rental.State.BOOKED):
+            continue
+        if rental.actual_start is None or rental.tariff_snapshot is None:
             continue
         end = rental.actual_end or max(now, rental.actual_start)
         terms = pricing.terms_from_snapshot(rental.tariff_snapshot)

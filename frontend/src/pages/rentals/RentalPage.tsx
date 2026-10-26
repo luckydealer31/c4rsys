@@ -14,6 +14,7 @@ import { clientName } from "../clients/ClientsPage";
 import { JournalTable } from "../settings/EmployeesPage";
 import { useLocations } from "../settings/LocationsPage";
 import { useVehicles } from "../vehicles/VehiclesPage";
+import { BookingCard } from "./Booking";
 import { DepositCard } from "./Deposit";
 import { CalculationView, Warnings } from "./IssuePage";
 
@@ -63,6 +64,8 @@ export function RentalPage() {
   const vehicle = vehicles.data?.vehicles.find((v) => v.id === current.vehicle_card_id);
   const zone = current.calc_timezone;
   const when = (value: string | null) => formatMoment(value, zone, i18n.language);
+  // A booking has no return, formalization or settlement yet (§ 14.1); a cancelled one never.
+  const operated = current.state !== "booked" && current.state !== "cancelled";
 
   async function refresh(next?: Rental) {
     if (next) queryClient.setQueryData<RentalResponse>(key, { rental: next });
@@ -93,11 +96,11 @@ export function RentalPage() {
           </dd>
           <dt>{t("rentals.tariff")}</dt>
           <dd>
-            {current.tariff_snapshot.name} · {current.tariff_snapshot.currency}
+            {current.tariff_snapshot ? `${current.tariff_snapshot.name} · ${current.tariff_snapshot.currency}` : "—"}
           </dd>
           <dt>{t("rentals.issue_location")}</dt>
           <dd>
-            {locationName.get(current.issue_location_id) ?? "—"}
+            {locationName.get(current.issue_location_id ?? "") ?? "—"}
             {current.issue_place_kind === "other" ? ` · ${current.issue_place_note}` : ""}
           </dd>
           <dt>{t("rentals.actual_start")}</dt>
@@ -114,14 +117,26 @@ export function RentalPage() {
         <p className="muted small">{t("rentals.time_zone", { zone })}</p>
       </Card>
 
+      {current.booking ? (
+        <Card title={t("bookings.title", { number: current.booking.number })}>
+          <BookingCard rental={current} onDone={refresh} />
+        </Card>
+      ) : null}
+
       <Card title={t("rentals.calculation")}>
-        <CalculationView calculation={current.calculation} />
+        {current.calculation ? (
+          <CalculationView calculation={current.calculation} />
+        ) : (
+          <p className="muted">{t("bookings.no_calculation")}</p>
+        )}
       </Card>
 
       <Card title={t("deposit.title")}>
         <DepositCard rental={current} onDone={() => refresh()} />
       </Card>
 
+      {operated ? (
+      <>
       <Card title={t("rentals.block_returned")}>
         {current.state === "active" ? (
           can("rental.accept_return") ? (
@@ -153,6 +168,8 @@ export function RentalPage() {
           <Link to={companyPath(company, `/orders/${current.order_id}`)}>{t("rentals.open_order")}</Link>
         </p>
       </Card>
+      </>
+      ) : null}
 
       <div className="actions">
         <button type="button" className="secondary" onClick={() => setShowHistory(!showHistory)}>
@@ -176,7 +193,7 @@ function ReturnForm({ rental, onDone }: { rental: Rental; onDone: (next?: Rental
   const company = useCompany();
   const can = useCan();
   const locations = useLocations();
-  const [locationId, setLocationId] = useState(rental.planned_return_location_id ?? rental.issue_location_id);
+  const [locationId, setLocationId] = useState(rental.planned_return_location_id ?? rental.issue_location_id ?? "");
   const zone = locations.data?.locations.find((l) => l.id === locationId)?.timezone ?? rental.calc_timezone;
   const [end, setEnd] = useState(() => toLocalInput(new Date(), rental.calc_timezone));
   const [placeKind, setPlaceKind] = useState<"location" | "other">("location");

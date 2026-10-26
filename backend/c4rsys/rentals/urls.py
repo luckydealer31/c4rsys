@@ -1,5 +1,6 @@
 from django.urls import path
 
+from c4rsys.rentals import booking_views as bv
 from c4rsys.rentals import views
 
 urlpatterns = [
@@ -15,6 +16,14 @@ urlpatterns = [
         views.tariff_vehicle_terms,
     ),
     path("c/<str:cmp>/rentals", views.rental_list),
+    path("c/<str:cmp>/bookings", bv.booking_create),
+    path("c/<str:cmp>/bookings/availability", bv.availability),
+    path("c/<str:cmp>/bookings/<uuid:rental_id>", bv.booking_update),
+    path("c/<str:cmp>/bookings/<uuid:rental_id>/vehicle", bv.booking_vehicle),
+    path("c/<str:cmp>/bookings/<uuid:rental_id>/cancel", bv.booking_cancel),
+    path("c/<str:cmp>/bookings/<uuid:rental_id>/auto-cancel", bv.booking_auto_cancel),
+    path("c/<str:cmp>/bookings/<uuid:rental_id>/deposit", bv.booking_deposit),
+    path("c/<str:cmp>/rental-policy", bv.policy),
     path("c/<str:cmp>/rentals/issue", views.rental_issue),
     path("c/<str:cmp>/rentals/quote", views.rental_quote),
     path("c/<str:cmp>/vehicles/<uuid:card_id>/tariffs", views.vehicle_tariffs),

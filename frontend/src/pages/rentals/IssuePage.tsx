@@ -7,7 +7,7 @@ import { api, ApiError } from "../../api/client";
 import { useApi } from "../../api/queries";
 import type { Calculation, Client, PriceRange, Rental, Warning } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { Card, ErrorMessage, Field } from "../../components/ui";
+import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { fromLocalInput, toLocalInput } from "../../time";
 import { ClientForm, clientName } from "../clients/ClientsPage";
@@ -21,19 +21,61 @@ type VehicleTariff = { id: string; name: string; currency: string; ranges: Price
  * odometer, fuel, planned end. The preliminary calculation and warnings come before confirming
  * (§ 13.6.6). */
 export function IssuePage() {
+  const company = useCompany();
+  const [params] = useSearchParams();
+  // § 14.4.1: the issue by a booking starts from what the booking already has.
+  const bookingId = params.get("booking") ?? "";
+  const booking = useApi<{ rental: Rental }>(
+    ["rental", company.public_id, bookingId],
+    `/c/${company.public_id}/rentals/${bookingId}`,
+    Boolean(bookingId),
+  );
+  const clientId = booking.data?.rental.client_id ?? "";
+  const bookedClient = useApi<{ client: Client }>(
+    ["client", company.public_id, clientId],
+    `/c/${company.public_id}/clients/${clientId}`,
+    Boolean(clientId),
+  );
+  if (bookingId && !booking.data) {
+    return <div className="page">{booking.error ? <ErrorMessage error={booking.error as ApiError} /> : <Loading />}</div>;
+  }
+  if (clientId && bookedClient.isLoading) {
+    return (
+      <div className="page">
+        <Loading />
+      </div>
+    );
+  }
+  return (
+    <IssueForm
+      vehicle={params.get("vehicle") ?? ""}
+      booking={booking.data?.rental ?? null}
+      bookedClient={bookedClient.data?.client ?? null}
+    />
+  );
+}
+
+function IssueForm({
+  vehicle: preset,
+  booking,
+  bookedClient,
+}: {
+  vehicle: string;
+  booking: Rental | null;
+  bookedClient: Client | null;
+}) {
   const { t } = useTranslation();
   const company = useCompany();
   const can = useCan();
   const navigate = useNavigate();
   const client = useQueryClient();
-  const [params] = useSearchParams();
   const vehicles = useVehicles();
   const locations = useLocations();
   const rentals = useRentals(can("rental.view"));
   const busy = new Set((rentals.data?.rentals ?? []).filter((r) => r.state === "active").map((r) => r.vehicle_card_id));
-  const [vehicleId, setVehicleId] = useState(params.get("vehicle") ?? "");
+  const [vehicleId, setVehicleId] = useState(booking?.vehicle_card_id ?? preset);
   const vehicle = vehicles.data?.vehicles.find((v) => v.id === vehicleId);
-  const [locationId, setLocationId] = useState("");
+  const [locationId, setLocationId] = useState(booking?.issue_location_id ?? "");
   const location = (locations.data?.locations ?? []).find((l) => l.id === (locationId || vehicle?.location_id));
   const zone = location?.timezone ?? company.timezone ?? "UTC";
   const tariffs = useApi<{ tariffs: VehicleTariff[] }>(
@@ -41,14 +83,18 @@ export function IssuePage() {
     `/c/${company.public_id}/vehicles/${vehicleId}/tariffs`,
     Boolean(vehicleId),
   );
-  const [chosen, setChosen] = useState<Client | null>(null);
+  const [chosen, setChosen] = useState<Client | null>(bookedClient);
   const [newClient, setNewClient] = useState(false);
-  const [tariffId, setTariffId] = useState("");
-  const [placeKind, setPlaceKind] = useState<"location" | "other">("location");
-  const [placeNote, setPlaceNote] = useState("");
+  const [tariffId, setTariffId] = useState(booking?.tariff_id ?? "");
+  const [placeKind, setPlaceKind] = useState<"location" | "other">(
+    booking?.issue_place_kind === "other" ? "other" : "location",
+  );
+  const [placeNote, setPlaceNote] = useState(booking?.issue_place_note ?? "");
   const [start, setStart] = useState(() => toLocalInput(new Date(), zone));
-  const [plannedEnd, setPlannedEnd] = useState("");
-  const [plannedReturn, setPlannedReturn] = useState("");
+  const [plannedEnd, setPlannedEnd] = useState(() =>
+    booking?.planned_end ? toLocalInput(new Date(booking.planned_end), zone) : "",
+  );
+  const [plannedReturn, setPlannedReturn] = useState(booking?.planned_return_location_id ?? "");
   const [odometer, setOdometer] = useState("");
   const [fuel, setFuel] = useState("");
   const [conducted, setConducted] = useState(false);
@@ -94,6 +140,7 @@ export function IssuePage() {
     };
     if (plannedEnd) body.planned_end = fromLocalInput(plannedEnd, zone);
     if (plannedReturn) body.planned_return_location_id = plannedReturn;
+    if (booking) body.booking_id = booking.id;
     const result = await issue.run(body);
     if (result) {
       await client.invalidateQueries({ queryKey: ["rentals", company.public_id] });
@@ -106,13 +153,14 @@ export function IssuePage() {
 
   return (
     <div className="page">
-      <h1>{t("rentals.issue")}</h1>
+      <h1>{booking?.booking ? t("bookings.issue_title", { number: booking.booking.number }) : t("rentals.issue")}</h1>
       <form onSubmit={submit}>
         <Card title={t("rentals.vehicle_and_client")}>
           <div className="row">
             <Field label={t("rentals.vehicle")}>
               <select
                 value={vehicleId}
+                disabled={Boolean(booking)}
                 onChange={(e) => {
                   setVehicleId(e.target.value);
                   setTariffId("");
@@ -121,7 +169,7 @@ export function IssuePage() {
               >
                 <option value="">—</option>
                 {(vehicles.data?.vehicles ?? [])
-                  .filter((v) => v.rental_readiness.ready && !busy.has(v.id))
+                  .filter((v) => v.id === vehicleId || (v.rental_readiness.ready && !busy.has(v.id)))
                   .map((v) => (
                     <option key={v.id} value={v.id}>
                       {v.name} · {v.vehicle_id}

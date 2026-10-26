@@ -23,10 +23,12 @@ import { DashboardsPage } from "./pages/company/DashboardsPage";
 import { ContextSectionPage } from "./pages/contexts/ContextLocations";
 import { FinancePage } from "./pages/finance/FinancePage";
 import { OrderPage, OrdersPage } from "./pages/orders/OrdersPage";
+import { BookingPage } from "./pages/rentals/Booking";
 import { IssuePage } from "./pages/rentals/IssuePage";
 import { RentalPage } from "./pages/rentals/RentalPage";
 import { RentalsPage } from "./pages/rentals/RentalsPage";
 import { CompanyProfilePage } from "./pages/settings/CompanyProfilePage";
+import { RentalPolicyPage } from "./pages/settings/RentalPolicyPage";
 import { LocationPage } from "./pages/settings/LocationsPage";
 import { EmployeePage } from "./pages/settings/EmployeesPage";
 import { SettingsPage } from "./pages/settings/SettingsPage";
@@ -89,6 +91,7 @@ export function App() {
         <Route path="setup" element={<SetupPage />} />
         <Route path="rentals" element={<RentalsPage />} />
         <Route path="rentals/new" element={<IssuePage />} />
+        <Route path="rentals/book" element={<BookingPage />} />
         <Route path="rentals/:id" element={<RentalPage />} />
         <Route path="orders" element={<OrdersPage />} />
         <Route path="orders/:id" element={<OrderPage />} />
@@ -116,6 +119,7 @@ export function App() {
         <Route path="finance" element={<FinancePage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="settings/company" element={<CompanyProfilePage />} />
+        <Route path="settings/rental" element={<RentalPolicyPage />} />
         <Route path="settings/locations" element={<Navigate to="../company" replace />} />
         <Route path="rentals/tariffs" element={<TariffsPage />} />
         <Route path="rentals/tariffs/:id" element={<TariffPage />} />

@@ -295,14 +295,34 @@ export type RentalSummary = {
   id: string;
   order_id: string;
   vehicle_card_id: string;
-  client_id: string;
+  client_id: string | null;
   state: string;
-  issue_location_id: string;
+  issue_location_id: string | null;
   return_location_id: string | null;
-  actual_start: string;
+  actual_start: string | null;
   actual_end: string | null;
+  planned_end?: string | null;
   deposit?: DepositInfo;
+  booking?: Booking | null;
 };
+
+/** A booking (§ 14.1): own number; a rental in state «booked» until the issue. */
+export type Booking = {
+  number: number;
+  planned_start: string;
+  contact: string;
+  comment: string;
+  auto_cancel_at: string | null;
+  auto_cancel_rule: { enabled?: boolean; after_minutes?: number | null; source?: string } | null;
+  cancelled_at: string | null;
+  cancel_reason: string;
+  deposit_override: { required: boolean; amount: string | null; reason: string } | null;
+  delay_conflict: { rental: string; planned_end: string | null; overdue: boolean } | null;
+  vehicle_location_id: string | null;
+  client_missing: boolean;
+};
+
+export type BookingConflict = { kind: "booking" | "rental"; id: string; number?: number; state?: string };
 
 /** The deposit of a rental in its currency (§ 14.7.3). */
 export type DepositInfo = {
@@ -351,8 +371,8 @@ export type InspectionView = {
 };
 
 export type Rental = RentalSummary & {
-  tariff_id: string;
-  issue_place_kind: "location" | "other";
+  tariff_id: string | null;
+  issue_place_kind: "location" | "other" | "";
   issue_place_note: string;
   calc_timezone: string;
   planned_end: string | null;
@@ -363,8 +383,8 @@ export type Rental = RentalSummary & {
   overdue: boolean;
   inspections: { issue: InspectionView | null; return: InspectionView | null; fuel_differs: boolean | null };
   formalization: { completed_at: string | null; missing: string[] };
-  tariff_snapshot: { name: string; currency: string; ranges: PriceRange[] };
-  calculation: Calculation;
+  tariff_snapshot: { name: string; currency: string; ranges: PriceRange[] } | null;
+  calculation: Calculation | null;
   version: number;
 };
 
