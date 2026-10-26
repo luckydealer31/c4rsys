@@ -22,7 +22,7 @@ from c4rsys.inspections.models import Inspection
 from c4rsys.orders import services as orders
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
-from c4rsys.rentals import pricing
+from c4rsys.rentals import issue_policies, pricing
 from c4rsys.rentals.models import Rental
 
 
@@ -120,9 +120,7 @@ def accept_return(ctx: CommandContext, request: ReturnRequest) -> tuple[Rental, 
         place_kind=request.place_kind,
         place_location_id=location_id,
         place_note=request.place_note,
-        check_status=Inspection.CheckStatus.CONDUCTED
-        if request.inspection_conducted
-        else Inspection.CheckStatus.NOT_REQUIRED,
+        check_status=_check_status(rental.company_id, location_id, request.inspection_conducted),
         odometer=request.odometer,
         fuel=request.fuel,
     )
@@ -162,6 +160,17 @@ def accept_return(ctx: CommandContext, request: ReturnRequest) -> tuple[Rental, 
     return rental, inspection
 
 
+def _check_status(company_id: UUID, location_id: UUID | None, conducted: bool) -> str:
+    """A condition check required by the policy of the acceptance location and not done is
+    recorded as such: a conflict, never a refusal (§ 10.3.3, § 14.3.1)."""
+    if conducted:
+        return Inspection.CheckStatus.CONDUCTED
+    policy = issue_policies.policy_for(company_id, location_id)
+    if policy["inspection"] == "required":
+        return Inspection.CheckStatus.REQUIRED_NOT_DONE
+    return Inspection.CheckStatus.NOT_REQUIRED
+
+
 def save_return_readings(
     ctx: CommandContext,
     rental: Rental,
@@ -180,9 +189,7 @@ def save_return_readings(
         locked,
         odometer=odometer,
         fuel=fuel,
-        check_status=Inspection.CheckStatus.CONDUCTED
-        if conducted
-        else Inspection.CheckStatus.NOT_REQUIRED,
+        check_status=_check_status(rental.company_id, rental.return_location_id, conducted),
     )
     fleet.record_reading(
         ctx,

@@ -17,9 +17,17 @@ from c4rsys.fleet import services as fleet
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
-from c4rsys.rentals import bookings, rentals
+from c4rsys.rentals import bookings, issue_policies, rentals
 from c4rsys.rentals.models import RentalPolicy
-from c4rsys.rentals.views import _actor, _moment, _optional_uuid, _rental_payload, _uuid
+from c4rsys.rentals.places import Place
+from c4rsys.rentals.views import (
+    _actor,
+    _moment,
+    _optional_uuid,
+    _place_from,
+    _rental_payload,
+    _uuid,
+)
 
 BOOK = "rental.book"
 DEPOSIT = "finance.deposit.manage"
@@ -44,10 +52,12 @@ def _result(company_id: UUID, rental_id: UUID, status: int = 200) -> CommandResu
 
 
 def _encode(data: Any) -> dict[str, Any]:
-    return {
-        k: (str(v) if isinstance(v, UUID | Decimal | datetime) else v)
-        for k, v in data.__dict__.items()
-    }
+    def value(v: Any) -> Any:
+        if isinstance(v, Place):
+            return v.as_dict()
+        return str(v) if isinstance(v, UUID | Decimal | datetime) else v
+
+    return {k: value(v) for k, v in data.__dict__.items()}
 
 
 @require_POST
@@ -69,9 +79,7 @@ def booking_create(request: HttpRequest, cmp: str) -> JsonResponse:
         client_id=_optional_uuid(data, "client_id"),
         tariff_id=_optional_uuid(data, "tariff_id"),
         issue_location_id=location_id,
-        place_kind=get_str(data, "place_kind", max_length=10, required=False)
-        or ("location" if location_id else ""),
-        place_note=get_str(data, "place_note", max_length=500, required=False),
+        place=_place_from(data),
         planned_return_location_id=_optional_uuid(data, "planned_return_location_id"),
         contact=get_str(data, "contact", max_length=200, required=False),
         comment=get_str(data, "comment", max_length=1000, required=False),
@@ -95,8 +103,7 @@ def booking_update(request: HttpRequest, cmp: str, rental_id: UUID) -> JsonRespo
         client_id=_optional_uuid(data, "client_id"),
         tariff_id=_optional_uuid(data, "tariff_id"),
         issue_location_id=_optional_uuid(data, "issue_location_id"),
-        place_kind=_text(data, "place_kind", 10),
-        place_note=_text(data, "place_note", 500),
+        place=_place_from(data) if "place_kind" in data else None,
         planned_return_location_id=_optional_uuid(data, "planned_return_location_id"),
         contact=_text(data, "contact", 200),
         comment=_text(data, "comment", 1000),
@@ -271,3 +278,102 @@ def policy(request: HttpRequest, cmp: str) -> JsonResponse:
         "after_minutes": after,
     }
     return run_and_respond(request, "rental.policy", actor, payload, handler)
+
+
+# --- Issue policies and exceptions (§ 14.3.2, § 14.3.5–14.3.7, § 23.4.7) ----------------------
+
+AUTHORIZE = "rental.exception.authorize"
+DECIDE = "rental.exception.decide"
+
+
+@require_http_methods(["GET", "PUT"])
+def issue_policy(request: HttpRequest, cmp: str) -> JsonResponse:
+    """Policies of the issue for the company or a rental location (customer's decisions В2–В3)."""
+    context, actor = _actor(request, cmp)
+    location_id = _optional_uuid(dict(request.GET.items()), "location_id")
+    if request.method == "GET":
+        return JsonResponse(
+            {"policy": issue_policies.policy_payload(context.company.id, location_id)}
+        )
+    _require(actor, SETTINGS)
+    data = parse_json(request)
+    values = {name: str(data.get(name, "")) for name in issue_policies.FIELDS}
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        issue_policies.set_policy(ctx, context.company.id, location_id, values)
+        return CommandResult(
+            200, {"policy": issue_policies.policy_payload(context.company.id, location_id)}
+        )
+
+    payload = {"location_id": str(location_id) if location_id else None, **values}
+    return run_and_respond(request, "rental.issue_policy", actor, payload, handler)
+
+
+@require_POST
+def booking_exception(request: HttpRequest, cmp: str, rental_id: UUID) -> JsonResponse:
+    """Permits the issue of this booking in advance without the chosen requirements, with a
+    reason (§ 14.3.7; customer's decision В6)."""
+    context, actor = _actor(request, cmp)
+    booking = rentals.get_rental(context.company.id, rental_id)
+    _require(actor, AUTHORIZE, booking.issue_location_id)
+    data = parse_json(request)
+    raw = data.get("requirements")
+    if not isinstance(raw, list) or not all(isinstance(r, str) for r in raw):
+        raise errors.validation_error("requirements", code="CHOICE_REQUIRED")
+    reason = get_str(data, "reason", max_length=500)
+    expected_version = get_int(data, "expected_version")
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        issue_policies.grant(ctx, context.company.id, rental_id, raw, reason, expected_version)
+        return _result(context.company.id, rental_id)
+
+    payload = {
+        "rental_id": str(rental_id),
+        "requirements": raw,
+        "reason": reason,
+        "expected_version": expected_version,
+    }
+    return run_and_respond(request, "rental.issue_exception_grant", actor, payload, handler)
+
+
+@require_POST
+def booking_exception_revoke(request: HttpRequest, cmp: str, rental_id: UUID) -> JsonResponse:
+    context, actor = _actor(request, cmp)
+    booking = rentals.get_rental(context.company.id, rental_id)
+    _require(actor, AUTHORIZE, booking.issue_location_id)
+    expected_version = get_int(parse_json(request), "expected_version")
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        issue_policies.revoke(ctx, context.company.id, rental_id, expected_version)
+        return _result(context.company.id, rental_id)
+
+    payload = {"rental_id": str(rental_id), "expected_version": expected_version}
+    return run_and_respond(request, "rental.issue_exception_revoke", actor, payload, handler)
+
+
+@require_POST
+def exception_decide(request: HttpRequest, cmp: str, rental_id: UUID) -> JsonResponse:
+    """Confirms or rejects an exception recorded after the transfer (§ 14.3.7)."""
+    context, actor = _actor(request, cmp)
+    rental = rentals.get_rental(context.company.id, rental_id)
+    _require(actor, DECIDE, rental.issue_location_id)
+    data = parse_json(request)
+    decision = data.get("decision")
+    if decision not in ("confirm", "reject"):
+        raise errors.validation_error("decision", code="CHOICE_REQUIRED")
+    reason = get_str(data, "reason", max_length=500)
+    expected_version = get_int(data, "expected_version")
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        issue_policies.decide(
+            ctx, context.company.id, rental_id, decision == "confirm", reason, expected_version
+        )
+        return _result(context.company.id, rental_id)
+
+    payload = {
+        "rental_id": str(rental_id),
+        "decision": decision,
+        "reason": reason,
+        "expected_version": expected_version,
+    }
+    return run_and_respond(request, "rental.issue_exception_decide", actor, payload, handler)

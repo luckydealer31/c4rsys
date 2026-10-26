@@ -5,7 +5,15 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 
 import { api, ApiError } from "../../api/client";
 import { useApi } from "../../api/queries";
-import type { Calculation, Client, PriceRange, Rental, Warning } from "../../api/types";
+import type {
+  Calculation,
+  Client,
+  IssueException,
+  IssueRequirement,
+  PriceRange,
+  Rental,
+  Warning,
+} from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
@@ -13,8 +21,33 @@ import { fromLocalInput, toLocalInput } from "../../time";
 import { ClientForm, clientName } from "../clients/ClientsPage";
 import { useLocations } from "../settings/LocationsPage";
 import { useRentals, useVehicles } from "../vehicles/VehiclesPage";
+import {
+  EMPTY_PLACE,
+  ExceptionChoice,
+  PlaceFields,
+  placeBody,
+  placeOf,
+  type ExceptionValue,
+  type PlaceValue,
+} from "./IssueRules";
 
 type VehicleTariff = { id: string; name: string; currency: string; ranges: PriceRange[] };
+
+const UNMET_WARNING: Record<IssueRequirement["code"], string> = {
+  payment: "PAYMENT_INCOMPLETE",
+  debt: "CLIENT_HAS_DEBT",
+  documents: "",
+};
+
+/** The preliminary calculation with the policies of the issue (§ 13.6.6, § 14.3). */
+type Quote = {
+  calculation: Calculation;
+  warnings: Warning[];
+  unmet: IssueRequirement[];
+  inspection_required: boolean;
+  can_authorize: boolean;
+  granted: IssueException | null;
+};
 
 /** Issue without a booking (§ 14.2–14.4): vehicle, client (search or create on the spot), tariff
  * of the vehicle, issue location and «in location / other», actual time (now by default),
@@ -86,10 +119,8 @@ function IssueForm({
   const [chosen, setChosen] = useState<Client | null>(bookedClient);
   const [newClient, setNewClient] = useState(false);
   const [tariffId, setTariffId] = useState(booking?.tariff_id ?? "");
-  const [placeKind, setPlaceKind] = useState<"location" | "other">(
-    booking?.issue_place_kind === "other" ? "other" : "location",
-  );
-  const [placeNote, setPlaceNote] = useState(booking?.issue_place_note ?? "");
+  const [place, setPlace] = useState<PlaceValue>(() => (booking ? placeOf(booking) : EMPTY_PLACE));
+  const [exception, setException] = useState<ExceptionValue>({ mode: "", reason: "" });
   const [start, setStart] = useState(() => toLocalInput(new Date(), zone));
   const [plannedEnd, setPlannedEnd] = useState(() =>
     booking?.planned_end ? toLocalInput(new Date(booking.planned_end), zone) : "",
@@ -98,11 +129,15 @@ function IssueForm({
   const [odometer, setOdometer] = useState("");
   const [fuel, setFuel] = useState("");
   const [conducted, setConducted] = useState(false);
-  const [quote, setQuote] = useState<{ calculation: Calculation; warnings: Warning[] } | null>(null);
+  const [quote, setQuote] = useState<Quote | null>(null);
   const [quoteError, setQuoteError] = useState<ApiError | null>(null);
   const issue = useCommand<Record<string, unknown>, { rental: Rental; warnings: Warning[] }>(
     `/c/${company.public_id}/rentals/issue`,
   );
+  // Strict requirements left unmet: from the preliminary check or from the refused issue.
+  const refused = issue.error?.code === "ISSUE_REQUIREMENTS_UNMET" ? issue.error.params : null;
+  const unmet = (refused?.requirements as IssueRequirement[] | undefined) ?? quote?.unmet ?? [];
+  const canAuthorize = Boolean(refused?.can_authorize ?? quote?.can_authorize);
 
   async function calculate() {
     setQuoteError(null);
@@ -114,6 +149,8 @@ function IssueForm({
             vehicle_card_id: vehicleId,
             tariff_id: tariffId,
             client_id: chosen?.id,
+            issue_location_id: location?.id,
+            booking_id: booking?.id,
             actual_start: fromLocalInput(start, zone),
             planned_end: fromLocalInput(plannedEnd, zone),
           },
@@ -131,8 +168,7 @@ function IssueForm({
       client_id: chosen?.id ?? "",
       tariff_id: tariffId,
       issue_location_id: location?.id ?? "",
-      place_kind: placeKind,
-      place_note: placeNote,
+      ...placeBody(place),
       actual_start: fromLocalInput(start, zone),
       odometer,
       fuel,
@@ -141,6 +177,10 @@ function IssueForm({
     if (plannedEnd) body.planned_end = fromLocalInput(plannedEnd, zone);
     if (plannedReturn) body.planned_return_location_id = plannedReturn;
     if (booking) body.booking_id = booking.id;
+    if (unmet.length && exception.mode) {
+      body.exception_mode = exception.mode;
+      body.exception_reason = exception.reason;
+    }
     const result = await issue.run(body);
     if (result) {
       await client.invalidateQueries({ queryKey: ["rentals", company.public_id] });
@@ -235,18 +275,8 @@ function IssueForm({
                 ))}
               </select>
             </Field>
-            <Field label={t("rentals.place")}>
-              <select value={placeKind} onChange={(e) => setPlaceKind(e.target.value as "location" | "other")}>
-                <option value="location">{t("rentals.place_location")}</option>
-                <option value="other">{t("rentals.place_other")}</option>
-              </select>
-            </Field>
-            {placeKind === "other" ? (
-              <Field label={t("rentals.place_note")}>
-                <input value={placeNote} onChange={(e) => setPlaceNote(e.target.value)} />
-              </Field>
-            ) : null}
           </div>
+          <PlaceFields value={place} onChange={setPlace} />
           <div className="row">
             <Field label={t("rentals.actual_start")} hint={zone}>
               <input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} />
@@ -279,7 +309,9 @@ function IssueForm({
               {t("rentals.inspection_conducted")}
             </label>
           ) : null}
-          <p className="muted small">{t("rentals.inspection_policy")}</p>
+          <p className="muted small">
+            {t(quote?.inspection_required ? "issue_rules.inspection_required_hint" : "rentals.inspection_policy")}
+          </p>
         </Card>
         <Card title={t("rentals.preliminary")}>
           <div className="actions" style={{ marginTop: 0 }}>
@@ -295,9 +327,29 @@ function IssueForm({
           {!plannedEnd ? <p className="muted small">{t("rentals.preliminary_hint")}</p> : null}
           <ErrorMessage error={quoteError} />
           {quote ? <CalculationView calculation={quote.calculation} /> : null}
-          {quote ? <Warnings warnings={quote.warnings} /> : null}
+          {/* A warning repeating an unmet requirement is shown once, in the exception block. */}
+          {quote ? (
+            <Warnings
+              warnings={quote.warnings.filter(
+                (w) => !unmet.some((u) => UNMET_WARNING[u.code] === w.code) || Boolean(quote.granted),
+              )}
+            />
+          ) : null}
+          {quote?.granted ? (
+            <div className="alert">
+              {t("issue_rules.granted_on_booking", {
+                codes: quote.granted.requirements.map((code) => t(`issue_rules.code_${code}`)).join(", "),
+              })}
+            </div>
+          ) : null}
         </Card>
-        <ErrorMessage error={issue.error} />
+        <ExceptionChoice
+          unmet={quote?.granted && !refused ? [] : unmet}
+          canAuthorize={canAuthorize}
+          value={exception}
+          onChange={setException}
+        />
+        {refused ? null : <ErrorMessage error={issue.error} />}
         <div className="actions">
           <button type="submit" disabled={issue.pending || !vehicleId}>
             {t("rentals.confirm_issue")}

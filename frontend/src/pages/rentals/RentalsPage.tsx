@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 
@@ -28,6 +29,11 @@ export function RentalsPage() {
   const clientNames = new Map((clients.data?.clients ?? []).map((c) => [c.id, clientName(c)]));
   const zones = new Map((locations.data?.locations ?? []).map((l) => [l.id, l.timezone ?? "UTC"]));
   const places = new Map((locations.data?.locations ?? []).map((l) => [l.id, l.name]));
+  // § 14.3.7, decision В7: exceptions recorded after the transfer wait for a decision.
+  const [waiting, setWaiting] = useState(false);
+  const all = rentals.data?.rentals ?? [];
+  const pending = all.filter((r) => r.issue_exception?.state === "pending");
+  const shown = waiting ? pending : all;
   return (
     <div className="page">
       <h1>{t("nav.rentals")}</h1>
@@ -62,6 +68,12 @@ export function RentalsPage() {
         </div>
       ) : null}
       <Card>
+        {pending.length || waiting ? (
+          <label className="small">
+            <input type="checkbox" checked={waiting} onChange={() => setWaiting(!waiting)} />{" "}
+            {t("issue_rules.filter_pending", { count: pending.length })}
+          </label>
+        ) : null}
         {rentals.isLoading ? <Loading /> : null}
         {rentals.data?.rentals.length === 0 ? <p className="muted">{t("rentals.none")}</p> : null}
         <table>
@@ -77,7 +89,7 @@ export function RentalsPage() {
             </tr>
           </thead>
           <tbody>
-            {(rentals.data?.rentals ?? []).map((rental) => {
+            {shown.map((rental) => {
               const zone = zones.get(rental.issue_location_id ?? "") ?? company.timezone ?? "UTC";
               const booking = rental.booking;
               // A booking is shown with its planned period until the issue (§ 14.1).
@@ -106,6 +118,9 @@ export function RentalsPage() {
                   <td>
                     {t(`rentals.state_${rental.state}`)}
                     {booking?.delay_conflict ? <span className="badge"> {t("bookings.delay_badge")}</span> : null}
+                    {rental.issue_exception?.state === "pending" || rental.issue_exception?.state === "rejected" ? (
+                      <span className="badge"> {t(`issue_rules.badge_${rental.issue_exception.state}`)}</span>
+                    ) : null}
                     {/* § 14.3.3: a missing deposit is shown apart from the debt. */}
                     {rental.deposit?.conflict ? (
                       <span className="badge">

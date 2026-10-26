@@ -14,6 +14,15 @@ import { clientName } from "../clients/ClientsPage";
 import { useLocations } from "../settings/LocationsPage";
 import { useVehicles } from "../vehicles/VehiclesPage";
 import { ClientFinder } from "./IssuePage";
+import {
+  EMPTY_PLACE,
+  GrantException,
+  PlaceFields,
+  placeBody,
+  placeOf,
+  placeText,
+  type PlaceValue,
+} from "./IssueRules";
 
 type VehicleTariff = { id: string; name: string; currency: string };
 type RentalResponse = { rental: Rental };
@@ -99,8 +108,9 @@ export function BookingPage() {
   const [end, setEnd] = useState("");
   const [contact, setContact] = useState("");
   const [comment, setComment] = useState("");
+  const [place, setPlace] = useState<PlaceValue>(EMPTY_PLACE);
   const tariffs = useVehicleTariffs(vehicleId);
-  const create = useCommand<Record<string, unknown>, RentalResponse>(`/c/${company.public_id}/bookings`);
+  const create =useCommand<Record<string, unknown>, RentalResponse>(`/c/${company.public_id}/bookings`);
   const rentable = (vehicles.data?.vehicles ?? []).filter((v) => v.contexts.includes("rental"));
   const bodies = [...new Set(rentable.map((v) => v.characteristics.body_type).filter(Boolean))].sort();
   const startAt = start ? fromLocalInput(start, zone) : null;
@@ -115,6 +125,7 @@ export function BookingPage() {
       client_id: chosen?.id ?? "",
       tariff_id: tariffId,
       issue_location_id: locationId,
+      ...(locationId ? placeBody(place) : {}),
       contact,
       comment,
     });
@@ -193,6 +204,7 @@ export function BookingPage() {
               </select>
             </Field>
           </div>
+          {locationId ? <PlaceFields value={place} onChange={setPlace} /> : null}
           <div className="row">
             <Field label={t("bookings.contact")}>
               <input value={contact} onChange={(e) => setContact(e.target.value)} />
@@ -224,7 +236,7 @@ export function BookingPage() {
   );
 }
 
-type Panel = "" | "edit" | "vehicle" | "cancel" | "auto" | "deposit";
+type Panel = "" | "edit" | "vehicle" | "cancel" | "auto" | "deposit" | "exception";
 
 /** The booking block of the rental card: number, «client not specified», a late return of the
  * vehicle (§ 14.6.2), a different current location of the vehicle (§ 14.2.2) and the actions
@@ -253,6 +265,8 @@ export function BookingCard({ rental, onDone }: { rental: Rental; onDone: (next?
   const panels: Panel[] = [];
   if (booked && can("rental.book")) panels.push("edit", "vehicle", "auto", "cancel");
   if (booked && can("finance.deposit.manage")) panels.push("deposit");
+  if (booked && can("rental.exception.authorize")) panels.push("exception");
+  const granted = booked && rental.issue_exception?.state === "granted" ? rental.issue_exception : null;
 
   return (
     <div className="stack">
@@ -294,6 +308,20 @@ export function BookingCard({ rental, onDone }: { rental: Rental; onDone: (next?
             </dd>
           </>
         ) : null}
+        {rental.issue_place_kind === "other" ? (
+          <>
+            <dt>{t("rentals.place_other")}</dt>
+            <dd>{placeText(rental)}</dd>
+          </>
+        ) : null}
+        {granted ? (
+          <>
+            <dt>{t("issue_rules.state_granted")}</dt>
+            <dd>
+              {granted.requirements.map((code) => t(`issue_rules.code_${code}`)).join(", ")} · {granted.reason}
+            </dd>
+          </>
+        ) : null}
         {rental.state === "cancelled" ? (
           <>
             <dt>{t("bookings.cancelled_at")}</dt>
@@ -323,6 +351,7 @@ export function BookingCard({ rental, onDone }: { rental: Rental; onDone: (next?
       {panel === "auto" ? <AutoCancel rental={rental} onDone={done} /> : null}
       {panel === "cancel" ? <CancelBooking rental={rental} onDone={done} /> : null}
       {panel === "deposit" ? <BookingDeposit rental={rental} onDone={done} /> : null}
+      {panel === "exception" ? <GrantException rental={rental} onDone={done} /> : null}
     </div>
   );
 }
@@ -348,6 +377,7 @@ function EditBooking({ rental, onDone }: FormProps) {
   const [contact, setContact] = useState(booking?.contact ?? "");
   const [comment, setComment] = useState(booking?.comment ?? "");
   const [chosen, setChosen] = useState<Client | null>(null);
+  const [place, setPlace] = useState<PlaceValue>(() => placeOf(rental));
   const tariffs = useVehicleTariffs(rental.vehicle_card_id);
   const save = useCommand<Record<string, unknown>, RentalResponse>(bookingPath(company.public_id, rental), "PATCH");
   if (!booking) return null;
@@ -362,10 +392,9 @@ function EditBooking({ rental, onDone }: FormProps) {
     if (endAt && (!rental.planned_end || new Date(endAt).getTime() !== new Date(rental.planned_end).getTime()))
       changes.planned_end = endAt;
     if (tariffId && tariffId !== rental.tariff_id) changes.tariff_id = tariffId;
-    if (locationId && locationId !== rental.issue_location_id) {
-      changes.issue_location_id = locationId;
-      if (!rental.issue_place_kind) changes.place_kind = "location";
-    }
+    const placeChanged = JSON.stringify(placeBody(place)) !== JSON.stringify(placeBody(placeOf(rental)));
+    if (locationId && locationId !== rental.issue_location_id) changes.issue_location_id = locationId;
+    if (locationId && (placeChanged || !rental.issue_place_kind)) Object.assign(changes, placeBody(place));
     if (chosen) changes.client_id = chosen.id;
     if (contact !== booking.contact) changes.contact = contact;
     if (comment !== booking.comment) changes.comment = comment;
@@ -411,6 +440,7 @@ function EditBooking({ rental, onDone }: FormProps) {
           </select>
         </Field>
       </div>
+      {locationId ? <PlaceFields value={place} onChange={setPlace} /> : null}
       <div className="row">
         <Field label={t("bookings.contact")}>
           <input value={contact} onChange={(e) => setContact(e.target.value)} />

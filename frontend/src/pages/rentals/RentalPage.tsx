@@ -16,6 +16,7 @@ import { useLocations } from "../settings/LocationsPage";
 import { useVehicles } from "../vehicles/VehiclesPage";
 import { BookingCard } from "./Booking";
 import { DepositCard } from "./Deposit";
+import { IssueExceptionView, placeText } from "./IssueRules";
 import { CalculationView, Warnings } from "./IssuePage";
 
 type RentalResponse = { rental: Rental };
@@ -101,7 +102,7 @@ export function RentalPage() {
           <dt>{t("rentals.issue_location")}</dt>
           <dd>
             {locationName.get(current.issue_location_id ?? "") ?? "—"}
-            {current.issue_place_kind === "other" ? ` · ${current.issue_place_note}` : ""}
+            {current.issue_place_kind === "other" ? ` · ${t("rentals.place_other")}: ${placeText(current)}` : ""}
           </dd>
           <dt>{t("rentals.actual_start")}</dt>
           <dd>{when(current.actual_start)}</dd>
@@ -116,6 +117,12 @@ export function RentalPage() {
         </dl>
         <p className="muted small">{t("rentals.time_zone", { zone })}</p>
       </Card>
+
+      {current.issue_exception && current.state !== "booked" ? (
+        <Card title={t("issue_rules.exception_title")}>
+          <IssueExceptionView rental={current} onDone={refresh} />
+        </Card>
+      ) : null}
 
       {current.booking ? (
         <Card title={t("bookings.title", { number: current.booking.number })}>

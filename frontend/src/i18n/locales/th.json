@@ -55,7 +55,14 @@
     "rental_auto_cancel_changed": "เปลี่ยนการยกเลิกอัตโนมัติแล้ว",
     "rental_deposit_changed": "เปลี่ยนเงินมัดจำของการจองแล้ว",
     "rental_booking_cancelled": "ยกเลิกการจองแล้ว",
-    "rental_policy_changed": "เปลี่ยนการยกเลิกการจองอัตโนมัติแล้ว"
+    "rental_policy_changed": "เปลี่ยนการยกเลิกการจองอัตโนมัติแล้ว",
+    "rental_issue_exception_granted": "อนุญาตข้อยกเว้นการส่งมอบล่วงหน้า",
+    "rental_issue_exception_revoked": "ถอนการอนุญาตข้อยกเว้น",
+    "rental_issue_exception_applied": "ส่งมอบตามข้อยกเว้น",
+    "rental_issue_exception_recorded": "บันทึกการส่งมอบเป็นข้อยกเว้น",
+    "rental_issue_exception_confirmed": "ยืนยันข้อยกเว้น",
+    "rental_issue_exception_rejected": "ปฏิเสธข้อยกเว้น",
+    "rental_issue_policy_changed": "เปลี่ยนนโยบายการส่งมอบ"
   },
   "finance_articles": {
     "archive": "เก็บเข้าคลัง",
@@ -552,7 +559,13 @@
     "booking_vehicle_mismatch": "การจองนี้เป็นของรถคันอื่น",
     "tariff_not_available_for_vehicle": "อัตรานี้ไม่ได้กำหนดให้รถคันนี้ เลือกอัตราอื่น",
     "vehicle_booked": "รถถูกจองในช่วงนี้ ส่งมอบตามการจอง",
-    "vehicle_same": "เลือกรถคันอื่น"
+    "vehicle_same": "เลือกรถคันอื่น",
+    "issue_requirements_unmet": "ยังไม่เป็นไปตามนโยบายการส่งมอบ",
+    "place_not_described": "ระบุสถานที่อื่น: ที่อยู่ พิกัด หรือหมายเหตุ",
+    "coordinates_incomplete": "ระบุทั้งละติจูดและลองจิจูด",
+    "coordinates_invalid": "พิกัดอยู่นอกช่วง",
+    "issue_exception_not_granted": "ไม่มีการอนุญาตให้ถอน",
+    "issue_exception_not_pending": "ข้อยกเว้นไม่ได้รอการตัดสินใจ"
   },
   "history": {
     "action": "Action",
@@ -837,7 +850,10 @@
     "finance_settlement_manage": "จัดการการชำระ: หนี้ยกมา ผลการคืนสินค้า",
     "finance_offset": "หักกลบเงิน",
     "finance_correct": "แก้ไขรายการการเงิน",
-    "finance_deposit_manage": "จัดการมัดจำ"
+    "finance_deposit_manage": "จัดการมัดจำ",
+    "rental_book": "จองรถ",
+    "rental_exception_authorize": "อนุญาตการส่งมอบที่ข้อกำหนดยังไม่ครบ",
+    "rental_exception_decide": "ยืนยันหรือปฏิเสธข้อยกเว้นการส่งมอบ"
   },
   "positions": {
     "director": "Director"
@@ -1022,8 +1038,8 @@
     "setup_hint": "Step by step from the company profile to the first rental.",
     "tariffs": "Tariffs",
     "tariffs_hint": "Rental tariffs and their terms for vehicles.",
-    "rental": "การจอง",
-    "rental_hint": "ยกเลิกอัตโนมัติเมื่อไม่มา"
+    "rental": "การเช่า: การจองและการส่งมอบ",
+    "rental_hint": "นโยบายการส่งมอบและการยกเลิกอัตโนมัติเมื่อไม่มา"
   },
   "setup": {
     "back": "Back",
@@ -1422,7 +1438,10 @@
     "tab_inventory": "ตรวจนับ"
   },
   "warnings": {
-    "client_has_debt": "The client has a debt: {{amounts}}."
+    "client_has_debt": "The client has a debt: {{amounts}}.",
+    "payment_incomplete": "ชำระค่าเช่าไม่ครบ: ขาด {{amounts}} จะเป็นหนี้ของคำสั่ง",
+    "payment_not_checked": "ไม่มีวันสิ้นสุดตามแผน: ตรวจสอบการชำระค่าเช่าไม่ได้",
+    "inspection_not_done": "ยังไม่ได้ตรวจสภาพตามที่กำหนด: บันทึกข้อขัดแย้งแล้ว"
   },
   "counterparties": {
     "search": "ค้นหาตามชื่อหรือช่องทางติดต่อ",
@@ -1992,6 +2011,63 @@
     "policy_effective_off": "มีผลขณะนี้: ปิด ({{source}})",
     "policy_source_location": "กฎของสถานที่",
     "policy_source_company": "กฎของบริษัท",
-    "policy_source_default": "ค่าเริ่มต้น"
+    "policy_source_default": "ค่าเริ่มต้น",
+    "action_exception": "อนุญาตข้อยกเว้น"
+  },
+  "issue_rules": {
+    "page_hint": "กฎการส่งมอบและการยกเลิกการจองอัตโนมัติ: สำหรับทั้งบริษัท และแต่ละสถานที่ตั้งค่าเองได้",
+    "address": "ที่อยู่",
+    "lat": "ละติจูด",
+    "lng": "ลองจิจูด",
+    "my_location": "ตำแหน่งของฉัน",
+    "location_failed": "อุปกรณ์ไม่ส่งตำแหน่ง กรุณาระบุที่อยู่หรือพิกัด",
+    "place_hint": "กรอกอย่างน้อยหนึ่งอย่าง: ที่อยู่ พิกัด หรือหมายเหตุ สถานที่นี้เป็นของสถานที่ที่เลือกและไม่ย้ายรถ",
+    "requirement_payment": "ยังชำระค่าเช่าไม่ครบ: ขาด {{amounts}}",
+    "requirement_debt": "ลูกค้ามีหนี้: {{amounts}}",
+    "requirement_documents": "ไม่มีเอกสาร",
+    "unmet_title": "ยังไม่เป็นไปตามนโยบายการส่งมอบ:",
+    "mode_advance": "อนุญาตการส่งมอบเป็นข้อยกเว้น (ฉันมีสิทธิ์)",
+    "mode_after_fact": "ส่งมอบรถไปแล้ว — บันทึกไว้ ข้อยกเว้นจะรอการยืนยัน",
+    "reason": "เหตุผล",
+    "choose": "เลือกวิธีดำเนินการต่อ",
+    "no_right": "คุณไม่มีสิทธิ์อนุญาตข้อยกเว้น ติดต่อพนักงานที่มีสิทธิ์ หรือบันทึกการส่งมอบที่เกิดขึ้นแล้ว",
+    "state_granted": "อนุญาตข้อยกเว้นล่วงหน้าแล้ว",
+    "state_applied": "ส่งมอบตามข้อยกเว้นที่อนุญาต",
+    "state_pending": "ข้อยกเว้นรอการยืนยัน",
+    "state_confirmed": "ยืนยันข้อยกเว้นแล้ว",
+    "state_rejected": "ปฏิเสธข้อยกเว้น — การละเมิด",
+    "covers": "ข้อกำหนดที่ยังไม่ครบ",
+    "decision": "การตัดสินใจ",
+    "decision_reason": "เหตุผลของการตัดสินใจ",
+    "confirm": "ยืนยัน",
+    "reject": "ปฏิเสธ",
+    "code_payment": "การชำระ",
+    "code_debt": "หนี้ลูกค้า",
+    "code_documents": "เอกสาร",
+    "grant_hint": "การส่งมอบตามการจองนี้ดำเนินได้โดยไม่ต้องครบข้อกำหนดที่เลือก ข้อกำหนดยังไม่ครบอยู่ การอนุญาตใช้ได้ครั้งเดียว",
+    "grant": "อนุญาต",
+    "revoke": "ถอนการอนุญาต",
+    "granted_on_booking": "อนุญาตล่วงหน้าในการจองแล้ว: {{codes}}",
+    "exception_title": "ข้อยกเว้นการส่งมอบ",
+    "filter_pending": "เฉพาะข้อยกเว้นที่รอการยืนยัน ({{count}})",
+    "badge_pending": "ข้อยกเว้นรอการยืนยัน",
+    "badge_rejected": "การละเมิด",
+    "inspection_required_hint": "บริษัทกำหนดให้ตรวจสภาพ หากไม่ทำเครื่องหมาย การส่งมอบยังดำเนินได้ แต่จะบันทึกข้อขัดแย้ง «ยังไม่ได้ตรวจ»",
+    "policy_title": "นโยบายการส่งมอบ",
+    "policy_source": "มีผลขณะนี้: {{source}}",
+    "policy_debt": "หนี้ลูกค้า",
+    "policy_payment": "การชำระค่าเช่า",
+    "policy_documents": "เอกสารและลายเซ็น",
+    "policy_inspection": "การตรวจสภาพ",
+    "debt_allow": "อนุญาต",
+    "debt_warn": "เตือน",
+    "debt_decide": "ต้องมีการตัดสินใจ",
+    "payment_warn": "เตือน",
+    "payment_require": "ต้องชำระเต็มจำนวน",
+    "documents_none": "ไม่บล็อก",
+    "documents_require": "ต้องมี",
+    "inspection_not_required": "ไม่จำเป็น",
+    "inspection_required": "จำเป็น",
+    "policy_hint": "เงินมัดจำไม่พอและไม่มีการตรวจสภาพไม่บล็อกการส่งมอบ แต่จะเกิดข้อขัดแย้ง ข้อกำหนดเอกสารจะมีผลเมื่อมีโมดูลเอกสาร"
   }
 }

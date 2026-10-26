@@ -6,6 +6,7 @@ import { useApi } from "../../api/queries";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { useCan, useCompany } from "../../layout/CompanyShell";
+import { IssuePolicyForm } from "../rentals/IssueRules";
 import { useLocations } from "./LocationsPage";
 
 type Policy = {
@@ -21,16 +22,20 @@ type Policy = {
 export function RentalPolicyPage() {
   const { t } = useTranslation();
   const locations = useLocations();
+  const sections: [string | null, string][] = [
+    [null, t("bookings.policy_company")],
+    ...(locations.data?.locations ?? []).map((l): [string, string] => [l.id, l.name]),
+  ];
   return (
     <div className="page">
-      <h1>{t("bookings.policy_title")}</h1>
-      <p className="muted">{t("bookings.policy_hint")}</p>
-      <Card title={t("bookings.policy_company")}>
-        <PolicyForm locationId={null} />
-      </Card>
-      {(locations.data?.locations ?? []).map((l) => (
-        <Card key={l.id} title={l.name}>
-          <PolicyForm locationId={l.id} />
+      <h1>{t("settings.rental")}</h1>
+      <p className="muted">{t("issue_rules.page_hint")}</p>
+      {sections.map(([id, name]) => (
+        <Card key={id ?? "company"} title={name}>
+          <IssuePolicyForm locationId={id} />
+          <h3>{t("bookings.policy_title")}</h3>
+          <p className="muted small">{t("bookings.policy_hint")}</p>
+          <PolicyForm locationId={id} />
         </Card>
       ))}
     </div>

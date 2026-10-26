@@ -6,7 +6,7 @@ and fuel, the odometer reading and the journal. Policies of a new company give w
 refusals (§ 14.3.6).
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
@@ -24,7 +24,7 @@ from c4rsys.orders import services as orders
 from c4rsys.parties import services as parties
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
-from c4rsys.rentals import tariffs
+from c4rsys.rentals import issue_policies, places, tariffs
 from c4rsys.rentals.models import Rental, Tariff
 
 
@@ -45,6 +45,27 @@ class IssueRequest:
     planned_return_location_id: UUID | None = None
     # The booking issued by this action (§ 14.4.1); the same row becomes the active rental.
     booking_id: UUID | None = None
+    # «Other» place (§ 14.2.1; customer's decision В1).
+    place_address: str = ""
+    place_lat: Decimal | None = None
+    place_lng: Decimal | None = None
+    # How unmet strict requirements are passed (§ 14.3.7).
+    exception: issue_policies.ExceptionRequest = issue_policies.ExceptionRequest()
+
+    @property
+    def place(self) -> places.Place:
+        return places.Place(
+            self.place_kind, self.place_note, self.place_address, self.place_lat, self.place_lng
+        )
+
+
+@dataclass(frozen=True)
+class Issued:
+    rental: Rental
+    inspection: Inspection
+    order_created: bool
+    # Policies that warn (§ 14.3.5–14.3.6) and the inspection check left undone (§ 10.3.3).
+    warnings: list[dict[str, Any]]
 
 
 def _check_vehicle(card: VehicleCard, request: IssueRequest) -> None:
@@ -98,8 +119,7 @@ def _check_not_booked(
         )
 
 
-def issue(ctx: CommandContext, request: IssueRequest) -> tuple[Rental, Inspection, bool]:
-    """Returns the rental, its issue inspection and whether a new order was created."""
+def issue(ctx: CommandContext, request: IssueRequest) -> Issued:
     company_id = ctx.actor.company_id
     if company_id is None:
         raise RuntimeError("Issue runs in a company")
@@ -128,6 +148,15 @@ def issue(ctx: CommandContext, request: IssueRequest) -> tuple[Rental, Inspectio
     tariff = Tariff.objects.select_related("currency").get(pk=tariff.pk)
     _check_available(card, request.actual_start)
     _check_not_booked(card, request.actual_start, request.planned_end, request.booking_id)
+    place = request.place.checked()
+    request = replace(
+        request,
+        place_kind=place.kind,
+        place_note=place.note,
+        place_address=place.address,
+        place_lat=place.lat,
+        place_lng=place.lng,
+    )
 
     if request.booking_id is not None:
         return _issue_booking(ctx, request, card, location, client, tariff, terms, now)
@@ -145,6 +174,8 @@ def issue(ctx: CommandContext, request: IssueRequest) -> tuple[Rental, Inspectio
             responsible_employment_id=ctx.actor.employment_id,
         )
 
+    snapshot = tariffs.rental_snapshot(tariff, terms)
+    assessment = _assess(company_id, request, location.id, client.id, order.id, snapshot)
     try:
         with transaction.atomic():
             rental = Rental.objects.create(
@@ -153,11 +184,14 @@ def issue(ctx: CommandContext, request: IssueRequest) -> tuple[Rental, Inspectio
                 vehicle_card=card,
                 client=client,
                 tariff=tariff,
-                tariff_snapshot=tariffs.rental_snapshot(tariff, terms),
+                tariff_snapshot=snapshot,
                 calc_timezone=location.timezone,
                 issue_location_id=location.id,
-                issue_place_kind=request.place_kind,
-                issue_place_note=request.place_note,
+                issue_place_kind=place.kind,
+                issue_place_note=place.note,
+                issue_place_address=place.address,
+                issue_place_lat=place.lat,
+                issue_place_lng=place.lng,
                 planned_end=request.planned_end,
                 planned_return_location_id=request.planned_return_location_id,
                 actual_start=request.actual_start,
@@ -169,14 +203,43 @@ def issue(ctx: CommandContext, request: IssueRequest) -> tuple[Rental, Inspectio
     except IntegrityError as exc:
         raise errors.business_rule("VEHICLE_NOT_AVAILABLE") from exc
 
-    inspection = _after_issue(ctx, request, card, location, rental)
+    inspection = _after_issue(ctx, request, card, location, rental, assessment)
     ctx.audit(
         "rental.issued",
         object_type="rental",
         object_id=rental.id,
         after=_issued(rental, order, card, client, tariff, location, request, inspection),
     )
-    return rental, inspection, created_order
+    issue_policies.resolve(ctx, rental, assessment, request.exception)
+    return Issued(rental, inspection, created_order, _warnings(assessment, request))
+
+
+def _assess(
+    company_id: UUID,
+    request: IssueRequest,
+    location_id: UUID,
+    client_id: UUID,
+    order_id: UUID,
+    snapshot: dict[str, Any] | None,
+) -> issue_policies.Assessment:
+    return issue_policies.assess(
+        company_id,
+        location_id,
+        client_id=client_id,
+        order_id=order_id,
+        snapshot=snapshot,
+        start=request.actual_start,
+        planned_end=request.planned_end,
+    )
+
+
+def _warnings(assessment: issue_policies.Assessment, request: IssueRequest) -> list[dict[str, Any]]:
+    """Warnings of the policies; a required condition check not done is a conflict, not a
+    refusal (§ 10.3.3)."""
+    result = list(assessment.warnings)
+    if assessment.inspection_required and not request.inspection_conducted:
+        result.append({"code": "INSPECTION_NOT_DONE"})
+    return result
 
 
 def _issue_booking(
@@ -188,7 +251,7 @@ def _issue_booking(
     tariff: Tariff,
     terms: Any,
     now: datetime,
-) -> tuple[Rental, Inspection, bool]:
+) -> Issued:
     """The issue of a booking: the agreed terms of the booking stay when its tariff is chosen;
     the order of the booking gets its client (§ 12.1.8, § 14.1.6, § 14.4.1)."""
     booking = (
@@ -210,9 +273,12 @@ def _issue_booking(
     booking.tariff = tariff
     booking.calc_timezone = location.timezone
     booking.issue_location_id = location.id
-    booking.issue_place_kind = request.place_kind
-    booking.issue_place_note = request.place_note
+    places.set_issue(booking, request.place)
     booking.planned_end = request.planned_end or booking.planned_end
+    request = replace(request, planned_end=booking.planned_end)
+    assessment = _assess(
+        card.company_id, request, location.id, client.id, order.id, booking.tariff_snapshot
+    )
     if request.planned_return_location_id is not None:
         booking.planned_return_location_id = request.planned_return_location_id
     booking.actual_start = request.actual_start
@@ -225,7 +291,7 @@ def _issue_booking(
             booking.save()
     except IntegrityError as exc:
         raise errors.business_rule("VEHICLE_NOT_AVAILABLE") from exc
-    inspection = _after_issue(ctx, request, card, location, booking)
+    inspection = _after_issue(ctx, request, card, location, booking, assessment)
     ctx.audit(
         "rental.issued",
         object_type="rental",
@@ -235,11 +301,17 @@ def _issue_booking(
             "booking_number": booking.booking_number,
         },
     )
-    return booking, inspection, False
+    issue_policies.resolve(ctx, booking, assessment, request.exception)
+    return Issued(booking, inspection, False, _warnings(assessment, request))
 
 
 def _after_issue(
-    ctx: CommandContext, request: IssueRequest, card: VehicleCard, location: Any, rental: Rental
+    ctx: CommandContext,
+    request: IssueRequest,
+    card: VehicleCard,
+    location: Any,
+    rental: Rental,
+    assessment: issue_policies.Assessment,
 ) -> Inspection:
     """The issue inspection with odometer and fuel and the odometer reading (§ 14.4.3)."""
     inspection = inspections.create_saved(
@@ -251,9 +323,11 @@ def _after_issue(
             performed_at=request.actual_start,
             place_kind=request.place_kind,
             place_location_id=location.id,
-            place_note=request.place_note,
+            place_note=request.place.summary(),
             check_status=Inspection.CheckStatus.CONDUCTED
             if request.inspection_conducted
+            else Inspection.CheckStatus.REQUIRED_NOT_DONE
+            if assessment.inspection_required
             else Inspection.CheckStatus.NOT_REQUIRED,
             odometer=request.odometer,
             fuel=request.fuel,
@@ -287,8 +361,7 @@ def _issued(
         "client": str(client.id),
         "tariff": str(tariff.id),
         "issue_location": str(location.id),
-        "place_kind": request.place_kind,
-        "place_note": request.place_note,
+        "place": request.place.as_dict(),
         "actual_start": request.actual_start,
         "planned_end": request.planned_end,
         "planned_return_location": str(request.planned_return_location_id)

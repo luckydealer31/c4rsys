@@ -216,6 +216,11 @@ class Rental(models.Model):
         max_length=10, choices=PlaceKind.choices, blank=True, default=""
     )
     issue_place_note = models.CharField(max_length=500, blank=True, default="")
+    # «Other» place of the issue (§ 14.2.1): address, coordinates (also from the device's
+    # geolocation) or a comment; it belongs to the issue location (customer's decision В1).
+    issue_place_address = models.CharField(max_length=500, blank=True, default="")
+    issue_place_lat = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    issue_place_lng = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     planned_end = models.DateTimeField(null=True, blank=True)
     # Any location of the company may be named at issue, without rights there (decision 22.10).
     planned_return_location = models.ForeignKey(
@@ -304,8 +309,21 @@ class Rental(models.Model):
                 condition=Q(state__in=["active", "returned"]),
             ),
             models.CheckConstraint(
-                condition=Q(issue_place_kind__in=["location", ""]) | ~Q(issue_place_note=""),
+                condition=Q(issue_place_kind__in=["location", ""])
+                | ~Q(issue_place_note="")
+                | ~Q(issue_place_address="")
+                | Q(issue_place_lat__isnull=False),
                 name="rental_other_place_described",
+            ),
+            models.CheckConstraint(
+                condition=Q(issue_place_lat__isnull=True, issue_place_lng__isnull=True)
+                | Q(
+                    issue_place_lat__gte=-90,
+                    issue_place_lat__lte=90,
+                    issue_place_lng__gte=-180,
+                    issue_place_lng__lte=180,
+                ),
+                name="rental_issue_place_coordinates",
             ),
             models.CheckConstraint(
                 condition=Q(actual_end__isnull=True)
@@ -403,3 +421,112 @@ class RentalPolicy(models.Model):
 
     def __str__(self) -> str:
         return f"policy {self.company_id}:{self.location_id}"
+
+
+class IssuePolicy(models.Model):
+    """Policies of the issue (§ 14.3.2, § 14.3.5, § 14.3.6): for the company (location empty) or
+    a rental location with its own setting (customer's decision В2). Without a row a new company
+    has the non-blocking start policies. Insufficient deposit is never a policy (§ 14.3.3)."""
+
+    class Debt(models.TextChoices):
+        ALLOW = "allow"
+        WARN = "warn"
+        DECIDE = "decide"  # a decision of an authorized employee is required
+
+    class Payment(models.TextChoices):
+        WARN = "warn"
+        REQUIRE = "require"
+
+    class Documents(models.TextChoices):
+        NONE = "none"
+        REQUIRE = "require"
+
+    class Inspection(models.TextChoices):
+        NOT_REQUIRED = "not_required"
+        REQUIRED = "required"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    location = models.ForeignKey(
+        Location, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    debt = models.CharField(max_length=10, choices=Debt.choices, default=Debt.WARN)
+    payment = models.CharField(max_length=10, choices=Payment.choices, default=Payment.WARN)
+    documents = models.CharField(max_length=10, choices=Documents.choices, default=Documents.NONE)
+    inspection = models.CharField(
+        max_length=15, choices=Inspection.choices, default=Inspection.NOT_REQUIRED
+    )
+    updated_by_user_id = models.UUIDField()
+    updated_at = models.DateTimeField(default=now)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "rental_issue_policy"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company"],
+                condition=Q(location__isnull=True),
+                name="rental_issue_policy_company_uniq",
+            ),
+            models.UniqueConstraint(
+                fields=["company", "location"],
+                condition=Q(location__isnull=False),
+                name="rental_issue_policy_location_uniq",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"issue policy {self.company_id}:{self.location_id}"
+
+
+class IssueException(models.Model):
+    """An exception of the issue (§ 14.3.7): permitted in advance with a reason by an authorized
+    employee, or a transfer already made recorded by the issuing employee, which then waits for a
+    decision. Neither removes the unmet requirement; a rejection marks a violation and does not
+    undo the issue. One per rental: one issue (customer's decision В6)."""
+
+    class Mode(models.TextChoices):
+        ADVANCE = "advance"
+        AFTER_FACT = "after_fact"
+
+    class State(models.TextChoices):
+        GRANTED = "granted"  # advance permission, the issue has not happened yet
+        APPLIED = "applied"  # advance permission used by the issue
+        PENDING = "pending"  # «exception awaits confirmation»
+        CONFIRMED = "confirmed"
+        REJECTED = "rejected"  # a violation
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    rental = models.ForeignKey(Rental, on_delete=models.PROTECT, related_name="+")
+    mode = models.CharField(max_length=10, choices=Mode.choices)
+    state = models.CharField(max_length=10, choices=State.choices)
+    # Unmet requirements it covers: "payment", "debt", "documents".
+    requirements = models.JSONField()
+    reason = models.CharField(max_length=500)
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+    decision_reason = models.CharField(max_length=500, blank=True, default="")
+    decided_by_user_id = models.UUIDField(null=True, blank=True)
+    decided_at = models.DateTimeField(null=True, blank=True)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "rental_issue_exception"
+        constraints = [
+            models.UniqueConstraint(fields=["rental"], name="rental_issue_exception_one"),
+            models.CheckConstraint(
+                condition=Q(mode="advance", state__in=["granted", "applied"])
+                | Q(mode="after_fact", state__in=["pending", "confirmed", "rejected"]),
+                name="rental_issue_exception_state_of_mode",
+            ),
+            models.CheckConstraint(condition=~Q(reason=""), name="rental_issue_exception_reason"),
+            models.CheckConstraint(
+                condition=Q(state__in=["granted", "applied", "pending"])
+                | (~Q(decision_reason="") & Q(decided_at__isnull=False)),
+                name="rental_issue_exception_decided",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"issue exception {self.rental_id}: {self.state}"

@@ -55,7 +55,14 @@
     "rental_auto_cancel_changed": "Auto-cancel of the booking changed",
     "rental_deposit_changed": "Deposit of the booking changed",
     "rental_booking_cancelled": "Booking cancelled",
-    "rental_policy_changed": "Auto-cancel of bookings changed"
+    "rental_policy_changed": "Auto-cancel of bookings changed",
+    "rental_issue_exception_granted": "Exception of the issue permitted in advance",
+    "rental_issue_exception_revoked": "Permission of an exception withdrawn",
+    "rental_issue_exception_applied": "Issued by an exception",
+    "rental_issue_exception_recorded": "Transfer recorded as an exception",
+    "rental_issue_exception_confirmed": "Exception confirmed",
+    "rental_issue_exception_rejected": "Exception rejected",
+    "rental_issue_policy_changed": "Issue policies changed"
   },
   "finance_articles": {
     "archive": "Archive",
@@ -552,7 +559,13 @@
     "booking_vehicle_mismatch": "The booking is for another vehicle.",
     "tariff_not_available_for_vehicle": "The tariff is not assigned to this vehicle: choose another tariff.",
     "vehicle_booked": "The vehicle is booked for this period: issue it by the booking.",
-    "vehicle_same": "Choose another vehicle."
+    "vehicle_same": "Choose another vehicle.",
+    "issue_requirements_unmet": "The issue policy is not met.",
+    "place_not_described": "Describe the other place: address, coordinates or comment.",
+    "coordinates_incomplete": "Enter both latitude and longitude.",
+    "coordinates_invalid": "The coordinates are out of range.",
+    "issue_exception_not_granted": "There is no permission to withdraw.",
+    "issue_exception_not_pending": "The exception does not wait for a decision."
   },
   "history": {
     "action": "Action",
@@ -837,7 +850,10 @@
     "finance_settlement_manage": "Keep settlements: initial debts, results of returns",
     "finance_offset": "Set off available funds",
     "finance_correct": "Correct financial records",
-    "finance_deposit_manage": "Manage deposits"
+    "finance_deposit_manage": "Manage deposits",
+    "rental_book": "Book vehicles",
+    "rental_exception_authorize": "Permit an issue with unmet requirements",
+    "rental_exception_decide": "Confirm or reject exceptions of the issue"
   },
   "positions": {
     "director": "Director"
@@ -1022,8 +1038,8 @@
     "setup_hint": "Step by step from the company profile to the first rental.",
     "tariffs": "Tariffs",
     "tariffs_hint": "Rental tariffs and their terms for vehicles.",
-    "rental": "Bookings",
-    "rental_hint": "Auto-cancel at no-show"
+    "rental": "Rental: bookings and issue",
+    "rental_hint": "Issue policies and auto-cancel at no-show"
   },
   "setup": {
     "back": "Back",
@@ -1422,7 +1438,10 @@
     "tab_inventory": "Inventory"
   },
   "warnings": {
-    "client_has_debt": "The client has a debt: {{amounts}}."
+    "client_has_debt": "The client has a debt: {{amounts}}.",
+    "payment_incomplete": "The rental is not paid in full: {{amounts}} missing. It stays a debt of the order.",
+    "payment_not_checked": "No planned end: the payment of the rental cannot be checked.",
+    "inspection_not_done": "The required condition check was not done: a conflict is recorded."
   },
   "counterparties": {
     "search": "Search by name or contact",
@@ -1992,6 +2011,63 @@
     "policy_effective_off": "Now in effect: off ({{source}}).",
     "policy_source_location": "rule of the location",
     "policy_source_company": "rule of the company",
-    "policy_source_default": "by default"
+    "policy_source_default": "by default",
+    "action_exception": "Permit an exception"
+  },
+  "issue_rules": {
+    "page_hint": "Rules of the issue and auto-cancel of bookings: for the whole company, and a location may have its own.",
+    "address": "Address",
+    "lat": "Latitude",
+    "lng": "Longitude",
+    "my_location": "My location",
+    "location_failed": "The device did not give its location: enter the address or coordinates.",
+    "place_hint": "Fill in at least one: address, coordinates or comment. The place belongs to the chosen location and does not move the vehicle.",
+    "requirement_payment": "Rental not paid in full: {{amounts}} missing",
+    "requirement_debt": "The client has a debt: {{amounts}}",
+    "requirement_documents": "Documents are missing",
+    "unmet_title": "The issue policy is not met:",
+    "mode_advance": "Permit the issue as an exception (I have the right)",
+    "mode_after_fact": "The vehicle has already been handed over — record it; the exception will wait for confirmation",
+    "reason": "Reason",
+    "choose": "Choose how to continue.",
+    "no_right": "You have no right to permit an exception: ask an authorized employee, or record a transfer already made.",
+    "state_granted": "Exception permitted in advance",
+    "state_applied": "Issued by a permitted exception",
+    "state_pending": "Exception awaits confirmation",
+    "state_confirmed": "Exception confirmed",
+    "state_rejected": "Exception rejected — violation",
+    "covers": "Unmet requirements",
+    "decision": "Decision",
+    "decision_reason": "Reason of the decision",
+    "confirm": "Confirm",
+    "reject": "Reject",
+    "code_payment": "payment",
+    "code_debt": "client debt",
+    "code_documents": "documents",
+    "grant_hint": "The issue of this booking may go without the chosen requirements. They stay unmet; the permission acts on one issue.",
+    "grant": "Permit",
+    "revoke": "Withdraw the permission",
+    "granted_on_booking": "Permitted in advance on the booking: {{codes}}.",
+    "exception_title": "Exception of the issue",
+    "filter_pending": "Only exceptions awaiting confirmation ({{count}})",
+    "badge_pending": "exception awaits confirmation",
+    "badge_rejected": "violation",
+    "inspection_required_hint": "The company requires the condition check: without the mark the issue goes on, and a conflict «check not done» is recorded.",
+    "policy_title": "Issue policies",
+    "policy_source": "Now in effect: {{source}}.",
+    "policy_debt": "Client debt",
+    "policy_payment": "Payment of the rental",
+    "policy_documents": "Documents and signatures",
+    "policy_inspection": "Condition check",
+    "debt_allow": "Allow",
+    "debt_warn": "Warn",
+    "debt_decide": "Require a decision",
+    "payment_warn": "Warn",
+    "payment_require": "Require full payment",
+    "documents_none": "Do not block",
+    "documents_require": "Require",
+    "inspection_not_required": "Not required",
+    "inspection_required": "Required",
+    "policy_hint": "Insufficient deposit and a missing inspection never block the issue: they give a conflict. The documents requirement starts to act with the documents module."
   }
 }

@@ -82,6 +82,10 @@ PERMISSIONS: dict[str, str] = {
     # (customer's decision of 26.10.2026).
     "rental.book": "rental",
     "rental.issue": "rental",
+    # § 14.3.7, § 23.4.7: permitting an issue with unmet requirements in advance and deciding on
+    # an exception recorded after the transfer are separate rights (customer's decision В8).
+    "rental.exception.authorize": "rental",
+    "rental.exception.decide": "rental",
     "rental.accept_return": "rental",
     "rental.complete_formalization": "rental",
     "inspection.create": "inspection",

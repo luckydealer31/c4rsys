@@ -304,6 +304,22 @@ export type RentalSummary = {
   planned_end?: string | null;
   deposit?: DepositInfo;
   booking?: Booking | null;
+  issue_exception?: IssueException | null;
+};
+
+/** A requirement of the issue left unmet by a strict policy (§ 14.3.7). */
+export type IssueRequirement = { code: "payment" | "debt" | "documents"; amounts?: Record<string, string> };
+
+/** Permitted in advance, or recorded after the transfer and waiting for a decision (§ 14.3.7). */
+export type IssueException = {
+  mode: "advance" | "after_fact";
+  state: "granted" | "applied" | "pending" | "confirmed" | "rejected";
+  requirements: IssueRequirement["code"][];
+  reason: string;
+  decision_reason: string;
+  decided_at: string | null;
+  created_at: string;
+  version: number;
 };
 
 /** A booking (§ 14.1): own number; a rental in state «booked» until the issue. */
@@ -374,6 +390,9 @@ export type Rental = RentalSummary & {
   tariff_id: string | null;
   issue_place_kind: "location" | "other" | "";
   issue_place_note: string;
+  issue_place_address: string;
+  issue_place_lat: string | null;
+  issue_place_lng: string | null;
   calc_timezone: string;
   planned_end: string | null;
   planned_return_location_id: string | null;

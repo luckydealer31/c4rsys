@@ -13,19 +13,19 @@ from c4rsys.accounts.middleware import require_user
 from c4rsys.companies import access, history, locations
 from c4rsys.companies import services as companies
 from c4rsys.companies.views import run_and_respond
-from c4rsys.finance import deposits, payments
+from c4rsys.finance import deposits
 from c4rsys.fleet import services as fleet
 from c4rsys.inspections import services as inspections
 from c4rsys.inspections.models import Inspection
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
-from c4rsys.platform.models import Currency
-from c4rsys.platform.money import round_money
 from c4rsys.rentals import (
     bookings,
     formalization,
     issue,
+    issue_policies,
+    places,
     pricing,
     rentals,
     returns,
@@ -282,6 +282,50 @@ def _optional_uuid(data: dict[str, Any], key: str) -> UUID | None:
         raise errors.validation_error(key) from exc
 
 
+def _coordinate(data: dict[str, Any], key: str) -> Decimal | None:
+    value = data.get(key)
+    if value in (None, ""):
+        return None
+    if isinstance(value, bool) or not isinstance(value, str | int | float):
+        raise errors.validation_error(key, code="NUMBER_INVALID")
+    try:
+        return Decimal(str(value).strip()).quantize(Decimal("0.000001"))
+    except InvalidOperation as exc:
+        raise errors.validation_error(key, code="NUMBER_INVALID") from exc
+
+
+def _place_from(data: dict[str, Any]) -> places.Place:
+    """The place of the issue: «location» or «other» with an address, coordinates or a comment
+    (§ 14.2.1; customer's decision В1); checked by `Place.checked`."""
+    return places.Place(
+        get_str(data, "place_kind", max_length=10, required=False) or places.LOCATION,
+        get_str(data, "place_note", max_length=500, required=False),
+        get_str(data, "place_address", max_length=500, required=False),
+        _coordinate(data, "place_lat"),
+        _coordinate(data, "place_lng"),
+    )
+
+
+def _exception_request(
+    data: dict[str, Any], actor: Actor, location_id: UUID | None
+) -> issue_policies.ExceptionRequest:
+    """`exception_mode`: «advance» — the issuing employee permits unmet requirements now (needs
+    the right to permit, § 23.4.7); «after_fact» — the vehicle has already been handed over."""
+    mode = get_str(data, "exception_mode", max_length=10, required=False)
+    if mode not in ("", "advance", "after_fact"):
+        raise errors.validation_error("exception_mode")
+    may = access.RightsResolver().has_permission(
+        actor, "rental.exception.authorize", location_id=location_id
+    )
+    if mode == "advance" and not may:
+        raise errors.permission_denied("rental.exception.authorize")
+    return issue_policies.ExceptionRequest(
+        mode=mode,
+        reason=get_str(data, "exception_reason", max_length=500, required=False),
+        may_authorize=may,
+    )
+
+
 def _optional_reading(data: dict[str, Any], key: str, places: int) -> Decimal | None:
     if data.get(key) in (None, ""):
         return None
@@ -327,6 +371,15 @@ def _rental_payload(rental: Rental) -> dict[str, Any]:
         "issue_location_id": str(rental.issue_location_id) if rental.issue_location_id else None,
         "issue_place_kind": rental.issue_place_kind,
         "issue_place_note": rental.issue_place_note,
+        "issue_place_address": rental.issue_place_address,
+        "issue_place_lat": str(rental.issue_place_lat)
+        if rental.issue_place_lat is not None
+        else None,
+        "issue_place_lng": str(rental.issue_place_lng)
+        if rental.issue_place_lng is not None
+        else None,
+        # § 14.3.7: permitted in advance, or waiting for a decision after the transfer.
+        "issue_exception": issue_policies.payload(rental.id),
         "calc_timezone": rental.calc_timezone,
         "planned_return_location_id": str(rental.planned_return_location_id)
         if rental.planned_return_location_id
@@ -412,12 +465,7 @@ def rental_issue(request: HttpRequest, cmp: str) -> JsonResponse:
     ):
         raise errors.permission_denied("order.edit")
 
-    place_kind = get_str(data, "place_kind", max_length=10, required=False) or "location"
-    if place_kind not in Rental.PlaceKind.values:
-        raise errors.validation_error("place_kind")
-    place_note = get_str(data, "place_note", max_length=500, required=False)
-    if place_kind == Rental.PlaceKind.OTHER and not place_note:
-        raise errors.validation_error("place_note", code="FIELD_REQUIRED")
+    place = _place_from(data).checked()
     actual_start = _moment(data, "actual_start", required=True)
     if actual_start is None:
         raise errors.validation_error("actual_start", code="FIELD_REQUIRED")
@@ -426,8 +474,11 @@ def rental_issue(request: HttpRequest, cmp: str) -> JsonResponse:
         client_id=_uuid(data, "client_id", "CLIENT_REQUIRED"),
         tariff_id=_uuid(data, "tariff_id", "TARIFF_REQUIRED"),
         issue_location_id=location.id,
-        place_kind=place_kind,
-        place_note=place_note if place_kind == Rental.PlaceKind.OTHER else "",
+        place_kind=place.kind,
+        place_note=place.note,
+        place_address=place.address,
+        place_lat=place.lat,
+        place_lng=place.lng,
         actual_start=actual_start,
         odometer=_reading(data, "odometer", "ODOMETER_REQUIRED", 1),
         fuel=_reading(data, "fuel", "FUEL_REQUIRED", 2),
@@ -436,37 +487,29 @@ def rental_issue(request: HttpRequest, cmp: str) -> JsonResponse:
         order_id=order_id,
         planned_return_location_id=_optional_uuid(data, "planned_return_location_id"),
         booking_id=_optional_uuid(data, "booking_id"),
+        exception=_exception_request(data, actor, location.id),
     )
 
     def handler(ctx: CommandContext) -> CommandResult:
-        rental, inspection, created_order = issue.issue(ctx, request_data)
+        done = issue.issue(ctx, request_data)
         return CommandResult(
             201,
             {
-                "rental": _rental_payload(rental),
-                "inspection_id": str(inspection.id),
-                "order_created": created_order,
-                # Policies of a new company (§ 14.3.6): client debt only warns (§ 14.3.5).
-                "warnings": _debt_warning(rental.company_id, rental.client_id)
-                if rental.client_id
-                else [],
+                "rental": _rental_payload(done.rental),
+                "inspection_id": str(done.inspection.id),
+                "order_created": done.order_created,
+                # Policies that warn (§ 14.3.5–14.3.6) and an undone required check (§ 10.3.3).
+                "warnings": done.warnings,
             },
         )
 
     payload = {
         k: (str(v) if isinstance(v, UUID | Decimal | datetime) else v)
         for k, v in request_data.__dict__.items()
+        if k != "exception"
     }
+    payload["exception"] = request_data.exception.__dict__
     return run_and_respond(request, "rental.issue", actor, payload, handler)
-
-
-def _debt_warning(company_id: UUID, client_id: UUID) -> list[dict[str, Any]]:
-    debt = payments.client_debt(company_id, client_id)
-    if not debt:
-        return []
-    places = {c.code: c.minor_units for c in Currency.objects.filter(code__in=debt)}
-    amounts = {c: str(round_money(v, places[c])) for c, v in sorted(debt.items())}
-    return [{"code": "CLIENT_HAS_DEBT", "amounts": amounts}]
 
 
 def _rental_visible(actor: Actor, rental: Rental) -> bool:
@@ -692,6 +735,21 @@ def rental_quote(request: HttpRequest, cmp: str) -> JsonResponse:
     tariff = Tariff.objects.select_related("currency").get(pk=tariff.pk)
     snapshot = tariffs.rental_snapshot(tariff, terms)
     result = pricing.calculate(pricing.terms_from_snapshot(snapshot), start, end)
+    location_id = _optional_uuid(data, "issue_location_id") or card.accounting_location_id
+    booking_id = _optional_uuid(data, "booking_id")
+    order_id = _optional_uuid(data, "order_id")
+    if booking_id is not None:
+        order_id = rentals.get_rental(context.company.id, booking_id).order_id
+    assessment = issue_policies.assess(
+        context.company.id,
+        location_id,
+        client_id=_optional_uuid(data, "client_id"),
+        order_id=order_id,
+        snapshot=snapshot,
+        start=start,
+        planned_end=end,
+    )
+    granted = issue_policies.exception_of(booking_id) if booking_id else None
     return JsonResponse(
         {
             "calculation": {
@@ -703,9 +761,16 @@ def rental_quote(request: HttpRequest, cmp: str) -> JsonResponse:
                 "currency": result.currency,
             },
             "vehicle_terms": snapshot["vehicle_terms"],
-            "warnings": _debt_warning(context.company.id, _uuid(data, "client_id"))
-            if data.get("client_id")
-            else [],
+            "warnings": assessment.warnings,
+            # Strict requirements left unmet (§ 14.3.7) and how the employee may pass them.
+            "unmet": assessment.unmet,
+            "inspection_required": assessment.inspection_required,
+            "can_authorize": access.RightsResolver().has_permission(
+                actor, "rental.exception.authorize", location_id=location_id
+            ),
+            "granted": issue_policies.payload(granted.rental_id)
+            if granted is not None and granted.state == "granted"
+            else None,
         }
     )
 

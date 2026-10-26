@@ -24,6 +24,13 @@ urlpatterns = [
     path("c/<str:cmp>/bookings/<uuid:rental_id>/auto-cancel", bv.booking_auto_cancel),
     path("c/<str:cmp>/bookings/<uuid:rental_id>/deposit", bv.booking_deposit),
     path("c/<str:cmp>/rental-policy", bv.policy),
+    path("c/<str:cmp>/issue-policy", bv.issue_policy),
+    path("c/<str:cmp>/bookings/<uuid:rental_id>/issue-exception", bv.booking_exception),
+    path(
+        "c/<str:cmp>/bookings/<uuid:rental_id>/issue-exception/revoke",
+        bv.booking_exception_revoke,
+    ),
+    path("c/<str:cmp>/rentals/<uuid:rental_id>/issue-exception/decide", bv.exception_decide),
     path("c/<str:cmp>/rentals/issue", views.rental_issue),
     path("c/<str:cmp>/rentals/quote", views.rental_quote),
     path("c/<str:cmp>/vehicles/<uuid:card_id>/tariffs", views.vehicle_tariffs),

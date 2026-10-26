@@ -27,7 +27,7 @@ from c4rsys.parties import services as parties
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
 from c4rsys.platform.counters import next_number
-from c4rsys.rentals import tariffs
+from c4rsys.rentals import places, tariffs
 from c4rsys.rentals.models import Rental, RentalPolicy, Tariff
 
 BOOKED = Rental.State.BOOKED
@@ -187,8 +187,7 @@ def snapshot(rental: Rental) -> dict[str, Any]:
         "client": str(rental.client_id) if rental.client_id else None,
         "tariff": str(rental.tariff_id) if rental.tariff_id else None,
         "issue_location": str(rental.issue_location_id) if rental.issue_location_id else None,
-        "issue_place_kind": rental.issue_place_kind,
-        "issue_place_note": rental.issue_place_note,
+        "issue_place": places.of_issue(rental).as_dict() if rental.issue_place_kind else None,
         "planned_start": rental.planned_start,
         "planned_end": rental.planned_end,
         "planned_return_location": str(rental.planned_return_location_id)
@@ -210,8 +209,7 @@ class BookingData:
     client_id: UUID | None = None
     tariff_id: UUID | None = None
     issue_location_id: UUID | None = None
-    place_kind: str = ""
-    place_note: str = ""
+    place: places.Place = places.Place()
     planned_return_location_id: UUID | None = None
     contact: str = ""
     comment: str = ""
@@ -226,23 +224,19 @@ def _tariff(card: VehicleCard, tariff_id: UUID) -> tuple[Tariff, dict[str, Any]]
     return tariff, tariffs.rental_snapshot(tariff, terms)
 
 
-def _place(company_id: UUID, data: BookingData) -> tuple[Any, str]:
+def _place(company_id: UUID, data: BookingData) -> tuple[Any, str, places.Place | None]:
     """The issue location must have rental and be usable (§ 14.2.2); a booking may name another
     location than the vehicle's current one (a warning, not a refusal). Without a location the
     time zone of the company is used until one is chosen."""
     if data.issue_location_id is None:
         company = Company.objects.get(pk=company_id)
-        return None, company.timezone or "UTC"
+        return None, company.timezone or "UTC", None
     location = locations.location_info(company_id, data.issue_location_id)
     if location is None:
         raise errors.validation_error("issue_location_id", code="LOCATION_UNKNOWN")
     if not location.active:
         raise errors.business_rule("LOCATION_NOT_ACTIVE", field="issue_location_id")
-    if data.place_kind not in ("location", "other"):
-        raise errors.validation_error("place_kind")
-    if data.place_kind == "other" and not data.place_note.strip():
-        raise errors.validation_error("place_note", code="FIELD_REQUIRED")
-    return location, location.timezone
+    return location, location.timezone, data.place.checked()
 
 
 def create(ctx: CommandContext, company_id: UUID, data: BookingData) -> Rental:
@@ -252,7 +246,7 @@ def create(ctx: CommandContext, company_id: UUID, data: BookingData) -> Rental:
     _require_free(card.id, data.planned_start, data.planned_end)
     client = parties.get_client(company_id, data.client_id) if data.client_id else None
     tariff, snap = _tariff(card, data.tariff_id) if data.tariff_id else (None, None)
-    location, zone = _place(company_id, data)
+    location, zone, place = _place(company_id, data)
     if data.planned_return_location_id is not None:
         locations.require_usable(
             company_id, data.planned_return_location_id, "planned_return_location_id"
@@ -276,8 +270,11 @@ def create(ctx: CommandContext, company_id: UUID, data: BookingData) -> Rental:
                 tariff_snapshot=snap,
                 calc_timezone=zone,
                 issue_location_id=location.id if location else None,
-                issue_place_kind=data.place_kind if location else "",
-                issue_place_note=data.place_note if location else "",
+                issue_place_kind=place.kind if place else "",
+                issue_place_note=place.note if place else "",
+                issue_place_address=place.address if place else "",
+                issue_place_lat=place.lat if place else None,
+                issue_place_lng=place.lng if place else None,
                 planned_start=data.planned_start,
                 planned_end=data.planned_end,
                 booking_period=(data.planned_start, data.planned_end),
@@ -335,8 +332,7 @@ class BookingChanges:
     client_id: UUID | None = None
     tariff_id: UUID | None = None
     issue_location_id: UUID | None = None
-    place_kind: str | None = None
-    place_note: str | None = None
+    place: places.Place | None = None
     planned_return_location_id: UUID | None = None
     contact: str | None = None
     comment: str | None = None
@@ -371,22 +367,19 @@ def update(
     if changes.tariff_id is not None and changes.tariff_id != rental.tariff_id:
         card = VehicleCard.objects.get(pk=rental.vehicle_card_id)
         rental.tariff, rental.tariff_snapshot = _tariff(card, changes.tariff_id)
-    if changes.issue_location_id is not None:
+    location_id = changes.issue_location_id or rental.issue_location_id
+    if changes.issue_location_id is not None or (changes.place is not None and location_id):
         data = BookingData(
             vehicle_card_id=rental.vehicle_card_id,
             planned_start=start,
             planned_end=end,
-            issue_location_id=changes.issue_location_id,
-            place_kind=changes.place_kind or rental.issue_place_kind or "location",
-            place_note=changes.place_note
-            if changes.place_note is not None
-            else rental.issue_place_note,
+            issue_location_id=location_id,
+            place=changes.place or places.of_issue(rental),
         )
-        location, zone = _place(company_id, data)
+        location, zone, place = _place(company_id, data)
         rental.issue_location_id = location.id
         rental.calc_timezone = zone
-        rental.issue_place_kind = data.place_kind
-        rental.issue_place_note = data.place_note
+        places.set_issue(rental, place)
     if changes.planned_return_location_id is not None:
         locations.require_usable(
             company_id, changes.planned_return_location_id, "planned_return_location_id"

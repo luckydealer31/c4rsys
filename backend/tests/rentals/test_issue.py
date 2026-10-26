@@ -344,7 +344,7 @@ def _issue_directly(s: Scenario, client_id: str, vehicle_id: str, key_value: str
     )
 
     def handler(ctx: CommandContext) -> CommandResult:
-        rental, _, _ = issue_module.issue(ctx, request)
+        rental = issue_module.issue(ctx, request).rental
         return CommandResult(201, {"id": str(rental.id)})
 
     try:
@@ -414,7 +414,9 @@ def test_preliminary_calculation_before_issue(owner: Client, s: Scenario) -> Non
         "base_amount": "3000.00",
         "currency": "THB",
     }
-    assert quote["warnings"] == []
+    # § 14.3.6: nothing paid yet — a warning of the start policy, not a refusal.
+    assert quote["warnings"] == [{"code": "PAYMENT_INCOMPLETE", "amounts": {"THB": "3000.00"}}]
+    assert quote["unmet"] == []
     assert not Rental.objects.exists()
     tariffs = owner.get(f"/api/c/{s.cmp}/vehicles/{s.vehicle}/tariffs").json()["tariffs"]
     assert [t["id"] for t in tariffs] == [s.tariff]
