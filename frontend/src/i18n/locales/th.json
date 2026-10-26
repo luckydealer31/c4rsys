@@ -41,7 +41,13 @@
     "offset_cancelled": "ยกเลิกการหักกลบ",
     "money_reversed": "กลับรายการ",
     "payment_relinked": "เปลี่ยนการเชื่อมการชำระ",
-    "expense_split": "แบ่งค่าใช้จ่าย"
+    "expense_split": "แบ่งค่าใช้จ่าย",
+    "deposit_to_balance": "มัดจำเข้ายอด",
+    "deposit_hold": "ถือมัดจำตามข้อเรียกร้อง",
+    "deposit_release": "ยกเลิกข้อเรียกร้องมัดจำ",
+    "deposit_offset": "หักกลบมัดจำ",
+    "deposit_refund": "คืนมัดจำ",
+    "deposit_waiver": "อนุญาตโดยไม่มีมัดจำเต็ม"
   },
   "finance_articles": {
     "archive": "เก็บเข้าคลัง",
@@ -142,7 +148,8 @@
     "tab_employees": "Employees",
     "use_existing": "Use «{{name}}»",
     "balance_parts": "ใช้ได้ {{available}} {{currency}} · ค้างชำระ {{unpaid}} {{currency}}",
-    "open_settlement": "การชำระของลูกค้า"
+    "open_settlement": "การชำระของลูกค้า",
+    "deposit_held": "มัดจำที่ถือ: {{amount}} {{currency}} (ใช้ไม่ได้)"
   },
   "common": {
     "cancel": "Cancel",
@@ -520,7 +527,16 @@
     "share_object_required": "เลือกยานพาหนะหรือคำสั่งสำหรับแต่ละส่วน",
     "order_invalid": "ไม่รู้จักคำสั่ง",
     "party_required": "เลือกลูกค้าหรือคู่สัญญา",
-    "party_one_only": "เลือกลูกค้าหรือคู่สัญญาอย่างใดอย่างหนึ่ง"
+    "party_one_only": "เลือกลูกค้าหรือคู่สัญญาอย่างใดอย่างหนึ่ง",
+    "rental_client_mismatch": "การเช่าเป็นของลูกค้าอื่น",
+    "rental_cancelled": "การเช่าถูกยกเลิก",
+    "rental_duplicated": "ระบุการเช่าซ้ำ",
+    "deposit_exceeds_held": "ถืออยู่: {{limit}} {{currency}}",
+    "deposit_exceeds_free": "ถือได้: {{limit}} {{currency}}",
+    "deposit_exceeds_claimed": "ตามข้อเรียกร้อง: {{limit}} {{currency}}",
+    "deposit_vehicle_not_returned": "รถยังไม่คืน: ยืนยันการคืนเงินก่อน",
+    "deposit_no_conflict": "ไม่มีมัดจำขาด",
+    "record_has_deposit": "การรับเงินมีส่วนมัดจำ"
   },
   "history": {
     "action": "Action",
@@ -642,7 +658,8 @@
     "kind_supplier": "ผู้ขาย",
     "kind_refund": "คืนเงินลูกค้า",
     "kind_reversal": "กลับรายการ",
-    "tab_settlements": "การชำระบัญชี"
+    "tab_settlements": "การชำระบัญชี",
+    "kind_deposit": "คืนมัดจำ"
   },
   "moves": {
     "actual_end": "Actual end",
@@ -728,7 +745,9 @@
     "when": "Date and time",
     "without_order": "Without an order",
     "order_currency": "คำสั่งเป็น {{currency}} ค้างชำระ {{amount}} {{currency}}",
-    "settles": "ชำระคำสั่ง ≈ {{amount}} {{currency}}"
+    "settles": "ชำระคำสั่ง ≈ {{amount}} {{currency}}",
+    "deposit_part": "ในนั้นเป็นมัดจำ {{currency}}",
+    "deposit_hint": "ขาด {{missing}} {{currency}} มัดจำไม่ใช่การชำระและไม่ใช่เงินของลูกค้า"
   },
   "permissions": {
     "client_create": "Create clients",
@@ -800,7 +819,8 @@
     "finance_rate_override": "เปลี่ยนอัตราแลกเปลี่ยนที่เสนอ",
     "finance_settlement_manage": "จัดการการชำระ: หนี้ยกมา ผลการคืนสินค้า",
     "finance_offset": "หักกลบเงิน",
-    "finance_correct": "แก้ไขรายการการเงิน"
+    "finance_correct": "แก้ไขรายการการเงิน",
+    "finance_deposit_manage": "จัดการมัดจำ"
   },
   "positions": {
     "director": "Director"
@@ -1854,5 +1874,46 @@
     "add_row": "เพิ่มส่วน",
     "relink": "เปลี่ยนการเชื่อม",
     "unlink": "ไม่มีคำสั่ง (เงินของลูกค้า)"
+  },
+  "deposit": {
+    "title": "เงินมัดจำ",
+    "not_required": "เงื่อนไขการเช่าไม่ต้องมีมัดจำ",
+    "conflict": "มัดจำขาด: {{amount}} {{currency}}",
+    "missing_badge": "มัดจำขาด {{amount}} {{currency}}",
+    "required": "ต้องการ",
+    "waived": "อนุญาตโดยไม่มีมัดจำเต็ม",
+    "received": "รับแล้ว",
+    "held": "ถืออยู่",
+    "claimed": "ถือตามข้อเรียกร้อง {{amount}} {{currency}}",
+    "used": "ใช้แล้ว",
+    "used_value": "หักกลบ {{offset}} · คืน {{refunded}} · เข้ายอด {{to_balance}} {{currency}}",
+    "term": "ระยะเวลาถือ",
+    "term_manual": "ไม่กำหนด: โอนด้วยตนเองเท่านั้น",
+    "term_days": "{{days}} วันหลังคืนรถ",
+    "term_until": "เข้ายอด {{time}}",
+    "automatic": "ตามกำหนด",
+    "kind_received": "รับ",
+    "kind_to_balance": "เข้ายอดลูกค้า",
+    "kind_hold": "ถือตามข้อเรียกร้อง",
+    "kind_release": "ยกเลิกข้อเรียกร้อง",
+    "kind_offset": "หักกลบ",
+    "kind_refund": "คืนเงิน",
+    "kind_waiver": "อนุญาตโดยไม่มีมัดจำเต็ม",
+    "action_to_balance": "เข้ายอด",
+    "action_hold": "ถือตามข้อเรียกร้อง",
+    "action_release": "ยกเลิกข้อเรียกร้อง",
+    "action_offset": "หักกลบ",
+    "action_refund": "คืนเงิน",
+    "action_waive": "อนุญาตโดยไม่มีมัดจำเต็ม",
+    "hint_to_balance": "โอนมัดจำเข้ายอดลูกค้าก่อนกำหนด ไม่มีการเคลื่อนไหวเงิน",
+    "hint_hold": "ส่วนนี้จะไม่ถูกโอนตามกำหนดจนกว่าจะยกเลิกข้อเรียกร้อง",
+    "hint_release": "ส่วนนี้จะถูกโอนตามกำหนดอีกครั้ง",
+    "hint_offset": "ชำระหนี้คำสั่งจากมัดจำ ไม่เกินหนี้",
+    "hint_refund": "คืนมัดจำจากเงินสดหรือบัญชี",
+    "hint_waive": "ยุติความขัดแย้งมัดจำขาด เงินที่รับไม่เปลี่ยน",
+    "order": "คำสั่ง",
+    "reason": "เหตุผล (บังคับ)",
+    "refund_preview": "จ่าย ≈ {{amount}} {{currency}}",
+    "vehicle_with_client": "รถยังอยู่กับลูกค้า — คืนเงินอยู่ดี"
   }
 }

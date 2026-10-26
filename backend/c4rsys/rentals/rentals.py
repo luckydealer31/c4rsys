@@ -1,6 +1,8 @@
 """Reading rentals and their place in orders (ТЗ § 12.1.9, § 13.6.7)."""
 
+from dataclasses import dataclass
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -25,6 +27,52 @@ def get_rental(company_id: UUID, rental_id: UUID) -> Rental:
     if rental is None:
         raise errors.not_found()
     return rental
+
+
+@dataclass(frozen=True)
+class DepositTerms:
+    """The deposit of a rental as agreed (§ 13.1.6, § 14.7.1): from the rental's snapshot, so a
+    later change of the tariff does not touch it. `hold_days` empty — no automatic transfer to
+    the balance (customer's decision of 26.10.2026)."""
+
+    required: bool
+    amount: Decimal
+    currency: str
+    hold_days: int | None
+    issued: bool  # the vehicle was handed over (the conflict of a missing deposit, § 14.3.3)
+    returned_at: datetime | None  # the term counts from the actual return (§ 14.7.1)
+
+
+def deposit_terms(rental: Rental) -> DepositTerms:
+    snapshot = rental.tariff_snapshot
+    deposit = snapshot.get("vehicle_terms", {}).get("deposit") or {}
+    required = bool(deposit.get("required"))
+    return DepositTerms(
+        required=required,
+        amount=Decimal(deposit["amount"]) if required and deposit.get("amount") else Decimal(0),
+        currency=snapshot["currency"],
+        hold_days=deposit.get("hold_days") if required else None,
+        issued=rental.state in (Rental.State.ACTIVE, Rental.State.RETURNED),
+        returned_at=rental.actual_end if rental.state == Rental.State.RETURNED else None,
+    )
+
+
+def lock_rental(company_id: UUID, rental_id: UUID) -> Rental:
+    """Serializes the deposit commands of one rental."""
+    rental = Rental.objects.select_for_update().filter(company_id=company_id, pk=rental_id).first()
+    if rental is None:
+        raise errors.not_found()
+    return rental
+
+
+def returned_with_deposit_term(before: datetime) -> QuerySet[Rental]:
+    """Returned rentals whose deposit has a hold term, returned before `before` (candidates of
+    the automatic transfer, § 14.7.1)."""
+    return (
+        Rental.objects.filter(state=Rental.State.RETURNED, actual_end__lt=before)
+        .filter(tariff_snapshot__vehicle_terms__deposit__required=True)
+        .exclude(tariff_snapshot__vehicle_terms__deposit__hold_days=None)
+    )
 
 
 def current_calculation(rental: Rental, now: datetime | None = None) -> dict[str, Any]:

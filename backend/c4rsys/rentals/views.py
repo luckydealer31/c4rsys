@@ -13,7 +13,7 @@ from c4rsys.accounts.middleware import require_user
 from c4rsys.companies import access, history, locations
 from c4rsys.companies import services as companies
 from c4rsys.companies.views import run_and_respond
-from c4rsys.finance import payments
+from c4rsys.finance import deposits, payments
 from c4rsys.fleet import services as fleet
 from c4rsys.inspections import services as inspections
 from c4rsys.inspections.models import Inspection
@@ -339,6 +339,9 @@ def _rental_payload(rental: Rental) -> dict[str, Any]:
         "actual_end": _utc(rental.actual_end),
         "tariff_snapshot": rental.tariff_snapshot,
         "calculation": rentals.current_calculation(rental),
+        # § 14.7.3: required, received, held and the rest of the deposit; a missing deposit is
+        # shown apart from the debt for the rental (§ 14.3.3).
+        "deposit": deposits.payload(rental),
         "version": rental.version,
     }
 

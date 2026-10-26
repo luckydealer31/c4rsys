@@ -41,7 +41,13 @@
     "offset_cancelled": "Зачёт отменён",
     "money_reversed": "Запись сторнирована",
     "payment_relinked": "Связь платежа изменена",
-    "expense_split": "Расход распределён"
+    "expense_split": "Расход распределён",
+    "deposit_to_balance": "Залог на баланс",
+    "deposit_hold": "Залог удержан по претензии",
+    "deposit_release": "Претензия по залогу снята",
+    "deposit_offset": "Зачёт залога",
+    "deposit_refund": "Возврат залога",
+    "deposit_waiver": "Разрешено без полного залога"
   },
   "finance_articles": {
     "archive": "В архив",
@@ -142,7 +148,8 @@
     "tab_employees": "Сотрудники",
     "use_existing": "Выбрать «{{name}}»",
     "balance_parts": "Доступно {{available}} {{currency}} · не оплачено {{unpaid}} {{currency}}",
-    "open_settlement": "Расчёты с клиентами"
+    "open_settlement": "Расчёты с клиентами",
+    "deposit_held": "Удерживаемый залог: {{amount}} {{currency}} (не доступен)"
   },
   "common": {
     "cancel": "Отмена",
@@ -520,7 +527,16 @@
     "share_object_required": "Для каждой части выберите ТС или заказ.",
     "order_invalid": "Неизвестный заказ.",
     "party_required": "Выберите клиента или контрагента.",
-    "party_one_only": "Выберите либо клиента, либо контрагента."
+    "party_one_only": "Выберите либо клиента, либо контрагента.",
+    "rental_client_mismatch": "Аренда другого клиента.",
+    "rental_cancelled": "Аренда отменена.",
+    "rental_duplicated": "Аренда указана дважды.",
+    "deposit_exceeds_held": "Удерживается: {{limit}} {{currency}}.",
+    "deposit_exceeds_free": "Можно удержать: {{limit}} {{currency}}.",
+    "deposit_exceeds_claimed": "По претензии: {{limit}} {{currency}}.",
+    "deposit_vehicle_not_returned": "ТС ещё не возвращено: подтвердите ранний возврат.",
+    "deposit_no_conflict": "Недостающего залога нет.",
+    "record_has_deposit": "В поступлении есть часть залога."
   },
   "history": {
     "action": "Действие",
@@ -642,7 +658,8 @@
     "kind_supplier": "Поставщик",
     "kind_refund": "Возврат клиенту",
     "kind_reversal": "Сторно",
-    "tab_settlements": "Расчёты"
+    "tab_settlements": "Расчёты",
+    "kind_deposit": "Возврат залога"
   },
   "moves": {
     "actual_end": "Фактическое окончание",
@@ -728,7 +745,9 @@
     "when": "Дата и время",
     "without_order": "Без заказа",
     "order_currency": "Заказ в {{currency}}; осталось оплатить {{amount}} {{currency}}.",
-    "settles": "Погасит ≈ {{amount}} {{currency}} по заказу."
+    "settles": "Погасит ≈ {{amount}} {{currency}} по заказу.",
+    "deposit_part": "Из них в залог, {{currency}}",
+    "deposit_hint": "Недостаёт {{missing}} {{currency}}. Залог — не оплата и не средства клиента."
   },
   "permissions": {
     "client_create": "Создавать клиентов",
@@ -800,7 +819,8 @@
     "finance_rate_override": "Менять предложенный курс валют",
     "finance_settlement_manage": "Вести расчёты: начальные долги, итоги возвратов",
     "finance_offset": "Делать зачёт средств",
-    "finance_correct": "Исправлять финансовые записи"
+    "finance_correct": "Исправлять финансовые записи",
+    "finance_deposit_manage": "Управлять залогом"
   },
   "positions": {
     "director": "Директор"
@@ -1854,5 +1874,46 @@
     "add_row": "Добавить часть",
     "relink": "изменить связь",
     "unlink": "Без заказа (средства клиента)"
+  },
+  "deposit": {
+    "title": "Залог",
+    "not_required": "По условиям аренды залог не требуется.",
+    "conflict": "Недостаёт залога: {{amount}} {{currency}}.",
+    "missing_badge": "недостаёт залога {{amount}} {{currency}}",
+    "required": "Требуется",
+    "waived": "разрешено без полного залога",
+    "received": "Внесено",
+    "held": "Удерживается",
+    "claimed": "по претензии {{amount}} {{currency}}",
+    "used": "Использовано",
+    "used_value": "зачтено {{offset}} · возвращено {{refunded}} · на баланс {{to_balance}} {{currency}}",
+    "term": "Срок удержания",
+    "term_manual": "не задан: переносится только вручную",
+    "term_days": "{{days}} дн. после возврата",
+    "term_until": "на баланс {{time}}",
+    "automatic": "по сроку",
+    "kind_received": "Внесён",
+    "kind_to_balance": "На баланс клиента",
+    "kind_hold": "Удержан по претензии",
+    "kind_release": "Претензия снята",
+    "kind_offset": "Зачтён",
+    "kind_refund": "Возвращён",
+    "kind_waiver": "Разрешено без полного залога",
+    "action_to_balance": "На баланс",
+    "action_hold": "Удержать по претензии",
+    "action_release": "Снять претензию",
+    "action_offset": "Зачесть",
+    "action_refund": "Вернуть",
+    "action_waive": "Разрешить без полного залога",
+    "hint_to_balance": "Переносит залог на баланс клиента до срока; деньги не двигаются.",
+    "hint_hold": "Эта часть не переносится по сроку, пока претензия не снята.",
+    "hint_release": "Часть снова переносится по сроку.",
+    "hint_offset": "Гасит долг заказа из залога, не больше долга.",
+    "hint_refund": "Выплата залога из кассы или со счёта.",
+    "hint_waive": "Прекращает конфликт недостающего залога; принятые деньги не меняются.",
+    "order": "Заказ",
+    "reason": "Причина (обязательно)",
+    "refund_preview": "Выплата ≈ {{amount}} {{currency}}",
+    "vehicle_with_client": "ТС ещё у клиента — вернуть всё равно"
   }
 }

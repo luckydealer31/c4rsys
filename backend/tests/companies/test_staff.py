@@ -423,6 +423,7 @@ def test_company_answer_lists_own_permissions(owner: Client, cmp: str) -> None:
         "finance.account.view",
         "finance.article.manage",
         "finance.correct",
+        "finance.deposit.manage",
         "finance.income.record",
         "finance.offset",
         "finance.payment.receive",

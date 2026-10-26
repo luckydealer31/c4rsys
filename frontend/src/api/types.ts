@@ -301,6 +301,35 @@ export type RentalSummary = {
   return_location_id: string | null;
   actual_start: string;
   actual_end: string | null;
+  deposit?: DepositInfo;
+};
+
+/** The deposit of a rental in its currency (§ 14.7.3). */
+export type DepositInfo = {
+  currency: string;
+  required: string;
+  received: string;
+  held: string;
+  claimed: string;
+  offset: string;
+  refunded: string;
+  to_balance: string;
+  missing: string;
+  conflict: boolean;
+  waived: boolean;
+  hold_days: number | null;
+  release_at: string | null;
+  entries: {
+    id: string;
+    kind: "received" | "to_balance" | "hold" | "release" | "offset" | "refund" | "waiver";
+    amount: string;
+    money_amount: string | null;
+    money_currency: string | null;
+    order_id: string | null;
+    reason: string;
+    automatic: boolean;
+    created_at: string;
+  }[];
 };
 
 export type Calculation = {

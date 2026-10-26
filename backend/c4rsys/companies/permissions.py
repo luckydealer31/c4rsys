@@ -31,6 +31,9 @@ PERMISSIONS: dict[str, str] = {
     "finance.settlement.manage": "finance",
     "finance.offset": "finance",
     "finance.correct": "finance",
+    # Deposits (§ 14.3.3, § 14.7): one right for all but the receipt (customer's decision of
+    # 26.10.2026); the receipt is in finance.payment.receive.
+    "finance.deposit.manage": "finance",
     "tariff.view": "tariff",
     "tariff.create": "tariff",
     "tariff.edit": "tariff",
@@ -133,6 +136,7 @@ SYSTEM_SETS: dict[str, tuple[str, ...]] = {
         "finance.settlement.manage",
         "finance.offset",
         "finance.correct",
+        "finance.deposit.manage",
         "order.view",
         "rental.view",
         "client.find",

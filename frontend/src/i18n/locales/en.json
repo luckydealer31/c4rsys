@@ -41,7 +41,13 @@
     "offset_cancelled": "Set-off cancelled",
     "money_reversed": "Record reversed",
     "payment_relinked": "Payment link changed",
-    "expense_split": "Expense split"
+    "expense_split": "Expense split",
+    "deposit_to_balance": "Deposit to the balance",
+    "deposit_hold": "Deposit held by a claim",
+    "deposit_release": "Deposit claim ended",
+    "deposit_offset": "Deposit set off",
+    "deposit_refund": "Deposit refunded",
+    "deposit_waiver": "Allowed without the full deposit"
   },
   "finance_articles": {
     "archive": "Archive",
@@ -142,7 +148,8 @@
     "tab_employees": "Employees",
     "use_existing": "Use «{{name}}»",
     "balance_parts": "Available {{available}} {{currency}} · unpaid {{unpaid}} {{currency}}",
-    "open_settlement": "Settlements of clients"
+    "open_settlement": "Settlements of clients",
+    "deposit_held": "Deposit held: {{amount}} {{currency}} (not available)"
   },
   "common": {
     "cancel": "Cancel",
@@ -520,7 +527,16 @@
     "share_object_required": "Choose a vehicle or an order for each part.",
     "order_invalid": "Unknown order.",
     "party_required": "Choose a client or a counterparty.",
-    "party_one_only": "Choose either a client or a counterparty."
+    "party_one_only": "Choose either a client or a counterparty.",
+    "rental_client_mismatch": "The rental is of another client.",
+    "rental_cancelled": "The rental is cancelled.",
+    "rental_duplicated": "A rental is named twice.",
+    "deposit_exceeds_held": "Held: {{limit}} {{currency}}.",
+    "deposit_exceeds_free": "Can be held: {{limit}} {{currency}}.",
+    "deposit_exceeds_claimed": "Held by a claim: {{limit}} {{currency}}.",
+    "deposit_vehicle_not_returned": "The vehicle is not returned: confirm the early refund.",
+    "deposit_no_conflict": "There is no missing deposit.",
+    "record_has_deposit": "The receipt has a deposit part."
   },
   "history": {
     "action": "Action",
@@ -642,7 +658,8 @@
     "kind_supplier": "Supplier",
     "kind_refund": "Refund to the client",
     "kind_reversal": "Reversal",
-    "tab_settlements": "Settlements"
+    "tab_settlements": "Settlements",
+    "kind_deposit": "Deposit refund"
   },
   "moves": {
     "actual_end": "Actual end",
@@ -728,7 +745,9 @@
     "when": "Date and time",
     "without_order": "Without an order",
     "order_currency": "The order is in {{currency}}; left to pay {{amount}} {{currency}}.",
-    "settles": "Settles ≈ {{amount}} {{currency}} of the order."
+    "settles": "Settles ≈ {{amount}} {{currency}} of the order.",
+    "deposit_part": "Of it — deposit, {{currency}}",
+    "deposit_hint": "Missing {{missing}} {{currency}}. The deposit is not a payment and is not the client's funds."
   },
   "permissions": {
     "client_create": "Create clients",
@@ -800,7 +819,8 @@
     "finance_rate_override": "Change the suggested exchange rate",
     "finance_settlement_manage": "Keep settlements: initial debts, results of returns",
     "finance_offset": "Set off available funds",
-    "finance_correct": "Correct financial records"
+    "finance_correct": "Correct financial records",
+    "finance_deposit_manage": "Manage deposits"
   },
   "positions": {
     "director": "Director"
@@ -1854,5 +1874,46 @@
     "add_row": "Add a part",
     "relink": "change the link",
     "unlink": "Without an order (funds of the client)"
+  },
+  "deposit": {
+    "title": "Deposit",
+    "not_required": "No deposit by the rental's terms.",
+    "conflict": "Deposit missing: {{amount}} {{currency}}.",
+    "missing_badge": "deposit missing {{amount}} {{currency}}",
+    "required": "Required",
+    "waived": "allowed without the full deposit",
+    "received": "Received",
+    "held": "Held",
+    "claimed": "held by a claim {{amount}} {{currency}}",
+    "used": "Used",
+    "used_value": "set off {{offset}} · refunded {{refunded}} · to balance {{to_balance}} {{currency}}",
+    "term": "Hold term",
+    "term_manual": "not set: moved only by hand",
+    "term_days": "{{days}} days after the return",
+    "term_until": "to the balance at {{time}}",
+    "automatic": "by the term",
+    "kind_received": "Received",
+    "kind_to_balance": "To the client's balance",
+    "kind_hold": "Held by a claim",
+    "kind_release": "Claim ended",
+    "kind_offset": "Set off",
+    "kind_refund": "Refunded",
+    "kind_waiver": "Allowed without the full deposit",
+    "action_to_balance": "To the balance",
+    "action_hold": "Hold by a claim",
+    "action_release": "End the claim",
+    "action_offset": "Set off",
+    "action_refund": "Refund",
+    "action_waive": "Allow without the full deposit",
+    "hint_to_balance": "Moves the deposit to the client's balance before the term; no money moves.",
+    "hint_hold": "This part is not moved by the term until the claim ends.",
+    "hint_release": "The part is moved by the term again.",
+    "hint_offset": "Pays a debt of an order from the deposit, not above the debt.",
+    "hint_refund": "Pays the deposit back from a cash desk or account.",
+    "hint_waive": "Ends the missing-deposit conflict; money received does not change.",
+    "order": "Order",
+    "reason": "Reason (required)",
+    "refund_preview": "Payout ≈ {{amount}} {{currency}}",
+    "vehicle_with_client": "The vehicle is still with the client — refund anyway"
   }
 }

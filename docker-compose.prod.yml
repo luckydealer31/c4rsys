@@ -58,6 +58,25 @@ services:
       backend:
         condition: service_healthy
 
+  # Deposits whose hold term has passed go to the clients' balances (§ 14.7.1), every 10 minutes.
+  deposits:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    env_file:
+      - path: .env.prod
+        required: false
+    environment:
+      DATABASE_URL: postgres://c4rsys:${POSTGRES_PASSWORD}@db:5432/c4rsys
+      DJANGO_DEBUG: "0"
+    command: sh -c "while true; do python manage.py release_deposits; sleep 600; done"
+    healthcheck:
+      disable: true
+    depends_on:
+      backend:
+        condition: service_healthy
+
   web:
     build:
       context: ./frontend

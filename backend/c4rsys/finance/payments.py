@@ -16,7 +16,7 @@ from django.db.models import F, Sum
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
-from c4rsys.finance import charges, rates
+from c4rsys.finance import charges, deposits, rates
 from c4rsys.finance.models import CashAccount, MoneyMovement, PaymentAllocation
 from c4rsys.orders import services as orders
 from c4rsys.parties import services as parties
@@ -40,6 +40,8 @@ class CashReceipt:
     currency: str
     allocations: tuple[Allocation, ...]
     note: str = ""
+    # Parts named as the deposit of rentals (§ 14.7.3): not paid to orders, not funds.
+    deposit_parts: tuple[deposits.Part, ...] = ()
 
 
 def _order_currency(company_id: UUID, order_id: UUID, payment_currency: str) -> str:
@@ -79,7 +81,9 @@ def receive(
             "CURRENCY_MISMATCH", field="currency", account_currency=account.currency_id
         )
     client = parties.get_client(company_id, request.client_id)
-    total = sum((a.amount for a in request.allocations), Decimal(0))
+    total = sum((a.amount for a in request.allocations), Decimal(0)) + sum(
+        (d.amount for d in request.deposit_parts), Decimal(0)
+    )
     if total > request.amount:
         raise errors.business_rule("ALLOCATION_EXCEEDS_PAYMENT", field="allocations")
 
@@ -97,6 +101,14 @@ def receive(
         elif allocation.rate is not None and allocation.rate != 1:
             raise errors.validation_error("allocations", code="RATE_SAME_CURRENCY")
         locked.append((order, allocation, currency, applied))
+
+    received = deposits.prepare(
+        company_id,
+        client.id,
+        request.currency,
+        request.deposit_parts,
+        may_override=may_override_rate,
+    )
 
     now = timezone.now()
     movement = MoneyMovement.objects.create(
@@ -150,6 +162,7 @@ def receive(
                 {"settled_amount": settled, "settled_currency": currency, **rates.snapshot(applied)}
             )
         journal.append(entry)
+    deposit_journal = deposits.record_received(ctx, movement, received)
     ctx.audit(
         "payment.received",
         object_type="money_movement",
@@ -162,6 +175,7 @@ def receive(
             "currency": request.currency,
             "method": movement.method,
             "allocations": journal,
+            "deposits": deposit_journal,
             "unallocated": request.amount - total,
         },
     )

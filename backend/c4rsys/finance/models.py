@@ -149,6 +149,8 @@ class MoneyMovement(models.Model):
         SUPPLIER = "supplier"
         # Available funds paid back to the client (§ 17.2.10, § 17.2.17).
         REFUND = "refund"
+        # A deposit paid back to the client; it is not the client's available funds (§ 14.7.3).
+        DEPOSIT = "deposit"
         # A correction: the opposite of a posted record, which stays in history (§ 23.2.7).
         REVERSAL = "reversal"
 
@@ -254,6 +256,10 @@ class MoneyMovement(models.Model):
             models.CheckConstraint(
                 condition=~Q(kind="refund") | (Q(direction="out") & Q(client__isnull=False)),
                 name="money_movement_refund_shape",
+            ),
+            models.CheckConstraint(
+                condition=~Q(kind="deposit") | (Q(direction="out") & Q(client__isnull=False)),
+                name="money_movement_deposit_shape",
             ),
             models.CheckConstraint(
                 condition=(Q(kind="reversal") & Q(reverses__isnull=False) & ~Q(reason=""))
@@ -661,3 +667,86 @@ class ExpenseShare(models.Model):
 
     def __str__(self) -> str:
         return f"{self.amount} → {self.vehicle_id or self.order_id}"
+
+
+class DepositEntry(models.Model):
+    """A movement of the deposit of a rental (ТЗ § 14.7, § 14.3.3), in the deposit's currency.
+
+    The deposit is held apart from the client's available funds and is not income (§ 6.7.2,
+    § 14.7.3). Received — part of a receipt of money; to balance — moved to the client's
+    settlement balance (by the term or earlier by hand); hold / release — the part held by a
+    claim; offset — set off against a debt; refund — paid back by a payout; waiver — the conflict
+    of a missing deposit ended without money. Entries are never changed."""
+
+    class Kind(models.TextChoices):
+        RECEIVED = "received"
+        TO_BALANCE = "to_balance"
+        HOLD = "hold"
+        RELEASE = "release"
+        OFFSET = "offset"
+        REFUND = "refund"
+        WAIVER = "waiver"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    rental = models.ForeignKey("rentals.Rental", on_delete=models.PROTECT, related_name="+")
+    client = models.ForeignKey("parties.ClientCard", on_delete=models.PROTECT, related_name="+")
+    kind = models.CharField(max_length=12, choices=Kind.choices)
+    amount = models.DecimalField(max_digits=20, decimal_places=4)
+    currency = models.ForeignKey(Currency, on_delete=models.PROTECT, related_name="+")
+    # A part of a receipt in another currency, or a refund paid in another currency (§ 17.1.4).
+    money_amount = models.DecimalField(max_digits=20, decimal_places=4, null=True, blank=True)
+    money_currency = models.ForeignKey(
+        Currency, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    rate_fetch = models.ForeignKey(
+        RateFetch, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    suggested_rate = models.DecimalField(max_digits=28, decimal_places=12, null=True, blank=True)
+    applied_rate = models.DecimalField(max_digits=28, decimal_places=12, null=True, blank=True)
+    rate_manual = models.BooleanField(default=False)
+    money_movement = models.ForeignKey(
+        MoneyMovement, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    order = models.ForeignKey(
+        "orders.Order", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    reason = models.CharField(max_length=500, blank=True, default="")
+    # By the term of the deposit (§ 14.7.1), without an employee.
+    automatic = models.BooleanField(default=False)
+    created_by_user_id = models.UUIDField(null=True, blank=True)
+    created_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "deposit_entry"
+        constraints = [
+            models.CheckConstraint(condition=Q(amount__gt=0), name="deposit_entry_positive"),
+            models.CheckConstraint(
+                condition=~Q(kind__in=["received", "refund"]) | Q(money_movement__isnull=False),
+                name="deposit_entry_money_has_record",
+            ),
+            models.CheckConstraint(
+                condition=~Q(kind="offset") | Q(order__isnull=False),
+                name="deposit_entry_offset_has_order",
+            ),
+            models.CheckConstraint(
+                condition=~Q(kind__in=["hold", "release", "waiver"]) | ~Q(reason=""),
+                name="deposit_entry_reason_required",
+            ),
+            models.CheckConstraint(
+                condition=Q(automatic=False) | Q(kind="to_balance"),
+                name="deposit_entry_automatic_only_to_balance",
+            ),
+            models.CheckConstraint(
+                condition=(Q(money_amount__isnull=True) & Q(applied_rate__isnull=True))
+                | (Q(money_amount__gt=0) & Q(money_currency__isnull=False) & Q(applied_rate__gt=0)),
+                name="deposit_entry_exchange_complete",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["company", "rental"], name="deposit_entry_rental_idx"),
+            models.Index(fields=["company", "client"], name="deposit_entry_client_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.kind} {self.amount} {self.currency_id}"

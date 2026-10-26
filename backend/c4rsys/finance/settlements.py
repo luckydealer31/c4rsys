@@ -21,7 +21,7 @@ from django.db.models import Q, QuerySet, Sum
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
-from c4rsys.finance import articles, rates
+from c4rsys.finance import articles, deposits, rates
 from c4rsys.finance.models import (
     CashAccount,
     ChargeEntry,
@@ -171,6 +171,9 @@ def client_figures(company_id: UUID, client_id: UUID) -> ClientFigures:
     ):
         for currency, amount in _exchanged(exchanged).items():
             _add(balance, currency, amount)
+
+    for currency, amount in deposits.client_adjustments(company_id, client_id).items():
+        _add(balance, currency, amount)
 
     unpaid = _order_debts(company_id, client_id)
     openings = SettlementEntry.objects.filter(

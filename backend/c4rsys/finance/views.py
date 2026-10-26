@@ -13,7 +13,16 @@ from c4rsys.accounts.middleware import require_user
 from c4rsys.companies import access
 from c4rsys.companies import services as companies
 from c4rsys.companies.views import run_and_respond
-from c4rsys.finance import articles, payments, rates, records, services, settlements, transfers
+from c4rsys.finance import (
+    articles,
+    deposits,
+    payments,
+    rates,
+    records,
+    services,
+    settlements,
+    transfers,
+)
 from c4rsys.finance.models import CashAccount, FinanceArticle, MoneyMovement, Transfer
 from c4rsys.parties import services as parties
 from c4rsys.platform import errors
@@ -338,12 +347,31 @@ def payment_cash(request: HttpRequest, cmp: str) -> JsonResponse:
         )
     if len({a.order_id for a in allocations}) != len(allocations):
         raise errors.validation_error("allocations", code="ORDER_DUPLICATED")
+    # § 14.7.3: the employee names the deposit part of the receipt explicitly.
+    raw_deposits = data.get("deposits", [])
+    if not isinstance(raw_deposits, list):
+        raise errors.validation_error("deposits")
+    deposit_parts = []
+    for index, item in enumerate(raw_deposits):
+        where = f"deposits[{index}]"
+        if not isinstance(item, dict):
+            raise errors.validation_error(where)
+        deposit_parts.append(
+            deposits.Part(
+                rental_id=_uuid(item.get("rental_id"), f"{where}.rental_id"),
+                amount=_amount(item.get("amount"), f"{where}.amount", currency.minor_units),
+                rate=_rate(item.get("rate"), f"{where}.rate"),
+            )
+        )
+    if len({d.rental_id for d in deposit_parts}) != len(deposit_parts):
+        raise errors.validation_error("deposits", code="RENTAL_DUPLICATED")
     receipt = payments.CashReceipt(
         cash_account_id=account_id,
         client_id=_uuid(data.get("client_id"), "client_id"),
         amount=_amount(data.get("amount"), "amount", currency.minor_units),
         currency=currency.code,
         allocations=tuple(allocations),
+        deposit_parts=tuple(deposit_parts),
         note=get_str(data, "note", max_length=500, required=False),
     )
 
@@ -365,6 +393,14 @@ def payment_cash(request: HttpRequest, cmp: str) -> JsonResponse:
                 "rate": str(a.rate) if a.rate is not None else None,
             }
             for a in receipt.allocations
+        ],
+        "deposits": [
+            {
+                "rental_id": str(d.rental_id),
+                "amount": str(d.amount),
+                "rate": str(d.rate) if d.rate is not None else None,
+            }
+            for d in deposit_parts
         ],
         "note": receipt.note,
     }
@@ -401,6 +437,8 @@ def client_balance(request: HttpRequest, cmp: str, client_id: UUID) -> JsonRespo
             "balance": money(figures.balance),
             "available": money(figures.available),
             "unpaid": money(figures.unpaid),
+            # Held apart from the balance and not available (§ 6.7.2).
+            "deposit_held": money(deposits.held_by_client(context.company.id, client_id)),
         }
     )
 

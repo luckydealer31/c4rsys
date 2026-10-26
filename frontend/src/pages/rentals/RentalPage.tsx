@@ -14,6 +14,7 @@ import { clientName } from "../clients/ClientsPage";
 import { JournalTable } from "../settings/EmployeesPage";
 import { useLocations } from "../settings/LocationsPage";
 import { useVehicles } from "../vehicles/VehiclesPage";
+import { DepositCard } from "./Deposit";
 import { CalculationView, Warnings } from "./IssuePage";
 
 type RentalResponse = { rental: Rental };
@@ -115,6 +116,10 @@ export function RentalPage() {
 
       <Card title={t("rentals.calculation")}>
         <CalculationView calculation={current.calculation} />
+      </Card>
+
+      <Card title={t("deposit.title")}>
+        <DepositCard rental={current} onDone={() => refresh()} />
       </Card>
 
       <Card title={t("rentals.block_returned")}>

@@ -1,5 +1,6 @@
 from django.urls import path
 
+from c4rsys.finance import deposit_views as dv
 from c4rsys.finance import settlement_views as sv
 from c4rsys.finance import views
 
@@ -33,6 +34,13 @@ urlpatterns = [
     path("c/<str:cmp>/money-records/<uuid:movement_id>/reverse", sv.record_reverse),
     path("c/<str:cmp>/money-records/<uuid:movement_id>/shares", sv.record_shares),
     path("c/<str:cmp>/payment-allocations/<uuid:allocation_id>/relink", sv.allocation_relink),
+    path("c/<str:cmp>/rentals/<uuid:rental_id>/deposit", dv.deposit_detail),
+    path("c/<str:cmp>/rentals/<uuid:rental_id>/deposit/to-balance", dv.deposit_to_balance),
+    path("c/<str:cmp>/rentals/<uuid:rental_id>/deposit/hold", dv.deposit_hold),
+    path("c/<str:cmp>/rentals/<uuid:rental_id>/deposit/release", dv.deposit_release),
+    path("c/<str:cmp>/rentals/<uuid:rental_id>/deposit/offset", dv.deposit_offset),
+    path("c/<str:cmp>/rentals/<uuid:rental_id>/deposit/refund", dv.deposit_refund),
+    path("c/<str:cmp>/rentals/<uuid:rental_id>/deposit/waive", dv.deposit_waive),
     path("c/<str:cmp>/payments", views.payment_list),
     path("c/<str:cmp>/payments/cash", views.payment_cash),
     path("c/<str:cmp>/clients/<uuid:client_id>/balance", views.client_balance),

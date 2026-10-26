@@ -17,6 +17,7 @@ from django.utils import timezone
 
 from c4rsys.finance.models import (
     CashAccount,
+    DepositEntry,
     ExpenseShare,
     MoneyMovement,
     PaymentAllocation,
@@ -111,6 +112,9 @@ def reverse(
             raise errors.business_rule("CASH_ACCOUNT_ARCHIVED")
     if movement.allocations.filter(state=PaymentAllocation.State.ACTIVE).exists():
         raise errors.business_rule("RECORD_ALLOCATED")
+    if DepositEntry.objects.filter(money_movement=movement).exists():
+        # TODO(spec): a receipt with a deposit part is corrected with the deposit (§ 14.7.3).
+        raise errors.business_rule("RECORD_HAS_DEPOSIT")
     created = []
     targets = [movement]
     if movement.kind == MoneyMovement.Kind.TRANSFER:

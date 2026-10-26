@@ -285,6 +285,7 @@ export function ClientPage() {
     balance: Record<string, string>;
     available: Record<string, string>;
     unpaid: Record<string, string>;
+    deposit_held: Record<string, string>;
   }>(
     ["client-balance", company.public_id, id],
     `/c/${company.public_id}/clients/${id}/balance`,
@@ -361,6 +362,10 @@ export function ClientPage() {
             </div>
           ))
         )}
+        {/* § 6.7.2: the held deposit is shown apart and is not available funds. */}
+        {Object.entries(balance.data?.deposit_held ?? {}).map(([currency, value]) => (
+          <p key={`deposit-${currency}`}>{t("clients.deposit_held", { amount: value, currency })}</p>
+        ))}
         {can("finance.account.view") || can("finance.offset") || can("finance.settlement.manage") ? (
           <p>
             <Link to={companyPath(company, "/finance?tab=settlements")}>{t("clients.open_settlement")}</Link>

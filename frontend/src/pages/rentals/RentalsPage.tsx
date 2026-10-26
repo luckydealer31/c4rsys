@@ -81,7 +81,16 @@ export function RentalsPage() {
                   <td>
                     {rental.return_location_id ? (places.get(rental.return_location_id) ?? "—") : "—"}
                   </td>
-                  <td>{t(`rentals.state_${rental.state}`)}</td>
+                  <td>
+                    {t(`rentals.state_${rental.state}`)}
+                    {/* § 14.3.3: a missing deposit is shown apart from the debt. */}
+                    {rental.deposit?.conflict ? (
+                      <span className="badge">
+                        {" "}
+                        {t("deposit.missing_badge", { amount: rental.deposit.missing, currency: rental.deposit.currency })}
+                      </span>
+                    ) : null}
+                  </td>
                 </tr>
               );
             })}
