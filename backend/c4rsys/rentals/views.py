@@ -22,6 +22,7 @@ from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
 from c4rsys.rentals import (
     bookings,
+    extra_lines,
     formalization,
     free_time,
     issue,
@@ -418,6 +419,8 @@ def _rental_payload(rental: Rental) -> dict[str, Any]:
         "free_intervals": free_time.payload(rental),
         "mileage": _mileage_payload(rental),
         "manual_charges": manual_charges.payload(rental),
+        # § 13.4.5: linked additional services and those unlinked from this rental.
+        "services": [extra_lines.payload(x) for x in extra_lines.lines_of_rental(rental)],
         # § 14.7.3: required, received, held and the rest of the deposit; a missing deposit is
         # shown apart from the debt for the rental (§ 14.3.3).
         "deposit": deposits.payload(rental),
@@ -694,7 +697,10 @@ def rental_history(request: HttpRequest, cmp: str, rental_id: UUID) -> JsonRespo
     rental = rentals.get_rental(context.company.id, rental_id)
     if not _rental_visible(actor, rental):
         raise errors.not_found()
-    events = history.object_history(context.company.id, rentals.history_objects(rental))
+    objects = rentals.history_objects(rental)
+    for line in extra_lines.lines_of_rental(rental):
+        objects += extra_lines.history_objects(line)
+    events = history.object_history(context.company.id, objects)
     return JsonResponse({"history": history.payload(events)})
 
 

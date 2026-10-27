@@ -103,6 +103,7 @@ class ChargeEntry(models.Model):
         RENTAL_BASE = "rental_base"
         RENTAL_MILEAGE = "rental_mileage"  # § 13.4.4: overage apart from the base cost
         RENTAL_MANUAL = "rental_manual"  # § 13.5.1: fuel or another manual charge
+        RENTAL_SERVICE = "rental_service"  # § 13.4.5: a line of an additional service
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")

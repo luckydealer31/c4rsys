@@ -13,7 +13,7 @@ from c4rsys.companies.views import run_and_respond
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
-from c4rsys.rentals import free_time, manual_charges, rentals
+from c4rsys.rentals import extra_lines, free_time, manual_charges, rentals
 from c4rsys.rentals.views import _actor, _moment, _rental_payload
 
 
@@ -40,6 +40,16 @@ def _interval(data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _line_ids(data: dict[str, Any]) -> list[UUID]:
+    value = data.get("service_line_ids") or []
+    if not isinstance(value, list):
+        raise errors.validation_error("service_line_ids")
+    try:
+        return [UUID(str(x)) for x in value]
+    except ValueError as exc:
+        raise errors.validation_error("service_line_ids") from exc
+
+
 def _encoded(values: dict[str, Any]) -> dict[str, Any]:
     return {k: v.isoformat() if hasattr(v, "isoformat") else v for k, v in values.items()}
 
@@ -51,16 +61,33 @@ def free_time_add(request: HttpRequest, cmp: str, rental_id: UUID) -> JsonRespon
     data = parse_json(request)
     values = _interval(data)
     expected_version = get_int(data, "expected_version")
+    lines = _line_ids(data)
 
     def handler(ctx: CommandContext) -> CommandResult:
-        free_time.add(
+        item = free_time.add(
             ctx, context.company.id, rental_id, expected_version=expected_version, **values
         )
+        # § 13.4.6: the same free period for the linked time services chosen by the manager.
+        for line_id in lines:
+            line = extra_lines.get_line(context.company.id, line_id)
+            if line.rental_id != rental_id:
+                raise errors.validation_error("service_line_ids", code="SERVICE_NOT_LINKED")
+            extra_lines.add_free(
+                ctx,
+                context.company.id,
+                line_id,
+                start=item.start,
+                end=item.end,
+                units=None,
+                comment=values["comment"],
+                expected_version=None,
+            )
         return _result(context.company.id, rental_id, 201)
 
     payload = {
         "rental_id": str(rental_id),
         **_encoded(values),
+        "service_line_ids": sorted(map(str, lines)),
         "expected_version": expected_version,
     }
     return run_and_respond(request, "rental.free_time_add", actor, payload, handler)

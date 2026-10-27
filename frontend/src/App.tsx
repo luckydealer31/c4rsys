@@ -27,6 +27,7 @@ import { BookingPage } from "./pages/rentals/Booking";
 import { IssuePage } from "./pages/rentals/IssuePage";
 import { RentalPage } from "./pages/rentals/RentalPage";
 import { RentalsPage } from "./pages/rentals/RentalsPage";
+import { ExtraServicePage, ExtraServicesPage, NewServiceOrderPage, ServiceLinePage } from "./pages/rentals/Services";
 import { CompanyProfilePage } from "./pages/settings/CompanyProfilePage";
 import { RentalPolicyPage } from "./pages/settings/RentalPolicyPage";
 import { LocationPage } from "./pages/settings/LocationsPage";
@@ -122,6 +123,10 @@ export function App() {
         <Route path="settings/rental" element={<RentalPolicyPage />} />
         <Route path="settings/locations" element={<Navigate to="../company" replace />} />
         <Route path="rentals/tariffs" element={<TariffsPage />} />
+        <Route path="rentals/services" element={<ExtraServicesPage />} />
+        <Route path="rentals/services/order" element={<NewServiceOrderPage />} />
+        <Route path="rentals/services/:id" element={<ExtraServicePage />} />
+        <Route path="rentals/service-lines/:id" element={<ServiceLinePage />} />
         <Route path="rentals/tariffs/:id" element={<TariffPage />} />
         <Route path="settings/tariffs" element={<Navigate to="../rentals/tariffs" replace />} />
         <Route path="clients/employees/:id" element={<EmployeePage />} />

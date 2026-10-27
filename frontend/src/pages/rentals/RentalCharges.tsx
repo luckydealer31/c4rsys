@@ -29,6 +29,9 @@ export function FreeTime({ rental, onDone }: Props) {
   const [units, setUnits] = useState("1");
   const [end, setEnd] = useState("");
   const [comment, setComment] = useState("");
+  const [lines, setLines] = useState<string[]>([]);
+  // § 13.4.6: the same free period may be applied to linked time services by explicit choice.
+  const timeServices = (rental.services ?? []).filter((s) => s.rental_id === rental.id && s.pricing === "time");
   const add = useCommand<Record<string, unknown>, { rental: Rental }>(base);
   const remove = useCommand<{ id: string; expected_version: number }, { rental: Rental }>(
     (body) => `${base}/${body.id}/remove`,
@@ -42,6 +45,7 @@ export function FreeTime({ rental, onDone }: Props) {
     const body: Record<string, unknown> = {
       start: fromLocalInput(start, zone),
       comment,
+      service_line_ids: lines,
       expected_version: rental.version,
     };
     if (by === "units") body.units = Number(units);
@@ -49,6 +53,7 @@ export function FreeTime({ rental, onDone }: Props) {
     const result = await add.run(body);
     if (result) {
       setComment("");
+      setLines([]);
       await onDone(result.rental);
     }
   }
@@ -105,6 +110,21 @@ export function FreeTime({ rental, onDone }: Props) {
               <input value={comment} onChange={(e) => setComment(e.target.value)} />
             </Field>
           </div>
+          {timeServices.length ? (
+            <div className="small">
+              {t("services.apply_free")}:{" "}
+              {timeServices.map((s) => (
+                <label key={s.id} style={{ marginLeft: 12 }}>
+                  <input
+                    type="checkbox"
+                    checked={lines.includes(s.id)}
+                    onChange={() => setLines(lines.includes(s.id) ? lines.filter((x) => x !== s.id) : [...lines, s.id])}
+                  />{" "}
+                  {s.name}
+                </label>
+              ))}
+            </div>
+          ) : null}
           <p className="muted small">{t("charges.free_hint")}</p>
           <ErrorMessage error={add.error} />
           <div className="actions">

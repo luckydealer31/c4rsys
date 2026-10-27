@@ -2,9 +2,28 @@ from django.urls import path
 
 from c4rsys.rentals import booking_views as bv
 from c4rsys.rentals import charge_views as cv
+from c4rsys.rentals import extra_views as ev
 from c4rsys.rentals import views
 
 urlpatterns = [
+    path("c/<str:cmp>/extra-services", ev.service_list),
+    path("c/<str:cmp>/extra-services/applicable", ev.applicable),
+    path("c/<str:cmp>/extra-services/<uuid:service_id>", ev.service_detail),
+    path("c/<str:cmp>/extra-services/<uuid:service_id>/archive", ev.service_archive),
+    path("c/<str:cmp>/extra-services/<uuid:service_id>/restore", ev.service_restore),
+    path("c/<str:cmp>/rentals/<uuid:rental_id>/services", ev.rental_service_add),
+    path("c/<str:cmp>/orders/<uuid:order_id>/services", ev.order_services),
+    path("c/<str:cmp>/service-lines", ev.line_create),
+    path("c/<str:cmp>/service-lines/<uuid:line_id>", ev.line_detail),
+    path("c/<str:cmp>/service-lines/<uuid:line_id>/start", ev.line_start),
+    path("c/<str:cmp>/service-lines/<uuid:line_id>/complete", ev.line_complete),
+    path("c/<str:cmp>/service-lines/<uuid:line_id>/cancel", ev.line_cancel),
+    path("c/<str:cmp>/service-lines/<uuid:line_id>/unlink", ev.line_unlink),
+    path("c/<str:cmp>/service-lines/<uuid:line_id>/free-time", ev.line_free_add),
+    path(
+        "c/<str:cmp>/service-lines/<uuid:line_id>/free-time/<uuid:interval_id>/remove",
+        ev.line_free_remove,
+    ),
     path("c/<str:cmp>/readiness", views.company_readiness),
     path("c/<str:cmp>/setup/complete", views.company_setup_complete),
     path("c/<str:cmp>/tariffs", views.tariff_list),

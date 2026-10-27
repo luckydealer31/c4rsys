@@ -358,6 +358,11 @@ def _decimal(value: Any, field: str, places: int) -> Decimal:
     return number
 
 
+def parse_amount(value: Any, field: str) -> Decimal:
+    """A positive price with at most the places of a tariff rate."""
+    return _decimal(value, field, RATE_PLACES)
+
+
 def parse_vehicle_terms(data: dict[str, Any]) -> VehicleTerms:
     """Mileage «unlimited» or «included» with the included distance per tariff unit and the price
     of each unit over; deposit «not required» or «required» with a fixed amount and an optional

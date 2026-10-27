@@ -436,10 +436,64 @@ export type Rental = RentalSummary & {
   free_intervals?: FreeInterval[];
   mileage?: Mileage | null;
   manual_charges?: ManualCharge[];
+  services?: ServiceLine[];
   version: number;
 };
 
-export type Warning = { code: string; amounts?: Record<string, string> };
+/** An additional service of the rental catalog (§ 13.4.5–13.4.7): once, by quantity or by time. */
+export type ExtraService = {
+  id: string;
+  name: string;
+  pricing: "once" | "quantity" | "time";
+  unit: "minute" | "hour" | "day" | "month" | null;
+  price: string;
+  currency: string;
+  all_locations: boolean;
+  locations: string[];
+  vehicles: string[];
+  tariffs: string[];
+  state: "active" | "archived";
+  version: number;
+};
+
+export type ServiceChoice = Pick<ExtraService, "id" | "name" | "pricing" | "unit" | "price" | "currency">;
+
+/** A service in an order: linked to a rental or standalone (§ 13.4.5, § 13.4.9, § 13.4.11). */
+export type ServiceLine = {
+  id: string;
+  order_id: string;
+  service_id: string;
+  name: string;
+  pricing: ExtraService["pricing"];
+  unit: ExtraService["unit"];
+  price: string;
+  currency: string;
+  quantity: number | null;
+  rental_id: string | null;
+  origin_rental_id: string | null;
+  location_id: string | null;
+  time_zone: string;
+  period: { start: string; end: string | null; kind: string } | null;
+  state: "planned" | "started" | "completed" | "cancelled";
+  actual_start: string | null;
+  actual_end: string | null;
+  unlinked_at: string | null;
+  cancelled_at: string | null;
+  cancel_reason: string;
+  calculation: {
+    kind: string;
+    amount: string;
+    currency: string;
+    units: number | null;
+    billable_minutes: number | null;
+    free_minutes: number | null;
+  } | null;
+  free_intervals: { id: string; start: string; end: string; units: number | null; comment: string }[];
+  finished: boolean;
+  version: number;
+};
+
+export type Warning ={ code: string; amounts?: Record<string, string> };
 
 export type OrderAmounts = { charged: string; paid: string; to_pay: string; overpaid: string };
 

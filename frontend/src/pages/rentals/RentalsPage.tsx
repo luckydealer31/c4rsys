@@ -48,9 +48,14 @@ export function RentalsPage() {
             </Link>
           ) : null}
           {can("tariff.view") ? (
-            <Link className="button secondary" to={companyPath(company, "/rentals/tariffs")}>
-              {t("settings.tariffs")}
-            </Link>
+            <>
+              <Link className="button secondary" to={companyPath(company, "/rentals/tariffs")}>
+                {t("settings.tariffs")}
+              </Link>
+              <Link className="button secondary" to={companyPath(company, "/rentals/services")}>
+                {t("services.catalog")}
+              </Link>
+            </>
           ) : null}
         </div>
       ) : can("tariff.view") || can("rental.book") ? (
@@ -61,9 +66,14 @@ export function RentalsPage() {
             </Link>
           ) : null}
           {can("tariff.view") ? (
-            <Link className="button secondary" to={companyPath(company, "/rentals/tariffs")}>
-              {t("settings.tariffs")}
-            </Link>
+            <>
+              <Link className="button secondary" to={companyPath(company, "/rentals/tariffs")}>
+                {t("settings.tariffs")}
+              </Link>
+              <Link className="button secondary" to={companyPath(company, "/rentals/services")}>
+                {t("services.catalog")}
+              </Link>
+            </>
           ) : null}
         </div>
       ) : null}

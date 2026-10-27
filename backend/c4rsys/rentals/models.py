@@ -600,3 +600,251 @@ class RentalManualCharge(models.Model):
 
     def __str__(self) -> str:
         return f"{self.kind} {self.amount} {self.currency_id}"
+
+
+class ExtraService(models.Model):
+    """An additional service of the rental catalog (§ 13.4.5–13.4.7): paid once, by quantity or by
+    duration. Available to the whole company or selected locations, optionally limited to vehicles
+    and tariffs (an empty list: no limit). Its price is in its own currency (customer's decision
+    У2); the pricing, unit and currency do not change after creation. An added service keeps a
+    snapshot (§ 13.4.8). Equipment by instance comes later (decision Т1)."""
+
+    class Pricing(models.TextChoices):
+        ONCE = "once"
+        QUANTITY = "quantity"
+        TIME = "time"
+
+    class Unit(models.TextChoices):
+        # Decisions Т7 and У12: a 24-hour day from the start of the period, no settlement days.
+        MINUTE = "minute"
+        HOUR = "hour"
+        DAY = "day"
+        MONTH = "month"
+
+    class State(models.TextChoices):
+        ACTIVE = "active"
+        ARCHIVED = "archived"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    name = models.CharField(max_length=150)
+    pricing = models.CharField(max_length=10, choices=Pricing.choices)
+    unit = models.CharField(max_length=10, choices=Unit.choices, blank=True, default="")
+    price = models.DecimalField(max_digits=20, decimal_places=4)
+    currency = models.ForeignKey(Currency, on_delete=models.PROTECT, related_name="+")
+    all_locations = models.BooleanField(default=True)
+    state = models.CharField(max_length=10, choices=State.choices, default=State.ACTIVE)
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+    updated_at = models.DateTimeField(auto_now=True)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "rental_extra_service"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "id"], name="rental_extra_service_company_id_uniq"
+            ),
+            models.CheckConstraint(condition=~Q(name=""), name="rental_extra_service_name"),
+            models.CheckConstraint(condition=Q(price__gt=0), name="rental_extra_service_price"),
+            models.CheckConstraint(
+                condition=(Q(pricing="time") & ~Q(unit="")) | (~Q(pricing="time") & Q(unit="")),
+                name="rental_extra_service_unit_of_time",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class ExtraServiceLocation(models.Model):
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    service = models.ForeignKey(ExtraService, on_delete=models.PROTECT, related_name="+")
+    location = models.ForeignKey(Location, on_delete=models.PROTECT, related_name="+")
+
+    class Meta:
+        db_table = "rental_extra_service_location"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["service", "location"], name="rental_extra_service_location_uniq"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.service_id}@{self.location_id}"
+
+
+class ExtraServiceVehicle(models.Model):
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    service = models.ForeignKey(ExtraService, on_delete=models.PROTECT, related_name="+")
+    vehicle_card = models.ForeignKey(
+        "fleet.VehicleCard", on_delete=models.PROTECT, related_name="+"
+    )
+
+    class Meta:
+        db_table = "rental_extra_service_vehicle"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["service", "vehicle_card"], name="rental_extra_service_vehicle_uniq"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.service_id}:{self.vehicle_card_id}"
+
+
+class ExtraServiceTariff(models.Model):
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    service = models.ForeignKey(ExtraService, on_delete=models.PROTECT, related_name="+")
+    tariff = models.ForeignKey(Tariff, on_delete=models.PROTECT, related_name="+")
+
+    class Meta:
+        db_table = "rental_extra_service_tariff"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["service", "tariff"], name="rental_extra_service_tariff_uniq"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.service_id}:{self.tariff_id}"
+
+
+class ExtraServiceLine(models.Model):
+    """An additional service added to an order (§ 12.1.4, § 13.4.5): each addition is its own
+    line with a snapshot of the price and terms (§ 13.4.8).
+
+    Linked to a rental (`rental`), it has the rental's period and follows its issue and return
+    (customer's decisions У4–У5); the state stored then is «planned» and the shown one comes from
+    the rental. Standalone, it has its own location of the service (§ 13.4.14), its own period for
+    a time service and its own actual start and completion (§ 13.4.11). Unlinking changes the link
+    of the same line (§ 13.4.9); `origin_rental` keeps the rental it was linked to."""
+
+    class State(models.TextChoices):
+        PLANNED = "planned"
+        STARTED = "started"
+        COMPLETED = "completed"
+        CANCELLED = "cancelled"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    order = models.ForeignKey("orders.Order", on_delete=models.PROTECT, related_name="+")
+    service = models.ForeignKey(ExtraService, on_delete=models.PROTECT, related_name="+")
+    pricing = models.CharField(max_length=10, choices=ExtraService.Pricing.choices)
+    snapshot = models.JSONField()
+    currency = models.ForeignKey(Currency, on_delete=models.PROTECT, related_name="+")
+    rental = models.ForeignKey(
+        Rental, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    origin_rental = models.ForeignKey(
+        Rental, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    location = models.ForeignKey(
+        Location, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    quantity = models.PositiveIntegerField(null=True, blank=True)
+    period_start = models.DateTimeField(null=True, blank=True)
+    period_end = models.DateTimeField(null=True, blank=True)
+    state = models.CharField(max_length=10, choices=State.choices, default=State.PLANNED)
+    actual_start = models.DateTimeField(null=True, blank=True)
+    actual_end = models.DateTimeField(null=True, blank=True)
+    unlinked_at = models.DateTimeField(null=True, blank=True)
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    cancel_reason = models.CharField(max_length=500, blank=True, default="")
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+    updated_at = models.DateTimeField(auto_now=True)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "rental_extra_service_line"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "id"], name="rental_extra_service_line_company_id_uniq"
+            ),
+            # A standalone service has its location; a linked one takes the rental's.
+            models.CheckConstraint(
+                condition=Q(rental__isnull=False) | Q(location__isnull=False),
+                name="rental_extra_service_line_location",
+            ),
+            models.CheckConstraint(
+                condition=(Q(pricing="quantity") & Q(quantity__gte=1))
+                | (~Q(pricing="quantity") & Q(quantity__isnull=True)),
+                name="rental_extra_service_line_quantity",
+            ),
+            # § 13.4.9: a linked service has no period of its own; a standalone time service has.
+            models.CheckConstraint(
+                condition=(
+                    Q(rental__isnull=False)
+                    & Q(period_start__isnull=True)
+                    & Q(period_end__isnull=True)
+                )
+                | (
+                    Q(rental__isnull=True, pricing="time")
+                    & Q(period_start__isnull=False)
+                    & Q(period_end__gt=models.F("period_start"))
+                )
+                | (
+                    Q(rental__isnull=True)
+                    & ~Q(pricing="time")
+                    & Q(period_start__isnull=True)
+                    & Q(period_end__isnull=True)
+                ),
+                name="rental_extra_service_line_period",
+            ),
+            models.CheckConstraint(
+                condition=Q(rental__isnull=True) | Q(state="planned"),
+                name="rental_extra_service_line_linked_state",
+            ),
+            models.CheckConstraint(
+                condition=~Q(state__in=["started", "completed"]) | Q(actual_start__isnull=False),
+                name="rental_extra_service_line_started",
+            ),
+            models.CheckConstraint(
+                condition=~Q(state="completed")
+                | (Q(actual_end__isnull=False) & Q(actual_end__gte=models.F("actual_start"))),
+                name="rental_extra_service_line_completed",
+            ),
+            models.CheckConstraint(
+                condition=~Q(state="cancelled")
+                | (Q(cancelled_at__isnull=False) & ~Q(cancel_reason="")),
+                name="rental_extra_service_line_cancelled",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"service line {self.id}"
+
+
+class ExtraServiceFreeInterval(models.Model):
+    """Free time of a time service (§ 13.4.6), entered by hand by the rules of § 13.3.2
+    (customer's decision У9)."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    line = models.ForeignKey(
+        ExtraServiceLine, on_delete=models.PROTECT, related_name="free_intervals"
+    )
+    start = models.DateTimeField()
+    end = models.DateTimeField()
+    units = models.PositiveIntegerField(null=True, blank=True)
+    comment = models.CharField(max_length=500, blank=True, default="")
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "rental_extra_service_free_interval"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(end__gt=models.F("start")),
+                name="rental_extra_service_free_not_empty",
+            ),
+            models.CheckConstraint(
+                condition=Q(units__isnull=True) | Q(units__gte=1),
+                name="rental_extra_service_free_units",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"free {self.start}–{self.end}"

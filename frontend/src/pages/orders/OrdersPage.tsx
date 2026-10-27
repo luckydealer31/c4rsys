@@ -13,6 +13,7 @@ import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { formatMoment } from "../../time";
 import { clientName } from "../clients/ClientsPage";
 import { CashReceipt, usePayments } from "../finance/CashReceipt";
+import { OrderServices } from "../rentals/Services";
 import { useCashAccounts } from "../finance/FinancePage";
 import { employeeName, JournalTable, useEmployees } from "../settings/EmployeesPage";
 
@@ -193,10 +194,11 @@ export function OrderPage() {
         </dl>
       </Card>
 
+      {current.operations.some((op) => op.type !== "sale" && op.type !== "service") ? (
       <Card title={t("orders.lines")}>
         <table>
           <tbody>
-            {current.operations.filter((op) => op.type !== "sale").map((op) => (
+            {current.operations.filter((op) => op.type !== "sale" && op.type !== "service").map((op) => (
               <tr key={op.id}>
                 <td>
                   {op.type === "rental" ? (
@@ -212,7 +214,9 @@ export function OrderPage() {
           </tbody>
         </table>
       </Card>
+      ) : null}
 
+      <OrderServices order={current} onChange={refresh} />
       <SaleGoods order={current} onChange={refresh} />
       <ReopenOrder order={current} onDone={refresh} />
 
@@ -249,7 +253,11 @@ export function OrderPage() {
           {current.closing_conditions.length ? (
             <ul>
               {current.closing_conditions.map((c) => (
-                <li key={`${c.id}-${c.condition}`}>{t(`orders.condition_${c.condition}`, { operation: t(`orders.operation_${c.operation}`) })}</li>
+                <li key={`${c.id}-${c.condition}`}>
+                  {c.operation === "service"
+                    ? t(`orders.condition_${c.condition}_service`)
+                    : t(`orders.condition_${c.condition}`, { operation: t(`orders.operation_${c.operation}`) })}
+                </li>
               ))}
             </ul>
           ) : (

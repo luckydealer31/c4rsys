@@ -22,7 +22,7 @@ from c4rsys.inspections.models import Inspection
 from c4rsys.orders import services as orders
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
-from c4rsys.rentals import issue_policies, rentals
+from c4rsys.rentals import extra_lines, issue_policies, rentals
 from c4rsys.rentals.models import Rental, RentalFreeInterval
 
 
@@ -59,6 +59,8 @@ def recalculate(ctx: CommandContext, rental: Rental, reason: str) -> ChargeEntry
         raise RuntimeError("Only a finished period of an issued rental is charged")
     result = rentals.calculate(rental, end)
     _charge_mileage(ctx, rental, client_id, reason)
+    # Linked services follow the rental's period and are charged with it (decision У5).
+    extra_lines.charge_linked(ctx, rental, reason)
     return charges.set_charge(
         ctx,
         company_id=rental.company_id,
@@ -131,6 +133,12 @@ def accept_return(ctx: CommandContext, request: ReturnRequest) -> tuple[Rental, 
             "FREE_INTERVAL_OUTSIDE_RENTAL",
             field="actual_end",
             intervals=[str(i.id) for i in outside],
+        )
+    # The same for the free time of linked services, whose period shrinks with the rental's.
+    services_outside = extra_lines.free_outside(rental, request.actual_end)
+    if services_outside:
+        raise errors.business_rule(
+            "FREE_INTERVAL_OUTSIDE_SERVICE", field="actual_end", intervals=services_outside
         )
     location_id = acceptance_location(rental, request.place_kind, request.return_location_id)
     locations.require_usable(company_id, location_id, "return_location_id")

@@ -27,7 +27,7 @@ from c4rsys.parties import services as parties
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
 from c4rsys.platform.counters import next_number
-from c4rsys.rentals import places, tariffs
+from c4rsys.rentals import extra_lines, places, tariffs
 from c4rsys.rentals.models import Rental, RentalPolicy, Tariff
 
 BOOKED = Rental.State.BOOKED
@@ -451,6 +451,8 @@ def cancel(
     rental.cancel_reason = reason
     rental.version += 1
     rental.save()
+    # § 13.4.15: linked services stay standalone in the same order, also at the auto-cancel.
+    extra_lines.detach_on_cancel(ctx, rental)
     if ctx is not None:
         ctx.audit(
             "rental.booking_cancelled",

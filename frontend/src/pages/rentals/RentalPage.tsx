@@ -18,6 +18,7 @@ import { BookingCard } from "./Booking";
 import { DepositCard } from "./Deposit";
 import { IssueExceptionView, placeText } from "./IssueRules";
 import { FreeTime, ManualCharges, MileageView } from "./RentalCharges";
+import { RentalServices } from "./Services";
 import { CalculationView, Warnings } from "./IssuePage";
 
 type RentalResponse = { rental: Rental };
@@ -138,6 +139,12 @@ export function RentalPage() {
           <p className="muted">{t("bookings.no_calculation")}</p>
         )}
       </Card>
+
+      {current.state !== "cancelled" || current.services?.length ? (
+        <Card title={t("services.title")}>
+          <RentalServices rental={current} onDone={refresh} />
+        </Card>
+      ) : null}
 
       {operated ? (
         <>
