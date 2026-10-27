@@ -27,7 +27,7 @@ from c4rsys.parties import services as parties
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
 from c4rsys.platform.counters import next_number
-from c4rsys.rentals import extra_lines, places, tariffs
+from c4rsys.rentals import billing, extra_lines, places, tariffs
 from c4rsys.rentals.models import Rental, RentalPolicy, Tariff
 
 BOOKED = Rental.State.BOOKED
@@ -296,6 +296,7 @@ def create(ctx: CommandContext, company_id: UUID, data: BookingData) -> Rental:
         object_id=rental.id,
         after={**snapshot(rental), "order": str(order.id), "order_number": order.number},
     )
+    billing.sync(ctx, rental, "booked")
     return rental
 
 
@@ -359,10 +360,10 @@ def update(
             rental.auto_cancel_at = _auto_cancel_at(rental.auto_cancel_rule, start)
         rental.planned_start, rental.planned_end = start, end
         rental.booking_period = (start, end)
+    order = None
     if changes.client_id is not None and changes.client_id != rental.client_id:
         client = parties.get_client(company_id, changes.client_id)
         order = orders.lock_open_order(company_id, rental.order_id)
-        orders.assign_client(ctx, order, client.id)
         rental.client = client
     if changes.tariff_id is not None and changes.tariff_id != rental.tariff_id:
         card = VehicleCard.objects.get(pk=rental.vehicle_card_id)
@@ -389,7 +390,12 @@ def update(
         rental.booking_contact = changes.contact
     if changes.comment is not None:
         rental.booking_comment = changes.comment
-    return _save(ctx, rental, before, "rental.booking_changed")
+    _save(ctx, rental, before, "rental.booking_changed")
+    if order is not None and rental.client_id is not None:
+        # After the save, so the charges created for the new client follow the new terms (Р25).
+        orders.assign_client(ctx, order, rental.client_id)
+    billing.sync(ctx, rental, "booking_changed")
+    return rental
 
 
 def replace_vehicle(
@@ -424,7 +430,9 @@ def replace_vehicle(
         snap["vehicle_terms"] = new_snap["vehicle_terms"]
         rental.tariff_snapshot = snap
     rental.vehicle_card = card
-    return _save(ctx, rental, before, "rental.booking_vehicle_replaced")
+    _save(ctx, rental, before, "rental.booking_vehicle_replaced")
+    billing.sync(ctx, rental, "booking_vehicle_replaced")
+    return rental
 
 
 def cancel(
@@ -461,6 +469,7 @@ def cancel(
             before=before,
             after={"state": rental.state, "reason": reason, "automatic": automatic},
         )
+        billing.charge_base(ctx, rental, "booking_cancelled")
     return rental
 
 

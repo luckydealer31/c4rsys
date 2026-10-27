@@ -24,7 +24,7 @@ from c4rsys.orders import services as orders
 from c4rsys.parties import services as parties
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
-from c4rsys.rentals import issue_policies, places, tariffs
+from c4rsys.rentals import billing, issue_policies, places, tariffs
 from c4rsys.rentals.models import Rental, Tariff
 
 
@@ -203,6 +203,7 @@ def issue(ctx: CommandContext, request: IssueRequest) -> Issued:
     except IntegrityError as exc:
         raise errors.business_rule("VEHICLE_NOT_AVAILABLE") from exc
 
+    billing.sync(ctx, rental, "issued")
     inspection = _after_issue(ctx, request, card, location, rental, assessment)
     ctx.audit(
         "rental.issued",
@@ -266,7 +267,6 @@ def _issue_booking(
     if booking.vehicle_card_id != card.id:
         raise errors.business_rule("BOOKING_VEHICLE_MISMATCH", field="vehicle_card_id")
     order = orders.lock_open_order(card.company_id, booking.order_id)
-    orders.assign_client(ctx, order, client.id)
     if booking.tariff_id != tariff.id or not booking.tariff_snapshot:
         booking.tariff_snapshot = tariffs.rental_snapshot(tariff, terms)
     booking.client = client
@@ -291,6 +291,9 @@ def _issue_booking(
             booking.save()
     except IntegrityError as exc:
         raise errors.business_rule("VEHICLE_NOT_AVAILABLE") from exc
+    # After the save, so the charges created for the client follow the issued terms (Р25).
+    orders.assign_client(ctx, order, client.id)
+    billing.sync(ctx, booking, "issued")
     inspection = _after_issue(ctx, request, card, location, booking, assessment)
     ctx.audit(
         "rental.issued",

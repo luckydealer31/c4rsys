@@ -32,10 +32,60 @@ def set_charge(
     calculation: dict[str, Any],
 ) -> ChargeEntry | None:
     """Brings the charge of a source to `amount` by appending the difference. Payments already
-    made are not touched: the difference becomes debt or overpayment (§ 13.6.3)."""
-    delta = amount - current_charge(source_type, source_id)
+    made are not touched: the difference becomes debt or overpayment (§ 13.6.3). A charge left in
+    another currency (another tariff of a booking) is brought to zero first."""
+    totals = {
+        r["currency_id"]: r["total"]
+        for r in ChargeEntry.objects.filter(source_type=source_type, source_id=source_id)
+        .values("currency_id")
+        .annotate(total=Sum("amount"))
+    }
+    for other, total in totals.items():
+        if other != currency and total != 0:
+            _append(
+                ctx,
+                company_id,
+                order_id,
+                client_id,
+                source_type,
+                source_id,
+                -total,
+                other,
+                Decimal(0),
+                reason,
+                calculation,
+            )
+    delta = amount - totals.get(currency, Decimal(0))
     if delta == 0:
         return None
+    return _append(
+        ctx,
+        company_id,
+        order_id,
+        client_id,
+        source_type,
+        source_id,
+        delta,
+        currency,
+        amount,
+        reason,
+        calculation,
+    )
+
+
+def _append(
+    ctx: CommandContext,
+    company_id: UUID,
+    order_id: UUID,
+    client_id: UUID,
+    source_type: str,
+    source_id: UUID,
+    delta: Decimal,
+    currency: str,
+    total: Decimal,
+    reason: str,
+    calculation: dict[str, Any],
+) -> ChargeEntry:
     entry = ChargeEntry.objects.create(
         company_id=company_id,
         order_id=order_id,
@@ -58,12 +108,22 @@ def set_charge(
             "source_type": source_type,
             "source_id": str(source_id),
             "delta": delta,
-            "total": amount,
+            "total": total,
             "currency": currency,
             "reason": reason,
         },
     )
     return entry
+
+
+def charged_currency(source_type: str, source_id: UUID) -> str | None:
+    """The currency of a source's current non-zero charge, to bring it to zero."""
+    rows = (
+        ChargeEntry.objects.filter(source_type=source_type, source_id=source_id)
+        .values("currency_id")
+        .annotate(total=Sum("amount"))
+    )
+    return next((r["currency_id"] for r in rows if r["total"] != 0), None)
 
 
 def charged_for_order(company_id: UUID, order_id: UUID) -> dict[str, Decimal]:

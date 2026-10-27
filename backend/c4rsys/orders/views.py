@@ -53,6 +53,10 @@ def _money(currency: str, money: services.Money) -> dict[str, str]:
     }
 
 
+def _amount(currency: str, value: Decimal) -> str:
+    return str(round_money(value, Currency.objects.get(code=currency).minor_units))
+
+
 def _payload(order: Order, operations: list[services.OperationSummary]) -> dict[str, Any]:
     return {
         "id": str(order.id),
@@ -74,6 +78,11 @@ def _payload(order: Order, operations: list[services.OperationSummary]) -> dict[
         "amounts": {
             currency: _money(currency, m)
             for currency, m in sorted(services.amounts_of(order).items())
+        },
+        # Without a client nothing is charged; the cost of the operations is estimated (Р25).
+        "estimated": {
+            currency: _amount(currency, value)
+            for currency, value in sorted(services.estimated_of(order).items())
         },
     }
 
@@ -101,8 +110,9 @@ def order_detail(request: HttpRequest, cmp: str, order_id: UUID) -> JsonResponse
 
 @require_POST
 def order_close(request: HttpRequest, cmp: str, order_id: UUID) -> JsonResponse:
-    """§ 12.1.9, § 23.6.5: order.close and the section right of every operation in its location;
-    with debt also order.close_with_debt."""
+    """§ 12.1.9, § 23.6.5: order.close in the locations of its operations, with debt also
+    order.close_with_debt. The operations are finished in their sections by the rights of those
+    sections, so closing checks no section rights (decision Р21 of 28.10.2026)."""
     context, actor = _actor(request, cmp)
     order = services.get_order(context.company.id, order_id)
     operations = services.operations_of(order)
@@ -112,12 +122,6 @@ def order_close(request: HttpRequest, cmp: str, order_id: UUID) -> JsonResponse:
     places = {op.location_id for op in operations}
     if not all(resolver.has_permission(actor, "order.close", location_id=x) for x in places):
         raise errors.permission_denied("order.close")
-    for op in operations:
-        needed = services.section_permission(op.type)
-        if needed is None or not resolver.has_permission(actor, needed, location_id=op.location_id):
-            raise errors.business_rule(
-                "ORDER_SECTION_PERMISSION_MISSING", operation=op.type, permission=needed
-            )
     may_close_with_debt = all(
         resolver.has_permission(actor, "order.close_with_debt", location_id=x) for x in places
     )

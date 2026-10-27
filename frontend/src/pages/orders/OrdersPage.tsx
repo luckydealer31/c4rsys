@@ -37,9 +37,15 @@ function useClientNames(enabled: boolean) {
 export function OrderAmountsText({ order }: { order: Order }) {
   const { t } = useTranslation();
   const entries = Object.entries(order.amounts);
-  if (!entries.length) return <>—</>;
+  const estimated = Object.entries(order.estimated ?? {});
+  if (!entries.length && !estimated.length) return <>—</>;
   return (
     <>
+      {estimated.map(([currency, amount]) => (
+        <div key={`estimated-${currency}`}>
+          {t("orders.estimated", { amount, currency })}
+        </div>
+      ))}
       {entries.map(([currency, a]) => (
         <div key={currency}>
           {t("orders.charged")} {a.charged} · {t("orders.paid")} {a.paid} ·{" "}

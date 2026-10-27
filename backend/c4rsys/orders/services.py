@@ -57,6 +57,7 @@ class _Registry:
     operations: list[OperationsProvider] = field(default_factory=list)
     charged: list[AmountProvider] = field(default_factory=list)
     paid: list[AmountProvider] = field(default_factory=list)
+    estimated: list[AmountProvider] = field(default_factory=list)
 
 
 registry = _Registry()
@@ -72,6 +73,21 @@ def register_charged(provider: AmountProvider) -> None:
 
 def register_paid(provider: AmountProvider) -> None:
     registry.paid.append(provider)
+
+
+def register_estimated(provider: AmountProvider) -> None:
+    """The cost of operations not charged because the order has no client (decision Р25)."""
+    registry.estimated.append(provider)
+
+
+def estimated_of(order: Order) -> dict[str, Decimal]:
+    result: dict[str, Decimal] = {}
+    if order.client_id is not None or order.is_internal:
+        return result
+    for provider in registry.estimated:
+        for currency, amount in provider(order.company_id, order.id).items():
+            result[currency] = result.get(currency, Decimal(0)) + amount
+    return result
 
 
 def operations_of(order: Order) -> list[OperationSummary]:
@@ -126,6 +142,15 @@ def create_order(
     return order
 
 
+# (ctx, company_id, order_id) -> None: what an operation does when its order gets a client.
+ClientAssignedHandler = Callable[[CommandContext, UUID, UUID], None]
+_on_client_assigned: list[ClientAssignedHandler] = []
+
+
+def register_on_client_assigned(handler: ClientAssignedHandler) -> None:
+    _on_client_assigned.append(handler)
+
+
 def assign_client(ctx: CommandContext, order: Order, client_id: UUID) -> None:
     """The client of an order created without one is set later; it is the same order, not a new
     one (§ 12.1.8). A client once set is not changed this way."""
@@ -145,6 +170,9 @@ def assign_client(ctx: CommandContext, order: Order, client_id: UUID) -> None:
         before={"client": None},
         after={"client": str(client_id)},
     )
+    # What was estimated without the client is charged to them now (decision Р25).
+    for handler in _on_client_assigned:
+        handler(ctx, order.company_id, order.id)
 
 
 def open_order_of_client(company_id: UUID, order_id: UUID, client_id: UUID | None = None) -> Order:
@@ -244,7 +272,10 @@ def record_control_versions(ctx: CommandContext, order: Order, reason: str) -> N
         writer(ctx, order.company_id, order.id, reason)
 
 
-# --- Closing (§ 12.1.9, § 12.2.3, § 23.6.5) ---------------------------------------------------
+# --- Closing (§ 12.1.9, § 12.2.3, § 23.6.5; decision Р21 of 28.10.2026) ----------------------
+#
+# The order is closed by an employee with «Close orders» once every operation is finished in its
+# own section by the rights of that section; closing needs no section rights of its own.
 
 # (ctx, company_id, order_id) -> None: what an operation does when its order closes, in the
 # closing transaction — for example the sale of reserved goods (§ 11.9.1).
@@ -254,18 +285,6 @@ _on_close: list[CloseHandler] = []
 
 def register_on_close(handler: CloseHandler) -> None:
     _on_close.append(handler)
-
-
-# Operation type -> permission of its section needed to close an order containing it.
-_section_permissions: dict[str, str] = {}
-
-
-def register_section_permission(operation_type: str, permission: str) -> None:
-    _section_permissions[operation_type] = permission
-
-
-def section_permission(operation_type: str) -> str | None:
-    return _section_permissions.get(operation_type)
 
 
 def ensure_open(company_id: UUID, order_id: UUID) -> None:

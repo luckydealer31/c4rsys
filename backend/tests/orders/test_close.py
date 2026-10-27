@@ -185,9 +185,12 @@ def test_close_with_debt_by_granted_right(owner: Client, s: Scenario, desk: str)
     assert _close(manager, s, rental["order_id"]).json()["order"]["state"] == "closed"
 
 
-def test_close_needs_order_close_and_the_rental_section_right(owner: Client, s: Scenario) -> None:
-    # § 23.6.5; the rental section right is rental.complete_formalization (decision 22.10.2026).
+def test_close_needs_order_close_but_no_section_rights(owner: Client, s: Scenario) -> None:
+    # Decision Р21 of 28.10.2026: the operations are finished in their sections by their rights;
+    # closing the order needs only «Close orders» (and debt its own right).
     rental = _finished_rental(owner, s)
+    accountant, _ = hire(owner, s.cmp, "b@example.com", [{"type": "set", "set": "accountant"}])
+    denied = _close(accountant, s, rental["order_id"])
     only_close, _ = hire(
         owner,
         s.cmp,
@@ -198,15 +201,10 @@ def test_close_needs_order_close_and_the_rental_section_right(owner: Client, s: 
             {"type": "grant", "permission": "order.close_with_debt"},
         ],
     )
-    accountant, _ = hire(owner, s.cmp, "b@example.com", [{"type": "set", "set": "accountant"}])
 
-    missing = _close(only_close, s, rental["order_id"])
-    denied = _close(accountant, s, rental["order_id"])
-
-    assert missing.json()["error"]["code"] == "ORDER_SECTION_PERMISSION_MISSING"
-    assert missing.json()["error"]["params"]["permission"] == "rental.complete_formalization"
     assert denied.json()["error"]["code"] == "PERMISSION_DENIED"
-    assert Order.objects.get().state == "open"
+    assert _close(only_close, s, rental["order_id"]).json()["order"]["state"] == "closed"
+    assert Order.objects.get().state == "closed"
 
 
 def test_closed_order_does_not_change(owner: Client, s: Scenario, desk: str) -> None:

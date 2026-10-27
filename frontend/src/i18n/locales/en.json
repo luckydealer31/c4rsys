@@ -382,7 +382,6 @@
     "order_duplicated": "The same order is listed twice.",
     "order_has_debt": "The order has a debt. Closing with debt needs a separate right.",
     "order_not_ready_to_close": "The order is not ready to close.",
-    "order_section_permission_missing": "You lack the right of an operation in the order.",
     "other_place_of_issue_location": "«Other» belongs to the issue location.",
     "otp_rate_limited": "Too many codes requested. Try again later.",
     "out_of_range": "The value must be from {{min}} to {{max}}.",
@@ -804,7 +803,8 @@
     "state_terminated": "Terminated",
     "to_pay": "to pay",
     "operation_service": "service",
-    "condition_not_finished_service": "An additional service is not finished: complete or cancel a standalone one; a linked one finishes with its rental"
+    "condition_not_finished_service": "An additional service is not finished: complete or cancel a standalone one; a linked one finishes with its rental",
+    "estimated": "Estimated {{amount}} {{currency}} — charged once the client is set"
   },
   "payments": {
     "account": "Cash desk or account",

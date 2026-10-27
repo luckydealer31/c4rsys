@@ -510,6 +510,7 @@ export type Order = {
   operations: { type: string; id: string; state: string; finished: boolean }[];
   closing_conditions: { operation: string; id: string; condition: string }[];
   amounts: Record<string, OrderAmounts>;
+  estimated: Record<string, string>; // an order without a client: not charged yet (Р25)
 };
 
 export type Payment = {

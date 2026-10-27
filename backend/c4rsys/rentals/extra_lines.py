@@ -5,8 +5,9 @@ Each addition is its own line with a snapshot of the price (§ 13.4.8).
 
 * A service linked to a rental has the rental's period (§ 13.4.9): the planned period of a
   booking, after the issue the actual one; it starts with the issue and ends with the return,
-  without marks of its own (decisions У4–У5). Before the return a time service is priced up to
-  now, like the base cost. It is charged together with the rental at the return.
+  without marks of its own (decisions У4–У5). It is charged into the order with the rental by the
+  same period: the planned one while the end is planned, the actual one after the return; without
+  a planned end it is priced up to now and charged at the return (decision Р16).
 * A standalone service lives in the order with its own location (§ 13.4.14), its own period for a
   time service and its own actual start and completion (§ 13.4.11, decision У8); it is charged at
   once and recharged at every change.
@@ -58,7 +59,7 @@ class Period:
     start: datetime
     end: datetime | None  # the shown end; None — a rental without a planned end
     priced_to: datetime  # the end of the calculation: now for an issued rental not returned yet
-    kind: str  # preliminary, current, actual or planned (standalone)
+    kind: str  # preliminary (booking), planned, current (no planned end yet) or actual
 
 
 def _rental(line: ExtraServiceLine) -> Rental | None:
@@ -72,9 +73,9 @@ def rental_period(rental: Rental, now: datetime) -> Period | None:
     if rental.actual_start is not None:
         if rental.actual_end is not None:
             return Period(rental.actual_start, rental.actual_end, rental.actual_end, "actual")
-        return Period(
-            rental.actual_start, rental.planned_end, max(now, rental.actual_start), "current"
-        )
+        if rental.planned_end is not None:
+            return Period(rental.actual_start, rental.planned_end, rental.planned_end, "planned")
+        return Period(rental.actual_start, None, max(now, rental.actual_start), "current")
     if rental.planned_start is not None and rental.planned_end is not None:
         return Period(rental.planned_start, rental.planned_end, rental.planned_end, "preliminary")
     return None
@@ -153,7 +154,7 @@ def price_of(line: ExtraServiceLine, now: datetime | None = None) -> Price | Non
     if period is None:
         return None
     intervals = free_of(line)
-    if period.kind == "current":
+    if period.kind in ("current", "planned"):
         intervals = pricing.clipped(intervals, period.start, period.priced_to)
     result = pricing.calculate(terms_of(line), period.start, period.priced_to, intervals)
     return Price(
@@ -170,18 +171,15 @@ def price_of(line: ExtraServiceLine, now: datetime | None = None) -> Price | Non
 # --- Charges ------------------------------------------------------------------------------------
 
 
-def _charge(ctx: CommandContext, line: ExtraServiceLine, reason: str) -> None:
-    """A standalone line is charged at once; a linked one together with its rental at the
-    return. An order without a client is charged when it gets one — TODO(spec): the charge of a
-    standalone service left by a cancelled booking without a client."""
-    rental = _rental(line)
-    if rental is not None and rental.state != Rental.State.RETURNED:
-        return
+def charge_line(ctx: CommandContext, line: ExtraServiceLine, reason: str) -> None:
+    """A line is charged as soon as its cost is known: a time service linked to a rental without
+    a planned end — at the return (decision Р16). An order without a client is charged when it
+    gets one; until then the amount is estimated (decision Р25)."""
     client_id = Order.objects.filter(pk=line.order_id).values_list("client_id", flat=True).first()
     if client_id is None:
         return
     price = price_of(line)
-    if price is None:
+    if price is None or price.kind == "current":
         return
     charges.set_charge(
         ctx,
@@ -203,9 +201,19 @@ def _charge(ctx: CommandContext, line: ExtraServiceLine, reason: str) -> None:
 
 
 def charge_linked(ctx: CommandContext, rental: Rental, reason: str) -> None:
-    """Called with the recalculation of a returned rental (§ 14.5.3)."""
+    """Called with every recalculation of the rental (§ 14.5.3, decision Р16)."""
     for line in ExtraServiceLine.objects.select_for_update().filter(rental_id=rental.id):
-        _charge(ctx, line, reason)
+        charge_line(ctx, line, reason)
+
+
+def estimated_for_order(company_id: UUID, order_id: UUID) -> dict[str, Decimal]:
+    """The cost of the lines of an order without a client (decision Р25)."""
+    result: dict[str, Decimal] = {}
+    for line in ExtraServiceLine.objects.filter(company_id=company_id, order_id=order_id):
+        price = price_of(line)
+        if price is not None and price.kind != "current":
+            result[price.currency] = result.get(price.currency, Decimal(0)) + price.amount
+    return result
 
 
 # --- Reading ------------------------------------------------------------------------------------
@@ -461,7 +469,7 @@ def add_linked(
     )
     _bump(rental)
     _audit(ctx, line, "service_line.added", None)
-    _charge(ctx, line, "added")
+    charge_line(ctx, line, "added")
     return line
 
 
@@ -516,7 +524,7 @@ def add_standalone(ctx: CommandContext, company_id: UUID, data: Standalone) -> E
         created_by_user_id=ctx.actor.user_id,
     )
     _audit(ctx, line, "service_line.added", None)
-    _charge(ctx, line, "added")
+    charge_line(ctx, line, "added")
     return line
 
 
@@ -590,7 +598,7 @@ def change(
         line.period_start, line.period_end = start, end
     _save(line, rental)
     _audit(ctx, line, "service_line.changed", before)
-    _charge(ctx, line, "changed")
+    charge_line(ctx, line, "changed")
     return line
 
 
@@ -666,7 +674,7 @@ def cancel(
     line.cancel_reason = reason.strip()
     _save(line, rental)
     _audit(ctx, line, "service_line.cancelled", before)
-    _charge(ctx, line, "cancelled")
+    charge_line(ctx, line, "cancelled")
     return line
 
 
@@ -706,7 +714,7 @@ def unlink(
     _detach(line, rental, timezone.now())
     _save(line, rental)
     _audit(ctx, line, "service_line.unlinked", before)
-    _charge(ctx, line, "unlinked")
+    charge_line(ctx, line, "unlinked")
     return line
 
 
@@ -721,7 +729,7 @@ def detach_on_cancel(ctx: CommandContext | None, rental: Rental) -> None:
         line.save()
         if ctx is not None:
             _audit(ctx, line, "service_line.unlinked", before)
-            _charge(ctx, line, "booking_cancelled")
+            charge_line(ctx, line, "booking_cancelled")
 
 
 # --- Free time of a time service (§ 13.4.6; decision У9) -----------------------------------------
@@ -790,7 +798,7 @@ def add_free(
         object_id=line.id,
         after={"id": str(item.id), "start": _utc(start), "end": _utc(end), "units": units},
     )
-    _charge(ctx, line, "free_time")
+    charge_line(ctx, line, "free_time")
     return item
 
 
@@ -815,7 +823,7 @@ def remove_free(
         object_id=line.id,
         before=before,
     )
-    _charge(ctx, line, "free_time")
+    charge_line(ctx, line, "free_time")
 
 
 def free_outside(rental: Rental, end: datetime) -> list[str]:

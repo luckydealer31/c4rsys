@@ -18,7 +18,7 @@ from c4rsys.companies import access
 from c4rsys.orders import services as orders
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext
-from c4rsys.rentals import pricing, rentals, returns
+from c4rsys.rentals import billing, pricing, rentals, returns
 from c4rsys.rentals.models import Rental, RentalFreeInterval
 
 RIGHTS = ("rental.issue", "rental.accept_return")
@@ -95,6 +95,8 @@ def _after(ctx: CommandContext, rental: Rental, action: str, **change: Any) -> N
     ctx.audit(action, object_type="rental", object_id=rental.id, **change)
     if rental.state == Rental.State.RETURNED:
         returns.recalculate(ctx, rental, reason="free_time")
+    else:
+        billing.sync(ctx, rental, reason="free_time")
 
 
 def add(
