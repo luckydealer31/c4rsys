@@ -156,7 +156,7 @@ def manual_charge_add(request: HttpRequest, cmp: str, rental_id: UUID) -> JsonRe
     context, actor = _actor(request, cmp)
     _require_charge_right(actor, context.company.id, rental_id)
     data = parse_json(request)
-    kind = get_str(data, "kind", max_length=10)
+    kind = get_str(data, "kind", max_length=20)
     try:
         amount = Decimal(str(data.get("amount", "")).strip())
     except InvalidOperation as exc:

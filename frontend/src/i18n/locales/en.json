@@ -79,7 +79,11 @@
     "service_line_cancelled": "Service cancelled",
     "service_line_unlinked": "Service unlinked from the rental",
     "service_line_free_time_added": "Free time of the service added",
-    "service_line_free_time_removed": "Free time of the service removed"
+    "service_line_free_time_removed": "Free time of the service removed",
+    "rental_planned_end_changed": "Planned end changed",
+    "rental_tariff_changed": "Rental tariff changed",
+    "rental_reopened": "Rental reopened",
+    "rental_corrected": "Rental corrected"
   },
   "finance_articles": {
     "archive": "Archive",
@@ -612,7 +616,15 @@
     "service_state_unchanged": "The service is already in this state.",
     "service_field_immutable": "Payment, unit and currency of a service do not change.",
     "vehicle_unknown": "Unknown vehicle.",
-    "tariff_unknown": "Unknown tariff."
+    "tariff_unknown": "Unknown tariff.",
+    "client_consent_required": "Mark the client's consent.",
+    "planned_end_not_future": "The planned end must be later than now.",
+    "planned_end_same": "This is already the planned end.",
+    "tariff_same": "Choose another tariff.",
+    "tariff_change_not_allowed": "The tariff changes only in an issued rental.",
+    "rental_not_completed": "Only a rental with completed formalization is reopened.",
+    "rental_not_reopened": "Reopen the rental to correct it.",
+    "nothing_changed": "Nothing has changed."
   },
   "history": {
     "action": "Action",
@@ -904,7 +916,10 @@
     "rental_book": "Book vehicles",
     "rental_exception_authorize": "Permit an issue with unmet requirements",
     "rental_exception_decide": "Confirm or reject exceptions of the issue",
-    "rental_manual_charge": "Charge manually in a rental"
+    "rental_manual_charge": "Charge manually in a rental",
+    "rental_extend": "Extend rentals",
+    "rental_change_terms": "Change the tariff and terms of a rental",
+    "rental_reopen": "Reopen completed rentals"
   },
   "positions": {
     "director": "Director"
@@ -2162,7 +2177,9 @@
     "add_manual": "Charge",
     "cancel": "Cancel",
     "cancel_reason": "Reason of the cancellation",
-    "cancelled": "cancelled: {{reason}}"
+    "cancelled": "cancelled: {{reason}}",
+    "kind_early_return": "Early return",
+    "kind_overdue": "Overdue"
   },
   "services": {
     "title": "Additional services",
@@ -2226,5 +2243,25 @@
     "location_hint": "The revenue of the service belongs to it.",
     "change_client": "change",
     "apply_free": "Apply also to the services"
+  },
+  "changes": {
+    "extend_title": "Planned end",
+    "extend_hint": "Extend, shorten or set the planned end. The order is charged by the planned period.",
+    "new_planned_end": "New planned end",
+    "client_consent": "The client agrees",
+    "consent_comment": "How the consent was given",
+    "consent_placeholder": "Phone call, messenger, in person",
+    "change_planned_end": "Change planned end",
+    "overdue_cost": "The rental is overdue: the order holds the planned period, the card shows the cost up to now; the return recalculates it.",
+    "tariff_title": "Change tariff",
+    "tariff_hint": "The new tariff applies from the start of the rental. The required deposit stays as agreed.",
+    "new_tariff": "New tariff",
+    "change_tariff": "Change tariff",
+    "services_not_allowed": "Some linked services are not allowed by the current tariff: unlink or cancel them if needed.",
+    "reopen_reason": "Reason for reopening",
+    "reopen": "Reopen rental",
+    "reopened": "The rental is reopened: correct it and complete the formalization again.",
+    "correct_title": "Correction",
+    "correct": "Save correction"
   }
 }

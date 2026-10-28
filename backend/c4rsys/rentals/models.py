@@ -253,6 +253,9 @@ class Rental(models.Model):
     deposit_override = models.JSONField(null=True, blank=True)
     state = models.CharField(max_length=10, choices=State.choices)
     formalization_completed_at = models.DateTimeField(null=True, blank=True)
+    # § 13.6.5: reopened for a correction; its actual period and return place may then change
+    # until the formalization is completed again (decision П11).
+    reopened_at = models.DateTimeField(null=True, blank=True)
     created_by_user_id = models.UUIDField()
     created_at = models.DateTimeField(default=now)
     updated_at = models.DateTimeField(auto_now=True)
@@ -572,12 +575,15 @@ class RentalManualCharge(models.Model):
 
     class Kind(models.TextChoices):
         FUEL = "fuel"
+        # Decision П10: an early return or a delay is charged only by hand, with its reason.
+        EARLY_RETURN = "early_return"
+        OVERDUE = "overdue"
         OTHER = "other"
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
     rental = models.ForeignKey(Rental, on_delete=models.PROTECT, related_name="manual_charges")
-    kind = models.CharField(max_length=10, choices=Kind.choices)
+    kind = models.CharField(max_length=20, choices=Kind.choices)
     amount = models.DecimalField(max_digits=20, decimal_places=4)
     currency = models.ForeignKey(Currency, on_delete=models.PROTECT, related_name="+")
     reason = models.CharField(max_length=500)

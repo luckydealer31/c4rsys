@@ -398,7 +398,7 @@ export type Mileage = {
 /** A manual charge of the rental (§ 13.5.1), cancelled with a reason. */
 export type ManualCharge = {
   id: string;
-  kind: "fuel" | "other";
+  kind: "fuel" | "early_return" | "overdue" | "other";
   amount: string;
   currency: string;
   reason: string;
@@ -437,6 +437,8 @@ export type Rental = RentalSummary & {
   mileage?: Mileage | null;
   manual_charges?: ManualCharge[];
   services?: ServiceLine[];
+  services_not_allowed?: string[];
+  reopened_at?: string | null;
   version: number;
 };
 

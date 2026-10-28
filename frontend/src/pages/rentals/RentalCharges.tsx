@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { Rental } from "../../api/types";
+import type { ManualCharge, Rental } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { ErrorMessage, Field } from "../../components/ui";
 import { useCan, useCompany } from "../../layout/CompanyShell";
@@ -173,12 +173,15 @@ export function MileageView({ rental }: { rental: Rental }) {
 
 /** Manual charges (§ 13.5.1): fuel or charge, or another one, with a reason; a mistaken one is
  * cancelled with a reason (decision Т6). */
+// Decision П10: an early return or a delay is charged only by hand, with its reason.
+const MANUAL_KINDS: ManualCharge["kind"][] = ["fuel", "early_return", "overdue", "other"];
+
 export function ManualCharges({ rental, onDone }: Props) {
   const { t, i18n } = useTranslation();
   const company = useCompany();
   const can = useCan();
   const base = `/c/${company.public_id}/rentals/${rental.id}/manual-charges`;
-  const [kind, setKind] = useState<"fuel" | "other">("fuel");
+  const [kind, setKind] = useState<ManualCharge["kind"]>("fuel");
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
   const [cancelling, setCancelling] = useState("");
@@ -251,9 +254,12 @@ export function ManualCharges({ rental, onDone }: Props) {
         <form onSubmit={submit}>
           <div className="row">
             <Field label={t("charges.kind")}>
-              <select value={kind} onChange={(e) => setKind(e.target.value as "fuel" | "other")}>
-                <option value="fuel">{t("charges.kind_fuel")}</option>
-                <option value="other">{t("charges.kind_other")}</option>
+              <select value={kind} onChange={(e) => setKind(e.target.value as ManualCharge["kind"])}>
+                {MANUAL_KINDS.map((k) => (
+                  <option key={k} value={k}>
+                    {t(`charges.kind_${k}`)}
+                  </option>
+                ))}
               </select>
             </Field>
             <Field label={t("charges.amount", { currency })}>

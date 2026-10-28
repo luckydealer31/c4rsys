@@ -79,7 +79,11 @@
     "service_line_cancelled": "ยกเลิกบริการ",
     "service_line_unlinked": "ยกเลิกการผูกบริการกับการเช่า",
     "service_line_free_time_added": "เพิ่มเวลาฟรีของบริการ",
-    "service_line_free_time_removed": "ลบเวลาฟรีของบริการ"
+    "service_line_free_time_removed": "ลบเวลาฟรีของบริการ",
+    "rental_planned_end_changed": "เปลี่ยนเวลาสิ้นสุดตามแผน",
+    "rental_tariff_changed": "เปลี่ยนอัตราค่าเช่า",
+    "rental_reopened": "เปิดการเช่าอีกครั้ง",
+    "rental_corrected": "แก้ไขการเช่า"
   },
   "finance_articles": {
     "archive": "เก็บเข้าคลัง",
@@ -612,7 +616,15 @@
     "service_state_unchanged": "บริการอยู่ในสถานะนี้แล้ว",
     "service_field_immutable": "การคิดเงิน หน่วย และสกุลเงินของบริการเปลี่ยนไม่ได้",
     "vehicle_unknown": "ไม่พบรถ",
-    "tariff_unknown": "ไม่พบอัตรา"
+    "tariff_unknown": "ไม่พบอัตรา",
+    "client_consent_required": "ระบุว่าลูกค้ายินยอม",
+    "planned_end_not_future": "เวลาสิ้นสุดตามแผนต้องอยู่หลังเวลาปัจจุบัน",
+    "planned_end_same": "นี่คือเวลาสิ้นสุดตามแผนอยู่แล้ว",
+    "tariff_same": "เลือกอัตราอื่น",
+    "tariff_change_not_allowed": "เปลี่ยนอัตราได้เฉพาะการเช่าที่ส่งมอบแล้ว",
+    "rental_not_completed": "เปิดอีกครั้งได้เฉพาะการเช่าที่ปิดเอกสารแล้ว",
+    "rental_not_reopened": "เปิดการเช่าอีกครั้งเพื่อแก้ไข",
+    "nothing_changed": "ไม่มีการเปลี่ยนแปลง"
   },
   "history": {
     "action": "Action",
@@ -904,7 +916,10 @@
     "rental_book": "จองรถ",
     "rental_exception_authorize": "อนุญาตการส่งมอบที่ข้อกำหนดยังไม่ครบ",
     "rental_exception_decide": "ยืนยันหรือปฏิเสธข้อยกเว้นการส่งมอบ",
-    "rental_manual_charge": "บันทึกค่าบริการเองในการเช่า"
+    "rental_manual_charge": "บันทึกค่าบริการเองในการเช่า",
+    "rental_extend": "ขยายระยะเวลาเช่า",
+    "rental_change_terms": "เปลี่ยนอัตราและเงื่อนไขการเช่า",
+    "rental_reopen": "เปิดการเช่าที่เสร็จสิ้นอีกครั้ง"
   },
   "positions": {
     "director": "Director"
@@ -2162,7 +2177,9 @@
     "add_manual": "บันทึกค่าบริการ",
     "cancel": "ยกเลิก",
     "cancel_reason": "เหตุผลที่ยกเลิก",
-    "cancelled": "ยกเลิกแล้ว: {{reason}}"
+    "cancelled": "ยกเลิกแล้ว: {{reason}}",
+    "kind_early_return": "คืนก่อนกำหนด",
+    "kind_overdue": "เกินกำหนด"
   },
   "services": {
     "title": "บริการเพิ่มเติม",
@@ -2226,5 +2243,25 @@
     "location_hint": "รายได้ของบริการเป็นของสถานที่นี้",
     "change_client": "เปลี่ยน",
     "apply_free": "ใช้กับบริการด้วย"
+  },
+  "changes": {
+    "extend_title": "เวลาสิ้นสุดตามแผน",
+    "extend_hint": "ขยาย ลด หรือกำหนดเวลาสิ้นสุดตามแผน ยอดในคำสั่งซื้อคิดตามช่วงเวลาตามแผน",
+    "new_planned_end": "เวลาสิ้นสุดใหม่",
+    "client_consent": "ลูกค้ายินยอม",
+    "consent_comment": "ได้รับความยินยอมอย่างไร",
+    "consent_placeholder": "โทรศัพท์ แชท หรือพบตัว",
+    "change_planned_end": "เปลี่ยนเวลาสิ้นสุดตามแผน",
+    "overdue_cost": "การเช่าเกินกำหนด: คำสั่งซื้อคิดตามช่วงเวลาตามแผน การ์ดแสดงค่าใช้จ่ายถึงปัจจุบัน และคำนวณใหม่เมื่อคืนรถ",
+    "tariff_title": "เปลี่ยนอัตรา",
+    "tariff_hint": "อัตราใหม่มีผลตั้งแต่เริ่มเช่า เงินมัดจำที่กำหนดไว้ไม่เปลี่ยน",
+    "new_tariff": "อัตราใหม่",
+    "change_tariff": "เปลี่ยนอัตรา",
+    "services_not_allowed": "บริการที่เชื่อมโยงบางรายการไม่ตรงกับอัตราปัจจุบัน: ยกเลิกการเชื่อมโยงหรือยกเลิกหากจำเป็น",
+    "reopen_reason": "เหตุผลที่เปิดอีกครั้ง",
+    "reopen": "เปิดการเช่าอีกครั้ง",
+    "reopened": "เปิดการเช่าอีกครั้งแล้ว: แก้ไขและปิดเอกสารอีกครั้ง",
+    "correct_title": "การแก้ไข",
+    "correct": "บันทึกการแก้ไข"
   }
 }

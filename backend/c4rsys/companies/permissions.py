@@ -90,6 +90,10 @@ PERMISSIONS: dict[str, str] = {
     # § 13.5.1: fuel or another manual charge in a rental (customer's decision Т6).
     "rental.manual_charge": "rental",
     "rental.complete_formalization": "rental",
+    # § 23.4.3 (customer's decision П12): extension, change of the tariff and terms, reopening.
+    "rental.extend": "rental",
+    "rental.change_terms": "rental",
+    "rental.reopen": "rental",
     "inspection.create": "inspection",
     "inspection.conduct": "inspection",
     "order.view": "order",
@@ -125,6 +129,8 @@ SYSTEM_SETS: dict[str, tuple[str, ...]] = {
         "rental.accept_return",
         "rental.manual_charge",
         "rental.complete_formalization",
+        # § 23.2.2. Whether rental.change_terms belongs here is OPEN; until decided it does not.
+        "rental.extend",
         "inspection.create",
         "inspection.conduct",
         "order.view",

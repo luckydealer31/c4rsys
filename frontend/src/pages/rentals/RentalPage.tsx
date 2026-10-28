@@ -18,6 +18,7 @@ import { BookingCard } from "./Booking";
 import { DepositCard } from "./Deposit";
 import { IssueExceptionView, placeText } from "./IssueRules";
 import { FreeTime, ManualCharges, MileageView } from "./RentalCharges";
+import { CorrectionForm, ExtendForm, ReopenRental, TariffChange } from "./RentalChanges";
 import { RentalServices } from "./Services";
 import { CalculationView, Warnings } from "./IssuePage";
 
@@ -69,6 +70,9 @@ export function RentalPage() {
   const when = (value: string | null) => formatMoment(value, zone, i18n.language);
   // A booking has no return, formalization or settlement yet (§ 14.1); a cancelled one never.
   const operated = current.state !== "booked" && current.state !== "cancelled";
+  // Decisions П6, П11: the tariff changes until the formalization is completed.
+  const unfinished =
+    (current.state === "active" || current.state === "returned") && !current.formalization.completed_at;
 
   async function refresh(next?: Rental) {
     if (next) queryClient.setQueryData<RentalResponse>(key, { rental: next });
@@ -132,6 +136,18 @@ export function RentalPage() {
         </Card>
       ) : null}
 
+      {current.state === "active" && can("rental.extend") ? (
+        <Card title={t("changes.extend_title")}>
+          <ExtendForm rental={current} onDone={refresh} />
+        </Card>
+      ) : null}
+
+      {unfinished && can("rental.change_terms") ? (
+        <Card title={t("changes.tariff_title")}>
+          <TariffChange rental={current} onDone={refresh} />
+        </Card>
+      ) : null}
+
       <Card title={t("rentals.calculation")}>
         {current.calculation ? (
           <CalculationView calculation={current.calculation} />
@@ -142,6 +158,9 @@ export function RentalPage() {
 
       {current.state !== "cancelled" || current.services?.length ? (
         <Card title={t("services.title")}>
+          {current.services_not_allowed?.length ? (
+            <p className="alert warn">{t("changes.services_not_allowed")}</p>
+          ) : null}
           <RentalServices rental={current} onDone={refresh} />
         </Card>
       ) : null}
@@ -186,6 +205,12 @@ export function RentalPage() {
         )}
         <Readings rental={current} onDone={refresh} />
       </Card>
+
+      {unfinished && current.state === "returned" && current.reopened_at && can("rental.reopen") ? (
+        <Card title={t("changes.correct_title")}>
+          <CorrectionForm key={current.version} rental={current} onDone={refresh} />
+        </Card>
+      ) : null}
 
       <Card title={t("rentals.block_formalization")}>
         <Formalization rental={current} onDone={refresh} when={when} />
@@ -411,7 +436,12 @@ function Formalization({
     `/c/${company.public_id}/rentals/${rental.id}/complete-formalization`,
   );
   if (rental.formalization.completed_at) {
-    return <p>{t("rentals.formalization_done", { when: when(rental.formalization.completed_at) })}</p>;
+    return (
+      <>
+        <p>{t("rentals.formalization_done", { when: when(rental.formalization.completed_at) })}</p>
+        <ReopenRental rental={rental} onDone={onDone} />
+      </>
+    );
   }
   if (rental.state !== "returned") return <p className="muted">{t("rentals.formalization_after_return")}</p>;
   const missing = rental.formalization.missing;

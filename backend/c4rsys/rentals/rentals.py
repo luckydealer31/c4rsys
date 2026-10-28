@@ -55,7 +55,8 @@ def deposit_terms(rental: Rental) -> DepositTerms:
     return DepositTerms(
         required=required,
         amount=Decimal(deposit["amount"]) if required and deposit.get("amount") else Decimal(0),
-        currency=snapshot.get("currency") or _company_currency(rental),
+        # A deposit kept through a change of the tariff keeps its currency (decision П7).
+        currency=deposit.get("currency") or snapshot.get("currency") or _company_currency(rental),
         hold_days=deposit.get("hold_days") if required else None,
         issued=rental.state in (Rental.State.ACTIVE, Rental.State.RETURNED),
         returned_at=rental.actual_end if rental.state == Rental.State.RETURNED else None,

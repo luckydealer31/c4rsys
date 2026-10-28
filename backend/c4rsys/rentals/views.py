@@ -22,6 +22,7 @@ from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
 from c4rsys.rentals import (
     bookings,
+    changes,
     extra_lines,
     formalization,
     free_time,
@@ -421,6 +422,10 @@ def _rental_payload(rental: Rental) -> dict[str, Any]:
         "manual_charges": manual_charges.payload(rental),
         # § 13.4.5: linked additional services and those unlinked from this rental.
         "services": [extra_lines.payload(x) for x in extra_lines.lines_of_rental(rental)],
+        # Decision П9: linked services the current tariff does not allow, kept with a warning.
+        "services_not_allowed": changes.services_not_allowed(rental),
+        # § 13.6.5, decision П11: reopened for a correction.
+        "reopened_at": _utc(rental.reopened_at),
         # § 14.7.3: required, received, held and the rest of the deposit; a missing deposit is
         # shown apart from the debt for the rental (§ 14.3.3).
         "deposit": deposits.payload(rental),

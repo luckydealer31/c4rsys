@@ -1,6 +1,7 @@
 from django.urls import path
 
 from c4rsys.rentals import booking_views as bv
+from c4rsys.rentals import change_views as chv
 from c4rsys.rentals import charge_views as cv
 from c4rsys.rentals import extra_views as ev
 from c4rsys.rentals import views
@@ -75,5 +76,9 @@ urlpatterns = [
         "c/<str:cmp>/rentals/<uuid:rental_id>/complete-formalization",
         views.rental_complete_formalization,
     ),
+    path("c/<str:cmp>/rentals/<uuid:rental_id>/planned-end", chv.planned_end),
+    path("c/<str:cmp>/rentals/<uuid:rental_id>/tariff", chv.tariff),
+    path("c/<str:cmp>/rentals/<uuid:rental_id>/reopen", chv.reopen),
+    path("c/<str:cmp>/rentals/<uuid:rental_id>/correct", chv.correct),
     path("c/<str:cmp>/inspections/<uuid:inspection_id>/save", views.inspection_save),
 ]
