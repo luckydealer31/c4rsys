@@ -15,7 +15,8 @@ import { clientName } from "../clients/ClientsPage";
 import { CashReceipt, usePayments } from "../finance/CashReceipt";
 import { OrderServices } from "../rentals/Services";
 import { useCashAccounts } from "../finance/FinancePage";
-import { employeeName, JournalTable, useEmployees } from "../settings/EmployeesPage";
+import { JournalTable } from "../settings/EmployeesPage";
+import { CancelOrder, FormOrder, NewOrder, RentalProposals, ResponsibleField } from "./OrderActions";
 
 export function useOrders() {
   const company = useCompany();
@@ -57,6 +58,10 @@ export function OrderAmountsText({ order }: { order: Order }) {
   );
 }
 
+// Goods and services have cards of their own; rental proposals are listed apart (decision З2).
+const isLine = (op: Order["operations"][number]) =>
+  op.type !== "sale" && op.type !== "service" && op.state !== "proposed";
+
 /** Orders of the company (§ 12.2.3). */
 export function OrdersPage() {
   const { t, i18n } = useTranslation();
@@ -68,6 +73,7 @@ export function OrdersPage() {
   return (
     <div className="page">
       <h1>{t("nav.orders")}</h1>
+      {can("order.create") ? <NewOrder /> : null}
       <Card>
         {orders.isLoading ? <Loading /> : null}
         <ErrorMessage error={orders.error as ApiError} />
@@ -121,7 +127,6 @@ export function OrderPage() {
   );
   const payments = usePayments();
   const accounts = useCashAccounts();
-  const employees = useEmployees();
   const data = order.data?.order;
   const client = useApi<{ client: Client }>(
     ["client", company.public_id, data?.client_id ?? ""],
@@ -148,7 +153,6 @@ export function OrderPage() {
   const zone = company.timezone ?? "UTC";
   const when = (value: string | null) => formatMoment(value, zone, i18n.language);
   const accountName = new Map((accounts.data?.cash_accounts ?? []).map((a) => [a.id, a.name]));
-  const responsible = employees.data?.employees.find((e) => e.id === current.responsible_employment_id);
   const own = (payments.data?.payments ?? []).filter((p) => p.allocations.some((a) => a.order_id === current.id));
   const open = current.state === "open" || current.state === "ready_to_close";
 
@@ -161,6 +165,9 @@ export function OrderPage() {
       // Closing sells the goods and reopening allows their correction (§ 11.9).
       ["sale-lines", company.public_id, id],
       ["warehouse-stock", company.public_id],
+      ["rental-proposals", company.public_id, id],
+      ["order-services", company.public_id, id],
+      ["rentals", company.public_id],
     ]) {
       await queryClient.invalidateQueries({ queryKey: k });
     }
@@ -184,9 +191,19 @@ export function OrderPage() {
             )}
           </dd>
           <dt>{t("orders.responsible")}</dt>
-          <dd>{responsible ? employeeName(responsible, t) : "—"}</dd>
+          <dd>
+            <ResponsibleField key={current.version} order={current} onDone={refresh} />
+          </dd>
           <dt>{t("orders.created")}</dt>
           <dd>{when(current.created_at)}</dd>
+          {current.cancelled_at ? (
+            <>
+              <dt>{t("orders.cancelled")}</dt>
+              <dd>
+                {when(current.cancelled_at)} · {current.cancel_reason}
+              </dd>
+            </>
+          ) : null}
           {current.closed_at ? (
             <>
               <dt>{t("orders.closed")}</dt>
@@ -200,11 +217,11 @@ export function OrderPage() {
         </dl>
       </Card>
 
-      {current.operations.some((op) => op.type !== "sale" && op.type !== "service") ? (
+      {current.operations.some(isLine) ? (
       <Card title={t("orders.lines")}>
         <table>
           <tbody>
-            {current.operations.filter((op) => op.type !== "sale" && op.type !== "service").map((op) => (
+            {current.operations.filter(isLine).map((op) => (
               <tr key={op.id}>
                 <td>
                   {op.type === "rental" ? (
@@ -222,6 +239,8 @@ export function OrderPage() {
       </Card>
       ) : null}
 
+      <FormOrder order={current} onDone={refresh} />
+      <RentalProposals order={current} onDone={refresh} />
       <OrderServices order={current} onChange={refresh} />
       <SaleGoods order={current} onChange={refresh} />
       <ReopenOrder order={current} onDone={refresh} />
@@ -281,6 +300,8 @@ export function OrderPage() {
           </div>
         </Card>
       ) : null}
+
+      <CancelOrder order={current} onDone={refresh} />
 
       <div className="actions">
         <button type="button" className="secondary" onClick={() => setShowHistory(!showHistory)}>

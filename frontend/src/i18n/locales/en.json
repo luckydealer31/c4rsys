@@ -83,7 +83,17 @@
     "rental_planned_end_changed": "Planned end changed",
     "rental_tariff_changed": "Rental tariff changed",
     "rental_reopened": "Rental reopened",
-    "rental_corrected": "Rental corrected"
+    "rental_corrected": "Rental corrected",
+    "order_formed": "Order formed",
+    "order_responsible_changed": "Responsible employee changed",
+    "order_cancelled": "Order cancelled",
+    "order_rental_moved_out": "Rental moved to another order",
+    "order_rental_moved_in": "Rental moved in from another order",
+    "rental_proposed": "Rental proposed",
+    "rental_proposal_withdrawn": "Rental proposal withdrawn",
+    "rental_annulled": "Rental annulled",
+    "rental_transferred": "Rental moved to another order",
+    "service_line_moved": "Service moved to another order"
   },
   "finance_articles": {
     "archive": "Archive",
@@ -624,7 +634,16 @@
     "tariff_change_not_allowed": "The tariff changes only in an issued rental.",
     "rental_not_completed": "Only a rental with completed formalization is reopened.",
     "rental_not_reopened": "Reopen the rental to correct it.",
-    "nothing_changed": "Nothing has changed."
+    "nothing_changed": "Nothing has changed.",
+    "order_preliminary": "The order is preliminary: form it first.",
+    "order_not_preliminary": "The order is not preliminary.",
+    "rental_not_proposed": "This is not a rental proposal.",
+    "order_has_active_rental": "The order has an issued or returned rental: move it to another order or annul it first.",
+    "order_has_started_operations": "The order has started or completed operations.",
+    "rental_not_issued": "Only an issued or returned rental is annulled; cancel a booking instead.",
+    "rental_transfer_not_allowed": "This rental cannot be moved.",
+    "transfer_same_order": "Choose another order.",
+    "employee_not_active": "The employee is not active."
   },
   "history": {
     "action": "Action",
@@ -816,7 +835,26 @@
     "to_pay": "to pay",
     "operation_service": "service",
     "condition_not_finished_service": "An additional service is not finished: complete or cancel a standalone one; a linked one finishes with its rental",
-    "estimated": "Estimated {{amount}} {{currency}} — charged once the client is set"
+    "estimated": "Estimated {{amount}} {{currency}} — charged once the client is set",
+    "new": "New order",
+    "internal_order": "Internal order of the company",
+    "create": "Create the order",
+    "save_preliminary": "Save as preliminary",
+    "state_preliminary": "Preliminary",
+    "preliminary_title": "Preliminary order",
+    "preliminary_hint": "Nothing is charged or held: the lines and their cost are discussed with the client. Forming makes it an ordinary order and turns the proposed rentals into bookings.",
+    "form": "Form the order",
+    "change_responsible": "Change",
+    "cancel_title": "Cancel the order",
+    "cancel_hint": "Bookings and services not started are cancelled with the order; money paid stays as an overpayment.",
+    "cancel_reason": "Reason",
+    "cancel": "Cancel the order",
+    "cancelled": "Cancelled",
+    "proposals": "Proposed rentals",
+    "no_proposals": "No proposed rentals.",
+    "proposal_conflict": "The vehicle is taken in this period",
+    "withdraw_proposal": "Remove",
+    "add_proposal": "Propose a rental"
   },
   "payments": {
     "account": "Cash desk or account",
@@ -919,7 +957,10 @@
     "rental_manual_charge": "Charge manually in a rental",
     "rental_extend": "Extend rentals",
     "rental_change_terms": "Change the tariff and terms of a rental",
-    "rental_reopen": "Reopen completed rentals"
+    "rental_reopen": "Reopen completed rentals",
+    "order_cancel": "Cancel orders",
+    "rental_annul": "Annul wrong rentals",
+    "rental_transfer": "Move rentals between orders"
   },
   "positions": {
     "director": "Director"
@@ -1067,7 +1108,8 @@
     "tariff": "Tariff",
     "time_zone": "Times are shown in {{zone}}.",
     "vehicle": "Vehicle",
-    "vehicle_and_client": "Vehicle, tariff and client"
+    "vehicle_and_client": "Vehicle, tariff and client",
+    "state_proposed": "Proposed"
   },
   "rights": {
     "add": "Add rights",
@@ -2263,5 +2305,16 @@
     "reopened": "The rental is reopened: correct it and complete the formalization again.",
     "correct_title": "Correction",
     "correct": "Save correction"
+  },
+  "rental_order": {
+    "transfer_title": "Move to another order",
+    "transfer_hint": "The rental keeps its history; its charges and linked services go with it. Payments stay in the old order: relink them in finance.",
+    "target": "Order",
+    "new_order": "New order of the client",
+    "transfer": "Move the rental",
+    "annul_title": "Annul a wrong rental",
+    "annul_hint": "For a rental entered by mistake: its charges and those of its linked services go to zero; the place of the vehicle is not changed.",
+    "annul_reason": "Reason",
+    "annul": "Annul the rental"
   }
 }

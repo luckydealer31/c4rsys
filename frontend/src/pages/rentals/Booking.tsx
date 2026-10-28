@@ -27,7 +27,7 @@ import {
 type VehicleTariff = { id: string; name: string; currency: string };
 type RentalResponse = { rental: Rental };
 
-function useVehicleTariffs(vehicleId: string) {
+export function useVehicleTariffs(vehicleId: string) {
   const company = useCompany();
   return useApi<{ tariffs: VehicleTariff[] }>(
     ["vehicle-tariffs", company.public_id, vehicleId],

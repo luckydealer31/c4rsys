@@ -32,7 +32,6 @@ from c4rsys.finance import charges
 from c4rsys.finance.charges import charge_ids_for_source
 from c4rsys.finance.models import ChargeEntry
 from c4rsys.orders import services as orders
-from c4rsys.orders.models import Order
 from c4rsys.orders.services import OperationSummary
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
@@ -175,7 +174,7 @@ def charge_line(ctx: CommandContext, line: ExtraServiceLine, reason: str) -> Non
     """A line is charged as soon as its cost is known: a time service linked to a rental without
     a planned end — at the return (decision Р16). An order without a client is charged when it
     gets one; until then the amount is estimated (decision Р25)."""
-    client_id = Order.objects.filter(pk=line.order_id).values_list("client_id", flat=True).first()
+    client_id = orders.chargeable_client(line.order_id)
     if client_id is None:
         return
     price = price_of(line)
@@ -351,6 +350,7 @@ def _snapshot(line: ExtraServiceLine) -> dict[str, Any]:
     return {
         "service": line.snapshot.get("service_id"),
         "name": line.snapshot.get("name"),
+        "order": str(line.order_id),
         "rental": str(line.rental_id) if line.rental_id else None,
         "location": str(line.location_id) if line.location_id else None,
         "quantity": line.quantity,
@@ -499,7 +499,7 @@ def add_standalone(ctx: CommandContext, company_id: UUID, data: Standalone) -> E
     quantity = _quantity(service.pricing, data.quantity)
     start, end = _period(service.pricing, data.period_start, data.period_end)
     if data.order_id is not None:
-        order = orders.open_order_of_client(company_id, data.order_id)
+        order = orders.open_order_of_client(company_id, data.order_id, preliminary_ok=True)
     else:
         if data.client_id is None:
             raise errors.validation_error("client_id", code="CLIENT_REQUIRED")
@@ -538,7 +538,8 @@ def _locked_line(company_id: UUID, line_id: UUID, expected_version: int | None) 
         raise errors.not_found()
     if expected_version is not None and line.version != expected_version:
         raise errors.version_conflict()
-    orders.ensure_open(company_id, line.order_id)
+    # A service of a preliminary order changes and is cancelled, it does not start (§ 12.2.1).
+    orders.ensure_editable(company_id, line.order_id)
     return line
 
 
@@ -615,6 +616,7 @@ def start(
     """The actual start of a standalone service (§ 13.4.11). The start of its period does not
     start it by itself."""
     line = _locked_line(company_id, line_id, expected_version)
+    orders.ensure_open(company_id, line.order_id)
     if line.rental_id is not None:
         raise errors.business_rule("SERVICE_FOLLOWS_RENTAL")
     if line.state != State.PLANNED:
@@ -730,6 +732,65 @@ def detach_on_cancel(ctx: CommandContext | None, rental: Rental) -> None:
         if ctx is not None:
             _audit(ctx, line, "service_line.unlinked", before)
             charge_line(ctx, line, "booking_cancelled")
+
+
+# --- The order cancelled, the rental annulled or transferred (§ 12.2.1, § 12.3.7; decisions
+# З4–З6) ------------------------------------------------------------------------------------------
+
+
+def _cancelled(
+    ctx: CommandContext, line: ExtraServiceLine, reason: str, rental: Rental | None
+) -> None:
+    before = _snapshot(line)
+    if rental is not None:
+        line.origin_rental_id, line.rental_id = rental.id, None
+        line.location_id = extras.rental_location(rental)
+    line.state = State.CANCELLED
+    line.cancelled_at = timezone.now()
+    line.cancel_reason = reason
+    line.version += 1
+    line.save()
+    _audit(ctx, line, "service_line.cancelled", before)
+    charge_line(ctx, line, "cancelled")
+
+
+def cancel_for_order(ctx: CommandContext, company_id: UUID, order_id: UUID, reason: str) -> None:
+    """With the whole order the services not started are cancelled; a started or completed one
+    keeps the order from cancelling (§ 12.2.1). Linked services of cancelled bookings are already
+    standalone here."""
+    for line in ExtraServiceLine.objects.select_for_update().filter(
+        company_id=company_id, order_id=order_id
+    ):
+        if line.rental_id is not None:
+            rental = _locked_rental(company_id, line.rental_id)
+            if rental.state not in (Rental.State.CANCELLED, Rental.State.ANNULLED):
+                raise errors.business_rule("ORDER_HAS_ACTIVE_RENTAL", rental_id=str(rental.id))
+            continue
+        if line.state == State.CANCELLED:
+            continue
+        if line.state != State.PLANNED:
+            raise errors.business_rule("ORDER_HAS_STARTED_OPERATIONS", line_id=str(line.id))
+        _cancelled(ctx, line, reason, None)
+
+
+def annul_linked(ctx: CommandContext, rental: Rental, reason: str) -> None:
+    """A wrong rental is annulled with its linked services: their charges go to zero, the lines
+    and their history stay (decision З5)."""
+    for line in ExtraServiceLine.objects.select_for_update().filter(rental_id=rental.id):
+        _cancelled(ctx, line, reason, rental)
+
+
+def move_linked(ctx: CommandContext, rental: Rental, order_id: UUID) -> None:
+    """Linked services go with the rental to its new order with their charges (decision З6)."""
+    for line in ExtraServiceLine.objects.select_for_update().filter(rental_id=rental.id):
+        before = _snapshot(line)
+        line.order_id = order_id
+        line.version += 1
+        line.save()
+        _audit(ctx, line, "service_line.moved", before)
+        charges.move_source(
+            ctx, source_type=SOURCE, source_id=line.id, order_id=order_id, reason="transferred"
+        )
 
 
 # --- Free time of a time service (§ 13.4.6; decision У9) -----------------------------------------

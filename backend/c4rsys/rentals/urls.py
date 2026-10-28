@@ -4,6 +4,7 @@ from c4rsys.rentals import booking_views as bv
 from c4rsys.rentals import change_views as chv
 from c4rsys.rentals import charge_views as cv
 from c4rsys.rentals import extra_views as ev
+from c4rsys.rentals import order_views as ov
 from c4rsys.rentals import views
 
 urlpatterns = [
@@ -80,5 +81,10 @@ urlpatterns = [
     path("c/<str:cmp>/rentals/<uuid:rental_id>/tariff", chv.tariff),
     path("c/<str:cmp>/rentals/<uuid:rental_id>/reopen", chv.reopen),
     path("c/<str:cmp>/rentals/<uuid:rental_id>/correct", chv.correct),
+    # § 12.1.7, § 12.3.7 (decisions З2, З5, З6): proposals, annulment, transfer.
+    path("c/<str:cmp>/orders/<uuid:order_id>/rental-proposals", ov.proposals),
+    path("c/<str:cmp>/rentals/<uuid:rental_id>/withdraw-proposal", ov.withdraw),
+    path("c/<str:cmp>/rentals/<uuid:rental_id>/annul", ov.annul),
+    path("c/<str:cmp>/rentals/<uuid:rental_id>/transfer", ov.transfer),
     path("c/<str:cmp>/inspections/<uuid:inspection_id>/save", views.inspection_save),
 ]

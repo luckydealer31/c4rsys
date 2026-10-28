@@ -504,15 +504,33 @@ export type Order = {
   number: number;
   client_id: string | null;
   is_internal: boolean;
-  state: "open" | "ready_to_close" | "closed" | "cancelled" | "terminated";
+  state: "preliminary" | "open" | "ready_to_close" | "closed" | "cancelled" | "terminated";
   responsible_employment_id: string | null;
   created_at: string;
   closed_at: string | null;
+  cancelled_at?: string | null;
+  cancel_reason?: string;
   version: number;
   operations: { type: string; id: string; state: string; finished: boolean }[];
   closing_conditions: { operation: string; id: string; condition: string }[];
   amounts: Record<string, OrderAmounts>;
   estimated: Record<string, string>; // an order without a client: not charged yet (Р25)
+};
+
+/** A rental offered in a preliminary order: it holds nothing until the order is formed (З2). */
+export type RentalProposal = {
+  id: string;
+  vehicle_card_id: string;
+  tariff_id: string | null;
+  tariff_name: string | null;
+  issue_location_id: string | null;
+  planned_return_location_id: string | null;
+  calc_timezone: string;
+  planned_start: string | null;
+  planned_end: string | null;
+  estimate: { amount: string; currency: string } | null;
+  conflicts: BookingConflict[];
+  version: number;
 };
 
 export type Payment = {

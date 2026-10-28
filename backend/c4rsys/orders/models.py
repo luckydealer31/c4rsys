@@ -12,11 +12,13 @@ class Order(models.Model):
     """An order of the company with a number sequential inside it (§ 12.1.1).
 
     Operations (rentals, later services) point to the order; they are not stored here. «Ready to
-    close» is not a stored state: it follows from the operations (§ 12.1.9, § 12.2.3). Preliminary
-    orders (§ 12.1.7, § 12.2.2) come later. The table is named `orders`: ORDER is an SQL keyword.
+    close» is not a stored state: it follows from the operations (§ 12.1.9, § 12.2.3). A preliminary
+    order (§ 12.1.7, § 12.2.2) is discussed with the client and charges nothing; «Form the order»
+    turns the same row into an open one. The table is named `orders`: ORDER is an SQL keyword.
     """
 
     class State(models.TextChoices):
+        PRELIMINARY = "preliminary"
         OPEN = "open"
         CLOSED = "closed"
         CANCELLED = "cancelled"
@@ -35,6 +37,9 @@ class Order(models.Model):
     created_at = models.DateTimeField(default=now)
     closed_at = models.DateTimeField(null=True, blank=True)
     closed_by_user_id = models.UUIDField(null=True, blank=True)
+    # § 12.2.1: a cancellation before the operations start, with its reason (decision З4).
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    cancel_reason = models.CharField(max_length=2000, blank=True, default="")
     updated_at = models.DateTimeField(auto_now=True)
     version = models.PositiveIntegerField(default=1)
 
@@ -54,6 +59,10 @@ class Order(models.Model):
             models.CheckConstraint(
                 condition=~Q(state="closed") | Q(closed_at__isnull=False),
                 name="orders_closed_has_time",
+            ),
+            models.CheckConstraint(
+                condition=~Q(state="cancelled") | Q(cancelled_at__isnull=False),
+                name="orders_cancelled_has_time",
             ),
         ]
 

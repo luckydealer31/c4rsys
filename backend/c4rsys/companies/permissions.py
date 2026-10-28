@@ -94,6 +94,10 @@ PERMISSIONS: dict[str, str] = {
     "rental.extend": "rental",
     "rental.change_terms": "rental",
     "rental.reopen": "rental",
+    # § 12.3.7 (customer's decisions З5, З6): annulling a wrong rental, moving a rental to another
+    # order of the client.
+    "rental.annul": "rental",
+    "rental.transfer": "rental",
     "inspection.create": "inspection",
     "inspection.conduct": "inspection",
     "order.view": "order",
@@ -103,6 +107,8 @@ PERMISSIONS: dict[str, str] = {
     "order.close_with_debt": "order",
     # § 12.2.3: cancelling the closing of an order is a separate right.
     "order.reopen": "order",
+    # § 12.2.1 (customer's decision З4): cancelling a whole order.
+    "order.cancel": "order",
 }
 
 COMPANY_ADMIN = "company_admin"
@@ -137,6 +143,7 @@ SYSTEM_SETS: dict[str, tuple[str, ...]] = {
         "order.create",
         "order.edit",
         "order.close",
+        "order.cancel",
         "finance.payment.receive",
         "tariff.view",
     ),

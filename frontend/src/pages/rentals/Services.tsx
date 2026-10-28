@@ -667,7 +667,8 @@ export function OrderServices({ order, onChange }: { order: Order; onChange: () 
   const key = ["order-services", company.public_id, order.id];
   const lines = useApi<{ lines: ServiceLine[] }>(key, `/c/${company.public_id}/orders/${order.id}/services`);
   const add = useCommand<Record<string, unknown>, { line: ServiceLine }>(`/c/${company.public_id}/service-lines`);
-  const open = order.state === "open" || order.state === "ready_to_close";
+  // A preliminary order takes standalone services too (decision З2).
+  const open = order.state === "preliminary" || order.state === "open" || order.state === "ready_to_close";
 
   async function refresh() {
     await queryClient.invalidateQueries({ queryKey: key });

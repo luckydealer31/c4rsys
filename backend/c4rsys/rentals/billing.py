@@ -20,7 +20,7 @@ from uuid import UUID
 
 from c4rsys.finance import charges
 from c4rsys.finance.models import ChargeEntry
-from c4rsys.orders.models import Order
+from c4rsys.orders import services as orders
 from c4rsys.platform.commands import CommandContext
 from c4rsys.rentals import extra_lines, pricing, rentals
 from c4rsys.rentals.models import ExtraServiceLine, Rental
@@ -48,7 +48,7 @@ def base_calculation(rental: Rental) -> tuple[str, pricing.Calculation] | None:
 
 
 def _client_of(order_id: UUID) -> UUID | None:
-    return Order.objects.filter(pk=order_id).values_list("client_id", flat=True).first()
+    return orders.chargeable_client(order_id)
 
 
 def charge_base(ctx: CommandContext, rental: Rental, reason: str) -> ChargeEntry | None:
@@ -117,8 +117,9 @@ def on_client_assigned(ctx: CommandContext, company_id: UUID, order_id: UUID) ->
 
 
 def estimated_for_order(company_id: UUID, order_id: UUID) -> dict[str, Decimal]:
-    """Provider for orders: the amounts of an order without a client, not charged (Р25)."""
-    if Order.objects.filter(pk=order_id, client_id__isnull=False).exists():
+    """Provider for orders: the amounts of an order without a client or of a preliminary one,
+    not charged (Р25, З2)."""
+    if orders.chargeable_client(order_id) is not None:
         return {}
     result: dict[str, Decimal] = {}
     for rental in Rental.objects.filter(company_id=company_id, order_id=order_id):

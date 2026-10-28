@@ -13,7 +13,7 @@ class RentalsConfig(AppConfig):
         from c4rsys.fleet import moves
         from c4rsys.fleet import services as fleet
         from c4rsys.orders import services as orders
-        from c4rsys.rentals import billing, extra_lines, rentals, tariffs
+        from c4rsys.rentals import billing, extra_lines, order_links, rentals, tariffs
 
         readiness.register("rental", tariffs.rental_conditions_met)
         locations.register_blockers(rentals.location_blockers)
@@ -28,3 +28,6 @@ class RentalsConfig(AppConfig):
         # § 12.1.4, § 13.4.11: additional services are lines of the order of their own.
         orders.register_operations(extra_lines.operations_for_order)
         orders.register_history(extra_lines.history_for_order)
+        # § 12.2.1–12.2.2: proposals become bookings; the cancelled order takes its positions.
+        orders.register_on_formed(order_links.on_order_formed)
+        orders.register_on_cancel(order_links.on_order_cancel)

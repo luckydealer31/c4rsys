@@ -16,3 +16,4 @@ class FleetConfig(AppConfig):
         locations.register_blockers(services.location_blockers)
         orders.register_operations(moves.operations_for_order)
         orders.register_history(moves.history_for_order)
+        orders.register_on_cancel(moves.on_order_cancel)

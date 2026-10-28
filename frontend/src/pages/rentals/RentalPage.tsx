@@ -19,6 +19,7 @@ import { DepositCard } from "./Deposit";
 import { IssueExceptionView, placeText } from "./IssueRules";
 import { FreeTime, ManualCharges, MileageView } from "./RentalCharges";
 import { CorrectionForm, ExtendForm, ReopenRental, TariffChange } from "./RentalChanges";
+import { AnnulRental, TransferRental } from "./RentalOrder";
 import { RentalServices } from "./Services";
 import { CalculationView, Warnings } from "./IssuePage";
 
@@ -223,6 +224,18 @@ export function RentalPage() {
         </p>
       </Card>
       </>
+      ) : null}
+
+      {["booked", "active", "returned"].includes(current.state) && can("rental.transfer") ? (
+        <Card title={t("rental_order.transfer_title")}>
+          <TransferRental rental={current} onDone={refresh} />
+        </Card>
+      ) : null}
+
+      {(current.state === "active" || current.state === "returned") && can("rental.annul") ? (
+        <Card title={t("rental_order.annul_title")}>
+          <AnnulRental rental={current} onDone={refresh} />
+        </Card>
       ) : null}
 
       <div className="actions">

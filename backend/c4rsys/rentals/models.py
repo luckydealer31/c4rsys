@@ -185,6 +185,9 @@ class Rental(models.Model):
     """
 
     class State(models.TextChoices):
+        # § 12.1.7, § 12.2.2 (decision З2): a rental offered in a preliminary order — a vehicle, a
+        # tariff and a planned period with its cost; it holds nothing until the order is formed.
+        PROPOSED = "proposed"
         BOOKED = "booked"
         ACTIVE = "active"
         RETURNED = "returned"

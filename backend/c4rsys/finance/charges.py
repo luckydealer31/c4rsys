@@ -116,6 +116,38 @@ def _append(
     return entry
 
 
+def move_source(
+    ctx: CommandContext, *, source_type: str, source_id: UUID, order_id: UUID, reason: str
+) -> None:
+    """The charges of a source go to another order with it (§ 12.3.7): a reversing entry in the
+    order where they are and the same amount in the new one; nothing is changed or deleted."""
+    rows = (
+        ChargeEntry.objects.filter(source_type=source_type, source_id=source_id)
+        .exclude(order_id=order_id)
+        .values("company_id", "order_id", "client_id", "currency_id")
+        .annotate(total=Sum("amount"))
+    )
+    for row in rows:
+        total = row["total"]
+        if total == 0:
+            continue
+        calculation = {"moved_to": str(order_id), "from": str(row["order_id"])}
+        for target, delta in ((row["order_id"], -total), (order_id, total)):
+            _append(
+                ctx,
+                row["company_id"],
+                target,
+                row["client_id"],
+                source_type,
+                source_id,
+                delta,
+                row["currency_id"],
+                current_charge(source_type, source_id),
+                reason,
+                calculation,
+            )
+
+
 def charged_currency(source_type: str, source_id: UUID) -> str | None:
     """The currency of a source's current non-zero charge, to bring it to zero."""
     rows = (

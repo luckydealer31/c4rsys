@@ -7,5 +7,8 @@ urlpatterns = [
     path("c/<str:cmp>/orders/<uuid:order_id>", views.order_detail),
     path("c/<str:cmp>/orders/<uuid:order_id>/close", views.order_close),
     path("c/<str:cmp>/orders/<uuid:order_id>/reopen", views.order_reopen),
+    path("c/<str:cmp>/orders/<uuid:order_id>/form", views.order_form),
+    path("c/<str:cmp>/orders/<uuid:order_id>/responsible", views.order_responsible),
+    path("c/<str:cmp>/orders/<uuid:order_id>/cancel", views.order_cancel),
     path("c/<str:cmp>/orders/<uuid:order_id>/history", views.order_history),
 ]

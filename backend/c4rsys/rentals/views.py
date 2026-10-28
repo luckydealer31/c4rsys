@@ -548,7 +548,8 @@ def rental_list(request: HttpRequest, cmp: str) -> JsonResponse:
     context, actor = _actor(request, cmp)
     items = [
         _rental_payload(r)
-        for r in rentals.rentals_of(context.company.id)[:100]
+        # A proposal of a preliminary order is shown in its order only (decision З2).
+        for r in rentals.rentals_of(context.company.id).exclude(state=Rental.State.PROPOSED)[:100]
         if _rental_visible(actor, r)
     ]
     return JsonResponse({"rentals": items})

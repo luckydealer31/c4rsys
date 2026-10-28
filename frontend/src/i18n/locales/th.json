@@ -83,7 +83,17 @@
     "rental_planned_end_changed": "เปลี่ยนเวลาสิ้นสุดตามแผน",
     "rental_tariff_changed": "เปลี่ยนอัตราค่าเช่า",
     "rental_reopened": "เปิดการเช่าอีกครั้ง",
-    "rental_corrected": "แก้ไขการเช่า"
+    "rental_corrected": "แก้ไขการเช่า",
+    "order_formed": "สร้างคำสั่งซื้อแล้ว",
+    "order_responsible_changed": "เปลี่ยนผู้รับผิดชอบ",
+    "order_cancelled": "ยกเลิกคำสั่งซื้อ",
+    "order_rental_moved_out": "ย้ายการเช่าไปคำสั่งซื้ออื่น",
+    "order_rental_moved_in": "ย้ายการเช่ามาจากคำสั่งซื้ออื่น",
+    "rental_proposed": "เสนอการเช่า",
+    "rental_proposal_withdrawn": "ถอนข้อเสนอการเช่า",
+    "rental_annulled": "ยกเลิกการเช่าเป็นโมฆะ",
+    "rental_transferred": "ย้ายการเช่าไปคำสั่งซื้ออื่น",
+    "service_line_moved": "ย้ายบริการไปคำสั่งซื้ออื่น"
   },
   "finance_articles": {
     "archive": "เก็บเข้าคลัง",
@@ -624,7 +634,16 @@
     "tariff_change_not_allowed": "เปลี่ยนอัตราได้เฉพาะการเช่าที่ส่งมอบแล้ว",
     "rental_not_completed": "เปิดอีกครั้งได้เฉพาะการเช่าที่ปิดเอกสารแล้ว",
     "rental_not_reopened": "เปิดการเช่าอีกครั้งเพื่อแก้ไข",
-    "nothing_changed": "ไม่มีการเปลี่ยนแปลง"
+    "nothing_changed": "ไม่มีการเปลี่ยนแปลง",
+    "order_preliminary": "คำสั่งซื้อเป็นฉบับร่าง: สร้างคำสั่งซื้อก่อน",
+    "order_not_preliminary": "คำสั่งซื้อไม่ใช่ฉบับร่าง",
+    "rental_not_proposed": "นี่ไม่ใช่ข้อเสนอการเช่า",
+    "order_has_active_rental": "คำสั่งซื้อมีการเช่าที่ส่งมอบหรือคืนแล้ว: ย้ายไปคำสั่งซื้ออื่นหรือทำให้เป็นโมฆะก่อน",
+    "order_has_started_operations": "คำสั่งซื้อมีงานที่เริ่มหรือเสร็จแล้ว",
+    "rental_not_issued": "ทำให้เป็นโมฆะได้เฉพาะการเช่าที่ส่งมอบหรือคืนแล้ว สำหรับการจองให้ยกเลิก",
+    "rental_transfer_not_allowed": "ไม่สามารถย้ายการเช่านี้ได้",
+    "transfer_same_order": "เลือกคำสั่งซื้ออื่น",
+    "employee_not_active": "พนักงานไม่ได้ใช้งาน"
   },
   "history": {
     "action": "Action",
@@ -816,7 +835,26 @@
     "to_pay": "to pay",
     "operation_service": "บริการ",
     "condition_not_finished_service": "บริการเพิ่มเติมยังไม่เสร็จ: บริการแยกให้บันทึกเสร็จหรือยกเลิก บริการที่ผูกไว้จะเสร็จพร้อมการเช่า",
-    "estimated": "ประมาณการ {{amount}} {{currency}} — จะตั้งยอดเมื่อระบุลูกค้า"
+    "estimated": "ประมาณการ {{amount}} {{currency}} — จะตั้งยอดเมื่อระบุลูกค้า",
+    "new": "คำสั่งซื้อใหม่",
+    "internal_order": "คำสั่งซื้อภายในของบริษัท",
+    "create": "สร้างคำสั่งซื้อ",
+    "save_preliminary": "บันทึกเป็นฉบับร่าง",
+    "state_preliminary": "ฉบับร่าง",
+    "preliminary_title": "คำสั่งซื้อฉบับร่าง",
+    "preliminary_hint": "ยังไม่มีการเรียกเก็บหรือจอง: รายการและราคาใช้หารือกับลูกค้า การสร้างคำสั่งซื้อจะเปลี่ยนข้อเสนอการเช่าเป็นการจอง",
+    "form": "สร้างคำสั่งซื้อ",
+    "change_responsible": "เปลี่ยน",
+    "cancel_title": "ยกเลิกคำสั่งซื้อ",
+    "cancel_hint": "การจองและบริการที่ยังไม่เริ่มจะถูกยกเลิกพร้อมคำสั่งซื้อ เงินที่ชำระแล้วจะเป็นยอดชำระเกิน",
+    "cancel_reason": "เหตุผล",
+    "cancel": "ยกเลิกคำสั่งซื้อ",
+    "cancelled": "ยกเลิกแล้ว",
+    "proposals": "ข้อเสนอการเช่า",
+    "no_proposals": "ไม่มีข้อเสนอการเช่า",
+    "proposal_conflict": "รถไม่ว่างในช่วงเวลานี้",
+    "withdraw_proposal": "นำออก",
+    "add_proposal": "เสนอการเช่า"
   },
   "payments": {
     "account": "Cash desk or account",
@@ -919,7 +957,10 @@
     "rental_manual_charge": "บันทึกค่าบริการเองในการเช่า",
     "rental_extend": "ขยายระยะเวลาเช่า",
     "rental_change_terms": "เปลี่ยนอัตราและเงื่อนไขการเช่า",
-    "rental_reopen": "เปิดการเช่าที่เสร็จสิ้นอีกครั้ง"
+    "rental_reopen": "เปิดการเช่าที่เสร็จสิ้นอีกครั้ง",
+    "order_cancel": "ยกเลิกคำสั่งซื้อ",
+    "rental_annul": "ทำให้การเช่าที่ผิดพลาดเป็นโมฆะ",
+    "rental_transfer": "ย้ายการเช่าระหว่างคำสั่งซื้อ"
   },
   "positions": {
     "director": "Director"
@@ -1067,7 +1108,8 @@
     "tariff": "Tariff",
     "time_zone": "Times are shown in {{zone}}.",
     "vehicle": "Vehicle",
-    "vehicle_and_client": "Vehicle, tariff and client"
+    "vehicle_and_client": "Vehicle, tariff and client",
+    "state_proposed": "เสนอแล้ว"
   },
   "rights": {
     "add": "Add rights",
@@ -2263,5 +2305,16 @@
     "reopened": "เปิดการเช่าอีกครั้งแล้ว: แก้ไขและปิดเอกสารอีกครั้ง",
     "correct_title": "การแก้ไข",
     "correct": "บันทึกการแก้ไข"
+  },
+  "rental_order": {
+    "transfer_title": "ย้ายไปคำสั่งซื้ออื่น",
+    "transfer_hint": "การเช่าคงประวัติไว้ ค่าใช้จ่ายและบริการที่เชื่อมโยงย้ายไปด้วย การชำระเงินอยู่ในคำสั่งซื้อเดิม ให้เปลี่ยนการเชื่อมโยงในการเงิน",
+    "target": "คำสั่งซื้อ",
+    "new_order": "คำสั่งซื้อใหม่ของลูกค้า",
+    "transfer": "ย้ายการเช่า",
+    "annul_title": "ทำให้การเช่าที่ผิดพลาดเป็นโมฆะ",
+    "annul_hint": "สำหรับการเช่าที่บันทึกผิด: ค่าใช้จ่ายของการเช่าและบริการที่เชื่อมโยงเป็นศูนย์ ตำแหน่งรถไม่เปลี่ยน",
+    "annul_reason": "เหตุผล",
+    "annul": "ทำให้การเช่าเป็นโมฆะ"
   }
 }

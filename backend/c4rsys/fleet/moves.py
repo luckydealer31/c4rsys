@@ -126,6 +126,14 @@ def operations_for_order(company_id: UUID, order_id: UUID) -> list[orders.Operat
     ]
 
 
+def on_order_cancel(ctx: CommandContext, company_id: UUID, order_id: UUID, reason: str) -> None:
+    """Handler for orders: a recorded move is a fact and keeps its order from cancelling
+    (§ 12.2.1)."""
+    move = VehicleMove.objects.filter(company_id=company_id, order_id=order_id).first()
+    if move is not None:
+        raise errors.business_rule("ORDER_HAS_STARTED_OPERATIONS", move_id=str(move.id))
+
+
 def history_for_order(company_id: UUID, order_id: UUID) -> list[tuple[str, str]]:
     return [
         ("vehicle_move", str(move_id))

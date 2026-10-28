@@ -422,6 +422,18 @@ def cancel(ctx: CommandContext, company_id: UUID, line_id: UUID, reason: str) ->
 # --- Providers for orders ---------------------------------------------------------------------
 
 
+def on_order_cancel(ctx: CommandContext, company_id: UUID, order_id: UUID, reason: str) -> None:
+    """Handler for orders: with the cancelled order its reserved goods are released (§ 12.2.1); a
+    sold line is corrected by § 11.9.5 and keeps the order from cancelling."""
+    for line in SaleLine.objects.select_for_update().filter(
+        company_id=company_id, order_id=order_id
+    ):
+        if line.state == SaleLine.State.RESERVED:
+            remove(ctx, company_id, line.id)
+        elif line.state == SaleLine.State.SOLD:
+            raise errors.business_rule("ORDER_HAS_STARTED_OPERATIONS", line_id=str(line.id))
+
+
 def operations_for_order(company_id: UUID, order_id: UUID) -> list[orders.OperationSummary]:
     """Goods lines as operations of the order: always ready to close; closing needs the right of
     sale (§ 11.9.4)."""

@@ -1,11 +1,12 @@
-"""HTTP API of orders: reading (ТЗ § 12.2.3–12.2.4, § 23.6). Closing comes with T16."""
+"""HTTP API of orders: reading, manual creation, forming, the responsible employee, cancellation,
+closing and reopening (ТЗ § 12.1.7, § 12.1.9–12.1.10, § 12.2, § 23.6)."""
 
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
 from django.http import HttpRequest, JsonResponse
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from c4rsys.accounts.middleware import require_user
 from c4rsys.companies import access, history
@@ -36,6 +37,39 @@ def _visible(actor: Actor, operations: list[services.OperationSummary]) -> bool:
     if not located:
         return resolver.has_permission(actor, "order.view")
     return any(resolver.has_permission(actor, "order.view", location_id=x) for x in located)
+
+
+def _uuid(data: dict[str, Any], key: str, *, required: bool = True) -> UUID | None:
+    value = data.get(key)
+    if value in (None, ""):
+        if required:
+            raise errors.validation_error(key, code="FIELD_REQUIRED")
+        return None
+    try:
+        return UUID(str(value))
+    except ValueError as exc:
+        raise errors.validation_error(key) from exc
+
+
+def _flag(data: dict[str, Any], key: str) -> bool:
+    value = data.get(key, False)
+    if not isinstance(value, bool):
+        raise errors.validation_error(key)
+    return value
+
+
+def _order_for(actor: Actor, company_id: UUID, order_id: UUID, permission: str) -> Order:
+    """A visible order and a right on the whole of it."""
+    order = services.get_order(company_id, order_id)
+    if not services.can_view(actor, order):
+        raise errors.not_found()
+    if not services.has_right(actor, order, permission):
+        raise errors.permission_denied(permission)
+    return order
+
+
+def _result(order: Order, status: int = 200) -> CommandResult:
+    return CommandResult(status, {"order": _payload(order, services.operations_of(order))})
 
 
 def _money(currency: str, money: services.Money) -> dict[str, str]:
@@ -69,6 +103,8 @@ def _payload(order: Order, operations: list[services.OperationSummary]) -> dict[
         else None,
         "created_at": order.created_at.isoformat(),
         "closed_at": order.closed_at.isoformat() if order.closed_at else None,
+        "cancelled_at": order.cancelled_at.isoformat() if order.cancelled_at else None,
+        "cancel_reason": order.cancel_reason,
         "version": order.version,
         "operations": [
             {"type": op.type, "id": str(op.id), "state": op.state, "finished": op.finished}
@@ -87,9 +123,11 @@ def _payload(order: Order, operations: list[services.OperationSummary]) -> dict[
     }
 
 
-@require_GET
+@require_http_methods(["GET", "POST"])
 def order_list(request: HttpRequest, cmp: str) -> JsonResponse:
     context, actor = _actor(request, cmp)
+    if request.method == "POST":
+        return _create(request, context, actor)
     items = []
     for order in services.orders_of(context.company.id)[:LIST_LIMIT]:
         operations = services.operations_of(order)
@@ -176,3 +214,91 @@ def order_history(request: HttpRequest, cmp: str, order_id: UUID) -> JsonRespons
         raise errors.not_found()
     events = history.object_history(context.company.id, services.history_objects(order))
     return JsonResponse({"history": history.payload(events)})
+
+
+def _create(request: HttpRequest, context: companies.CompanyContext, actor: Actor) -> JsonResponse:
+    """§ 12.1.7: «Create the order», or «Save as preliminary» (decision З3)."""
+    if not access.RightsResolver().has_permission(actor, "order.create"):
+        raise errors.permission_denied("order.create")
+    data = parse_json(request)
+    client_id = _uuid(data, "client_id", required=False)
+    internal = _flag(data, "internal")
+    preliminary = _flag(data, "preliminary")
+    if client_id is not None:
+        from c4rsys.parties import services as clients
+
+        clients.get_client(context.company.id, client_id)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        order = services.create_manual(
+            ctx,
+            company_id=context.company.id,
+            client_id=client_id,
+            internal=internal,
+            preliminary=preliminary,
+        )
+        return _result(order, 201)
+
+    payload = {
+        "client_id": str(client_id) if client_id else None,
+        "internal": internal,
+        "preliminary": preliminary,
+    }
+    return run_and_respond(request, "order.create", actor, payload, handler)
+
+
+@require_POST
+def order_form(request: HttpRequest, cmp: str, order_id: UUID) -> JsonResponse:
+    """§ 12.2.2: «Form the order» with «Change orders»; its rental proposals become bookings and
+    need «Book» there."""
+    context, actor = _actor(request, cmp)
+    _order_for(actor, context.company.id, order_id, "order.edit")
+    expected_version = get_int(parse_json(request), "expected_version")
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        return _result(services.form_order(ctx, context.company.id, order_id, expected_version))
+
+    payload = {"order_id": str(order_id), "expected_version": expected_version}
+    return run_and_respond(request, "order.form", actor, payload, handler)
+
+
+@require_POST
+def order_responsible(request: HttpRequest, cmp: str, order_id: UUID) -> JsonResponse:
+    """§ 12.1.10: the responsible employee is changed with «Change orders» (decision З7)."""
+    context, actor = _actor(request, cmp)
+    _order_for(actor, context.company.id, order_id, "order.edit")
+    data = parse_json(request)
+    employment_id = _uuid(data, "employment_id")
+    if employment_id is None:
+        raise RuntimeError("A required id is given")
+    expected_version = get_int(data, "expected_version")
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        order = services.set_responsible(
+            ctx, context.company.id, order_id, employment_id, expected_version
+        )
+        return _result(order)
+
+    payload = {
+        "order_id": str(order_id),
+        "employment_id": str(employment_id),
+        "expected_version": expected_version,
+    }
+    return run_and_respond(request, "order.set_responsible", actor, payload, handler)
+
+
+@require_POST
+def order_cancel(request: HttpRequest, cmp: str, order_id: UUID) -> JsonResponse:
+    """§ 12.2.1: the whole order with the separate right «Cancel orders» (decision З4)."""
+    context, actor = _actor(request, cmp)
+    _order_for(actor, context.company.id, order_id, "order.cancel")
+    data = parse_json(request)
+    expected_version = get_int(data, "expected_version")
+    reason = get_str(data, "reason", max_length=2000, required=False)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        order = services.cancel_order(ctx, context.company.id, order_id, expected_version, reason)
+        return _result(order)
+
+    payload = {"order_id": str(order_id), "expected_version": expected_version, "reason": reason}
+    return run_and_respond(request, "order.cancel", actor, payload, handler)

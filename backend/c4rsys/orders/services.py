@@ -16,7 +16,7 @@ from django.utils import timezone
 
 from c4rsys.orders.models import Order
 from c4rsys.platform import errors
-from c4rsys.platform.commands import CommandContext
+from c4rsys.platform.commands import Actor, CommandContext
 from c4rsys.platform.counters import next_number
 
 # --- Providers from other modules ------------------------------------------------------------
@@ -80,9 +80,19 @@ def register_estimated(provider: AmountProvider) -> None:
     registry.estimated.append(provider)
 
 
+def chargeable_client(order_id: UUID) -> UUID | None:
+    """The client to charge in the order: none while the client is not specified (decision Р25)
+    and while the order is preliminary — it is only discussed (§ 12.1.7; decision З2)."""
+    row = Order.objects.filter(pk=order_id).values_list("client_id", "state").first()
+    if row is None or row[1] == Order.State.PRELIMINARY:
+        return None
+    return row[0]
+
+
 def estimated_of(order: Order) -> dict[str, Decimal]:
     result: dict[str, Decimal] = {}
-    if order.client_id is not None or order.is_internal:
+    preliminary = order.state == Order.State.PRELIMINARY
+    if order.is_internal or (order.client_id is not None and not preliminary):
         return result
     for provider in registry.estimated:
         for currency, amount in provider(order.company_id, order.id).items():
@@ -114,15 +124,17 @@ def create_order(
     company_id: UUID,
     client_id: UUID | None,
     responsible_employment_id: UUID | None,
+    preliminary: bool = False,
 ) -> Order:
-    """A client order created by the operation that needs it (an issue or a booking). A booking
-    may create it before the client is known: «client not specified» (§ 12.1.8).
-    The number is the next one inside the company; the responsible employee is the creator by
-    default. Creating the order does not start its operations (§ 12.2.3)."""
+    """A client order created by the operation that needs it (an issue or a booking) or by hand
+    (§ 12.1.7). A booking may create it before the client is known: «client not specified»
+    (§ 12.1.8). The number is the next one inside the company; the responsible employee is the
+    creator by default. Creating the order does not start its operations (§ 12.2.3)."""
     order = Order.objects.create(
         company_id=company_id,
         number=next_number(company_id, "order"),
         client_id=client_id,
+        state=Order.State.PRELIMINARY if preliminary else Order.State.OPEN,
         responsible_employment_id=responsible_employment_id,
         created_by_user_id=ctx.actor.user_id,
         created_at=timezone.now(),
@@ -133,6 +145,7 @@ def create_order(
         object_id=order.id,
         after={
             "number": order.number,
+            "state": order.state,
             "client": str(client_id) if client_id else None,
             "responsible_employment": str(responsible_employment_id)
             if responsible_employment_id
@@ -175,9 +188,16 @@ def assign_client(ctx: CommandContext, order: Order, client_id: UUID) -> None:
         handler(ctx, order.company_id, order.id)
 
 
-def open_order_of_client(company_id: UUID, order_id: UUID, client_id: UUID | None = None) -> Order:
-    """An open client order to add goods to (decision of 25.10.2026), locked."""
-    order = lock_open_order(company_id, order_id)
+def open_order_of_client(
+    company_id: UUID,
+    order_id: UUID,
+    client_id: UUID | None = None,
+    *,
+    preliminary_ok: bool = False,
+) -> Order:
+    """An open client order to add goods to (decision of 25.10.2026), locked. A preliminary one
+    takes services and rental proposals (decision З2)."""
+    order = lock_open_order(company_id, order_id, preliminary_ok=preliminary_ok)
     if order.is_internal or order.client_id is None:
         raise errors.business_rule("ORDER_WITHOUT_CLIENT", field="order_id")
     if client_id is not None and order.client_id != client_id:
@@ -186,7 +206,11 @@ def open_order_of_client(company_id: UUID, order_id: UUID, client_id: UUID | Non
 
 
 def create_internal_order(
-    ctx: CommandContext, *, company_id: UUID, responsible_employment_id: UUID | None
+    ctx: CommandContext,
+    *,
+    company_id: UUID,
+    responsible_employment_id: UUID | None,
+    preliminary: bool = False,
 ) -> Order:
     """An internal order of the company itself (§ 12.1.1, § 12.1.3), for example for an internal
     move of a vehicle (§ 15.1.5). It has no client and no client charges."""
@@ -194,6 +218,7 @@ def create_internal_order(
         company_id=company_id,
         number=next_number(company_id, "order"),
         is_internal=True,
+        state=Order.State.PRELIMINARY if preliminary else Order.State.OPEN,
         responsible_employment_id=responsible_employment_id,
         created_by_user_id=ctx.actor.user_id,
         created_at=timezone.now(),
@@ -205,6 +230,7 @@ def create_internal_order(
         after={
             "number": order.number,
             "internal": True,
+            "state": order.state,
             "responsible_employment": str(responsible_employment_id)
             if responsible_employment_id
             else None,
@@ -213,12 +239,14 @@ def create_internal_order(
     return order
 
 
-def lock_open_order(company_id: UUID, order_id: UUID) -> Order:
+def lock_open_order(company_id: UUID, order_id: UUID, *, preliminary_ok: bool = False) -> Order:
     """For an operation added to an existing order: it must be open (§ 12.2.3)."""
     order = Order.objects.select_for_update().filter(company_id=company_id, pk=order_id).first()
     if order is None:
         raise errors.not_found()
-    if order.state != Order.State.OPEN:
+    if order.state == Order.State.PRELIMINARY and not preliminary_ok:
+        raise errors.business_rule("ORDER_PRELIMINARY", field="order_id")
+    if order.state not in (Order.State.OPEN, Order.State.PRELIMINARY):
         raise errors.business_rule("ORDER_CLOSED", field="order_id")
     return order
 
@@ -294,7 +322,20 @@ def ensure_open(company_id: UUID, order_id: UUID) -> None:
         .values_list("state", flat=True)
         .first()
     )
+    if state == Order.State.PRELIMINARY:
+        raise errors.business_rule("ORDER_PRELIMINARY", order_id=str(order_id))
     if state != Order.State.OPEN:
+        raise errors.business_rule("ORDER_CLOSED", order_id=str(order_id))
+
+
+def ensure_editable(company_id: UUID, order_id: UUID) -> None:
+    """A preliminary order is changed like an open one; nothing in it starts (§ 12.2.1)."""
+    state = (
+        Order.objects.filter(company_id=company_id, pk=order_id)
+        .values_list("state", flat=True)
+        .first()
+    )
+    if state not in (Order.State.OPEN, Order.State.PRELIMINARY):
         raise errors.business_rule("ORDER_CLOSED", order_id=str(order_id))
 
 
@@ -377,6 +418,186 @@ def reopen_order(
         object_type="order",
         object_id=order.id,
         before={"state": Order.State.CLOSED, "closed_at": closed_at},
+        after={"state": order.state},
+        reason=reason,
+    )
+    return order
+
+
+# --- Visibility (§ 12.4.2) ----------------------------------------------------------------------
+
+
+def places_of(order: Order) -> set[UUID | None]:
+    """Locations of the operations of the order; None for an order without located operations
+    (its rights are checked anywhere in the company)."""
+    located: set[UUID | None] = {
+        op.location_id for op in operations_of(order) if op.location_id is not None
+    }
+    return located or {None}
+
+
+def can_view(actor: Actor, order: Order) -> bool:
+    """«View orders» in a location of one of its operations, or anywhere in the company for an
+    order without located operations."""
+    from c4rsys.companies import access  # companies use finance, finance uses orders
+
+    resolver = access.RightsResolver()
+    places = places_of(order)
+    return any(resolver.has_permission(actor, "order.view", location_id=x) for x in places)
+
+
+def has_right(actor: Actor, order: Order, permission: str) -> bool:
+    """A right on the whole order: in every location of its operations."""
+    from c4rsys.companies import access
+
+    resolver = access.RightsResolver()
+    return all(resolver.has_permission(actor, permission, location_id=x) for x in places_of(order))
+
+
+# --- Manual creation, forming, responsible, cancellation (§ 12.1.7, § 12.1.10, § 12.2.1–12.2.2;
+# decisions З2–З4, З7 of 28.10.2026) --------------------------------------------------------------
+
+
+def create_manual(
+    ctx: CommandContext,
+    *,
+    company_id: UUID,
+    client_id: UUID | None,
+    internal: bool,
+    preliminary: bool,
+) -> Order:
+    """«Create the order» or «Save as preliminary»: for a client or the company itself
+    (§ 12.1.3). Until the form is saved there is no order (§ 12.1.7)."""
+    if internal == (client_id is not None):
+        raise errors.validation_error("client_id", code="CLIENT_REQUIRED")
+    if internal:
+        return create_internal_order(
+            ctx,
+            company_id=company_id,
+            responsible_employment_id=ctx.actor.employment_id,
+            preliminary=preliminary,
+        )
+    return create_order(
+        ctx,
+        company_id=company_id,
+        client_id=client_id,
+        responsible_employment_id=ctx.actor.employment_id,
+        preliminary=preliminary,
+    )
+
+
+def _locked(company_id: UUID, order_id: UUID, expected_version: int) -> Order:
+    order = Order.objects.select_for_update().filter(company_id=company_id, pk=order_id).first()
+    if order is None:
+        raise errors.not_found()
+    if order.version != expected_version:
+        raise errors.version_conflict()
+    return order
+
+
+def _bump(order: Order, *fields: str) -> None:
+    order.version += 1
+    order.save(update_fields=[*fields, "version", "updated_at"])
+
+
+# (ctx, company_id, order_id) -> None: what an operation does when its preliminary order is
+# formed — a rental proposal becomes a booking, the cost is charged (§ 12.2.2).
+FormHandler = Callable[[CommandContext, UUID, UUID], None]
+_on_formed: list[FormHandler] = []
+
+
+def register_on_formed(handler: FormHandler) -> None:
+    _on_formed.append(handler)
+
+
+def form_order(
+    ctx: CommandContext, company_id: UUID, order_id: UUID, expected_version: int
+) -> Order:
+    """«Form the order»: the same row with its number, lines and history becomes an open order;
+    nothing starts (§ 12.2.2). If a proposed vehicle is taken the order stays preliminary."""
+    order = _locked(company_id, order_id, expected_version)
+    if order.state != Order.State.PRELIMINARY:
+        raise errors.business_rule("ORDER_NOT_PRELIMINARY")
+    order.state = Order.State.OPEN
+    _bump(order, "state")
+    for handler in _on_formed:
+        handler(ctx, company_id, order.id)
+    ctx.audit(
+        "order.formed",
+        object_type="order",
+        object_id=order.id,
+        before={"state": Order.State.PRELIMINARY},
+        after={"state": order.state},
+    )
+    return order
+
+
+def set_responsible(
+    ctx: CommandContext,
+    company_id: UUID,
+    order_id: UUID,
+    employment_id: UUID,
+    expected_version: int,
+) -> Order:
+    """The responsible employee coordinates the order; it gives no rights by itself (§ 12.1.10)."""
+    from c4rsys.companies import staff
+    from c4rsys.companies.models import Employment
+
+    order = _locked(company_id, order_id, expected_version)
+    if order.state not in (Order.State.OPEN, Order.State.PRELIMINARY):
+        raise errors.business_rule("ORDER_CLOSED")
+    employment = staff.get_employment(company_id, employment_id)
+    if employment.state != Employment.State.ACTIVE:
+        raise errors.business_rule("EMPLOYEE_NOT_ACTIVE", field="employment_id")
+    if order.responsible_employment_id == employment.id:
+        raise errors.business_rule("NOTHING_CHANGED")
+    before = order.responsible_employment_id
+    order.responsible_employment_id = employment.id
+    _bump(order, "responsible_employment_id")
+    ctx.audit(
+        "order.responsible_changed",
+        object_type="order",
+        object_id=order.id,
+        before={"responsible_employment": str(before) if before else None},
+        after={"responsible_employment": str(employment.id)},
+    )
+    return order
+
+
+# (ctx, company_id, order_id, reason) -> None: each module cancels its positions not started yet
+# and refuses with a business rule when one has started (§ 12.2.1, § 12.3.7).
+CancelHandler = Callable[[CommandContext, UUID, UUID, str], None]
+_on_cancel: list[CancelHandler] = []
+
+
+def register_on_cancel(handler: CancelHandler) -> None:
+    _on_cancel.append(handler)
+
+
+def cancel_order(
+    ctx: CommandContext, company_id: UUID, order_id: UUID, expected_version: int, reason: str
+) -> Order:
+    """The whole order before its operations start: bookings and services not started are
+    cancelled and their reserves freed (§ 12.2.1). An issued or returned rental is transferred
+    or annulled first (§ 12.3.7). Payments stay: they become an overpayment (decision З4)."""
+    reason = reason.strip()
+    if not reason:
+        raise errors.validation_error("reason", code="FIELD_REQUIRED")
+    order = _locked(company_id, order_id, expected_version)
+    if order.state not in (Order.State.OPEN, Order.State.PRELIMINARY):
+        raise errors.business_rule("ORDER_CLOSED")
+    before = order.state
+    for handler in _on_cancel:
+        handler(ctx, company_id, order.id, reason)
+    order.state = Order.State.CANCELLED
+    order.cancelled_at = timezone.now()
+    order.cancel_reason = reason
+    _bump(order, "state", "cancelled_at", "cancel_reason")
+    ctx.audit(
+        "order.cancelled",
+        object_type="order",
+        object_id=order.id,
+        before={"state": before},
         after={"state": order.state},
         reason=reason,
     )
