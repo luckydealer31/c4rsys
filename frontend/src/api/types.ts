@@ -245,6 +245,7 @@ export type VehicleCharacteristics = {
   body_number: string;
   chassis_number: string;
   frame_number: string;
+  engine_number: string;
   plate: string;
   plate_country: string;
   color: string;
@@ -287,7 +288,18 @@ export type CatalogModel = {
 };
 
 /** A messenger may be bound to a phone; without it the phone is called or texted. */
-export type Messenger = "" | "whatsapp" | "telegram" | "other";
+export type Messenger =
+  | ""
+  | "whatsapp"
+  | "telegram"
+  | "line"
+  | "wechat"
+  | "viber"
+  | "signal"
+  | "kakaotalk"
+  | "zalo"
+  | "facebook_messenger"
+  | "other";
 
 export type ClientContact = { kind: "phone" | "email"; value: string; messenger?: Messenger };
 

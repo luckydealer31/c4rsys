@@ -60,8 +60,12 @@ HELP_COMMON = {
         "+66 81 234 5678",
     ),
     "phone_messenger": (
-        "Messenger by this phone: whatsapp, telegram, other; a call or SMS when empty",
-        "Мессенджер по этому телефону: whatsapp, telegram, other; если пусто — звонок или SMS",
+        "Priority messenger by this phone: "
+        + ", ".join(services.MESSENGERS)
+        + "; a call or SMS when empty",
+        "Приоритетный мессенджер по этому телефону: "
+        + ", ".join(services.MESSENGERS)
+        + "; если пусто — звонок или SMS",
         "whatsapp",
     ),
     "phone_2": ("Second phone", "Второй телефон", ""),

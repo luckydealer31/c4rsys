@@ -282,10 +282,22 @@ export function ClientForm({ onCreated }: { onCreated?: (client: Client) => void
 }
 
 /** Client card: data, contacts, settlement balance (§ 6.2.12, § 6.7.2). */
-const MESSENGERS: Messenger[] = ["", "whatsapp", "telegram", "other"];
+const MESSENGERS: Messenger[] = [
+  "",
+  "whatsapp",
+  "telegram",
+  "line",
+  "wechat",
+  "viber",
+  "signal",
+  "kakaotalk",
+  "zalo",
+  "facebook_messenger",
+  "other",
+];
 
-/** The way of contact by a phone: a call or SMS by default, or a messenger bound to the number
- * (customer's decision of 30.10.2026). */
+/** The priority way of contact by a phone: a call or SMS by default, or one messenger from the
+ * list of common ones (customer's decisions of 30.10.2026). */
 export function MessengerField({
   value,
   onChange,

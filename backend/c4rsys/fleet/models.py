@@ -78,6 +78,9 @@ class Vehicle(models.Model):
     body_number = models.CharField(max_length=40, blank=True, default="", db_index=True)
     chassis_number = models.CharField(max_length=40, blank=True, default="", db_index=True)
     frame_number = models.CharField(max_length=40, blank=True, default="", db_index=True)
+    # The engine number (§ 8.1.12; customer's decision of 30.10.2026). § 8.6.1 does not compare
+    # it with other vehicles.
+    engine_number = models.CharField(max_length=40, blank=True, default="")
     color = models.CharField(max_length=60, blank=True, default="")
     body_type = models.CharField(max_length=30, blank=True, default="")
     fuel_type = models.CharField(max_length=30, blank=True, default="")

@@ -308,10 +308,17 @@
     "balance_parts": "Available {{available}} {{currency}} · unpaid {{unpaid}} {{currency}}",
     "open_settlement": "Settlements of clients",
     "deposit_held": "Deposit held: {{amount}} {{currency}} (not available)",
-    "messenger": "Way of contact by phone",
+    "messenger": "Priority contact by phone",
     "messenger_none": "Call / SMS",
     "messenger_whatsapp": "WhatsApp",
     "messenger_telegram": "Telegram",
+    "messenger_line": "LINE",
+    "messenger_wechat": "WeChat",
+    "messenger_viber": "Viber",
+    "messenger_signal": "Signal",
+    "messenger_kakaotalk": "KakaoTalk",
+    "messenger_zalo": "Zalo",
+    "messenger_facebook_messenger": "Facebook Messenger",
     "messenger_other": "Other messenger"
   },
   "common": {
@@ -875,7 +882,7 @@
     "import_row_id_conflict": "The ID and other identifiers point to different cards: link or skip.",
     "import_row_posted": "The row is already loaded.",
     "file_removed": "The file was removed by its retention period.",
-    "messenger_invalid": "A messenger is chosen for a phone only: WhatsApp, Telegram or other.",
+    "messenger_invalid": "A messenger is chosen for a phone only, from the list.",
     "messenger_without_phone": "A messenger needs a phone number."
   },
   "history": {
@@ -1760,6 +1767,7 @@
     "body_number": "Body number",
     "chassis_number": "Chassis number",
     "frame_number": "Frame number",
+    "engine_number": "Engine number",
     "match_body_number": "Another vehicle in the system has this body number — a reason to check the data.",
     "match_chassis_number": "Another vehicle in the system has this chassis number — a reason to check the data.",
     "match_frame_number": "Another vehicle in the system has this frame number — a reason to check the data."

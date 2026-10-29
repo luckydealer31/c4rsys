@@ -84,6 +84,7 @@ class VehiclesTemplate:
         "body_number": 40,
         "chassis_number": 40,
         "frame_number": 40,
+        "engine_number": 40,
         "color": 60,
         "body_type": 30,
         "fuel_type": 30,
@@ -141,6 +142,7 @@ class VehiclesTemplate:
         "body_number": ("Body number", "Номер кузова", ""),
         "chassis_number": ("Chassis number", "Номер шасси", ""),
         "frame_number": ("Frame number", "Номер рамы", ""),
+        "engine_number": ("Engine number", "Номер двигателя", ""),
         "color": ("Color", "Цвет", "white"),
         "body_type": (
             "sedan, hatchback, wagon, suv, crossover, coupe, convertible, minivan, pickup, van,"
@@ -199,6 +201,7 @@ class VehiclesTemplate:
                 "plate_country",
                 "vin",
                 *characteristics.NUMBERS,
+                "engine_number",
                 "color",
                 "body_type",
                 "fuel_type",

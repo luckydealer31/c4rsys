@@ -308,10 +308,17 @@
     "balance_parts": "ใช้ได้ {{available}} {{currency}} · ค้างชำระ {{unpaid}} {{currency}}",
     "open_settlement": "การชำระของลูกค้า",
     "deposit_held": "มัดจำที่ถือ: {{amount}} {{currency}} (ใช้ไม่ได้)",
-    "messenger": "ช่องทางติดต่อทางโทรศัพท์",
+    "messenger": "ช่องทางติดต่อหลักทางโทรศัพท์",
     "messenger_none": "โทร / SMS",
     "messenger_whatsapp": "WhatsApp",
     "messenger_telegram": "Telegram",
+    "messenger_line": "LINE",
+    "messenger_wechat": "WeChat",
+    "messenger_viber": "Viber",
+    "messenger_signal": "Signal",
+    "messenger_kakaotalk": "KakaoTalk",
+    "messenger_zalo": "Zalo",
+    "messenger_facebook_messenger": "Facebook Messenger",
     "messenger_other": "แมสเซนเจอร์อื่น"
   },
   "common": {
@@ -875,7 +882,7 @@
     "import_row_id_conflict": "รหัสชี้ไปยังการ์ดต่างกัน",
     "import_row_posted": "แถวนี้โหลดแล้ว",
     "file_removed": "ไฟล์ถูกลบตามระยะเวลาเก็บ",
-    "messenger_invalid": "เลือกแมสเซนเจอร์ได้เฉพาะโทรศัพท์",
+    "messenger_invalid": "เลือกแมสเซนเจอร์ได้เฉพาะโทรศัพท์และจากรายการเท่านั้น",
     "messenger_without_phone": "แมสเซนเจอร์ต้องมีหมายเลขโทรศัพท์"
   },
   "history": {
@@ -1760,6 +1767,7 @@
     "body_number": "หมายเลขตัวถัง",
     "chassis_number": "หมายเลขแชสซี",
     "frame_number": "หมายเลขเฟรม",
+    "engine_number": "หมายเลขเครื่องยนต์",
     "match_body_number": "มีหมายเลขตัวถังนี้ในรถคันอื่นแล้ว",
     "match_chassis_number": "มีหมายเลขแชสซีนี้ในรถคันอื่นแล้ว",
     "match_frame_number": "มีหมายเลขเฟรมนี้ในรถคันอื่นแล้ว"

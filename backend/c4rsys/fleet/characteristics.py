@@ -109,6 +109,7 @@ class Characteristics:
     body_number: str = ""
     chassis_number: str = ""
     frame_number: str = ""
+    engine_number: str = ""
     plate: str = ""
     plate_country: str = ""
     color: str = ""
@@ -159,6 +160,7 @@ def parse(data: dict[str, Any], this_year: int) -> Characteristics:
         body_number=_text(data, "body_number", 40).upper(),
         chassis_number=_text(data, "chassis_number", 40).upper(),
         frame_number=_text(data, "frame_number", 40).upper(),
+        engine_number=_text(data, "engine_number", 40).upper(),
         plate=_text(data, "plate", 20),
         plate_country=plate_country,
         color=_text(data, "color", 60),
@@ -202,6 +204,7 @@ def apply(vehicle: Vehicle, value: Characteristics) -> None:
         "year",
         "vin",
         *NUMBERS,
+        "engine_number",
         "color",
         "body_type",
         "fuel_type",
@@ -267,6 +270,7 @@ def describe(vehicle: Vehicle) -> dict[str, Any]:
         "body_number": vehicle.body_number,
         "chassis_number": vehicle.chassis_number,
         "frame_number": vehicle.frame_number,
+        "engine_number": vehicle.engine_number,
         "plate": plate.number if plate else "",
         "plate_country": plate.country if plate else "",
         "color": vehicle.color,

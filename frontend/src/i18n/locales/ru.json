@@ -308,10 +308,17 @@
     "balance_parts": "Доступно {{available}} {{currency}} · не оплачено {{unpaid}} {{currency}}",
     "open_settlement": "Расчёты с клиентами",
     "deposit_held": "Удерживаемый залог: {{amount}} {{currency}} (не доступен)",
-    "messenger": "Связь по телефону",
+    "messenger": "Приоритетная связь по телефону",
     "messenger_none": "Звонок / SMS",
     "messenger_whatsapp": "WhatsApp",
     "messenger_telegram": "Telegram",
+    "messenger_line": "LINE",
+    "messenger_wechat": "WeChat",
+    "messenger_viber": "Viber",
+    "messenger_signal": "Signal",
+    "messenger_kakaotalk": "KakaoTalk",
+    "messenger_zalo": "Zalo",
+    "messenger_facebook_messenger": "Facebook Messenger",
     "messenger_other": "Другой мессенджер"
   },
   "common": {
@@ -875,7 +882,7 @@
     "import_row_id_conflict": "ID и другие идентификаторы указывают на разные карточки: свяжите или пропустите.",
     "import_row_posted": "Строка уже проведена.",
     "file_removed": "Файл удалён по сроку хранения.",
-    "messenger_invalid": "Мессенджер выбирается только для телефона: WhatsApp, Telegram или другой.",
+    "messenger_invalid": "Мессенджер выбирается только для телефона и только из списка.",
     "messenger_without_phone": "Для мессенджера нужен номер телефона."
   },
   "history": {
@@ -1760,6 +1767,7 @@
     "body_number": "Номер кузова",
     "chassis_number": "Номер шасси",
     "frame_number": "Номер рамы",
+    "engine_number": "Номер двигателя",
     "match_body_number": "Такой номер кузова уже есть у другого ТС в системе — это повод проверить данные.",
     "match_chassis_number": "Такой номер шасси уже есть у другого ТС в системе — это повод проверить данные.",
     "match_frame_number": "Такой номер рамы уже есть у другого ТС в системе — это повод проверить данные."

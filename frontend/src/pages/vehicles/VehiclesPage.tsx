@@ -187,6 +187,7 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
     [t("vehicles.body_number"), c.body_number],
     [t("vehicles.chassis_number"), c.chassis_number],
     [t("vehicles.frame_number"), c.frame_number],
+    [t("vehicles.engine_number"), c.engine_number],
     [t("vehicles.color"), c.color],
     [t("vehicles.body_type"), option("vehicles.body", c.body_type)],
     [t("vehicles.fuel_type"), option("vehicles.fuel", c.fuel_type)],

@@ -23,8 +23,21 @@ _PHONE_SEPARATORS = re.compile(r"[\s\-().]")
 # --- Contacts ---------------------------------------------------------------------------------
 
 
-# Messengers bound to a phone number (customer's decision of 30.10.2026); the full list is OPEN.
-MESSENGERS = ("whatsapp", "telegram", "other")
+# The priority way of contact by a phone number: a call or SMS, or one messenger from a list of
+# common ones (customer's decisions of 30.10.2026). WhatsApp, Telegram, LINE, WeChat and Viber were
+# named by the customer; Signal, KakaoTalk, Zalo and Facebook Messenger are a PROPOSAL.
+MESSENGERS = (
+    "whatsapp",
+    "telegram",
+    "line",
+    "wechat",
+    "viber",
+    "signal",
+    "kakaotalk",
+    "zalo",
+    "facebook_messenger",
+    "other",
+)
 
 
 @dataclass(frozen=True)

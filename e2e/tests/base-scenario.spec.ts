@@ -133,7 +133,7 @@ test("base example from registration to closing survives a restart", async ({ pa
   const client = card(page, t("clients.create_title"));
   await client.getByLabel(t("profile.first_name"), { exact: true }).fill("Иван");
   await client.getByLabel(t("profile.last_name"), { exact: true }).fill("Петров");
-  await client.getByLabel(t("clients.phone")).fill("+66 81 234 5678");
+  await client.getByLabel(t("clients.phone"), { exact: true }).fill("+66 81 234 5678");
   await client.getByRole("button", { name: t("clients.create") }).click();
   await expect(page.getByRole("link", { name: "Иван Петров" })).toBeVisible();
 

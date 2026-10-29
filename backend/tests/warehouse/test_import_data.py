@@ -238,7 +238,7 @@ def test_counterparties_are_searched_in_their_own_list(owner: Client) -> None:
                 "kind": "company",
                 "company_name": "Parts Co",
                 "phone": "+66812345678",
-                "phone_messenger": "Telegram",
+                "phone_messenger": "LINE",
                 "registration": "TAX 123",
                 "category": "Parts",
             }
@@ -250,7 +250,7 @@ def test_counterparties_are_searched_in_their_own_list(owner: Client) -> None:
     card = Counterparty.objects.get(company_name="Parts Co")
     assert (card.registration, card.category) == ("TAX 123", "Parts")
     # A messenger is bound to the phone number (decision of 30.10.2026).
-    assert card.contacts.get().messenger == "telegram"
+    assert card.contacts.get().messenger == "line"
 
 
 def test_messenger_belongs_to_a_phone(owner: Client) -> None:
@@ -322,12 +322,15 @@ def test_body_chassis_and_frame_numbers(owner: Client) -> None:
             "odometer_unit": "km",
             "body_number": " ab123 ",
             "frame_number": "FR-9",
+            "engine_number": "en 77",
         },
         key(),
     )
     assert created.status_code == 201, created.content
     card = VehicleCard.objects.get(pk=created.json()["vehicle"]["id"])
     assert (card.vehicle.body_number, card.vehicle.frame_number) == ("AB123", "FR-9")
+    # The engine number is kept but not compared with other vehicles (§ 8.6.1).
+    assert card.vehicle.engine_number == "EN 77"
     base = {"location_id": s.location, "relation": "own", "odometer_unit": "km"}
     operation = checked(
         owner,
@@ -336,10 +339,12 @@ def test_body_chassis_and_frame_numbers(owner: Client) -> None:
         [
             {**base, "name": "Same body", "body_number": "ab123"},
             {**base, "name": "Body as chassis", "chassis_number": "AB123"},  # another kind
+            {**base, "name": "Same engine", "engine_number": "EN 77"},
         ],
     )
     assert operation["rows"][0]["matches"][0]["by"] == "body_number"
     assert operation["rows"][1]["matches"] == []
+    assert operation["rows"][2]["matches"] == []
     body = run(owner, s.cmp, operation, "post").json()["import"]
     assert body["rows"][1]["result"] == "created"
     other = VehicleCard.objects.get(name="Body as chassis")
