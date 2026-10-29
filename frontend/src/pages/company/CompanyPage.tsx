@@ -65,6 +65,11 @@ export function CompanyPage() {
               {t("common.edit")}
             </Link>
           ) : null}
+          {can("company.link.answer") ? (
+            <Link className="button secondary" to={companyPath(company, "/link-requests")}>
+              {t("links.incoming_title")}
+            </Link>
+          ) : null}
           {/* Leaving the company returns to «My companies» (decision of 24.10.2026). */}
           <Link className="button secondary" to="/companies">
             <Icon name="exit" size={18} /> {t("company.leave")}

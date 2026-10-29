@@ -240,6 +240,48 @@ def profile_snapshot(company: Company) -> dict[str, Any]:
     }
 
 
+def find_company(public_id: str) -> Company | None:
+    """A company by its CMP ID, for a request to link with its profile (§ 6.2.5)."""
+    return Company.objects.filter(public_id=public_id).first()
+
+
+def get_company(company_id: UUID) -> Company | None:
+    return Company.objects.filter(pk=company_id).first()
+
+
+def shareable_profile(company: Company) -> dict[str, Any]:
+    """The data a company may give another company that asks to link a card (§ 6.2.5, § 6.4.1)."""
+    return {
+        "display_name": company.display_name,
+        "legal_name": company.legal_name,
+        "country": company.country,
+        "legal_form": company.legal_form,
+        "identifiers": company.identifiers,
+        "legal_address": company.legal_address,
+        "actual_address": company.actual_address,
+        "phone": company.phone,
+        "email": company.email,
+    }
+
+
+def link_answerers(company_id: UUID) -> list[Employment]:
+    """Who answers a request to link with the company's profile: the top-authority director and
+    the employees with the right (§ 6.3.8). A share or a position gives nothing by itself."""
+    from c4rsys.companies import access
+
+    resolver = access.RightsResolver()
+    found = []
+    for e in Employment.objects.select_related("position").filter(
+        company_id=company_id, state=Employment.State.ACTIVE, user__isnull=False
+    ):
+        actor = Actor(user_id=e.user_id or e.id, company_id=company_id, employment_id=e.id)
+        if e.position.is_top_authority or resolver.has_permission(
+            actor, "company.link.answer", whole_company=True
+        ):
+            found.append(e)
+    return found
+
+
 def setup_state(company: Company) -> dict[str, bool]:
     """Completion of the wizard sections handled here: profile needs the name and a confirmed time
     zone (§ 22.1.4), finance needs the main currency (§ 22.1.7)."""

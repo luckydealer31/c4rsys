@@ -49,6 +49,9 @@ EVENTS: dict[str, Event] = {
     "document.signing_requested": Event(Kind.ACTION, "documents.sign", mandatory=True),
     "document.signing_result": Event(Kind.INFO, "documents.view", mandatory=True),
     "rental.exception_pending": Event(Kind.ACTION, "rental.exception.decide", mandatory=True),
+    # Requests to link with the company's profile and the answers (§ 6.3.8, part К4).
+    "link.requested": Event(Kind.ACTION, "company.link.answer", mandatory=True),
+    "link.answered": Event(Kind.INFO, None, mandatory=True),
     "rental.inspection_missing": Event(
         Kind.ACTION, "rental.complete_formalization", mandatory=True
     ),

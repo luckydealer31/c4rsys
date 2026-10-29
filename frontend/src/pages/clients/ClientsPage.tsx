@@ -5,6 +5,7 @@ import { Link, useParams, useSearchParams } from "react-router";
 
 import { api } from "../../api/client";
 import { useApi } from "../../api/queries";
+import { ProfileLinkCard } from "./ProfileLinkCard";
 import type { Client, ClientContact, Messenger } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
@@ -488,6 +489,16 @@ export function ClientPage() {
           ) : null}
         </form>
       </Card>
+      <ProfileLinkCard
+        cardType="client"
+        cardId={data.id}
+        cardKind={data.kind}
+        version={data.version}
+        onChanged={async () => {
+          setForm(null);
+          await queryClient.invalidateQueries({ queryKey: ["client", company.public_id, id] });
+        }}
+      />
       <LinkedDocuments objectType="client" objectId={data.id} />
       <LinkedTasks objectType="client" objectId={data.id} />
     </div>

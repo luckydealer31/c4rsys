@@ -560,6 +560,54 @@ def confirmed_emails_of(user_id: UUID) -> list[str]:
     )
 
 
+def find_user_by_phone(phone: str) -> UserAccount | None:
+    """Active account with this confirmed phone (digits with an optional leading «+»)."""
+    contact = (
+        LoginContact.objects.select_related("user")
+        .filter(kind=LoginContact.Kind.PHONE, value=phone)
+        .first()
+    )
+    user = contact.user if contact else None
+    return user if user and user.state == UserAccount.State.ACTIVE else None
+
+
+def confirmed_phones(user: UserAccount) -> list[str]:
+    return list(user.contacts.filter(kind=LoginContact.Kind.PHONE).values_list("value", flat=True))
+
+
+def get_user(user_id: UUID) -> UserAccount | None:
+    return UserAccount.objects.filter(pk=user_id).first()
+
+
+def shareable_profile(user: UserAccount) -> dict[str, Any]:
+    """The data a person may give a company that asks to link a card (§ 6.2.5, § 6.4.1): names,
+    birth date, the first confirmed email, the contact phone and the identity document."""
+    email = (
+        user.contacts.filter(kind=LoginContact.Kind.EMAIL)
+        .order_by("verified_at")
+        .values_list("value", flat=True)
+        .first()
+    )
+    return {
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "middle_name": user.middle_name,
+        "birth_date": user.birth_date.isoformat() if user.birth_date else None,
+        "email": email or "",
+        "phone": user.contact_phone,
+        "document": {
+            "type": user.document_type,
+            "number": user.document_number,
+            "issued_on": user.document_issued_on.isoformat() if user.document_issued_on else None,
+            "expires_on": (
+                user.document_expires_on.isoformat() if user.document_expires_on else None
+            ),
+        }
+        if user.document_number
+        else None,
+    }
+
+
 def names(user_ids: set[UUID]) -> dict[UUID, str]:
     """«First Last» of users, for the history shown by other modules."""
     return {

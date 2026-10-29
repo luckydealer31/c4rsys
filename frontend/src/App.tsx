@@ -12,6 +12,7 @@ import { RegisterPage } from "./pages/auth/RegisterPage";
 import { CompaniesPage } from "./pages/companies/CompaniesPage";
 import { ClientPage, ClientsPage } from "./pages/clients/ClientsPage";
 import { CounterpartyPage } from "./pages/clients/Counterparties";
+import { LinkRequestsPage } from "./pages/company/LinkRequestsPage";
 import { CompanyPage } from "./pages/company/CompanyPage";
 import { ImportPage } from "./pages/imports/ImportPage";
 import { ItemPage, NewItemPage } from "./pages/warehouse/ItemPage";
@@ -108,6 +109,8 @@ export function App() {
       <Route path="/c/:cmp" element={<CompanyShell user={user} />}>
         <Route index element={<Navigate to="company" replace />} />
         <Route path="company" element={<CompanyPage />} />
+        <Route path="link-requests" element={<LinkRequestsPage />} />
+        <Route path="link-requests/:id" element={<LinkRequestsPage />} />
         <Route path="dashboards" element={<DashboardsPage />} />
         <Route path="company/locations/:id" element={<LocationPage />} />
         <Route path="setup" element={<SetupPage />} />

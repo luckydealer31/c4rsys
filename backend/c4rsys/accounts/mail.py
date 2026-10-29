@@ -42,6 +42,17 @@ BODY_SIGNING = (
 )
 
 
+SUBJECT_LINK = "c4rsys: запрос на связь / link request"
+BODY_LINK = (
+    "Компания «{company}» просит связать вашу карточку клиента с вашим профилем c4rsys. "
+    "Войдите или зарегистрируйтесь с этим адресом, чтобы принять или отклонить запрос:\n"
+    "{url}\n\n"
+    "The company «{company}» asks to link your client card with your c4rsys profile. "
+    "Sign in or register with this address to accept or decline:\n"
+    "{url}\n"
+)
+
+
 def _deliver(email: str, subject: str, body: str, kind: str) -> None:
     try:
         send_mail(subject, body, None, [email])
@@ -64,6 +75,16 @@ def send_invitation(email: str, company_name: str) -> None:
         return
     body = BODY_INVITATION.format(company=company_name, url=settings.C4R_PUBLIC_URL)
     _deliver(email, SUBJECT_INVITATION, body, "invitation")
+
+
+def send_link_request(email: str, company_name: str) -> None:
+    """Notice of a request to link a card with the profile, or to register first (§ 6.2.5–6.2.6,
+    § 20.3.4)."""
+    if settings.C4R_MAIL_MODE == "console":
+        logger.warning("DEV MAIL to %s: link request from %s", email, company_name)
+        return
+    body = BODY_LINK.format(company=company_name, url=settings.C4R_PUBLIC_URL)
+    _deliver(email, SUBJECT_LINK, body, "link request")
 
 
 def send_signing_link(email: str, company_name: str, title: str, url: str) -> None:

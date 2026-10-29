@@ -13,13 +13,19 @@ from datetime import date
 from typing import Any
 from uuid import UUID
 
-from django.db.models import QuerySet
+from django.db.models import Q, QuerySet
 from django.utils import timezone
 
 from c4rsys.accounts import services as accounts
 from c4rsys.companies.models import Company
 from c4rsys.parties import counterparties, services
-from c4rsys.parties.models import ClientCard, ClientContact, Counterparty, CounterpartyContact
+from c4rsys.parties.models import (
+    ClientCard,
+    ClientContact,
+    Counterparty,
+    CounterpartyContact,
+    ProfileLink,
+)
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
 from c4rsys.warehouse.imports import Checked, Scope
@@ -215,11 +221,21 @@ class PartiesTemplate:
         return contacts
 
     def remove(self, ctx: CommandContext, company_id: UUID, record_ids: list[UUID]) -> None:
-        """A card linked to a profile is a confirmed link and stops the cancel (§ 22.2.5)."""
+        """A card linked to a profile is a confirmed link and stops the cancel (§ 22.2.5); so does a
+        request sent from it: its history is kept (PROPOSAL)."""
         cards: list[Any] = list(
             self.model.objects.select_for_update().filter(company_id=company_id, pk__in=record_ids)
         )
-        linked = [c for c in cards if c.linked_user_id is not None]
+        requested = set(
+            ProfileLink.objects.filter(
+                Q(client_id__in=record_ids) | Q(counterparty_id__in=record_ids)
+            ).values_list(f"{self.contact_card}_id", flat=True)
+        )
+        linked = [
+            c
+            for c in cards
+            if c.linked_user_id is not None or c.linked_company_id is not None or c.id in requested
+        ]
         if linked:
             raise errors.business_rule(
                 "IMPORT_CANCEL_BLOCKED",

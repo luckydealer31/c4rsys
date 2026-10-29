@@ -8,6 +8,9 @@ does not change the access of employees by itself (§ 23.1.3, § 23.1.15).
 
 PERMISSIONS: dict[str, str] = {
     "company.settings": "company",
+    # § 6.3.8: answering another company's request to link with this company's profile. The
+    # top-authority director answers without it; only in «Company administrator» (PROPOSAL).
+    "company.link.answer": "company",
     "employee.invite": "employee",
     "employee.rights.manage": "employee",
     "employee.journal.view": "employee",

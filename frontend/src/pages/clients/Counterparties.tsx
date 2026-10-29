@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router";
+import { ProfileLinkCard } from "./ProfileLinkCard";
 
 import { useApi } from "../../api/queries";
 import type { ClientContact, Counterparty, Messenger } from "../../api/types";
@@ -337,6 +338,13 @@ export function CounterpartyPage() {
           </div>
         </form>
       </Card>
+      <ProfileLinkCard
+        cardType="counterparty"
+        cardId={data.id}
+        cardKind={data.kind}
+        version={data.version}
+        onChanged={refresh}
+      />
     </div>
   );
 }

@@ -117,6 +117,37 @@ export type RightSpec = {
   cash_accounts: Scope;
 };
 
+/** A request to link a card with a c4rsys profile and the link it became (§ 6.2.5–6.3, К4). */
+export type ProfileLink = {
+  id: string;
+  state: "pending" | "accepted" | "declined" | "cancelled" | "expired" | "broken";
+  profile: "person" | "company";
+  target: string;
+  by_phone: boolean;
+  created_at: string;
+  expires_at: string;
+  decided_at: string | null;
+  broken_at: string | null;
+  broken_initiator: "" | "company" | "client";
+  linked_profile: { public_id: string; name: string } | null;
+  shared: Record<string, unknown>;
+  shared_at: string | null;
+};
+
+/** The same request seen by its recipient: who asks and what may be given. */
+export type IncomingLink = {
+  id: string;
+  state: ProfileLink["state"];
+  company: { public_id: string; display_name: string };
+  card_type: "client" | "counterparty";
+  created_at: string;
+  expires_at: string;
+  decided_at: string | null;
+  broken_at: string | null;
+  available: Record<string, unknown>;
+  shared: Record<string, unknown>;
+};
+
 export type Invitation = {
   id: string;
   state: "pending" | "accepted" | "declined" | "cancelled" | "expired";
