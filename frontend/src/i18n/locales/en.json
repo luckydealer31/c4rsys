@@ -140,7 +140,9 @@
     "delivery_service_created": "Delivery service added",
     "delivery_service_changed": "Delivery service changed",
     "delivery_price_changed": "Delivery price changed",
-    "delivery_expense_added": "Trip expense added"
+    "delivery_expense_added": "Trip expense added",
+    "delivery_corrected": "Trip corrected",
+    "delivery_annulled": "Trip annulled"
   },
   "finance_articles": {
     "archive": "Archive",
@@ -738,7 +740,11 @@
     "delivery_service_unknown": "Delivery service not found.",
     "delivery_service_archived": "The delivery service is archived.",
     "delivery_internal_no_price": "An internal move has no price for a client.",
-    "delivery_cancelled": "The trip is cancelled."
+    "delivery_cancelled": "The trip is cancelled.",
+    "delivery_not_finished": "The trip is not finished.",
+    "delivery_has_later_operations": "Operations of the vehicle began after this trip: annul or correct them first.",
+    "vehicle_location_changed_since": "The vehicle's location has changed since; correct the later move first.",
+    "delivery_result_not_completed": "Only a completed trip has a result."
   },
   "history": {
     "action": "Action",
@@ -2692,6 +2698,12 @@
     "add_expense": "Add the expense",
     "no_services": "No delivery services yet.",
     "new_service": "New delivery service",
-    "add_service": "Add"
+    "add_service": "Add",
+    "state_annulled": "Annulled",
+    "correction": "Correction",
+    "later_operations": "Operations began on the vehicle after this trip; annul or correct them first:",
+    "charged": "Charged to the client: {{amount}} {{currency}}",
+    "correct_button": "Correct",
+    "annul_button": "Annul the trip"
   }
 }

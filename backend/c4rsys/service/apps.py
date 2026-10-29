@@ -21,6 +21,7 @@ class ServiceConfig(AppConfig):
         # Decision С-3: an operation holds its vehicle for bookings, issues and moves.
         fleet.register_occupancy(operations.occupancy)
         moves.register_busy(operations.vehicle_busy)
+        fleet.register_later_operations(operations.started_after)
         orders.register_operations(operations.operations_for_order)
         orders.register_estimated(operations.estimated_for_order)
         orders.register_on_client_assigned(operations.on_client_assigned)

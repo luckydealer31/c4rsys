@@ -44,7 +44,7 @@ from c4rsys.platform.counters import next_number
 State = Delivery.State
 Result = Delivery.Result
 Kind = Delivery.PointKind
-FINAL = (State.COMPLETED, State.CANCELLED, State.TERMINATED)
+FINAL = (State.COMPLETED, State.CANCELLED, State.TERMINATED, State.ANNULLED)
 
 
 def _not_future(moment: datetime, field_name: str) -> None:
@@ -151,6 +151,7 @@ def on_order_cancel(ctx: CommandContext, company_id: UUID, order_id: UUID, reaso
             _cancel(ctx, d, reason)
         elif d.state in (State.IN_TRANSIT, State.COMPLETED, State.TERMINATED):
             raise errors.business_rule("ORDER_HAS_STARTED_OPERATIONS")
+        # An annulled one stays as it is.
 
 
 def vehicle_busy(company_id: UUID, card_id: UUID) -> list[str]:
@@ -643,3 +644,141 @@ def arrive_on_acceptance(
     if d is None or (d.actual_start is not None and at < d.actual_start):
         return None
     return finish(ctx, d, at, Result.ACCEPTED_IN_LOCATION, "")
+
+
+# --- Corrections (§ 15.1.4, § 15.3.4–15.3.8; decision Д-11) --------------------------------------
+
+
+def started_after(company_id: UUID, card_id: UUID, moment: datetime) -> list[dict[str, Any]]:
+    """Moves of the vehicle started at or after the moment."""
+    return [
+        {"kind": "delivery", "id": str(d.id), "number": d.number}
+        for d in deliveries_of(company_id).filter(
+            vehicle_card_id=card_id,
+            state__in=(State.IN_TRANSIT, State.COMPLETED, State.TERMINATED),
+            actual_start__gte=moment,
+        )
+    ]
+
+
+def dependents(d: Delivery) -> list[dict[str, Any]]:
+    """What began on the vehicle after the move ended: it is annulled or corrected first."""
+    if d.actual_end is None:
+        return []
+    return [
+        item
+        for item in fleet.later_operations(d.company_id, d.vehicle_card_id, d.actual_end)
+        if not (item["kind"] == "delivery" and item["id"] == str(d.id))
+    ]
+
+
+def _require_correctable(d: Delivery) -> None:
+    if d.state not in (State.COMPLETED, State.TERMINATED):
+        raise errors.business_rule("DELIVERY_NOT_FINISHED", state=d.state)
+    found = dependents(d)
+    if found:
+        raise errors.business_rule("DELIVERY_HAS_LATER_OPERATIONS", operations=found)
+
+
+def _bound_by(d: Delivery) -> UUID | None:
+    """The location the move bound the vehicle to, if it did (decision Д-2)."""
+    if d.state == State.COMPLETED and d.result == Result.ACCEPTED_IN_LOCATION:
+        return d.to_location_id
+    return None
+
+
+def _rebind(ctx: CommandContext, d: Delivery, before: UUID | None, reason: str) -> None:
+    """Brings the vehicle's location in line with the corrected move."""
+    after = _bound_by(d)
+    if before == after:
+        return
+    card = fleet.lock_card(d.company_id, d.vehicle_card_id)
+    if before is not None and card.accounting_location_id != before:
+        raise errors.business_rule("VEHICLE_LOCATION_CHANGED_SINCE")
+    fleet.move_to_location(ctx, card, after or d.from_location_id, reason)
+
+
+@dataclass(frozen=True)
+class Correction:
+    actual_start: datetime | None
+    actual_end: datetime | None
+    result: str | None
+    comment: str | None
+    reason: str
+
+
+def correct(ctx: CommandContext, d: Delivery, data: Correction) -> Delivery:
+    """The actual times and the result of a finished move are corrected with a reason while no
+    later operation of the vehicle has begun; the vehicle's location follows (§ 15.1.4,
+    § 15.3.4, § 15.3.7). The history keeps the former values."""
+    if not data.reason.strip():
+        raise errors.validation_error("reason", code="FIELD_REQUIRED")
+    _require_correctable(d)
+    orders.ensure_open(d.company_id, d.order_id)
+    before = snapshot(d)
+    bound = _bound_by(d)
+    start_at = data.actual_start or d.actual_start
+    end_at = data.actual_end or d.actual_end
+    if start_at is None or end_at is None or end_at < start_at:
+        raise errors.validation_error("actual_end", code="PERIOD_INVALID")
+    _not_future(end_at, "actual_end")
+    d.actual_start = start_at
+    d.actual_end = end_at
+    if data.result is not None:
+        if d.state != State.COMPLETED:
+            raise errors.validation_error("result", code="DELIVERY_RESULT_NOT_COMPLETED")
+        if data.result not in Result.values:
+            raise errors.validation_error("result", code="CHOICE_REQUIRED")
+        if data.result == Result.ACCEPTED_IN_LOCATION and d.to_kind != Kind.LOCATION:
+            raise errors.validation_error("result", code="DELIVERY_RESULT_NEEDS_LOCATION")
+        d.result = data.result
+    if data.comment is not None:
+        d.result_comment = data.comment
+    if d.result == Result.OTHER and not d.result_comment.strip():
+        raise errors.validation_error("comment", code="FIELD_REQUIRED")
+    if before == snapshot(d) and data.comment is None:
+        raise errors.business_rule("NOTHING_CHANGED")
+    d.version += 1
+    d.save()
+    after = snapshot(d)
+    ctx.audit(
+        "delivery.corrected",
+        object_type="delivery",
+        object_id=d.id,
+        before={k: v for k, v in before.items() if v != after[k]},
+        after={k: v for k, v in after.items() if v != before[k]},
+        reason=data.reason,
+    )
+    _rebind(ctx, d, bound, f"delivery {d.number} corrected")
+    return d
+
+
+def annul(ctx: CommandContext, d: Delivery, reason: str) -> Delivery:
+    """A wrong finished move is recognized invalid while nothing began after it: the vehicle's
+    binding goes back, the client's charge is corrected by a reversal, the real expenses stay
+    (§ 15.3.4–15.3.5)."""
+    if not reason.strip():
+        raise errors.validation_error("reason", code="FIELD_REQUIRED")
+    _require_correctable(d)
+    orders.ensure_editable(d.company_id, d.order_id)
+    bound = _bound_by(d)
+    before = snapshot(d)
+    d.state = State.ANNULLED
+    d.end_reason = reason
+    d.version += 1
+    d.save()
+    ctx.audit(
+        "delivery.annulled",
+        object_type="delivery",
+        object_id=d.id,
+        before={"state": before["state"]},
+        after={"state": d.state},
+        reason=reason,
+    )
+    if bound is not None:
+        card = fleet.lock_card(d.company_id, d.vehicle_card_id)
+        if card.accounting_location_id != bound:
+            raise errors.business_rule("VEHICLE_LOCATION_CHANGED_SINCE")
+        fleet.move_to_location(ctx, card, d.from_location_id, f"delivery {d.number} annulled")
+    money.recharge(ctx, d, "delivery_annulled")
+    return d

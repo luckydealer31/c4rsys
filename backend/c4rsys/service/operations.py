@@ -266,6 +266,16 @@ def vehicle_busy(company_id: UUID, card_id: UUID) -> list[str]:
     )
 
 
+def started_after(company_id: UUID, card_id: UUID, moment: datetime) -> list[dict[str, Any]]:
+    """Service operations that accepted the vehicle at or after the moment (decision Д-11)."""
+    return [
+        {"kind": "service", "id": str(op.id), "number": op.number}
+        for op in ServiceOperation.objects.filter(
+            company_id=company_id, vehicle_card_id=card_id, accepted_at__gte=moment
+        ).exclude(state=Op.CANCELLED)
+    ]
+
+
 def location_blockers(company_id: UUID, location_id: UUID, context_type: str | None) -> list[str]:
     """Operations not finished keep the location and its service context (§ 4.4.1–4.4.2)."""
     if context_type not in (None, "service"):

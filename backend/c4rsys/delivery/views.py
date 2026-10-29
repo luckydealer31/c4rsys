@@ -20,6 +20,7 @@ from c4rsys.companies import services as companies
 from c4rsys.companies.views import run_and_respond
 from c4rsys.delivery import money, services
 from c4rsys.delivery.models import Delivery, DeliveryService
+from c4rsys.finance import charges
 from c4rsys.fleet import services as fleet
 from c4rsys.orders import services as orders
 from c4rsys.platform import errors
@@ -232,6 +233,13 @@ def _delivery_payload(
         result["driver_overlaps"] = services.driver_overlaps(d)
         if managed:
             result["expenses"] = money.expenses_of(d)
+            # § 15.3.5: the linked charge is shown for checking a correction or an annulment.
+            result["charged"] = money.amount_text(charges.current_charge(money.SOURCE, d.id))
+            result["later_operations"] = (
+                services.dependents(d)
+                if d.state in (Delivery.State.COMPLETED, Delivery.State.TERMINATED)
+                else []
+            )
     return result
 
 
@@ -672,3 +680,56 @@ def service_detail(request: HttpRequest, cmp: str, service_id: UUID) -> JsonResp
         "expected_version": expected_version,
     }
     return run_and_respond(request, "delivery_service.change", actor, payload, handler)
+
+
+# --- Corrections (§ 15.3.4–15.3.8) ---------------------------------------------------------------
+
+
+@require_POST
+def delivery_correct(request: HttpRequest, cmp: str, delivery_id: UUID) -> JsonResponse:
+    """Actual times and the result of a finished move, with «Correct completed trips»."""
+
+    def check(actor: Actor, d: Delivery, data: dict[str, Any]) -> None:
+        _require(actor, "delivery.correct", d.from_location_id)
+
+    def action(ctx: CommandContext, d: Delivery, data: dict[str, Any]) -> Delivery:
+        comment = data.get("comment")
+        return services.correct(
+            ctx,
+            d,
+            services.Correction(
+                actual_start=_moment(data, "actual_start", required=False),
+                actual_end=_moment(data, "actual_end", required=False),
+                result=get_str(data, "result", max_length=24, required=False) or None,
+                comment=_text(data, "comment") if comment is not None else None,
+                reason=_text(data, "reason"),
+            ),
+        )
+
+    return _command(
+        request,
+        cmp,
+        delivery_id,
+        "delivery.correct",
+        check,
+        action,
+        ("actual_start", "actual_end", "result", "comment", "reason"),
+    )
+
+
+@require_POST
+def delivery_annul(request: HttpRequest, cmp: str, delivery_id: UUID) -> JsonResponse:
+    """A wrong finished move recognized invalid, with «Correct completed trips» (§ 15.3.4)."""
+
+    def check(actor: Actor, d: Delivery, data: dict[str, Any]) -> None:
+        _require(actor, "delivery.correct", d.from_location_id)
+
+    return _command(
+        request,
+        cmp,
+        delivery_id,
+        "delivery.annul",
+        check,
+        lambda ctx, d, data: services.annul(ctx, d, _text(data, "reason")),
+        ("reason",),
+    )

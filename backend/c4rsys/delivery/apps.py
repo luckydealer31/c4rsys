@@ -25,3 +25,4 @@ class DeliveryConfig(AppConfig):
         # Decision Д-3: a vehicle in transit is held for issues, moves and the service.
         moves.register_busy(services.vehicle_busy)
         fleet.register_occupancy(services.occupancy)
+        fleet.register_later_operations(services.started_after)

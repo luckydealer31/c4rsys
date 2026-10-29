@@ -148,7 +148,8 @@ def _charge(ctx: CommandContext, d: Delivery, reason: str) -> None:
     client_id = orders.chargeable_client(d.order_id)
     if client_id is None or d.currency_id is None:
         return
-    amount = Decimal(0) if d.state == Delivery.State.CANCELLED or d.price is None else d.price
+    void = (Delivery.State.CANCELLED, Delivery.State.ANNULLED)
+    amount = Decimal(0) if d.state in void or d.price is None else d.price
     charges.set_charge(
         ctx,
         company_id=d.company_id,

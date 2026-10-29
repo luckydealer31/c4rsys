@@ -15,7 +15,7 @@ import { useLocations } from "../settings/LocationsPage";
 import { useVehicles } from "../vehicles/VehiclesPage";
 import { PriceFields, TripExpenses, TripPrice, useDeliveryServices } from "./DeliveryMoney";
 
-const FINAL: Delivery["state"][] = ["completed", "cancelled", "terminated"];
+const FINAL: Delivery["state"][] = ["completed", "cancelled", "terminated", "annulled"];
 const RESULTS = ["handed_to_client", "taken_from_client", "accepted_in_location", "not_handed", "other"] as const;
 type Result = { delivery: Delivery };
 
@@ -389,6 +389,9 @@ export function TripPage() {
       {d.expenses !== undefined ? <TripExpenses d={d} /> : null}
       {d.state === "planned" ? <PlannedActions d={d} own={own} zone={zone} /> : null}
       {d.state === "in_transit" ? <RunningActions d={d} own={own} zone={zone} /> : null}
+      {(d.state === "completed" || d.state === "terminated") && can("delivery.correct") ? (
+        <Corrections d={d} zone={zone} />
+      ) : null}
     </div>
   );
 }
@@ -572,5 +575,94 @@ function RunningActions({ d, own, zone }: { d: Delivery; own: boolean; zone: str
         <ErrorMessage error={terminate.error} />
       </Card>
     </>
+  );
+}
+
+/** A finished move is corrected or annulled with a reason while nothing began after it; the
+ * linked charge is shown for checking (§ 15.3.4–15.3.5; decision Д-11). */
+function Corrections({ d, zone }: { d: Delivery; zone: string }) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const refresh = useRefresh();
+  const [start, setStart] = useState(d.actual_start ? toLocalInput(new Date(d.actual_start), zone) : "");
+  const [end, setEnd] = useState(d.actual_end ? toLocalInput(new Date(d.actual_end), zone) : "");
+  const [result, setResult] = useState(d.result ?? "");
+  const [comment, setComment] = useState(d.result_comment);
+  const [reason, setReason] = useState("");
+  const base = `/c/${company.public_id}/deliveries/${d.id}`;
+  const correct = useCommand<Record<string, unknown>, Result>(`${base}/correct`);
+  const annul = useCommand<Record<string, unknown>, Result>(`${base}/annul`);
+  const later = d.later_operations ?? [];
+  const run = (command: typeof correct, body: Record<string, unknown>) =>
+    void command.run({ expected_version: d.version, reason, ...body }).then((r) => {
+      if (r) {
+        setReason("");
+        return refresh();
+      }
+      return undefined;
+    });
+  return (
+    <Card title={t("trips.correction")}>
+      {later.length ? (
+        <p className="alert warn">
+          {t("trips.later_operations")}{" "}
+          {later.map((o) => (
+            <span key={o.id} style={{ marginRight: 8 }}>
+              {o.kind === "rental" ? t("orders.line_rental") : o.kind === "service" ? t("orders.line_service_work") : t("orders.line_delivery")}
+              {o.number ? ` № ${o.number}` : ""}
+            </span>
+          ))}
+        </p>
+      ) : null}
+      {d.charged !== undefined && d.charged !== null ? <p className="small">{t("trips.charged", { amount: Number(d.charged), currency: d.currency ?? "" })}</p> : null}
+      <div className="row">
+        <Field label={t("trips.actual_start")} hint={zone}>
+          <input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} />
+        </Field>
+        <Field label={t("trips.actual_end")} hint={zone}>
+          <input type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} />
+        </Field>
+        {d.state === "completed" ? (
+          <Field label={t("trips.result")}>
+            <select value={result} onChange={(e) => setResult(e.target.value)}>
+              {RESULTS.filter((r) => r !== "accepted_in_location" || d.to.kind === "location").map((r) => (
+                <option key={r} value={r}>
+                  {t(`trips.result_${r}`)}
+                </option>
+              ))}
+            </select>
+          </Field>
+        ) : null}
+        <Field label={t("trips.comment")}>
+          <input value={comment} onChange={(e) => setComment(e.target.value)} />
+        </Field>
+      </div>
+      <div className="row">
+        <Field label={t("trips.reason")}>
+          <input value={reason} onChange={(e) => setReason(e.target.value)} />
+        </Field>
+        <div className="actions">
+          <button
+            type="button"
+            className="secondary"
+            disabled={correct.pending || !reason.trim()}
+            onClick={() =>
+              run(correct, {
+                actual_start: start ? fromLocalInput(start, zone) : null,
+                actual_end: end ? fromLocalInput(end, zone) : null,
+                result: d.state === "completed" ? result : null,
+                comment,
+              })
+            }
+          >
+            {t("trips.correct_button")}
+          </button>
+          <button type="button" className="danger" disabled={annul.pending || !reason.trim()} onClick={() => run(annul, {})}>
+            {t("trips.annul_button")}
+          </button>
+        </div>
+      </div>
+      <ErrorMessage error={correct.error ?? annul.error} />
+    </Card>
   );
 }

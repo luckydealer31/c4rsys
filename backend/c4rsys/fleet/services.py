@@ -66,6 +66,21 @@ def occupancy(
     return [item for p in _occupancy for item in p(company_id, card_id, start, end)]
 
 
+# (company_id, vehicle_card_id, moment) -> operations of the vehicle that began at or after the
+# moment, as {"kind", "id", ...}: what depends on an earlier move (§ 15.1.4, § 15.3.4; decision
+# Д-11).
+LaterOperations = Callable[[UUID, UUID, datetime], list[dict[str, Any]]]
+_later: list[LaterOperations] = []
+
+
+def register_later_operations(provider: LaterOperations) -> None:
+    _later.append(provider)
+
+
+def later_operations(company_id: UUID, card_id: UUID, moment: datetime) -> list[dict[str, Any]]:
+    return [item for p in _later for item in p(company_id, card_id, moment)]
+
+
 def cards_of(company_id: UUID) -> QuerySet[VehicleCard]:
     return (
         VehicleCard.objects.filter(company_id=company_id)

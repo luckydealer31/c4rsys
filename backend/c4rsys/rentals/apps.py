@@ -18,6 +18,7 @@ class RentalsConfig(AppConfig):
         readiness.register("rental", tariffs.rental_conditions_met)
         locations.register_blockers(rentals.location_blockers)
         moves.register_busy(rentals.vehicle_busy)
+        fleet.register_later_operations(rentals.started_after)
         fleet.register_context_blockers(rentals.vehicle_context_blockers)
         orders.register_operations(rentals.operations_for_order)
         orders.register_control_version(rentals.record_control_versions)

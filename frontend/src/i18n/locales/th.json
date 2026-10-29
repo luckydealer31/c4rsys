@@ -140,7 +140,9 @@
     "delivery_service_created": "เพิ่มบริการส่งรถ",
     "delivery_service_changed": "แก้ไขบริการส่งรถ",
     "delivery_price_changed": "เปลี่ยนราคาส่งรถ",
-    "delivery_expense_added": "เพิ่มค่าใช้จ่ายการเดินทาง"
+    "delivery_expense_added": "เพิ่มค่าใช้จ่ายการเดินทาง",
+    "delivery_corrected": "แก้ไขการเดินทาง",
+    "delivery_annulled": "ยกเลิกการเดินทางเป็นโมฆะ"
   },
   "finance_articles": {
     "archive": "เก็บเข้าคลัง",
@@ -738,7 +740,11 @@
     "delivery_service_unknown": "ไม่พบบริการส่งรถ",
     "delivery_service_archived": "บริการส่งรถถูกเก็บเข้าคลัง",
     "delivery_internal_no_price": "การย้ายภายในไม่มีราคาสำหรับลูกค้า",
-    "delivery_cancelled": "การเดินทางถูกยกเลิก"
+    "delivery_cancelled": "การเดินทางถูกยกเลิก",
+    "delivery_not_finished": "การเดินทางยังไม่เสร็จ",
+    "delivery_has_later_operations": "มีงานของรถเริ่มหลังการเดินทางนี้: ให้ยกเลิกหรือแก้ไขก่อน",
+    "vehicle_location_changed_since": "สาขาของรถเปลี่ยนไปแล้ว ให้แก้ไขการย้ายครั้งต่อมาก่อน",
+    "delivery_result_not_completed": "มีผลลัพธ์เฉพาะการเดินทางที่เสร็จแล้ว"
   },
   "history": {
     "action": "Action",
@@ -2692,6 +2698,12 @@
     "add_expense": "เพิ่มค่าใช้จ่าย",
     "no_services": "ยังไม่มีบริการส่งรถ",
     "new_service": "บริการส่งรถใหม่",
-    "add_service": "เพิ่ม"
+    "add_service": "เพิ่ม",
+    "state_annulled": "ยกเลิกเป็นโมฆะ",
+    "correction": "แก้ไข",
+    "later_operations": "มีงานของรถเริ่มหลังการเดินทางนี้ ให้ยกเลิกหรือแก้ไขก่อน:",
+    "charged": "เรียกเก็บลูกค้า: {{amount}} {{currency}}",
+    "correct_button": "แก้ไข",
+    "annul_button": "ยกเลิกการเดินทางเป็นโมฆะ"
   }
 }

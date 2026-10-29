@@ -1122,7 +1122,7 @@ export type Delivery = {
   id: string;
   version: number;
   number: number;
-  state: "planned" | "in_transit" | "completed" | "cancelled" | "terminated";
+  state: "planned" | "in_transit" | "completed" | "cancelled" | "terminated" | "annulled";
   order_id: string;
   order_number: number;
   is_internal: boolean;
@@ -1145,6 +1145,9 @@ export type Delivery = {
   price?: string | null;
   currency?: string | null;
   expenses?: { id: string; number: number; amount: string; currency: string; article_id: string | null; note: string; posted_at: string | null }[];
+  /** The current charge of the delivery and what began on the vehicle after it (§ 15.3.4–15.3.5). */
+  charged?: string | null;
+  later_operations?: { kind: string; id: string; number?: number; state?: string }[];
 };
 
 /** A delivery service of the catalog (§ 15.2.6). */

@@ -22,6 +22,8 @@ class Delivery(models.Model):
         COMPLETED = "completed"
         CANCELLED = "cancelled"  # before the movement started
         TERMINATED = "terminated"  # the movement started, the route was not finished
+        # A wrong completed move recognized invalid; its facts and history stay (§ 15.3.4).
+        ANNULLED = "annulled"
 
     class Result(models.TextChoices):
         HANDED_TO_CLIENT = "handed_to_client"

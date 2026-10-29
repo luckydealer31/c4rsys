@@ -322,6 +322,19 @@ def vehicle_context_blockers(company_id: UUID, card_id: UUID, context_type: str)
     return ["rentals_not_finished"] if unfinished.exists() else []
 
 
+def started_after(company_id: UUID, card_id: UUID, moment: datetime) -> list[dict[str, Any]]:
+    """Rentals of the vehicle issued at or after the moment (decision Д-11)."""
+    return [
+        {"kind": "rental", "id": str(r.id), "state": r.state}
+        for r in Rental.objects.filter(
+            company_id=company_id,
+            vehicle_card_id=card_id,
+            state__in=(Rental.State.ACTIVE, Rental.State.RETURNED),
+            actual_start__gte=moment,
+        )
+    ]
+
+
 def vehicle_busy(company_id: UUID, card_id: UUID) -> list[str]:
     """A vehicle in an active rental is with the client and is not moved (§ 15.1.8)."""
     active = Rental.objects.filter(

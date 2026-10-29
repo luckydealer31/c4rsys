@@ -140,7 +140,9 @@
     "delivery_service_created": "Услуга доставки добавлена",
     "delivery_service_changed": "Услуга доставки изменена",
     "delivery_price_changed": "Цена доставки изменена",
-    "delivery_expense_added": "Расход по поездке добавлен"
+    "delivery_expense_added": "Расход по поездке добавлен",
+    "delivery_corrected": "Поездка исправлена",
+    "delivery_annulled": "Поездка аннулирована"
   },
   "finance_articles": {
     "archive": "В архив",
@@ -738,7 +740,11 @@
     "delivery_service_unknown": "Услуга доставки не найдена.",
     "delivery_service_archived": "Услуга доставки в архиве.",
     "delivery_internal_no_price": "У внутреннего перемещения нет цены для клиента.",
-    "delivery_cancelled": "Поездка отменена."
+    "delivery_cancelled": "Поездка отменена.",
+    "delivery_not_finished": "Поездка не завершена.",
+    "delivery_has_later_operations": "После этой поездки у ТС начались операции: сначала аннулируйте или исправьте их.",
+    "vehicle_location_changed_since": "Локация ТС с тех пор изменилась; сначала исправьте последующее перемещение.",
+    "delivery_result_not_completed": "Результат есть только у завершённой поездки."
   },
   "history": {
     "action": "Действие",
@@ -2692,6 +2698,12 @@
     "add_expense": "Добавить расход",
     "no_services": "Услуг доставки пока нет.",
     "new_service": "Новая услуга доставки",
-    "add_service": "Добавить"
+    "add_service": "Добавить",
+    "state_annulled": "Аннулирована",
+    "correction": "Исправление",
+    "later_operations": "После этой поездки у ТС начались операции; сначала аннулируйте или исправьте их:",
+    "charged": "Начислено клиенту: {{amount}} {{currency}}",
+    "correct_button": "Исправить",
+    "annul_button": "Аннулировать поездку"
   }
 }
