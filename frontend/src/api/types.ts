@@ -160,6 +160,9 @@ export type Readiness = {
     contexts: { id: string; type: ContextType; ready: boolean; missing: string[] }[];
   }[];
   first_operation_ready: boolean;
+  /** Completion of each section of the wizard (§ 22.1.4–22.1.12). */
+  sections: Record<string, boolean>;
+  choices: { employees?: "alone"; documents?: "none" };
 };
 
 export type JournalEntry = {

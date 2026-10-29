@@ -258,6 +258,34 @@ def context_types(company: Company) -> list[str]:
     )
 
 
+SETUP_CHOICES = {"employees": ("alone",), "documents": ("none",)}
+
+
+def set_setup_choice(
+    ctx: CommandContext, company_id: UUID, section: str, value: str | None
+) -> Company:
+    """An explicit answer of a wizard section; None takes it back (§ 22.1.10–22.1.11)."""
+    if section not in SETUP_CHOICES or (value is not None and value not in SETUP_CHOICES[section]):
+        raise errors.validation_error("section")
+    company = Company.objects.select_for_update().get(pk=company_id)
+    choices = dict(company.setup_choices)
+    before = choices.get(section)
+    if value is None:
+        choices.pop(section, None)
+    else:
+        choices[section] = value
+    company.setup_choices = choices
+    company.save(update_fields=["setup_choices", "updated_at"])
+    ctx.audit(
+        "company.setup_choice",
+        object_type="company",
+        object_id=company.public_id,
+        before={section: before},
+        after={section: value},
+    )
+    return company
+
+
 def complete_setup(ctx: CommandContext, company_id: UUID) -> Company:
     """«Complete» of the setup wizard. The caller checks that a context is ready (§ 22.1.12)."""
     company = Company.objects.select_for_update().get(pk=company_id)

@@ -35,6 +35,9 @@ class Company(models.Model):
         Currency, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
     setup_completed_at = models.DateTimeField(null=True, blank=True)
+    # Explicit answers of the setup wizard (§ 22.1.10–22.1.11): «work without employees»,
+    # «no required documents». A choice of the wizard only, it changes no rule.
+    setup_choices = models.JSONField(default=dict, blank=True)
     # Optional profile data of § 3.1.5; filled after creation (§ 3.1.2).
     legal_name = models.CharField(max_length=300, blank=True, default="")
     country = models.CharField(max_length=2, blank=True, default="")  # ISO 3166-1 alpha-2

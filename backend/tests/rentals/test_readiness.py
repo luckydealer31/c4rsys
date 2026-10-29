@@ -68,7 +68,8 @@ def test_unready_context_does_not_block_another(owner: Client) -> None:
     contexts = owner.get(f"/api/c/{s.cmp}/readiness").json()["locations"][0]["contexts"]
 
     assert [(c["type"], c["ready"]) for c in contexts] == [("rental", True), ("service", False)]
-    assert contexts[1]["missing"] == ["module_not_available"]
+    # § 22.1.8: own service needs an active service work.
+    assert contexts[1]["missing"] == ["no_service_work"]
 
 
 def test_readiness_needs_company_settings(owner: Client) -> None:

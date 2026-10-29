@@ -14,11 +14,12 @@ import { CashAccountsEditor } from "../finance/FinancePage";
 import { CompanyProfileForm } from "../settings/CompanyProfilePage";
 import { LocationsEditor } from "../settings/LocationsPage";
 
-const STEPS = ["profile", "location", "finance", "tariff", "vehicle", "employees", "check"] as const;
+const STEPS = ["profile", "location", "finance", "catalog", "vehicles", "employees", "documents", "check"] as const;
 type Step = (typeof STEPS)[number];
 
-/** Shortened setup wizard of stage 1 (STAGE1_SCREENS, § 22.1). Steps use the ordinary screens;
- * any step can be skipped and resumed later (§ 22.1.2). */
+/** The setup wizard (§ 22.1): the sections of § 22.1.3 on the ordinary screens of the sections;
+ * any step can be skipped and resumed later (§ 22.1.2). Employees and documents are done by an
+ * explicit answer as well (§ 22.1.10–22.1.11). */
 export function SetupPage() {
   const { t } = useTranslation();
   const company = useCompany();
@@ -38,18 +39,8 @@ export function SetupPage() {
   }
   if (!readiness.data) return <div className="page"><Loading /></div>;
   const r = readiness.data;
-  const rentalContexts = r.locations.flatMap((l) => l.contexts.filter((c) => c.type === "rental"));
-  const done: Record<Step, boolean> = {
-    profile: Boolean(company.timezone),
-    location: r.locations.some((l) => l.missing.length === 0 && l.contexts.some((c) => c.type === "rental")),
-    finance: Boolean(company.main_currency),
-    tariff: rentalContexts.some((c) => !c.missing.includes("no_tariff")),
-    vehicle: rentalContexts.some(
-      (c) => !c.missing.includes("no_vehicle") && !c.missing.includes("no_vehicle_with_tariff"),
-    ),
-    employees: true,
-    check: r.first_operation_ready,
-  };
+  const types = new Set(r.locations.flatMap((l) => l.contexts.map((c) => c.type)));
+  const done = (key: Step) => Boolean(r.sections[key]);
   const refresh = () => client.invalidateQueries({ queryKey: ["readiness", company.public_id] });
   const index = STEPS.indexOf(step);
 
@@ -63,28 +54,83 @@ export function SetupPage() {
         <CashAccountsEditor />
       </>
     ),
-    tariff: (
+    catalog: (
       <Card>
-        <p>{t("setup.tariff_text")}</p>
-        <Link className="button" to={companyPath(company, "/rentals/tariffs")}>
-          {t("settings.tariffs")}
-        </Link>
+        {!types.size ? <p className="muted">{t("setup.no_contexts")}</p> : null}
+        {types.has("rental") ? (
+          <>
+            <p>{t("setup.catalog_rental")}</p>
+            <div className="actions">
+              <Link className="button" to={companyPath(company, "/rentals/tariffs")}>
+                {t("settings.tariffs")}
+              </Link>
+              <Link className="button secondary" to={companyPath(company, "/rentals/services")}>
+                {t("setup.extra_services")}
+              </Link>
+            </div>
+          </>
+        ) : null}
+        {types.has("service") ? (
+          <>
+            <p>{t("setup.catalog_service")}</p>
+            <Link className="button" to={companyPath(company, "/service/works")}>
+              {t("setup.service_works")}
+            </Link>
+          </>
+        ) : null}
       </Card>
     ),
-    vehicle: (
+    vehicles: (
       <Card>
-        <p>{t("setup.vehicle_text")}</p>
-        <Link className="button" to={companyPath(company, "/vehicles")}>
-          {t("nav.garage")}
-        </Link>
+        {types.has("rental") ? <p>{t("setup.vehicles_rental")}</p> : null}
+        <div className="actions">
+          <Link className="button" to={companyPath(company, "/vehicles")}>
+            {t("nav.garage")}
+          </Link>
+          {types.has("warehouse") ? (
+            <>
+              <Link className="button secondary" to={companyPath(company, "/warehouse")}>
+                {t("nav.warehouse")}
+              </Link>
+              <Link className="button secondary" to={companyPath(company, "/warehouse/import")}>
+                {t("setup.import")}
+              </Link>
+            </>
+          ) : null}
+        </div>
+        <p className="muted small">{t("setup.vehicles_hint")}</p>
       </Card>
     ),
     employees: (
       <Card>
         <p>{t("setup.employees_text")}</p>
-        <Link className="button secondary" to={companyPath(company, "/clients?tab=employees")}>
-          {t("settings.employees")}
-        </Link>
+        <div className="actions">
+          <Link className="button secondary" to={companyPath(company, "/clients?tab=employees")}>
+            {t("settings.employees")}
+          </Link>
+          <Choice section="employees" value="alone" chosen={r.choices.employees === "alone"} onDone={refresh} />
+        </div>
+      </Card>
+    ),
+    documents: (
+      <Card>
+        <p>{t("setup.documents_text")}</p>
+        <div className="actions">
+          {types.has("rental") ? (
+            <Link className="button secondary" to={companyPath(company, "/settings/rental")}>
+              {t("setup.rental_documents")}
+            </Link>
+          ) : null}
+          {types.has("service") ? (
+            <Link className="button secondary" to={companyPath(company, "/service/works")}>
+              {t("setup.service_act")}
+            </Link>
+          ) : null}
+          <Link className="button secondary" to={companyPath(company, "/documents/templates")}>
+            {t("documents.templates")}
+          </Link>
+          <Choice section="documents" value="none" chosen={r.choices.documents === "none"} onDone={refresh} />
+        </div>
       </Card>
     ),
     check: <ReadinessCheck readiness={r} />,
@@ -106,8 +152,8 @@ export function SetupPage() {
             }}
           >
             {i + 1}. {t(`setup.step_${key}`)}{" "}
-            <span className={`badge ${done[key] ? "ok" : "warn"}`}>
-              {done[key] ? "✓" : "…"}
+            <span className={`badge ${done(key) ? "ok" : "warn"}`}>
+              {done(key) ? "✓" : "…"}
             </span>
           </a>
         ))}
@@ -130,7 +176,7 @@ export function SetupPage() {
               setStep(STEPS[index + 1] ?? step);
             }}
           >
-            {done[step] ? t("setup.next") : t("setup.skip")}
+            {done(step) ? t("setup.next") : t("setup.skip")}
           </button>
         ) : null}
       </div>
@@ -184,6 +230,7 @@ function ReadinessCheck({ readiness }: { readiness: Readiness }) {
     no_tariff: "/rentals/tariffs",
     no_vehicle: "/vehicles",
     no_vehicle_with_tariff: "/rentals/tariffs",
+    no_service_work: "/service/works",
   };
   const missingCompany = Object.entries(readiness.company.items).filter(([, ok]) => !ok);
   return (
@@ -244,5 +291,37 @@ function Status({ ready }: { ready: boolean }) {
     <span className={`badge ${ready ? "ok" : "warn"}`}>
       {ready ? t("setup.ready") : t("setup.needs_setup")}
     </span>
+  );
+}
+
+/** An explicit answer of a section: «work without employees», «no required documents»
+ * (§ 22.1.10–22.1.11); pressed again it is taken back. */
+function Choice({
+  section,
+  value,
+  chosen,
+  onDone,
+}: {
+  section: "employees" | "documents";
+  value: string;
+  chosen: boolean;
+  onDone: () => Promise<unknown>;
+}) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const save = useCommand<Record<string, unknown>, unknown>(`/c/${company.public_id}/setup/choice`);
+  return (
+    <>
+      <button
+        type="button"
+        className={chosen ? "" : "secondary"}
+        disabled={save.pending}
+        onClick={() => void save.run({ section, value: chosen ? null : value }).then((r) => (r ? onDone() : undefined))}
+      >
+        {chosen ? "✓ " : ""}
+        {t(`setup.choice_${section}`)}
+      </button>
+      <ErrorMessage error={save.error} />
+    </>
   );
 }

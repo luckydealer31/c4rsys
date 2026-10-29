@@ -91,9 +91,14 @@ def available_at(company_id: UUID, location_id: UUID) -> QuerySet[Tariff]:
 
 
 def rental_conditions_met(company_id: UUID, location_id: UUID) -> bool:
-    """Module conditions of a rental context: a current vehicle rental tariff is available in the
-    location (§ 4.3.1). Standalone additional services come later."""
-    return available_at(company_id, location_id).exists()
+    """Module conditions of a rental context: a current vehicle rental tariff or a standalone
+    additional service is available in the location (§ 4.3.1, § 22.1.8)."""
+    from c4rsys.rentals import extras
+
+    return (
+        available_at(company_id, location_id).exists()
+        or extras.at_location(company_id, location_id).exists()
+    )
 
 
 # --- Permissions within the tariff's availability (§ 23.1.1, § 23.4.4) ----------------------

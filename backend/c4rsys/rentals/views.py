@@ -720,6 +720,28 @@ def company_readiness(request: HttpRequest, cmp: str) -> JsonResponse:
 
 
 @require_POST
+def company_setup_choice(request: HttpRequest, cmp: str) -> JsonResponse:
+    """`{section: employees | documents, value: alone | none | null}` (§ 22.1.10–22.1.11)."""
+    context, actor = _actor(request, cmp)
+    if not access.RightsResolver().has_permission(actor, "company.settings"):
+        raise errors.permission_denied("company.settings")
+    data = parse_json(request)
+    section = get_str(data, "section", max_length=20)
+    value = data.get("value")
+    if value is not None and not isinstance(value, str):
+        raise errors.validation_error("value")
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        companies.set_setup_choice(ctx, context.company.id, section, value)
+        context.company.refresh_from_db()
+        return CommandResult(200, setup.readiness(context.company))
+
+    return run_and_respond(
+        request, "company.setup_choice", actor, {"section": section, "value": value}, handler
+    )
+
+
+@require_POST
 def company_setup_complete(request: HttpRequest, cmp: str) -> JsonResponse:
     """«Complete» of the setup wizard: allowed when the final check shows at least one ready
     context (§ 22.1.12); from then «Orders» are shown (customer's decision of 24.10.2026)."""
