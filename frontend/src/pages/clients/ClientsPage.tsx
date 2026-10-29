@@ -11,6 +11,7 @@ import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { EmployeesList } from "../settings/EmployeesPage";
 import { CounterpartiesList } from "./Counterparties";
+import { LinkedDocuments } from "../documents/DocumentsPage";
 
 export function clientName(client: Pick<Client, "kind" | "first_name" | "last_name" | "company_name">) {
   return client.kind === "company" ? client.company_name : `${client.first_name} ${client.last_name}`.trim();
@@ -402,6 +403,7 @@ export function ClientPage() {
           ) : null}
         </form>
       </Card>
+      <LinkedDocuments objectType="client" objectId={data.id} />
     </div>
   );
 }

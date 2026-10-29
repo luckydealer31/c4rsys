@@ -142,7 +142,14 @@
     "delivery_price_changed": "Delivery price changed",
     "delivery_expense_added": "Trip expense added",
     "delivery_corrected": "Trip corrected",
-    "delivery_annulled": "Trip annulled"
+    "delivery_annulled": "Trip annulled",
+    "document_created": "Document added",
+    "document_changed": "Document changed",
+    "document_linked": "Document linked",
+    "document_unlinked": "Document link removed",
+    "document_version_added": "Document version added",
+    "document_archived": "Document archived",
+    "document_kind_created": "Document kind added"
   },
   "finance_articles": {
     "archive": "Archive",
@@ -744,7 +751,12 @@
     "delivery_not_finished": "The trip is not finished.",
     "delivery_has_later_operations": "Operations of the vehicle began after this trip: annul or correct them first.",
     "vehicle_location_changed_since": "The vehicle's location has changed since; correct the later move first.",
-    "delivery_result_not_completed": "Only a completed trip has a result."
+    "delivery_result_not_completed": "Only a completed trip has a result.",
+    "document_kind_unknown": "Unknown kind of document.",
+    "document_link_type_unknown": "Unknown kind of link.",
+    "document_link_unknown": "The linked object is not found.",
+    "document_already_linked": "The document is already linked here.",
+    "document_archived": "The document is archived."
   },
   "history": {
     "action": "Action",
@@ -899,7 +911,8 @@
     "setup": "Initial setup",
     "tariffs": "Tariffs",
     "warehouse": "Warehouse",
-    "trips": "Trips"
+    "trips": "Trips",
+    "documents": "Documents"
   },
   "orders": {
     "amounts": "Amounts",
@@ -1095,7 +1108,14 @@
     "delivery_correct": "Correct completed trips",
     "delivery_drive": "Own trips as the driver",
     "delivery_catalog": "Manage delivery services",
-    "delivery_price": "Change the delivery price"
+    "delivery_price": "Change the delivery price",
+    "section_documents": "Documents",
+    "documents_view": "View documents",
+    "documents_upload": "Upload documents",
+    "documents_create": "Create documents by templates",
+    "documents_templates": "Manage templates and kinds",
+    "documents_archive": "Archive documents",
+    "documents_sign": "Sign for the company"
   },
   "positions": {
     "director": "Director"
@@ -2705,5 +2725,52 @@
     "charged": "Charged to the client: {{amount}} {{currency}}",
     "correct_button": "Correct",
     "annul_button": "Annul the trip"
+  },
+  "documents": {
+    "show": "Show",
+    "show_active": "Active",
+    "show_warnings": "Term ending",
+    "show_all": "All, with archive",
+    "none": "No documents.",
+    "warning_expiring": "valid until {{date}}",
+    "warning_expired": "expired {{date}}",
+    "archived": "archived",
+    "upload": "Add a document",
+    "title": "Title",
+    "kind": "Kind",
+    "date": "Date",
+    "file": "File",
+    "file_hint": "PDF, DOCX, XLSX up to 2 MB; photos JPEG, PNG, WebP up to 5 MB",
+    "valid_until": "Valid until",
+    "warn_days": "Warn, days before",
+    "upload_button": "Add",
+    "number": "Document No. {{number}}",
+    "scope": "Access",
+    "whole_company": "Whole company",
+    "locations_count": "Locations: {{count}}",
+    "archive_reason": "Reason",
+    "versions": "Versions",
+    "version": "Version {{number}}",
+    "open_file": "Open the file",
+    "new_version": "New version",
+    "note": "Note",
+    "add_version": "Add the version",
+    "links": "Linked to",
+    "no_links": "Not linked: in the registry only.",
+    "object_client": "Client",
+    "object_counterparty": "Counterparty",
+    "object_vehicle": "Vehicle",
+    "object_order": "Order",
+    "object_rental": "Rental",
+    "object_service_operation": "Service",
+    "object_delivery": "Trip",
+    "unlink": "Remove the link",
+    "archive": "Archive",
+    "archive_button": "To the archive",
+    "kind_contract": "Contract",
+    "kind_act": "Act",
+    "kind_settlement": "Settlement document",
+    "kind_purchase": "Purchase document",
+    "kind_internal": "Internal document"
   }
 }

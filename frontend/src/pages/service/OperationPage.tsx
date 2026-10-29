@@ -10,6 +10,7 @@ import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { formatMoment, fromLocalInput, toLocalInput } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
+import { LinkedDocuments } from "../documents/DocumentsPage";
 import { StockAdder } from "../warehouse/Sales";
 import {
   FINAL_STATES,
@@ -119,6 +120,7 @@ export function ServiceOperationPage() {
       </Card>
       <Jobs op={op} zone={zone} />
       <Handovers op={op} zone={zone} />
+      <LinkedDocuments objectType="service_operation" objectId={op.id} />
       {!final ? <OperationActions op={op} zone={zone} /> : null}
     </div>
   );

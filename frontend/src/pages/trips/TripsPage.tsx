@@ -12,6 +12,7 @@ import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { deviceTimeZone, formatMoment, fromLocalInput, toLocalInput } from "../../time";
 import { useOrders } from "../orders/OrdersPage";
 import { useLocations } from "../settings/LocationsPage";
+import { LinkedDocuments } from "../documents/DocumentsPage";
 import { useVehicles } from "../vehicles/VehiclesPage";
 import { PriceFields, TripExpenses, TripPrice, useDeliveryServices } from "./DeliveryMoney";
 
@@ -388,6 +389,7 @@ export function TripPage() {
       {!d.is_internal && d.price !== undefined ? <TripPrice d={d} /> : null}
       {d.expenses !== undefined ? <TripExpenses d={d} /> : null}
       {d.state === "planned" ? <PlannedActions d={d} own={own} zone={zone} /> : null}
+      {can("delivery.view") ? <LinkedDocuments objectType="delivery" objectId={d.id} /> : null}
       {d.state === "in_transit" ? <RunningActions d={d} own={own} zone={zone} /> : null}
       {(d.state === "completed" || d.state === "terminated") && can("delivery.correct") ? (
         <Corrections d={d} zone={zone} />

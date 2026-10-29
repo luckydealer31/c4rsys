@@ -7,6 +7,8 @@ module owning the purpose admits (`register_reader`).
 """
 
 import hashlib
+import io
+import zipfile
 from collections.abc import Callable
 from pathlib import Path
 from uuid import UUID
@@ -71,6 +73,49 @@ def document_type(content: bytes) -> str:
         if matches(content[:16]):
             return content_type
     raise errors.validation_error("file", code="FILE_TYPE_NOT_ALLOWED")
+
+
+# § 18.1.3: PDF, DOCX and XLSX up to 2 MB; photos by § 10.4.2 — JPEG, PNG, WebP up to 5 MB.
+COMPANY_DOCUMENT = "company_document"
+MAX_OFFICE_BYTES = 2 * 1024 * 1024
+MAX_PHOTO_BYTES = 5 * 1024 * 1024
+DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def _office_type(content: bytes) -> str | None:
+    """DOCX and XLSX are zip packages told apart by their inner parts."""
+    if not content.startswith(b"PK\x03\x04"):
+        return None
+    try:
+        with zipfile.ZipFile(io.BytesIO(content)) as package:
+            names = package.namelist()
+    except zipfile.BadZipFile:
+        return None
+    if any(n.startswith("word/") for n in names):
+        return DOCX
+    if any(n.startswith("xl/") for n in names):
+        return XLSX
+    return None
+
+
+def company_document_type(content: bytes) -> str:
+    """The type of a company document by its own content, with the limits of § 18.1.3."""
+    if not content:
+        raise errors.validation_error("file", code="FIELD_REQUIRED")
+    for content_type, matches in IMAGE_SIGNATURES.items():
+        if matches(content[:16]):
+            if len(content) > MAX_PHOTO_BYTES:
+                raise errors.validation_error(
+                    "file", code="FILE_TOO_LARGE", max_bytes=MAX_PHOTO_BYTES
+                )
+            return content_type
+    office = "application/pdf" if content.startswith(b"%PDF-") else _office_type(content)
+    if office is None:
+        raise errors.validation_error("file", code="FILE_TYPE_NOT_ALLOWED")
+    if len(content) > MAX_OFFICE_BYTES:
+        raise errors.validation_error("file", code="FILE_TOO_LARGE", max_bytes=MAX_OFFICE_BYTES)
+    return office
 
 
 def store(*, purpose: str, uploaded_by: UUID, content: bytes, content_type: str) -> StoredFile:

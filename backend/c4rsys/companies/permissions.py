@@ -143,6 +143,14 @@ PERMISSIONS: dict[str, str] = {
     # § 15.2.6 (decision Д-5): the catalog of delivery services; changing the substituted price.
     "delivery.catalog": "delivery",
     "delivery.price": "delivery",
+    # Documents (§ 23.8.1; customer's decision Р-6 of 29.10.2026): preparing a document does not
+    # give the right to sign it for the company.
+    "documents.view": "documents",
+    "documents.upload": "documents",
+    "documents.create": "documents",
+    "documents.templates": "documents",
+    "documents.archive": "documents",
+    "documents.sign": "documents",
 }
 
 COMPANY_ADMIN = "company_admin"
@@ -189,6 +197,10 @@ SYSTEM_SETS: dict[str, tuple[str, ...]] = {
         "delivery.assign",
         "delivery.cancel",
         "delivery.price",
+        # § 23.2.2: documents by ready templates and attached files (decision Р-6).
+        "documents.view",
+        "documents.upload",
+        "documents.create",
     ),
     # § 23.2.5: only the trips assigned to the driver (decision Д-8).
     DRIVER: ("delivery.drive",),
@@ -263,6 +275,10 @@ SYSTEM_SETS: dict[str, tuple[str, ...]] = {
         "delivery.edit",
         "delivery.assign",
         "delivery.cancel",
+        # § 23.2.3: documents by templates (decision Р-6).
+        "documents.view",
+        "documents.upload",
+        "documents.create",
     ),
     # § 23.2.4: own works, the post and the general zone, inspections; no prices or payments.
     MECHANIC: (

@@ -142,7 +142,14 @@
     "delivery_price_changed": "Цена доставки изменена",
     "delivery_expense_added": "Расход по поездке добавлен",
     "delivery_corrected": "Поездка исправлена",
-    "delivery_annulled": "Поездка аннулирована"
+    "delivery_annulled": "Поездка аннулирована",
+    "document_created": "Документ добавлен",
+    "document_changed": "Документ изменён",
+    "document_linked": "Документ связан",
+    "document_unlinked": "Связь документа убрана",
+    "document_version_added": "Версия документа добавлена",
+    "document_archived": "Документ в архиве",
+    "document_kind_created": "Вид документа добавлен"
   },
   "finance_articles": {
     "archive": "В архив",
@@ -744,7 +751,12 @@
     "delivery_not_finished": "Поездка не завершена.",
     "delivery_has_later_operations": "После этой поездки у ТС начались операции: сначала аннулируйте или исправьте их.",
     "vehicle_location_changed_since": "Локация ТС с тех пор изменилась; сначала исправьте последующее перемещение.",
-    "delivery_result_not_completed": "Результат есть только у завершённой поездки."
+    "delivery_result_not_completed": "Результат есть только у завершённой поездки.",
+    "document_kind_unknown": "Неизвестный вид документа.",
+    "document_link_type_unknown": "Неизвестный вид связи.",
+    "document_link_unknown": "Связываемый объект не найден.",
+    "document_already_linked": "Документ уже связан с этой карточкой.",
+    "document_archived": "Документ в архиве."
   },
   "history": {
     "action": "Действие",
@@ -899,7 +911,8 @@
     "setup": "Первоначальная настройка",
     "tariffs": "Тарифы",
     "warehouse": "Склад",
-    "trips": "Поездки"
+    "trips": "Поездки",
+    "documents": "Документы"
   },
   "orders": {
     "amounts": "Суммы",
@@ -1095,7 +1108,14 @@
     "delivery_correct": "Исправлять завершённые поездки",
     "delivery_drive": "Свои поездки водителя",
     "delivery_catalog": "Управлять каталогом доставки",
-    "delivery_price": "Изменять цену доставки"
+    "delivery_price": "Изменять цену доставки",
+    "section_documents": "Документы",
+    "documents_view": "Просматривать документы",
+    "documents_upload": "Загружать документы",
+    "documents_create": "Создавать документы по шаблонам",
+    "documents_templates": "Управлять шаблонами и видами",
+    "documents_archive": "Архивировать документы",
+    "documents_sign": "Подписывать от имени компании"
   },
   "positions": {
     "director": "Директор"
@@ -2705,5 +2725,52 @@
     "charged": "Начислено клиенту: {{amount}} {{currency}}",
     "correct_button": "Исправить",
     "annul_button": "Аннулировать поездку"
+  },
+  "documents": {
+    "show": "Показать",
+    "show_active": "Действующие",
+    "show_warnings": "Истекает срок",
+    "show_all": "Все, с архивом",
+    "none": "Документов нет.",
+    "warning_expiring": "срок до {{date}}",
+    "warning_expired": "срок истёк {{date}}",
+    "archived": "в архиве",
+    "upload": "Добавить документ",
+    "title": "Название",
+    "kind": "Вид",
+    "date": "Дата",
+    "file": "Файл",
+    "file_hint": "PDF, DOCX, XLSX до 2 МБ; фото JPEG, PNG, WebP до 5 МБ",
+    "valid_until": "Действует до",
+    "warn_days": "Предупредить за, дней",
+    "upload_button": "Добавить",
+    "number": "Документ № {{number}}",
+    "scope": "Доступ",
+    "whole_company": "Вся компания",
+    "locations_count": "Локации: {{count}}",
+    "archive_reason": "Причина",
+    "versions": "Версии",
+    "version": "Версия {{number}}",
+    "open_file": "Открыть файл",
+    "new_version": "Новая версия",
+    "note": "Примечание",
+    "add_version": "Добавить версию",
+    "links": "Связи",
+    "no_links": "Без связей: только в реестре.",
+    "object_client": "Клиент",
+    "object_counterparty": "Контрагент",
+    "object_vehicle": "ТС",
+    "object_order": "Заказ",
+    "object_rental": "Аренда",
+    "object_service_operation": "Сервис",
+    "object_delivery": "Поездка",
+    "unlink": "Убрать связь",
+    "archive": "Архив",
+    "archive_button": "В архив",
+    "kind_contract": "Договор",
+    "kind_act": "Акт",
+    "kind_settlement": "Расчётный документ",
+    "kind_purchase": "Документ закупки",
+    "kind_internal": "Внутренний документ"
   }
 }

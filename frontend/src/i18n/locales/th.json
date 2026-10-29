@@ -142,7 +142,14 @@
     "delivery_price_changed": "เปลี่ยนราคาส่งรถ",
     "delivery_expense_added": "เพิ่มค่าใช้จ่ายการเดินทาง",
     "delivery_corrected": "แก้ไขการเดินทาง",
-    "delivery_annulled": "ยกเลิกการเดินทางเป็นโมฆะ"
+    "delivery_annulled": "ยกเลิกการเดินทางเป็นโมฆะ",
+    "document_created": "เพิ่มเอกสาร",
+    "document_changed": "แก้ไขเอกสาร",
+    "document_linked": "เชื่อมโยงเอกสาร",
+    "document_unlinked": "ลบการเชื่อมโยงเอกสาร",
+    "document_version_added": "เพิ่มฉบับเอกสาร",
+    "document_archived": "เก็บเอกสารถาวร",
+    "document_kind_created": "เพิ่มประเภทเอกสาร"
   },
   "finance_articles": {
     "archive": "เก็บเข้าคลัง",
@@ -744,7 +751,12 @@
     "delivery_not_finished": "การเดินทางยังไม่เสร็จ",
     "delivery_has_later_operations": "มีงานของรถเริ่มหลังการเดินทางนี้: ให้ยกเลิกหรือแก้ไขก่อน",
     "vehicle_location_changed_since": "สาขาของรถเปลี่ยนไปแล้ว ให้แก้ไขการย้ายครั้งต่อมาก่อน",
-    "delivery_result_not_completed": "มีผลลัพธ์เฉพาะการเดินทางที่เสร็จแล้ว"
+    "delivery_result_not_completed": "มีผลลัพธ์เฉพาะการเดินทางที่เสร็จแล้ว",
+    "document_kind_unknown": "ไม่พบประเภทเอกสาร",
+    "document_link_type_unknown": "ไม่พบประเภทการเชื่อมโยง",
+    "document_link_unknown": "ไม่พบวัตถุที่เชื่อมโยง",
+    "document_already_linked": "เอกสารเชื่อมโยงที่นี่แล้ว",
+    "document_archived": "เอกสารถูกเก็บถาวร"
   },
   "history": {
     "action": "Action",
@@ -899,7 +911,8 @@
     "setup": "Initial setup",
     "tariffs": "Tariffs",
     "warehouse": "Warehouse",
-    "trips": "การเดินทาง"
+    "trips": "การเดินทาง",
+    "documents": "เอกสาร"
   },
   "orders": {
     "amounts": "Amounts",
@@ -1095,7 +1108,14 @@
     "delivery_correct": "แก้ไขการเดินทางที่เสร็จแล้ว",
     "delivery_drive": "การเดินทางของตนในฐานะคนขับ",
     "delivery_catalog": "จัดการบริการส่งรถ",
-    "delivery_price": "เปลี่ยนราคาส่งรถ"
+    "delivery_price": "เปลี่ยนราคาส่งรถ",
+    "section_documents": "เอกสาร",
+    "documents_view": "ดูเอกสาร",
+    "documents_upload": "อัปโหลดเอกสาร",
+    "documents_create": "สร้างเอกสารจากแม่แบบ",
+    "documents_templates": "จัดการแม่แบบและประเภท",
+    "documents_archive": "เก็บเอกสารถาวร",
+    "documents_sign": "ลงนามในนามบริษัท"
   },
   "positions": {
     "director": "Director"
@@ -2705,5 +2725,52 @@
     "charged": "เรียกเก็บลูกค้า: {{amount}} {{currency}}",
     "correct_button": "แก้ไข",
     "annul_button": "ยกเลิกการเดินทางเป็นโมฆะ"
+  },
+  "documents": {
+    "show": "แสดง",
+    "show_active": "ที่ใช้งาน",
+    "show_warnings": "ใกล้หมดอายุ",
+    "show_all": "ทั้งหมด รวมที่เก็บถาวร",
+    "none": "ไม่มีเอกสาร",
+    "warning_expiring": "ใช้ได้ถึง {{date}}",
+    "warning_expired": "หมดอายุ {{date}}",
+    "archived": "เก็บถาวร",
+    "upload": "เพิ่มเอกสาร",
+    "title": "ชื่อ",
+    "kind": "ประเภท",
+    "date": "วันที่",
+    "file": "ไฟล์",
+    "file_hint": "PDF, DOCX, XLSX ไม่เกิน 2 MB; รูป JPEG, PNG, WebP ไม่เกิน 5 MB",
+    "valid_until": "ใช้ได้ถึง",
+    "warn_days": "เตือนก่อน, วัน",
+    "upload_button": "เพิ่ม",
+    "number": "เอกสาร {{number}}",
+    "scope": "การเข้าถึง",
+    "whole_company": "ทั้งบริษัท",
+    "locations_count": "สาขา: {{count}}",
+    "archive_reason": "เหตุผล",
+    "versions": "ฉบับ",
+    "version": "ฉบับ {{number}}",
+    "open_file": "เปิดไฟล์",
+    "new_version": "ฉบับใหม่",
+    "note": "หมายเหตุ",
+    "add_version": "เพิ่มฉบับ",
+    "links": "เชื่อมโยงกับ",
+    "no_links": "ไม่ได้เชื่อมโยง: อยู่ในทะเบียนเท่านั้น",
+    "object_client": "ลูกค้า",
+    "object_counterparty": "คู่ค้า",
+    "object_vehicle": "รถ",
+    "object_order": "คำสั่งซื้อ",
+    "object_rental": "การเช่า",
+    "object_service_operation": "งานบริการ",
+    "object_delivery": "การเดินทาง",
+    "unlink": "ลบการเชื่อมโยง",
+    "archive": "เก็บถาวร",
+    "archive_button": "เก็บถาวร",
+    "kind_contract": "สัญญา",
+    "kind_act": "บันทึกส่งมอบ",
+    "kind_settlement": "เอกสารการชำระ",
+    "kind_purchase": "เอกสารจัดซื้อ",
+    "kind_internal": "เอกสารภายใน"
   }
 }

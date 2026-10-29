@@ -15,4 +15,5 @@ urlpatterns = [
     path("api/", include("c4rsys.warehouse.urls")),
     path("api/", include("c4rsys.service.urls")),
     path("api/", include("c4rsys.delivery.urls")),
+    path("api/", include("c4rsys.documents.urls")),
 ]

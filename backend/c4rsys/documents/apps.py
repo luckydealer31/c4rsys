@@ -1,0 +1,17 @@
+from django.apps import AppConfig
+
+
+class DocumentsConfig(AppConfig):
+    """Documents, templates and signing (ТЗ гл. 18)."""
+
+    name = "c4rsys.documents"
+    label = "documents"
+    default_auto_field = "django.db.models.BigAutoField"
+
+    def ready(self) -> None:
+        from c4rsys.documents import services
+        from c4rsys.files import services as files
+        from c4rsys.files.models import StoredFile
+
+        # § 18.5.3: a file of a document is read by the rights on the document, not by links.
+        files.register_reader(StoredFile.Purpose.COMPANY_DOCUMENT, services.file_reader)

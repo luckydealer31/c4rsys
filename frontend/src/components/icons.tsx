@@ -69,6 +69,13 @@ const PATHS: Record<string, ReactNode> = {
       <path d="M2 16h3M9 16h6M19 16h3" />
     </>
   ),
+  documents: (
+    <>
+      {/* A sheet with a folded corner. */}
+      <path d="M6 3h8l4 4v14H6z" />
+      <path d="M14 3v4h4M9 12h6M9 16h6" />
+    </>
+  ),
   trips: (
     <>
       {/* A route with two points (decision Д-10). */}

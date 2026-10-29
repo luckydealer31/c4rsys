@@ -1159,3 +1159,26 @@ export type DeliveryService = {
   currency: string;
   state: "active" | "archived";
 };
+
+/** A kind of document: a starting one by its code or the company's own by its name (§ 18.1.11). */
+export type DocumentKind = { id: string; code: string | null; name: string | null };
+
+/** A document of the company registry (ТЗ гл. 18). */
+export type CompanyDocument = {
+  id: string;
+  version: number;
+  number: number;
+  title: string;
+  kind_id: string;
+  document_date: string;
+  all_locations: boolean;
+  locations: string[];
+  valid_until: string | null;
+  warn_days: number | null;
+  warning: "expiring" | "expired" | null;
+  state: "active" | "archived";
+  archive_reason: string;
+  current_version: { number: number; file_id: string | null; file_name: string; has_content: boolean } | null;
+  links?: { id: string; object_type: string; object_id: string }[];
+  versions?: { number: number; file_id: string | null; file_name: string; valid_until: string | null; note: string; created_at: string }[];
+};

@@ -59,6 +59,8 @@ export function companyMenu(
     ["warehouse", "/warehouse", "warehouse", has("warehouse")],
     // Decision Д-10: trips for whoever plans, takes or drives them.
     ["trips", "/trips", "trips", [...permissions].some((p) => p.startsWith("delivery."))],
+    // Decision Р-6: the registry for whoever may see or add documents.
+    ["documents", "/documents", "documents", permissions.has("documents.view") || permissions.has("documents.upload")],
     ["settings", "/settings", "settings", true],
   ];
   return items.filter(([, , , visible]) => visible).map(([key, path, icon]) => [key, path, icon]);
