@@ -117,7 +117,8 @@ function BlockValue({ block }: { block: ReportBlock }) {
   }
   if (block.unit === "count") return <div className="metric">{block.value === null ? t("reports.no_data") : String(block.value)}</div>;
   if (block.unit === "money") {
-    if (!block.rows.length) return <div className="metric">{block.value === 0 ? "0" : t("reports.no_data")}</div>;
+    const main = block.value && typeof block.value === "object" ? block.value : null;
+    if (!block.rows.length && !main) return <div className="metric">{block.value === 0 ? "0" : t("reports.no_data")}</div>;
     return (
       <div>
         {block.rows.map((r) => (
@@ -125,6 +126,13 @@ function BlockValue({ block }: { block: ReportBlock }) {
             {r.amount} {r.currency}
           </div>
         ))}
+        {!block.rows.length ? <div className="metric">0</div> : null}
+        {main && block.rows.some((r) => r.currency !== main.currency) ? (
+          <div className="small muted">
+            {t("reports.in_main", { amount: main.amount, currency: main.currency })}
+            {main.missing.length ? ` · ${t("reports.without_rate", { currencies: main.missing.join(", ") })}` : ""}
+          </div>
+        ) : null}
       </div>
     );
   }

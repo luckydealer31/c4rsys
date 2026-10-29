@@ -20,10 +20,14 @@ from c4rsys.companies import services as companies
 from c4rsys.companies.models import Company
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor
-from c4rsys.reports import overview, rental, scope
+from c4rsys.reports import finance, overview, rental, scope
 
 Builder = Callable[[Actor, Company, scope.Filters], list[overview.Block]]
-DASHBOARDS: dict[str, Builder] = {"overview": overview.build, "rental": rental.build}
+DASHBOARDS: dict[str, Builder] = {
+    "overview": overview.build,
+    "rental": rental.build,
+    "finance": finance.build,
+}
 
 
 def _actor(request: HttpRequest, cmp: str) -> tuple[companies.CompanyContext, Actor]:

@@ -13,6 +13,7 @@ export function DashboardsPage() {
   const tabs = [
     ["overview", can("reports.view")],
     ["rental", can("reports.view")],
+    ["finance", can("reports.view")],
     ["warehouse", can("warehouse.view")],
   ] as const;
   const visible = tabs.filter(([, shown]) => shown).map(([key]) => key);
@@ -30,6 +31,7 @@ export function DashboardsPage() {
       {!visible.length ? <p className="muted">{t("reports.no_rights")}</p> : null}
       {tab === "overview" ? <ReportView code="overview" title={t("reports.dashboard_overview")} /> : null}
       {tab === "rental" ? <ReportView code="rental" title={t("reports.dashboard_rental")} /> : null}
+      {tab === "finance" ? <ReportView code="finance" title={t("reports.dashboard_finance")} /> : null}
       {tab === "warehouse" ? <WarehouseDashboard /> : null}
     </div>
   );
