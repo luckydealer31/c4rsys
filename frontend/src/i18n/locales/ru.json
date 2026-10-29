@@ -115,7 +115,11 @@
     "service_job_completed": "Работа выполнена",
     "service_job_terminated": "Работа прекращена",
     "service_job_cancelled": "Работа отменена",
-    "service_job_price_changed": "Цена работы изменена"
+    "service_job_price_changed": "Цена работы изменена",
+    "service_material_added": "Запчасть выдана в работу",
+    "service_material_returned": "Запчасть возвращена",
+    "service_material_consumed": "Расход запчасти",
+    "service_material_price_changed": "Цена запчасти изменена"
   },
   "finance_articles": {
     "archive": "В архив",
@@ -689,7 +693,9 @@
     "service_job_not_started": "Работа не начата.",
     "start_before_acceptance": "Работа не может начаться раньше приёма ТС.",
     "service_without_jobs": "В операции нет работ: добавьте их или отмените операцию.",
-    "service_jobs_not_finished": "Не у каждой работы есть итог: выполнена, отменена или прекращена."
+    "service_jobs_not_finished": "Не у каждой работы есть итог: выполнена, отменена или прекращена.",
+    "service_materials_issued": "К работе выданы запчасти: сначала верните их на склад.",
+    "service_material_settled": "По этой запчасти нечего учитывать."
   },
   "history": {
     "action": "Действие",
@@ -903,7 +909,8 @@
     "add_proposal": "Предложить аренду",
     "line_service_work": "Сервис",
     "condition_not_finished_service_work": "Сервисная операция не завершена: отметьте «Работы завершены», отмените или прекратите её",
-    "condition_service_price_missing_service_work": "У выполненной сервисной работы нет цены"
+    "condition_service_price_missing_service_work": "У выполненной сервисной работы нет цены",
+    "condition_service_materials_unsettled_service_work": "Выданные в сервисную работу запчасти не израсходованы и не возвращены"
   },
   "payments": {
     "account": "Касса или счёт",
@@ -2486,6 +2493,15 @@
     "odometer": "Пробег",
     "zero_hint": "0 — бесплатно; это не то же, что «цена не указана»",
     "comment": "Комментарий",
-    "executor": "Исполнитель"
+    "executor": "Исполнитель",
+    "add_material": "Добавить запчасть",
+    "issue_material": "Выдать в работу",
+    "material_state": "{{quantity}} {{unit}}: израсходовано {{consumed}}, возвращено {{returned}}",
+    "material_outstanding": "выдано и не учтено: {{quantity}} {{unit}}",
+    "return_material": "Вернуть неиспользованное",
+    "consume_material": "Израсходовано",
+    "quantity_unit": "Количество, {{unit}}",
+    "all_outstanding": "Пусто — весь остаток",
+    "blocker_service_materials_unsettled": "Выданные запчасти не учтены: отметьте расход или верните их на склад."
   }
 }

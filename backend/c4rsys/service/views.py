@@ -23,14 +23,16 @@ from c4rsys.orders import services as orders
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
-from c4rsys.service import catalog, operations
+from c4rsys.service import catalog, materials, operations
 from c4rsys.service.models import (
     ServiceJob,
+    ServiceMaterial,
     ServiceOperation,
     ServicePost,
     ServiceWork,
     SystemWork,
 )
+from c4rsys.warehouse import work_issues
 
 NAME_MAX = 200
 TEXT_MAX = 2000
@@ -360,6 +362,32 @@ def _job_payload(job: ServiceJob, names: dict[UUID, str]) -> dict[str, Any]:
     }
 
 
+def _materials_payload(job_ids: list[UUID]) -> list[dict[str, Any]]:
+    result = []
+    for state in materials.states_of(materials.of_jobs(job_ids)):
+        m = state.material
+        amount = materials.amount_of(state)
+        result.append(
+            {
+                "id": str(m.id),
+                "version": m.version,
+                "job_id": str(m.job_id),
+                "item_name": m.item_name,
+                "label": m.label,
+                "unit": m.unit,
+                "quantity": catalog.amount_text(m.quantity),
+                "returned": catalog.amount_text(state.returned),
+                "consumed": catalog.amount_text(state.consumed),
+                "outstanding": catalog.amount_text(state.outstanding),
+                "price": catalog.amount_text(m.price),
+                "price_per": catalog.amount_text(m.price_per),
+                "amount": catalog.amount_text(amount),
+                "currency": m.currency_id,
+            }
+        )
+    return result
+
+
 def _iso(value: datetime | None) -> str | None:
     return value.isoformat() if value else None
 
@@ -398,6 +426,7 @@ def _operation_payload(op: ServiceOperation, *, detail: bool = True) -> dict[str
         "end_reason": op.end_reason,
         "created_at": op.created_at.isoformat(),
         "jobs": [_job_payload(j, names) for j in jobs],
+        "materials": _materials_payload([j.id for j in jobs]),
     }
     if detail:
         result["blockers"] = list(operations.blockers(op, order.is_internal))
@@ -844,3 +873,122 @@ def executors(request: HttpRequest, cmp: str) -> JsonResponse:
             )
         }
     )
+
+
+# --- Materials (§ 16.5.1, § 16.7.3) --------------------------------------------------------------
+
+
+@require_POST
+def job_materials(request: HttpRequest, cmp: str, job_id: UUID) -> JsonResponse:
+    """A part from a warehouse to the work: «Change service operations» in the service location
+    and the issue right in the warehouse's location (PROPOSAL)."""
+    context, actor = _actor(request, cmp)
+    job = operations.get_job(context.company.id, job_id)
+    if not _visible(actor, job.operation):
+        raise errors.not_found()
+    _require(actor, "service.create", job.operation.location_id)
+    data = parse_json(request)
+    context_id = _required_uuid(data, "context_id")
+    take = work_issues.parse_take(data)
+    if not access.RightsResolver().has_permission(
+        actor,
+        "warehouse.issue",
+        location_id=work_issues.warehouse_location(context.company.id, context_id),
+        context_id=context_id,
+    ):
+        raise errors.permission_denied("warehouse.issue")
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        locked = operations.locked_job(
+            context.company.id, job_id, get_int(data, "expected_version")
+        )
+        materials.add(ctx, context.company, locked, context_id, take)
+        op = operations.get_operation(context.company.id, locked.operation_id)
+        return CommandResult(201, {"operation": _operation_payload(op)})
+
+    payload = {"job_id": str(job_id), "context_id": str(context_id), **take.as_dict()}
+    payload["expected_version"] = data.get("expected_version")
+    return run_and_respond(request, "service_material.add", actor, payload, handler)
+
+
+def _material_command(
+    request: HttpRequest, cmp: str, material_id: UUID, command: str, action: Any
+) -> JsonResponse:
+    """Runs `action(ctx, material, data)`; the right is checked by `action(None, material,
+    data)` with the actor in `data["_actor"]`."""
+    context, actor = _actor(request, cmp)
+    found = (
+        ServiceMaterial.objects.select_related("job__operation")
+        .filter(company=context.company, pk=material_id)
+        .first()
+    )
+    if found is None or not _visible(actor, found.job.operation):
+        raise errors.not_found()
+    data = parse_json(request)
+    expected_version = get_int(data, "expected_version")
+    action(None, found, {**data, "_actor": actor})
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        operations.locked_operation(context.company.id, found.job.operation_id)
+        locked = materials.locked(context.company.id, material_id, expected_version)
+        action(ctx, locked, data)
+        op = operations.get_operation(context.company.id, found.job.operation_id)
+        return CommandResult(200, {"operation": _operation_payload(op)})
+
+    payload = {
+        "material_id": str(material_id),
+        "expected_version": expected_version,
+        "quantity": data.get("quantity"),
+        "price": data.get("price"),
+    }
+    return run_and_respond(request, command, actor, payload, handler)
+
+
+def _quantity(data: dict[str, Any]) -> Decimal | None:
+    return _amount(data, "quantity", places=2, positive=True)
+
+
+@require_POST
+def material_return(request: HttpRequest, cmp: str, material_id: UUID) -> JsonResponse:
+    """Unused back to the warehouse: the issue right in the warehouse's location."""
+
+    def action(ctx: CommandContext | None, m: Any, data: dict[str, Any]) -> None:
+        quantity = _quantity(data)
+        if ctx is None:
+            location = work_issues.line_location(m.company_id, m.warehouse_line_id)
+            if not access.RightsResolver().has_permission(
+                data["_actor"], "warehouse.issue", location_id=location
+            ):
+                raise errors.permission_denied("warehouse.issue")
+            return
+        materials.return_unused(ctx, m, quantity)
+
+    return _material_command(request, cmp, material_id, "service_material.return", action)
+
+
+@require_POST
+def material_consume(request: HttpRequest, cmp: str, material_id: UUID) -> JsonResponse:
+    """The use of an issued part confirmed by whoever does the works (§ 23.2.4)."""
+
+    def action(ctx: CommandContext | None, m: Any, data: dict[str, Any]) -> None:
+        quantity = _quantity(data)
+        if ctx is None:
+            _require(data["_actor"], "service.work", m.job.operation.location_id)
+            return
+        materials.consume(ctx, m, quantity, "service_material_consumed")
+
+    return _material_command(request, cmp, material_id, "service_material.consume", action)
+
+
+@require_POST
+def material_price(request: HttpRequest, cmp: str, material_id: UUID) -> JsonResponse:
+    def action(ctx: CommandContext | None, m: Any, data: dict[str, Any]) -> None:
+        price = _amount(data, "price")
+        if price is None:
+            raise errors.validation_error("price", code="FIELD_REQUIRED")
+        if ctx is None:
+            _require(data["_actor"], "service.price", m.job.operation.location_id)
+            return
+        materials.set_price(ctx, m, price)
+
+    return _material_command(request, cmp, material_id, "service_material.price", action)

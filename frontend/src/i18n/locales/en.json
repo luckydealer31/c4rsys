@@ -115,7 +115,11 @@
     "service_job_completed": "Work done",
     "service_job_terminated": "Work terminated",
     "service_job_cancelled": "Work cancelled",
-    "service_job_price_changed": "Price of the work changed"
+    "service_job_price_changed": "Price of the work changed",
+    "service_material_added": "Part issued to a work",
+    "service_material_returned": "Part returned unused",
+    "service_material_consumed": "Part used",
+    "service_material_price_changed": "Price of a part changed"
   },
   "finance_articles": {
     "archive": "Archive",
@@ -689,7 +693,9 @@
     "service_job_not_started": "The work has not started.",
     "start_before_acceptance": "The work cannot start before the vehicle was accepted.",
     "service_without_jobs": "The operation has no works: add them or cancel it.",
-    "service_jobs_not_finished": "Not every work has a result: done, cancelled or terminated."
+    "service_jobs_not_finished": "Not every work has a result: done, cancelled or terminated.",
+    "service_materials_issued": "Parts are issued to the work: return them to the warehouse first.",
+    "service_material_settled": "Nothing of this part is left to settle."
   },
   "history": {
     "action": "Action",
@@ -903,7 +909,8 @@
     "add_proposal": "Propose a rental",
     "line_service_work": "Service",
     "condition_not_finished_service_work": "The service operation is not finished: mark «Works done», cancel or terminate it",
-    "condition_service_price_missing_service_work": "A done service work has no price"
+    "condition_service_price_missing_service_work": "A done service work has no price",
+    "condition_service_materials_unsettled_service_work": "Parts issued to a service work are neither used nor returned"
   },
   "payments": {
     "account": "Cash desk or account",
@@ -2486,6 +2493,15 @@
     "odometer": "Odometer",
     "zero_hint": "0 — free of charge; not the same as «price not set»",
     "comment": "Comment",
-    "executor": "Executor"
+    "executor": "Executor",
+    "add_material": "Add a part",
+    "issue_material": "Issue to the work",
+    "material_state": "{{quantity}} {{unit}}: consumed {{consumed}}, returned {{returned}}",
+    "material_outstanding": "issued, not settled: {{quantity}} {{unit}}",
+    "return_material": "Return unused",
+    "consume_material": "Used",
+    "quantity_unit": "Quantity, {{unit}}",
+    "all_outstanding": "Empty — all that is left",
+    "blocker_service_materials_unsettled": "Issued parts are not settled: mark them used or return them to the warehouse."
   }
 }

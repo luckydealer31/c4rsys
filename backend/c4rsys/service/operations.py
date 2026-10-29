@@ -43,7 +43,7 @@ from c4rsys.orders.services import OperationSummary
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
 from c4rsys.platform.counters import next_number
-from c4rsys.service import catalog
+from c4rsys.service import catalog, materials
 from c4rsys.service.models import (
     OPEN_STATES,
     ServiceJob,
@@ -139,6 +139,7 @@ def on_client_assigned(ctx: CommandContext, company_id: UUID, order_id: UUID) ->
         company_id=company_id, order_id=order_id
     ):
         _charge(ctx, job, "client_assigned")
+    materials.charge_all(ctx, company_id, order_id, "client_assigned")
 
 
 def estimated_for_order(company_id: UUID, order_id: UUID) -> dict[str, Decimal]:
@@ -152,6 +153,8 @@ def estimated_for_order(company_id: UUID, order_id: UUID) -> dict[str, Decimal]:
         if job.price is None:
             continue
         result[job.currency_id] = result.get(job.currency_id, Decimal(0)) + job.price
+    for currency, value in materials.estimated(company_id, order_id).items():
+        result[currency] = result.get(currency, Decimal(0)) + value
     return result
 
 
@@ -159,14 +162,20 @@ def estimated_for_order(company_id: UUID, order_id: UUID) -> dict[str, Decimal]:
 
 
 def blockers(operation: ServiceOperation, internal: bool) -> tuple[str, ...]:
-    """A done or terminated work of a client order needs a price or an explicit zero
-    (§ 16.1.4)."""
+    """Every issued material is consumed or returned (§ 16.7.3); a done or terminated work and
+    a consumed material of a client order need a price or an explicit zero (§ 16.1.4)."""
+    job_ids = list(ServiceJob.objects.filter(operation=operation).values_list("id", flat=True))
+    result = []
+    if materials.unsettled(job_ids):
+        result.append("service_materials_unsettled")
     if internal:
-        return ()
+        return tuple(result)
     unpriced = ServiceJob.objects.filter(
         operation=operation, state__in=(Job.DONE, Job.TERMINATED), price__isnull=True
     ).exists()
-    return ("service_price_missing",) if unpriced else ()
+    if unpriced or materials.unpriced(job_ids):
+        result.append("service_price_missing")
+    return tuple(result)
 
 
 def operations_for_order(company_id: UUID, order_id: UUID) -> list[OperationSummary]:
@@ -193,6 +202,9 @@ def history_for_order(company_id: UUID, order_id: UUID) -> list[tuple[str, str]]
         for job in ServiceJob.objects.filter(operation=op):
             objects.append(("service_job", str(job.id)))
             objects += [("charge_entry", str(c)) for c in charge_ids_for_source(SOURCE, job.id)]
+        objects += materials.history(
+            list(ServiceJob.objects.filter(operation=op).values_list("id", flat=True))
+        )
     return objects
 
 
@@ -715,6 +727,7 @@ def complete(
     job.state = Job.DONE
     _save_job(ctx, job, "service_job.completed", before)
     _charge(ctx, job, "service_job_done")
+    materials.consume_for_done_job(ctx, job)
     return job
 
 
@@ -745,6 +758,7 @@ def cancel(ctx: CommandContext, job: ServiceJob, reason: str) -> ServiceJob:
     if job.state != Job.PLANNED:
         raise errors.business_rule("SERVICE_JOB_ALREADY_STARTED", state=job.state)
     orders.ensure_editable(job.company_id, job.order_id)
+    _require_returned([job.id])
     before = job_snapshot(job)
     job.state = Job.CANCELLED
     job.end_reason = reason
@@ -798,7 +812,14 @@ def finish(ctx: CommandContext, op: ServiceOperation) -> ServiceOperation:
     return op
 
 
+def _require_returned(job_ids: list[UUID]) -> None:
+    """Issued parts go back to the warehouse before a work not done is cancelled."""
+    if materials.unsettled(job_ids):
+        raise errors.business_rule("SERVICE_MATERIALS_ISSUED")
+
+
 def _cancel(ctx: CommandContext, op: ServiceOperation, reason: str) -> None:
+    _require_returned(list(ServiceJob.objects.filter(operation=op).values_list("id", flat=True)))
     for job in ServiceJob.objects.select_for_update().filter(operation=op, state=Job.PLANNED):
         before = job_snapshot(job)
         job.state = Job.CANCELLED

@@ -4,12 +4,13 @@ import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router";
 
 import { ApiError } from "../../api/client";
-import type { ServiceJob, ServiceOperation } from "../../api/types";
+import type { ServiceJob, ServiceMaterial, ServiceOperation } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { formatMoment, fromLocalInput, toLocalInput } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
+import { StockAdder } from "../warehouse/Sales";
 import {
   FINAL_STATES,
   HOLDING_STATES,
@@ -377,6 +378,7 @@ function Jobs({ op, zone }: { op: ServiceOperation; zone: string }) {
           ) : null}
           {job.comment ? <div className="small">{job.comment}</div> : null}
           {job.end_reason ? <div className="muted small">{job.end_reason}</div> : null}
+          <Materials op={op} job={job} />
           <JobActions op={op} job={job} zone={zone} />
         </div>
       ))}
@@ -539,5 +541,118 @@ function JobForm({ mode, job, zone, onDone }: { mode: Exclude<Mode, "">; job: Se
       </div>
       <ErrorMessage error={command.error} />
     </form>
+  );
+}
+
+/** Parts of a work: issued, returned unused, consumed; «done» consumes what is left (§ 16.5.1).
+ * Everything is consumed or returned before the order closes (§ 16.7.3). */
+function Materials({ op, job }: { op: ServiceOperation; job: ServiceJob }) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const can = useCan();
+  const refresh = useRefresh();
+  const [adding, setAdding] = useState(false);
+  const items = op.materials.filter((m) => m.job_id === job.id);
+  const open = job.state === "planned" || job.state === "in_progress";
+  const mayAdd = open && !FINAL_STATES.includes(op.state) && can("service.create") && can("warehouse.issue");
+  if (items.length === 0 && !mayAdd) return null;
+  return (
+    <div className="small" style={{ marginTop: 8 }}>
+      {items.map((m) => (
+        <MaterialRow key={m.id} material={m} />
+      ))}
+      {mayAdd ? (
+        adding ? (
+          <StockAdder
+            path={`/c/${company.public_id}/service/jobs/${job.id}/materials`}
+            title={t("service.add_material")}
+            button={t("service.issue_material")}
+            extra={{ expected_version: job.version }}
+            onAdded={async (result) => {
+              if (result !== null) {
+                setAdding(false);
+                await refresh();
+              }
+            }}
+          />
+        ) : (
+          <button type="button" className="secondary small" onClick={() => setAdding(true)}>
+            {t("service.add_material")}
+          </button>
+        )
+      ) : null}
+    </div>
+  );
+}
+
+function MaterialRow({ material }: { material: ServiceMaterial }) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const can = useCan();
+  const refresh = useRefresh();
+  const [mode, setMode] = useState<"" | "return" | "consume" | "price">("");
+  const [value, setValue] = useState("");
+  const command = useCommand<Record<string, unknown>, Result>(
+    `/c/${company.public_id}/service/materials/${material.id}/${mode || "return"}`,
+  );
+  const outstanding = Number(material.outstanding) > 0;
+  const unit = t(`warehouse.unit_short_${material.unit}`);
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const amount = value.trim().replace(",", ".");
+    const body: Record<string, unknown> = { expected_version: material.version };
+    if (mode === "price") body.price = amount;
+    else if (amount) body.quantity = amount;
+    const result = await command.run(body);
+    if (result) {
+      setMode("");
+      setValue("");
+      await refresh();
+    }
+  }
+  return (
+    <div>
+      {material.item_name} {material.label ? <span className="muted">{material.label}</span> : null} ·{" "}
+      {t("service.material_state", {
+        quantity: Number(material.quantity),
+        consumed: Number(material.consumed),
+        returned: Number(material.returned),
+        unit,
+      })}{" "}
+      · {material.price === null ? t("service.price_unknown") : `${Number(material.price)} ${material.currency}`}
+      {Number(material.price_per) !== 1 ? ` / ${Number(material.price_per)} ${unit}` : ""}
+      {outstanding ? <span className="badge warn">{t("service.material_outstanding", { quantity: Number(material.outstanding), unit })}</span> : null}{" "}
+      {outstanding && can("warehouse.issue") ? (
+        <button type="button" className="link" onClick={() => setMode(mode === "return" ? "" : "return")}>
+          {t("service.return_material")}
+        </button>
+      ) : null}{" "}
+      {outstanding && can("service.work") ? (
+        <button type="button" className="link" onClick={() => setMode(mode === "consume" ? "" : "consume")}>
+          {t("service.consume_material")}
+        </button>
+      ) : null}{" "}
+      {can("service.price") ? (
+        <button type="button" className="link" onClick={() => setMode(mode === "price" ? "" : "price")}>
+          {t("service.change_price")}
+        </button>
+      ) : null}
+      {mode ? (
+        <form className="row" onSubmit={submit}>
+          <Field
+            label={mode === "price" ? `${t("service.price")}, ${material.currency}` : t("service.quantity_unit", { unit })}
+            hint={mode === "price" ? t("service.zero_hint") : t("service.all_outstanding")}
+          >
+            <input inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} />
+          </Field>
+          <div className="actions">
+            <button type="submit" disabled={command.pending || (mode === "price" && !value.trim())}>
+              {t("common.save")}
+            </button>
+          </div>
+          <ErrorMessage error={command.error} />
+        </form>
+      ) : null}
+    </div>
   );
 }

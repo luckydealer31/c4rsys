@@ -115,7 +115,11 @@
     "service_job_completed": "งานเสร็จ",
     "service_job_terminated": "ยุติงาน",
     "service_job_cancelled": "ยกเลิกงาน",
-    "service_job_price_changed": "เปลี่ยนราคางาน"
+    "service_job_price_changed": "เปลี่ยนราคางาน",
+    "service_material_added": "เบิกอะไหล่ให้งาน",
+    "service_material_returned": "คืนอะไหล่",
+    "service_material_consumed": "ใช้อะไหล่",
+    "service_material_price_changed": "เปลี่ยนราคาอะไหล่"
   },
   "finance_articles": {
     "archive": "เก็บเข้าคลัง",
@@ -689,7 +693,9 @@
     "service_job_not_started": "งานยังไม่เริ่ม",
     "start_before_acceptance": "งานเริ่มก่อนรับรถไม่ได้",
     "service_without_jobs": "งานบริการไม่มีงานย่อย: เพิ่มงานหรือยกเลิก",
-    "service_jobs_not_finished": "ยังมีงานที่ไม่มีผล: เสร็จ ยกเลิก หรือยุติ"
+    "service_jobs_not_finished": "ยังมีงานที่ไม่มีผล: เสร็จ ยกเลิก หรือยุติ",
+    "service_materials_issued": "มีอะไหล่ที่เบิกให้งาน: กรุณาคืนคลังก่อน",
+    "service_material_settled": "อะไหล่นี้ไม่มีส่วนที่ต้องสรุป"
   },
   "history": {
     "action": "Action",
@@ -903,7 +909,8 @@
     "add_proposal": "เสนอการเช่า",
     "line_service_work": "งานบริการ",
     "condition_not_finished_service_work": "งานบริการยังไม่เสร็จ: กด «งานเสร็จแล้ว» ยกเลิก หรือยุติ",
-    "condition_service_price_missing_service_work": "งานบริการที่เสร็จแล้วยังไม่มีราคา"
+    "condition_service_price_missing_service_work": "งานบริการที่เสร็จแล้วยังไม่มีราคา",
+    "condition_service_materials_unsettled_service_work": "อะไหล่ที่เบิกให้งานบริการยังไม่ใช้และไม่คืน"
   },
   "payments": {
     "account": "Cash desk or account",
@@ -2486,6 +2493,15 @@
     "odometer": "เลขไมล์",
     "zero_hint": "0 — ไม่คิดค่าบริการ ไม่เหมือนกับ «ยังไม่ระบุราคา»",
     "comment": "หมายเหตุ",
-    "executor": "ผู้รับผิดชอบ"
+    "executor": "ผู้รับผิดชอบ",
+    "add_material": "เพิ่มอะไหล่",
+    "issue_material": "เบิกให้งาน",
+    "material_state": "{{quantity}} {{unit}}: ใช้ไป {{consumed}} คืน {{returned}}",
+    "material_outstanding": "เบิกแล้วยังไม่สรุป: {{quantity}} {{unit}}",
+    "return_material": "คืนที่ไม่ได้ใช้",
+    "consume_material": "ใช้แล้ว",
+    "quantity_unit": "จำนวน, {{unit}}",
+    "all_outstanding": "ว่าง — ทั้งหมดที่เหลือ",
+    "blocker_service_materials_unsettled": "อะไหล่ที่เบิกยังไม่สรุป: บันทึกการใช้หรือคืนคลัง"
   }
 }

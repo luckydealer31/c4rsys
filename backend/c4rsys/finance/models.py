@@ -105,6 +105,7 @@ class ChargeEntry(models.Model):
         RENTAL_MANUAL = "rental_manual"  # § 13.5.1: fuel or another manual charge
         RENTAL_SERVICE = "rental_service"  # § 13.4.5: a line of an additional service
         SERVICE_JOB = "service_job"  # § 16.1.3: a work of a service operation
+        SERVICE_MATERIAL = "service_material"  # § 16.5.1: a part used in a service work
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")

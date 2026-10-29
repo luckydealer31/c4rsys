@@ -215,6 +215,10 @@ SYSTEM_SETS: dict[str, tuple[str, ...]] = {
         "order.create",
         "order.edit",
         "finance.payment.receive",
+        # § 23.2.3: «viewing the stock and adding materials from storage to service works»; the
+        # issue right is the PROPOSAL for adding them (part С3).
+        "warehouse.view",
+        "warehouse.issue",
         "service.view",
         "service.create",
         "service.cancel",

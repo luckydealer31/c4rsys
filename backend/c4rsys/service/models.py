@@ -299,3 +299,46 @@ class ServiceJob(models.Model):
 
     def __str__(self) -> str:
         return f"job {self.id}"
+
+
+class ServiceMaterial(models.Model):
+    """A part or material issued from a warehouse to one work (§ 16.5.1). The warehouse line
+    keeps what was returned and consumed; this row keeps the selling price for the order. The
+    price is for `price_per` base units; empty — not known yet (§ 16.1.4)."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    job = models.ForeignKey(ServiceJob, on_delete=models.PROTECT, related_name="materials")
+    order = models.ForeignKey("orders.Order", on_delete=models.PROTECT, related_name="+")
+    warehouse_line = models.OneToOneField(
+        "warehouse.OperationLine", on_delete=models.PROTECT, related_name="+"
+    )
+    item_name = models.CharField(max_length=200)
+    unit = models.CharField(max_length=20)
+    label = models.CharField(max_length=100, blank=True, default="")  # unit or lot ID
+    quantity = models.DecimalField(max_digits=12, decimal_places=2)
+    price = models.DecimalField(max_digits=20, decimal_places=4, null=True, blank=True)
+    price_per = models.DecimalField(max_digits=12, decimal_places=2, default=1)
+    currency = models.ForeignKey(Currency, on_delete=models.PROTECT, related_name="+")
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "service_material"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "id"], name="service_material_company_id_uniq"
+            ),
+            models.CheckConstraint(condition=Q(quantity__gt=0), name="service_material_qty_gt_0"),
+            models.CheckConstraint(
+                condition=Q(price__isnull=True) | Q(price__gte=0),
+                name="service_material_price_gte_0",
+            ),
+            models.CheckConstraint(
+                condition=Q(price_per__gt=0), name="service_material_price_per_gt_0"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"material {self.item_name}"

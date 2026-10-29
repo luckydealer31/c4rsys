@@ -1030,7 +1030,26 @@ export type ServiceOperation = {
   end_reason: string;
   created_at: string;
   jobs: ServiceJob[];
+  materials: ServiceMaterial[];
   blockers?: string[];
+};
+
+/** A part issued from a warehouse to a work (§ 16.5.1). */
+export type ServiceMaterial = {
+  id: string;
+  version: number;
+  job_id: string;
+  item_name: string;
+  label: string;
+  unit: string;
+  quantity: string;
+  returned: string;
+  consumed: string;
+  outstanding: string;
+  price: string | null;
+  price_per: string;
+  amount: string | null;
+  currency: string;
 };
 
 export type QueueJob = ServiceJob & { operation_number: number; location_id: string; vehicle_name: string | null };

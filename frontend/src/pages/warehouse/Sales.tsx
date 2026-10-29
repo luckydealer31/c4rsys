@@ -209,6 +209,36 @@ export function SaleGoods({ order, onChange }: { order: Order; onChange: () => P
 function SaleAdder({ orderId, onAdded }: { orderId: string; onAdded: (result: unknown) => Promise<void> }) {
   const { t } = useTranslation();
   const company = useCompany();
+  return (
+    <StockAdder
+      path={`/c/${company.public_id}/warehouse/orders/${orderId}/sale-lines`}
+      title={t("sales.add")}
+      button={t("sales.add_button")}
+      withVehicles
+      onAdded={onAdded}
+    />
+  );
+}
+
+/** Picks what to take from a warehouse — units of an item or a quantity of a lot from one form —
+ * and posts it with `context_id` to `path` (a sale line, a material of a service work). */
+export function StockAdder({
+  path,
+  title,
+  button,
+  extra,
+  withVehicles = false,
+  onAdded,
+}: {
+  path: string;
+  title: string;
+  button: string;
+  extra?: Record<string, unknown>;
+  withVehicles?: boolean;
+  onAdded: (result: unknown) => Promise<void>;
+}) {
+  const { t } = useTranslation();
+  const company = useCompany();
   const quantity = useQuantity();
   const storages = useApi<{ storages: Storage[] }>(
     ["warehouse-storages", company.public_id],
@@ -223,7 +253,7 @@ function SaleAdder({ orderId, onAdded }: { orderId: string; onAdded: (result: un
   const [amount, setAmount] = useState("");
   const [assets, setAssets] = useState<string[]>([]);
   const [confirmExpired, setConfirmExpired] = useState(false);
-  const add = useCommand<Record<string, unknown>, unknown>(`/c/${company.public_id}/warehouse/orders/${orderId}/sale-lines`);
+  const add = useCommand<Record<string, unknown>, unknown>(path);
   const context = contextId || (warehouses.length === 1 ? (warehouses[0]?.context_id ?? "") : "");
   const sources = useApi<Sources>(
     ["warehouse-sources", company.public_id, item?.id ?? "", context],
@@ -259,14 +289,14 @@ function SaleAdder({ orderId, onAdded }: { orderId: string; onAdded: (result: un
   }
 
   async function submit(body: Record<string, unknown>) {
-    const result = await add.run({ context_id: context, ...body });
+    const result = await add.run({ context_id: context, ...extra, ...body });
     if (result !== null) reset();
     await onAdded(result);
   }
 
   return (
     <div className="line-card">
-      <h3>{t("sales.add")}</h3>
+      <h3>{title}</h3>
       <Field label={t("receipts.warehouse")}>
         <select value={context} onChange={(e) => { setContextId(e.target.value); reset(); }}>
           <option value="">—</option>
@@ -277,7 +307,7 @@ function SaleAdder({ orderId, onAdded }: { orderId: string; onAdded: (result: un
           ))}
         </select>
       </Field>
-      {context && stored.length ? (
+      {withVehicles && context && stored.length ? (
         <p className="small">
           {t("sales.vehicles")}:{" "}
           {stored.map((v) => (
@@ -310,7 +340,7 @@ function SaleAdder({ orderId, onAdded }: { orderId: string; onAdded: (result: un
                   </label>
                 ))}
                 <button type="button" disabled={!assets.length || add.pending} onClick={() => void submit({ item_id: item.id, asset_ids: assets })}>
-                  {t("sales.add_button")}
+                  {button}
                 </button>
               </div>
             ) : (
@@ -364,7 +394,7 @@ function SaleAdder({ orderId, onAdded }: { orderId: string; onAdded: (result: un
                   });
                 }}
               >
-                {t("sales.add_button")}
+                {button}
               </button>
             </>
           ) : (
