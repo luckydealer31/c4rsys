@@ -31,6 +31,7 @@ from django.db.models import Q, QuerySet
 from django.utils import timezone
 
 from c4rsys.companies.models import Company, Employment
+from c4rsys.delivery import services as deliveries
 from c4rsys.finance import charges
 from c4rsys.finance.charges import charge_ids_for_source
 from c4rsys.finance.models import ChargeEntry
@@ -488,6 +489,10 @@ def accept(
         raise errors.business_rule("SERVICE_ALREADY_ACCEPTED", state=op.state)
     orders.ensure_open(op.company_id, op.order_id)
     _not_future(at, "accepted_at")
+    # § 16.2.8: the acceptance completes the delivery of the same order that brings the vehicle.
+    deliveries.arrive_on_acceptance(
+        ctx, op.company_id, op.order_id, op.vehicle_card_id, op.location_id, at
+    )
     card = VehicleCard.objects.get(pk=op.vehicle_card_id)
     _check_vehicle(card)
     if (

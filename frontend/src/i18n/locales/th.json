@@ -2263,7 +2263,8 @@
     "policy_source_location": "กฎของสถานที่",
     "policy_source_company": "กฎของบริษัท",
     "policy_source_default": "ค่าเริ่มต้น",
-    "action_exception": "อนุญาตข้อยกเว้น"
+    "action_exception": "อนุญาตข้อยกเว้น",
+    "deliveries_warning": "รถมีการเดินทางในช่วงนี้ การจองจะถูกบันทึก โปรดตรวจสอบเวลา:"
   },
   "issue_rules": {
     "page_hint": "กฎการส่งมอบและการยกเลิกการจองอัตโนมัติ: สำหรับทั้งบริษัท และแต่ละสถานที่ตั้งค่าเองได้",

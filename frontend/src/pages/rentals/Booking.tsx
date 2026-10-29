@@ -74,18 +74,31 @@ function Availability({
       </div>
       <ErrorMessage error={error} />
       {result?.free ? <div className="alert">{t("bookings.free")}</div> : null}
-      {result && !result.free ? (
+      {result && result.conflicts.length ? (
         <div className="alert warn">
-          {t("bookings.busy")}{" "}
+          {result.free ? t("bookings.deliveries_warning") : t("bookings.busy")}{" "}
           {result.conflicts.map((c) => (
-            <Link key={c.id} to={companyPath(company, `/rentals/${c.id}`)} style={{ marginRight: 8 }}>
-              {c.kind === "booking" ? t("bookings.number", { number: c.number }) : t(`rentals.state_${c.state}`)}
+            <Link key={c.id} to={companyPath(company, conflictPath(c))} style={{ marginRight: 8 }}>
+              {conflictLabel(c, t)}
             </Link>
           ))}
         </div>
       ) : null}
     </>
   );
+}
+
+function conflictPath(c: BookingConflict): string {
+  if (c.kind === "service") return `/service/operations/${c.id}`;
+  if (c.kind === "delivery") return `/trips/${c.id}`;
+  return `/rentals/${c.id}`;
+}
+
+function conflictLabel(c: BookingConflict, t: ReturnType<typeof useTranslation>["t"]): string {
+  if (c.kind === "booking") return t("bookings.number", { number: c.number });
+  if (c.kind === "service") return t("service.operation_title", { number: c.number });
+  if (c.kind === "delivery") return t("trips.title", { number: c.number });
+  return t(`rentals.state_${c.state}`);
 }
 
 /** New booking (§ 14.1): a concrete vehicle (filtered by body type) and the planned period; the

@@ -233,7 +233,8 @@ def availability(request: HttpRequest, cmp: str) -> JsonResponse:
         raise errors.validation_error("end", code="PERIOD_INVALID")
     fleet.get_card(context.company.id, card_id)  # the vehicle of this company
     found = bookings.conflicts(card_id, start, end, exclude=_optional_uuid(query, "exclude"))
-    return JsonResponse({"free": not found, "conflicts": found})
+    # § 14.6.3: a delivery of the vehicle is shown, but does not make it taken.
+    return JsonResponse({"free": all(c.get("warning") for c in found), "conflicts": found})
 
 
 def _policy_payload(company_id: UUID, location_id: UUID | None) -> dict[str, Any]:

@@ -2263,7 +2263,8 @@
     "policy_source_location": "rule of the location",
     "policy_source_company": "rule of the company",
     "policy_source_default": "by default",
-    "action_exception": "Permit an exception"
+    "action_exception": "Permit an exception",
+    "deliveries_warning": "The vehicle has trips in this period; the booking is kept, check the timing:"
   },
   "issue_rules": {
     "page_hint": "Rules of the issue and auto-cancel of bookings: for the whole company, and a location may have its own.",

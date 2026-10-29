@@ -570,3 +570,76 @@ def attach(ctx: CommandContext, d: Delivery, order_id: UUID) -> Delivery:
         after={"delivery": str(d.id), "from_order": str(current.id)},
     )
     return d
+
+
+# --- Transitions with rentals and the service (§ 14.6.3, § 15.3.1–15.3.3, § 16.2.8) -------------
+#
+# Inside one order the operations are matched by the same vehicle, the direction of the transfer
+# and compatible states; with exactly one match the transition is automatic, otherwise nothing is
+# changed and the employee chooses by hand (decision Д-7).
+
+
+def _one(query: QuerySet[Delivery]) -> Delivery | None:
+    found = list(query.select_for_update()[:2])
+    return found[0] if len(found) == 1 else None
+
+
+def hand_over_on_issue(
+    ctx: CommandContext, company_id: UUID, order_id: UUID, card_id: UUID, at: datetime
+) -> Delivery | None:
+    """The issue of a rental of the order completes the delivery of the vehicle to the client
+    that is on the way: «handed to the client» at the moment of the issue (§ 14.6.3)."""
+    d = _one(
+        deliveries_of(company_id).filter(
+            order_id=order_id,
+            vehicle_card_id=card_id,
+            state=State.IN_TRANSIT,
+            to_kind=Kind.OTHER,
+        )
+    )
+    if d is None or (d.actual_start is not None and at < d.actual_start):
+        return None
+    return finish(ctx, d, at, Result.HANDED_TO_CLIENT, "")
+
+
+def start_pickup_on_return(
+    ctx: CommandContext, company_id: UUID, order_id: UUID, card_id: UUID, at: datetime
+) -> Delivery | None:
+    """The vehicle handed back by the client at an external address starts the planned pickup of
+    the same order, when its driver is known (§ 15.3.3)."""
+    d = _one(
+        deliveries_of(company_id).filter(
+            order_id=order_id,
+            vehicle_card_id=card_id,
+            state=State.PLANNED,
+            from_kind=Kind.OTHER,
+            driver__isnull=False,
+        )
+    )
+    if d is None:
+        return None
+    return start(ctx, d, at)
+
+
+def arrive_on_acceptance(
+    ctx: CommandContext,
+    company_id: UUID,
+    order_id: UUID,
+    card_id: UUID,
+    location_id: UUID,
+    at: datetime,
+) -> Delivery | None:
+    """Accepting the vehicle into a service completes the delivery of the same order that brings
+    it there: «accepted in the location» (§ 16.2.8)."""
+    d = _one(
+        deliveries_of(company_id).filter(
+            order_id=order_id,
+            vehicle_card_id=card_id,
+            state=State.IN_TRANSIT,
+            to_kind=Kind.LOCATION,
+            to_location_id=location_id,
+        )
+    )
+    if d is None or (d.actual_start is not None and at < d.actual_start):
+        return None
+    return finish(ctx, d, at, Result.ACCEPTED_IN_LOCATION, "")

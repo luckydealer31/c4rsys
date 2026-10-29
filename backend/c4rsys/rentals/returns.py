@@ -14,6 +14,7 @@ from uuid import UUID
 from django.utils import timezone
 
 from c4rsys.companies import locations
+from c4rsys.delivery import services as deliveries
 from c4rsys.finance import charges
 from c4rsys.finance.models import ChargeEntry
 from c4rsys.fleet import services as fleet
@@ -149,6 +150,11 @@ def accept_return(ctx: CommandContext, request: ReturnRequest) -> tuple[Rental, 
     # Acceptance in another location makes it the vehicle's location; «other» keeps it (§ 8.5.4).
     if request.place_kind == Rental.PlaceKind.LOCATION:
         fleet.move_to_location(ctx, card, location_id, reason="return_from_rental")
+    else:
+        # § 15.3.3 (decision Д-7): the handover by the client starts the pickup of the order.
+        deliveries.start_pickup_on_return(
+            ctx, company_id, rental.order_id, card.id, request.actual_end
+        )
 
     recalculate(ctx, rental, reason="return")
     ctx.audit(

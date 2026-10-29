@@ -339,7 +339,14 @@ export type Booking = {
   client_missing: boolean;
 };
 
-export type BookingConflict = { kind: "booking" | "rental"; id: string; number?: number; state?: string };
+export type BookingConflict = {
+  kind: "booking" | "rental" | "service" | "delivery";
+  id: string;
+  number?: number;
+  state?: string;
+  /** Shown, not blocking: a delivery of the vehicle (§ 14.6.3). */
+  warning?: boolean;
+};
 
 /** The deposit of a rental in its currency (§ 14.7.3). */
 export type DepositInfo = {

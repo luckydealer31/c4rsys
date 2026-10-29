@@ -16,6 +16,7 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from c4rsys.companies import locations
+from c4rsys.delivery import services as deliveries
 from c4rsys.fleet import services as fleet
 from c4rsys.fleet.models import VehicleCard
 from c4rsys.inspections import services as inspections
@@ -146,6 +147,16 @@ def issue(ctx: CommandContext, request: IssueRequest) -> Issued:
     if tariff is None or terms is None:
         raise errors.business_rule("TARIFF_NOT_AVAILABLE", field="tariff_id")
     tariff = Tariff.objects.select_related("currency").get(pk=tariff.pk)
+    # § 14.6.3 (decision Д-7): the handover completes the delivery of the same order on the way.
+    handover_order = (
+        Rental.objects.filter(pk=request.booking_id).values_list("order_id", flat=True).first()
+        if request.booking_id is not None
+        else request.order_id
+    )
+    if handover_order is not None:
+        deliveries.hand_over_on_issue(
+            ctx, company_id, handover_order, card.id, request.actual_start
+        )
     _check_available(card, request.actual_start)
     _check_not_booked(card, request.actual_start, request.planned_end, request.booking_id)
     # Other operations holding the vehicle, for example a service (customer's decision С-3).
