@@ -4,11 +4,11 @@ import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router";
 
 import { useApi } from "../../api/queries";
-import type { ClientContact, Counterparty } from "../../api/types";
+import type { ClientContact, Counterparty, Messenger } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
-import { extraContacts } from "./ClientsPage";
+import { contactText, extraContacts, MessengerField } from "./ClientsPage";
 
 type Texts = { registration: string; address: string; category: string; external_id: string };
 
@@ -19,6 +19,7 @@ type Draft = {
   middle_name: string;
   company_name: string;
   phone: string;
+  phone_messenger: Messenger;
   email: string;
   comment: string;
 };
@@ -30,13 +31,14 @@ const EMPTY: Draft = {
   middle_name: "",
   company_name: "",
   phone: "",
+  phone_messenger: "",
   email: "",
   comment: "",
 };
 
-function contactsOf(draft: Pick<Draft, "phone" | "email">): ClientContact[] {
+function contactsOf(draft: Pick<Draft, "phone" | "phone_messenger" | "email">): ClientContact[] {
   const contacts: ClientContact[] = [];
-  if (draft.phone.trim()) contacts.push({ kind: "phone", value: draft.phone });
+  if (draft.phone.trim()) contacts.push({ kind: "phone", value: draft.phone, messenger: draft.phone_messenger });
   if (draft.email.trim()) contacts.push({ kind: "email", value: draft.email });
   return contacts;
 }
@@ -157,6 +159,10 @@ export function CounterpartyForm({ onCreated }: { onCreated?: (card: Counterpart
           <Field label={t("clients.phone")}>
             <input type="tel" value={draft.phone} onChange={set("phone")} />
           </Field>
+          <MessengerField
+            value={draft.phone_messenger}
+            onChange={(messenger) => setDraft({ ...draft, phone_messenger: messenger })}
+          />
           <Field label={t("auth.email")}>
             <input type="email" value={draft.email} onChange={set("email")} />
           </Field>
@@ -200,6 +206,7 @@ export function CounterpartyPage() {
     middle_name: data.middle_name,
     company_name: data.company_name,
     phone: data.contacts.find((c) => c.kind === "phone")?.value ?? "",
+    phone_messenger: data.contacts.find((c) => c.kind === "phone")?.messenger ?? "",
     email: data.contacts.find((c) => c.kind === "email")?.value ?? "",
     comment: data.comment,
   };
@@ -277,11 +284,16 @@ export function CounterpartyPage() {
           )}
           <div className="row">
             {field("phone", t("clients.phone"))}
+            <MessengerField
+              value={values.phone_messenger}
+              disabled={!editable}
+              onChange={(messenger) => setForm({ ...values, phone_messenger: messenger, texts })}
+            />
             {field("email", t("auth.email"))}
           </div>
           {extraContacts(data.contacts).map((c) => (
             <p key={`${c.kind}-${c.value}`} className="small">
-              {c.kind === "phone" ? t("clients.phone") : t("auth.email")}: {c.value}
+              {contactText(t, c)}
             </p>
           ))}
           {field("comment", t("warehouse.comment"))}

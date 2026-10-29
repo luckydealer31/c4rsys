@@ -73,6 +73,11 @@ class Vehicle(models.Model):
     year = models.PositiveSmallIntegerField(null=True, blank=True)
     # Compared globally after upper-casing and trimming (§ 8.6.1).
     vin = models.CharField(max_length=40, blank=True, default="", db_index=True)
+    # Numbers of the body, chassis and frame (§ 8.1.12; customer's decision of 30.10.2026),
+    # compared each within its own kind (§ 8.6.1).
+    body_number = models.CharField(max_length=40, blank=True, default="", db_index=True)
+    chassis_number = models.CharField(max_length=40, blank=True, default="", db_index=True)
+    frame_number = models.CharField(max_length=40, blank=True, default="", db_index=True)
     color = models.CharField(max_length=60, blank=True, default="")
     body_type = models.CharField(max_length=30, blank=True, default="")
     fuel_type = models.CharField(max_length=30, blank=True, default="")

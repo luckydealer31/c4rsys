@@ -36,7 +36,14 @@ NAME_COLUMNS: dict[str, int] = {
     "last_name": 150,
     "middle_name": 150,
 }
-CONTACTS: dict[str, int] = {"phone": 40, "phone_2": 40, "email": 254, "email_2": 254}
+CONTACTS: dict[str, int] = {
+    "phone": 40,
+    "phone_messenger": 20,
+    "phone_2": 40,
+    "phone_2_messenger": 20,
+    "email": 254,
+    "email_2": 254,
+}
 HELP_COMMON = {
     "kind": (
         "person or company; required",
@@ -52,7 +59,17 @@ HELP_COMMON = {
         "Телефон; нужен хотя бы один контакт",
         "+66 81 234 5678",
     ),
+    "phone_messenger": (
+        "Messenger by this phone: whatsapp, telegram, other; a call or SMS when empty",
+        "Мессенджер по этому телефону: whatsapp, telegram, other; если пусто — звонок или SMS",
+        "whatsapp",
+    ),
     "phone_2": ("Second phone", "Второй телефон", ""),
+    "phone_2_messenger": (
+        "Messenger by the second phone",
+        "Мессенджер по второму телефону",
+        "",
+    ),
     "email": ("Email", "Email", "ivan@example.com"),
     "email_2": ("Second email", "Второй email", ""),
     "address": ("Address", "Адрес", ""),
@@ -129,10 +146,18 @@ class PartiesTemplate:
             if values.get(column):
                 try:
                     contacts.append(
-                        services.normalize_contact(contact_kind, values[column], column)
+                        services.normalize_contact(
+                            contact_kind,
+                            values[column],
+                            column,
+                            values.get(f"{column}_messenger", ""),
+                        )
                     )
                 except errors.ApiError as exc:
                     result.error(column, exc.code)
+        for column in ("phone", "phone_2"):
+            if values.get(f"{column}_messenger") and not values.get(column):
+                result.error(f"{column}_messenger", "MESSENGER_WITHOUT_PHONE")
         if not contacts and not any(values.get(c) for c, _ in CONTACT_COLUMNS):
             result.error("phone", "CONTACT_REQUIRED")
         lookup = values.get("c4rsys_id", "").strip().upper()
@@ -176,7 +201,9 @@ class PartiesTemplate:
         contacts: list[services.Contact] = []
         for column, contact_kind in CONTACT_COLUMNS:
             if values.get(column):
-                contact = services.normalize_contact(contact_kind, values[column], column)
+                contact = services.normalize_contact(
+                    contact_kind, values[column], column, values.get(f"{column}_messenger", "")
+                )
                 if all(
                     (c.kind, c.normalized) != (contact.kind, contact.normalized) for c in contacts
                 ):

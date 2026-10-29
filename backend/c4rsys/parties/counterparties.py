@@ -68,7 +68,8 @@ def snapshot(card: Counterparty) -> dict[str, Any]:
         "possible_duplicate": card.possible_duplicate,
         "state": card.state,
         "contacts": [
-            {"kind": c.kind, "value": c.value} for c in card.contacts.order_by("kind", "value")
+            {"kind": c.kind, "value": c.value, "messenger": c.messenger}
+            for c in card.contacts.order_by("kind", "value")
         ],
     }
 
@@ -82,6 +83,7 @@ def _write_contacts(card: Counterparty, contacts: list[Contact]) -> None:
             kind=c.kind,
             value=c.value,
             value_normalized=c.normalized,
+            messenger=c.messenger,
         )
         for c in contacts
     )

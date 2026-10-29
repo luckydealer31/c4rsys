@@ -307,7 +307,12 @@
     "use_existing": "Use «{{name}}»",
     "balance_parts": "ใช้ได้ {{available}} {{currency}} · ค้างชำระ {{unpaid}} {{currency}}",
     "open_settlement": "การชำระของลูกค้า",
-    "deposit_held": "มัดจำที่ถือ: {{amount}} {{currency}} (ใช้ไม่ได้)"
+    "deposit_held": "มัดจำที่ถือ: {{amount}} {{currency}} (ใช้ไม่ได้)",
+    "messenger": "ช่องทางติดต่อทางโทรศัพท์",
+    "messenger_none": "โทร / SMS",
+    "messenger_whatsapp": "WhatsApp",
+    "messenger_telegram": "Telegram",
+    "messenger_other": "แมสเซนเจอร์อื่น"
   },
   "common": {
     "cancel": "Cancel",
@@ -869,7 +874,9 @@
     "value_invalid": "ค่าไม่ถูกต้อง",
     "import_row_id_conflict": "รหัสชี้ไปยังการ์ดต่างกัน",
     "import_row_posted": "แถวนี้โหลดแล้ว",
-    "file_removed": "ไฟล์ถูกลบตามระยะเวลาเก็บ"
+    "file_removed": "ไฟล์ถูกลบตามระยะเวลาเก็บ",
+    "messenger_invalid": "เลือกแมสเซนเจอร์ได้เฉพาะโทรศัพท์",
+    "messenger_without_phone": "แมสเซนเจอร์ต้องมีหมายเลขโทรศัพท์"
   },
   "history": {
     "action": "Action",
@@ -1749,7 +1756,13 @@
     "acquisition": "การซื้อ",
     "acquisition_hint": "สำหรับความคุ้มทุน การชำระและค่าใช้จ่ายอื่นคือการจ่ายเงินที่ผูกกับรถคันนี้",
     "acquisition_cost": "ราคาซื้อ",
-    "acquisition_currency": "สกุลเงิน"
+    "acquisition_currency": "สกุลเงิน",
+    "body_number": "หมายเลขตัวถัง",
+    "chassis_number": "หมายเลขแชสซี",
+    "frame_number": "หมายเลขเฟรม",
+    "match_body_number": "มีหมายเลขตัวถังนี้ในรถคันอื่นแล้ว",
+    "match_chassis_number": "มีหมายเลขแชสซีนี้ในรถคันอื่นแล้ว",
+    "match_frame_number": "มีหมายเลขเฟรมนี้ในรถคันอื่นแล้ว"
   },
   "warehouse": {
     "action_create": "Create",
@@ -3455,6 +3468,9 @@
     "address": "ที่อยู่",
     "external_id": "รหัสภายนอก",
     "registration": "ข้อมูลจดทะเบียนและภาษี",
-    "category": "หมวดหมู่"
+    "category": "หมวดหมู่",
+    "by_body_number": "ตามหมายเลขตัวถัง",
+    "by_chassis_number": "ตามหมายเลขแชสซี",
+    "by_frame_number": "ตามหมายเลขเฟรม"
   }
 }

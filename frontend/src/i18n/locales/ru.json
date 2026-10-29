@@ -307,7 +307,12 @@
     "use_existing": "Выбрать «{{name}}»",
     "balance_parts": "Доступно {{available}} {{currency}} · не оплачено {{unpaid}} {{currency}}",
     "open_settlement": "Расчёты с клиентами",
-    "deposit_held": "Удерживаемый залог: {{amount}} {{currency}} (не доступен)"
+    "deposit_held": "Удерживаемый залог: {{amount}} {{currency}} (не доступен)",
+    "messenger": "Связь по телефону",
+    "messenger_none": "Звонок / SMS",
+    "messenger_whatsapp": "WhatsApp",
+    "messenger_telegram": "Telegram",
+    "messenger_other": "Другой мессенджер"
   },
   "common": {
     "cancel": "Отмена",
@@ -869,7 +874,9 @@
     "value_invalid": "Неверное значение.",
     "import_row_id_conflict": "ID и другие идентификаторы указывают на разные карточки: свяжите или пропустите.",
     "import_row_posted": "Строка уже проведена.",
-    "file_removed": "Файл удалён по сроку хранения."
+    "file_removed": "Файл удалён по сроку хранения.",
+    "messenger_invalid": "Мессенджер выбирается только для телефона: WhatsApp, Telegram или другой.",
+    "messenger_without_phone": "Для мессенджера нужен номер телефона."
   },
   "history": {
     "action": "Действие",
@@ -1749,7 +1756,13 @@
     "acquisition": "Приобретение",
     "acquisition_hint": "Для окупаемости ТС. Оплаты покупки и другие расходы — выплаты компании со ссылкой на это ТС.",
     "acquisition_cost": "Стоимость приобретения",
-    "acquisition_currency": "Валюта"
+    "acquisition_currency": "Валюта",
+    "body_number": "Номер кузова",
+    "chassis_number": "Номер шасси",
+    "frame_number": "Номер рамы",
+    "match_body_number": "Такой номер кузова уже есть у другого ТС в системе — это повод проверить данные.",
+    "match_chassis_number": "Такой номер шасси уже есть у другого ТС в системе — это повод проверить данные.",
+    "match_frame_number": "Такой номер рамы уже есть у другого ТС в системе — это повод проверить данные."
   },
   "warehouse": {
     "action_create": "Создать",
@@ -3455,6 +3468,9 @@
     "address": "Адрес",
     "external_id": "Внешний ID",
     "registration": "Регистрационные и налоговые сведения",
-    "category": "Категория"
+    "category": "Категория",
+    "by_body_number": "по номеру кузова",
+    "by_chassis_number": "по номеру шасси",
+    "by_frame_number": "по номеру рамы"
   }
 }

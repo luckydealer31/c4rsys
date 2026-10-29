@@ -46,6 +46,8 @@ DRIVES = ["fwd", "rwd", "awd"]
 # without I, O, Q is the usual format — a different one is only a warning.
 VIN_FORMAT = re.compile(r"^[A-HJ-NPR-Z0-9]{17}$")
 COUNTRY = re.compile(r"^[A-Z]{2}$")
+# Numbers of the body, chassis and frame: upper-cased and trimmed like the VIN (§ 8.6.1).
+NUMBERS = ("body_number", "chassis_number", "frame_number")
 
 
 def _text(data: dict[str, Any], key: str, max_length: int) -> str:
@@ -104,6 +106,9 @@ class Characteristics:
     model_other: str = ""
     year: int | None = None
     vin: str = ""
+    body_number: str = ""
+    chassis_number: str = ""
+    frame_number: str = ""
     plate: str = ""
     plate_country: str = ""
     color: str = ""
@@ -151,6 +156,9 @@ def parse(data: dict[str, Any], this_year: int) -> Characteristics:
         model_other="" if model_code else _text(data, "model_other", 150),
         year=_int(data, "year", 1886, this_year + 1),
         vin=vin,
+        body_number=_text(data, "body_number", 40).upper(),
+        chassis_number=_text(data, "chassis_number", 40).upper(),
+        frame_number=_text(data, "frame_number", 40).upper(),
         plate=_text(data, "plate", 20),
         plate_country=plate_country,
         color=_text(data, "color", 60),
@@ -193,6 +201,7 @@ def apply(vehicle: Vehicle, value: Characteristics) -> None:
     for key in (
         "year",
         "vin",
+        *NUMBERS,
         "color",
         "body_type",
         "fuel_type",
@@ -224,7 +233,22 @@ def matches(vehicle: Vehicle) -> list[str]:
         .exists()
     ):
         found.append("plate")
+    # Each number within its own kind; vehicles registered in different known countries do not
+    # coincide (§ 8.6.1).
+    country = plate.country if plate is not None else ""
+    for key in NUMBERS:
+        value = getattr(vehicle, key)
+        if not value:
+            continue
+        others = Vehicle.objects.filter(**{key: value}).exclude(pk=vehicle.pk)[:20]
+        if any(not country or _country(other) in ("", country) for other in others):
+            found.append(key)
     return found
+
+
+def _country(vehicle: Vehicle) -> str:
+    plate = vehicle.plates.filter(valid_to__isnull=True).first()
+    return plate.country if plate is not None else ""
 
 
 def describe(vehicle: Vehicle) -> dict[str, Any]:
@@ -240,6 +264,9 @@ def describe(vehicle: Vehicle) -> dict[str, Any]:
         ),
         "year": vehicle.year,
         "vin": vehicle.vin,
+        "body_number": vehicle.body_number,
+        "chassis_number": vehicle.chassis_number,
+        "frame_number": vehicle.frame_number,
         "plate": plate.number if plate else "",
         "plate_country": plate.country if plate else "",
         "color": vehicle.color,

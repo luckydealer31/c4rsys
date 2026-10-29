@@ -23,21 +23,32 @@ _PHONE_SEPARATORS = re.compile(r"[\s\-().]")
 # --- Contacts ---------------------------------------------------------------------------------
 
 
+# Messengers bound to a phone number (customer's decision of 30.10.2026); the full list is OPEN.
+MESSENGERS = ("whatsapp", "telegram", "other")
+
+
 @dataclass(frozen=True)
 class Contact:
     kind: str
     value: str
     normalized: str
+    messenger: str = ""
 
     def as_dict(self) -> dict[str, str]:
-        return {"kind": self.kind, "value": self.value}
+        return {"kind": self.kind, "value": self.value, "messenger": self.messenger}
 
 
-def normalize_contact(kind: str, value: str, field: str = "contacts") -> Contact:
+def normalize_contact(
+    kind: str, value: str, field: str = "contacts", messenger: str = ""
+) -> Contact:
     """Email: trimmed and lower-cased. Phone: separators removed, an optional leading «+» and
     5–15 digits. Numbers written with and without the country code are different values; no
-    country is assumed."""
+    country is assumed. A phone is contacted by a call or SMS unless a messenger is bound to it;
+    an email has no messenger."""
     raw = value.strip()
+    messenger = messenger.strip().lower()
+    if messenger and (kind != ClientContact.Kind.PHONE or messenger not in MESSENGERS):
+        raise errors.validation_error(field, code="MESSENGER_INVALID")
     if kind == ClientContact.Kind.EMAIL:
         email = raw.lower()
         try:
@@ -49,7 +60,7 @@ def normalize_contact(kind: str, value: str, field: str = "contacts") -> Contact
         phone = _PHONE_SEPARATORS.sub("", raw)
         if not _PHONE_RE.match(phone):
             raise errors.validation_error(field, code="PHONE_INVALID")
-        return Contact(kind, raw, phone)
+        return Contact(kind, raw, phone, messenger)
     raise errors.validation_error(field, code="CONTACT_KIND_INVALID")
 
 
@@ -62,7 +73,10 @@ def parse_contacts(value: Any, *, required: bool) -> list[Contact]:
         where = f"contacts[{index}]"
         if not isinstance(item, dict) or not isinstance(item.get("value"), str):
             raise errors.validation_error(where)
-        contact = normalize_contact(str(item.get("kind")), item["value"], where)
+        messenger = item.get("messenger") or ""
+        if not isinstance(messenger, str):
+            raise errors.validation_error(where)
+        contact = normalize_contact(str(item.get("kind")), item["value"], where, messenger)
         if all((c.kind, c.normalized) != (contact.kind, contact.normalized) for c in contacts):
             contacts.append(contact)
     if required and not contacts:
@@ -122,7 +136,8 @@ def snapshot(card: ClientCard) -> dict[str, Any]:
         "external_id": card.external_id,
         "possible_duplicate": card.possible_duplicate,
         "contacts": [
-            {"kind": c.kind, "value": c.value} for c in card.contacts.order_by("kind", "value")
+            {"kind": c.kind, "value": c.value, "messenger": c.messenger}
+            for c in card.contacts.order_by("kind", "value")
         ],
     }
 
@@ -136,6 +151,7 @@ def _write_contacts(card: ClientCard, contacts: list[Contact]) -> None:
             kind=c.kind,
             value=c.value,
             value_normalized=c.normalized,
+            messenger=c.messenger,
         )
         for c in contacts
     )

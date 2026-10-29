@@ -54,7 +54,7 @@ def test_person_card_without_account(owner: Client, cmp: str) -> None:
         "Petrov",
     )
     assert client["birth_date"] == "1990-05-17"
-    assert client["contacts"] == [{"kind": "phone", "value": "+66 81-234-5678"}]
+    assert client["contacts"] == [{"kind": "phone", "value": "+66 81-234-5678", "messenger": ""}]
     assert response.json()["warnings"] == []
     assert ClientCard.objects.get().linked_user_id is None
     assert ClientContact.objects.get().value_normalized == "+66812345678"
@@ -184,7 +184,9 @@ def test_change_keeps_minimum(owner: Client, cmp: str) -> None:
         }
     )
     assert changed.status_code == 200, changed.content
-    assert changed.json()["client"]["contacts"] == [{"kind": "email", "value": "ivan@example.com"}]
+    assert changed.json()["client"]["contacts"] == [
+        {"kind": "email", "value": "ivan@example.com", "messenger": ""}
+    ]
     assert patch({"contacts": [], "expected_version": 2}).json()["error"]["field"] == "contacts"
     assert patch({"last_name": "", "expected_version": 2}).json()["error"]["field"] == "last_name"
     assert patch({"kind": "company", "expected_version": 2}).json()["error"]["code"] == (

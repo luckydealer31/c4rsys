@@ -238,6 +238,7 @@ def test_counterparties_are_searched_in_their_own_list(owner: Client) -> None:
                 "kind": "company",
                 "company_name": "Parts Co",
                 "phone": "+66812345678",
+                "phone_messenger": "Telegram",
                 "registration": "TAX 123",
                 "category": "Parts",
             }
@@ -248,6 +249,101 @@ def test_counterparties_are_searched_in_their_own_list(owner: Client) -> None:
     assert body["rows"][0]["result"] == "created"
     card = Counterparty.objects.get(company_name="Parts Co")
     assert (card.registration, card.category) == ("TAX 123", "Parts")
+    # A messenger is bound to the phone number (decision of 30.10.2026).
+    assert card.contacts.get().messenger == "telegram"
+
+
+def test_messenger_belongs_to_a_phone(owner: Client) -> None:
+    s = build(owner)
+    operation = checked(
+        owner,
+        s.cmp,
+        "clients",
+        [
+            {
+                "kind": "person",
+                "first_name": "A",
+                "last_name": "B",
+                "email": "a@ex.com",
+                "phone_messenger": "whatsapp",
+            },
+            {
+                "kind": "person",
+                "first_name": "C",
+                "last_name": "D",
+                "phone": "+6681111",
+                "phone_messenger": "pigeon",
+            },
+        ],
+    )
+    assert operation["rows"][0]["errors"] == [
+        {"field": "phone_messenger", "code": "MESSENGER_WITHOUT_PHONE"}
+    ]
+    assert operation["rows"][1]["errors"] == [{"field": "phone", "code": "MESSENGER_INVALID"}]
+    created = post(
+        owner,
+        f"/api/c/{s.cmp}/clients",
+        {
+            "kind": "person",
+            "first_name": "E",
+            "last_name": "F",
+            "contacts": [
+                {"kind": "phone", "value": "+6682222", "messenger": "whatsapp"},
+                {"kind": "email", "value": "e@ex.com"},
+            ],
+        },
+        key(),
+    )
+    assert created.status_code == 201, created.content
+    contacts = created.json()["client"]["contacts"]
+    assert {"kind": "phone", "value": "+6682222", "messenger": "whatsapp"} in contacts
+    refused = post(
+        owner,
+        f"/api/c/{s.cmp}/clients",
+        {
+            "kind": "person",
+            "first_name": "G",
+            "last_name": "H",
+            "contacts": [{"kind": "email", "value": "g@ex.com", "messenger": "telegram"}],
+        },
+        key(),
+    )
+    assert refused.json()["error"]["code"] == "MESSENGER_INVALID"
+
+
+def test_body_chassis_and_frame_numbers(owner: Client) -> None:
+    s = build(owner)
+    created = post(
+        owner,
+        f"/api/c/{s.cmp}/vehicles",
+        {
+            "name": "Truck",
+            "location_id": s.location,
+            "odometer_unit": "km",
+            "body_number": " ab123 ",
+            "frame_number": "FR-9",
+        },
+        key(),
+    )
+    assert created.status_code == 201, created.content
+    card = VehicleCard.objects.get(pk=created.json()["vehicle"]["id"])
+    assert (card.vehicle.body_number, card.vehicle.frame_number) == ("AB123", "FR-9")
+    base = {"location_id": s.location, "relation": "own", "odometer_unit": "km"}
+    operation = checked(
+        owner,
+        s.cmp,
+        "vehicles",
+        [
+            {**base, "name": "Same body", "body_number": "ab123"},
+            {**base, "name": "Body as chassis", "chassis_number": "AB123"},  # another kind
+        ],
+    )
+    assert operation["rows"][0]["matches"][0]["by"] == "body_number"
+    assert operation["rows"][1]["matches"] == []
+    body = run(owner, s.cmp, operation, "post").json()["import"]
+    assert body["rows"][1]["result"] == "created"
+    other = VehicleCard.objects.get(name="Body as chassis")
+    assert other.vehicle.chassis_number == "AB123"
 
 
 def test_corrected_file_is_matched_by_row_codes(owner: Client) -> None:

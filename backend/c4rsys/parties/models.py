@@ -89,12 +89,18 @@ class ClientContact(models.Model):
     kind = models.CharField(max_length=10, choices=Kind.choices)
     value = models.CharField(max_length=254)
     value_normalized = models.CharField(max_length=254)
+    # The way of contact by this phone: empty — a call or SMS (the default); otherwise a
+    # messenger bound to the number (customer's decision of 30.10.2026). Emails have none.
+    messenger = models.CharField(max_length=20, blank=True, default="")
 
     class Meta:
         db_table = "client_contact"
         constraints = [
             models.UniqueConstraint(
                 fields=["client", "kind", "value_normalized"], name="client_contact_uniq"
+            ),
+            models.CheckConstraint(
+                condition=Q(messenger="") | Q(kind="phone"), name="client_contact_messenger_phone"
             ),
         ]
         indexes = [
@@ -184,6 +190,9 @@ class CounterpartyContact(models.Model):
     kind = models.CharField(max_length=10, choices=Kind.choices)
     value = models.CharField(max_length=254)
     value_normalized = models.CharField(max_length=254)
+    # The way of contact by this phone: empty — a call or SMS (the default); otherwise a
+    # messenger bound to the number (customer's decision of 30.10.2026). Emails have none.
+    messenger = models.CharField(max_length=20, blank=True, default="")
 
     class Meta:
         db_table = "counterparty_contact"
@@ -191,6 +200,10 @@ class CounterpartyContact(models.Model):
             models.UniqueConstraint(
                 fields=["counterparty", "kind", "value_normalized"],
                 name="counterparty_contact_uniq",
+            ),
+            models.CheckConstraint(
+                condition=Q(messenger="") | Q(kind="phone"),
+                name="counterparty_contact_messenger_phone",
             ),
         ]
 

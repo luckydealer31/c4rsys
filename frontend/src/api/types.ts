@@ -242,6 +242,9 @@ export type VehicleCharacteristics = {
   model_name: string;
   year: number | null;
   vin: string;
+  body_number: string;
+  chassis_number: string;
+  frame_number: string;
   plate: string;
   plate_country: string;
   color: string;
@@ -254,7 +257,7 @@ export type VehicleCharacteristics = {
   seats: number | null;
   doors: number | null;
   /** Identifiers that coincide with another vehicle: a reason to check (§ 8.6.3). */
-  identifier_matches: ("vin" | "plate")[];
+  identifier_matches: ("vin" | "plate" | "body_number" | "chassis_number" | "frame_number")[];
 };
 
 export type VehicleOptions = {
@@ -283,7 +286,10 @@ export type CatalogModel = {
   year_to: number | null;
 };
 
-export type ClientContact = { kind: "phone" | "email"; value: string };
+/** A messenger may be bound to a phone; without it the phone is called or texted. */
+export type Messenger = "" | "whatsapp" | "telegram" | "other";
+
+export type ClientContact = { kind: "phone" | "email"; value: string; messenger?: Messenger };
 
 export type Client = {
   id: string;

@@ -25,6 +25,9 @@ type Form = {
   plate: string;
   plate_country: string;
   vin: string;
+  body_number: string;
+  chassis_number: string;
+  frame_number: string;
   color: string;
   body_type: string;
   fuel_type: string;
@@ -60,6 +63,9 @@ const EMPTY: Form = {
   plate: "",
   plate_country: "",
   vin: "",
+  body_number: "",
+  chassis_number: "",
+  frame_number: "",
   color: "",
   body_type: "",
   fuel_type: "",
@@ -123,6 +129,9 @@ function formOf(vehicle: Vehicle): Form {
     plate: c.plate,
     plate_country: c.plate_country,
     vin: c.vin,
+    body_number: c.body_number,
+    chassis_number: c.chassis_number,
+    frame_number: c.frame_number,
     color: c.color,
     body_type: c.body_type,
     fuel_type: c.fuel_type,
@@ -214,6 +223,9 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
       plate: form.plate,
       plate_country: form.plate_country,
       vin: form.vin,
+      body_number: form.body_number,
+      chassis_number: form.chassis_number,
+      frame_number: form.frame_number,
       color: form.color,
       body_type: form.body_type,
       fuel_type: form.fuel_type,
@@ -402,6 +414,17 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
                   </option>
                 ))}
               </select>
+            </Field>
+          </div>
+          <div className="row">
+            <Field label={t("vehicles.body_number")}>
+              <input value={form.body_number} onChange={(e) => set({ body_number: e.target.value })} />
+            </Field>
+            <Field label={t("vehicles.chassis_number")}>
+              <input value={form.chassis_number} onChange={(e) => set({ chassis_number: e.target.value })} />
+            </Field>
+            <Field label={t("vehicles.frame_number")}>
+              <input value={form.frame_number} onChange={(e) => set({ frame_number: e.target.value })} />
             </Field>
           </div>
         </Card>

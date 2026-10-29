@@ -5,7 +5,7 @@ import { Link, useParams, useSearchParams } from "react-router";
 
 import { api } from "../../api/client";
 import { useApi } from "../../api/queries";
-import type { Client, ClientContact } from "../../api/types";
+import type { Client, ClientContact, Messenger } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
@@ -121,6 +121,7 @@ type Draft = {
   birth_date: string;
   company_name: string;
   phone: string;
+  phone_messenger: Messenger;
   email: string;
 };
 
@@ -132,6 +133,7 @@ const EMPTY: Draft = {
   birth_date: "",
   company_name: "",
   phone: "",
+  phone_messenger: "",
   email: "",
 };
 
@@ -180,7 +182,7 @@ export function ClientForm({ onCreated }: { onCreated?: (client: Client) => void
   async function submit(event: FormEvent) {
     event.preventDefault();
     const contacts: ClientContact[] = [];
-    if (draft.phone.trim()) contacts.push({ kind: "phone", value: draft.phone });
+    if (draft.phone.trim()) contacts.push({ kind: "phone", value: draft.phone, messenger: draft.phone_messenger });
     if (draft.email.trim()) contacts.push({ kind: "email", value: draft.email });
     const body: Record<string, unknown> =
       draft.kind === "person"
@@ -237,6 +239,10 @@ export function ClientForm({ onCreated }: { onCreated?: (client: Client) => void
           <Field label={t("clients.phone")}>
             <input type="tel" value={draft.phone} onChange={set("phone")} />
           </Field>
+          <MessengerField
+            value={draft.phone_messenger}
+            onChange={(messenger) => setDraft({ ...draft, phone_messenger: messenger })}
+          />
           <Field label={t("auth.email")}>
             <input type="email" value={draft.email} onChange={set("email")} />
           </Field>
@@ -276,6 +282,39 @@ export function ClientForm({ onCreated }: { onCreated?: (client: Client) => void
 }
 
 /** Client card: data, contacts, settlement balance (§ 6.2.12, § 6.7.2). */
+const MESSENGERS: Messenger[] = ["", "whatsapp", "telegram", "other"];
+
+/** The way of contact by a phone: a call or SMS by default, or a messenger bound to the number
+ * (customer's decision of 30.10.2026). */
+export function MessengerField({
+  value,
+  onChange,
+  disabled = false,
+}: {
+  value: Messenger;
+  onChange: (value: Messenger) => void;
+  disabled?: boolean;
+}) {
+  const { t } = useTranslation();
+  return (
+    <Field label={t("clients.messenger")}>
+      <select value={value} disabled={disabled} onChange={(e) => onChange(e.target.value as Messenger)}>
+        {MESSENGERS.map((m) => (
+          <option key={m} value={m}>
+            {t(`clients.messenger_${m || "none"}`)}
+          </option>
+        ))}
+      </select>
+    </Field>
+  );
+}
+
+/** A contact as text, with the messenger of a phone. */
+export function contactText(t: (key: string) => string, c: ClientContact): string {
+  const label = c.kind === "phone" ? t("clients.phone") : t("auth.email");
+  return `${label}: ${c.value}${c.messenger ? ` (${t(`clients.messenger_${c.messenger}`)})` : ""}`;
+}
+
 /** Contacts beyond the first phone and the first email, which the form edits. */
 export function extraContacts(contacts: ClientContact[]): ClientContact[] {
   const firstPhone = contacts.find((c) => c.kind === "phone");
@@ -310,6 +349,7 @@ export function ClientPage() {
     middle_name: data.middle_name,
     company_name: data.company_name,
     phone: data.contacts.find((c) => c.kind === "phone")?.value ?? "",
+    phone_messenger: data.contacts.find((c) => c.kind === "phone")?.messenger ?? "",
     email: data.contacts.find((c) => c.kind === "email")?.value ?? "",
     address: data.address,
     comment: data.comment,
@@ -320,7 +360,9 @@ export function ClientPage() {
   async function save(event: FormEvent) {
     event.preventDefault();
     const contacts: ClientContact[] = [];
-    if (values.phone?.trim()) contacts.push({ kind: "phone", value: values.phone });
+    if (values.phone?.trim()) {
+      contacts.push({ kind: "phone", value: values.phone, messenger: (values.phone_messenger ?? "") as Messenger });
+    }
     if (values.email?.trim()) contacts.push({ kind: "email", value: values.email });
     // Further phones and emails (from an import) are kept as they are.
     contacts.push(...extraContacts(current.contacts));
@@ -409,11 +451,16 @@ export function ClientPage() {
           ) : null}
           <div className="row">
             {field("phone", t("clients.phone"))}
+            <MessengerField
+              value={(values.phone_messenger ?? "") as Messenger}
+              disabled={!can("client.edit")}
+              onChange={(messenger) => setForm({ ...values, phone_messenger: messenger })}
+            />
             {field("email", t("auth.email"))}
           </div>
           {extraContacts(data.contacts).map((c) => (
             <p key={`${c.kind}-${c.value}`} className="small">
-              {c.kind === "phone" ? t("clients.phone") : t("auth.email")}: {c.value}
+              {contactText(t, c)}
             </p>
           ))}
           {field("address", t("imports.address"))}

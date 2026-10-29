@@ -8,7 +8,8 @@ the company only; a coincidence with a vehicle of another company is not disclos
 by the rules of § 8.6. A row whose VHL ID points to one card and VIN or plate to another is a
 conflict.
 
-Not here yet (OPEN): numbers of the body, chassis and frame — the card has no such fields.
+Body, chassis and frame numbers are optional identifiers of their own kinds (decision of
+30.10.2026).
 """
 
 from decimal import Decimal, InvalidOperation
@@ -80,6 +81,9 @@ class VehiclesTemplate:
         "plate": 20,
         "plate_country": 2,
         "vin": 40,
+        "body_number": 40,
+        "chassis_number": 40,
+        "frame_number": 40,
         "color": 60,
         "body_type": 30,
         "fuel_type": 30,
@@ -134,6 +138,9 @@ class VehiclesTemplate:
         "plate": ("Registration plate", "Госномер", "1กข 1234"),
         "plate_country": ("Country of the plate, two letters", "Страна госномера, две буквы", "TH"),
         "vin": ("VIN", "VIN", ""),
+        "body_number": ("Body number", "Номер кузова", ""),
+        "chassis_number": ("Chassis number", "Номер шасси", ""),
+        "frame_number": ("Frame number", "Номер рамы", ""),
         "color": ("Color", "Цвет", "white"),
         "body_type": (
             "sedan, hatchback, wagon, suv, crossover, coupe, convertible, minivan, pickup, van,"
@@ -191,6 +198,7 @@ class VehiclesTemplate:
                 "plate",
                 "plate_country",
                 "vin",
+                *characteristics.NUMBERS,
                 "color",
                 "body_type",
                 "fuel_type",
@@ -306,6 +314,19 @@ class VehiclesTemplate:
                 current = current.filter(country=country)
             for card in cards.filter(vehicle__in=current.values("vehicle_id"))[:5]:
                 out.match(card.id, card.name, "plate")
+                others.add(str(card.id))
+        # Body, chassis and frame numbers, each within its kind; cards registered in another
+        # known country do not coincide (§ 8.6.1).
+        country = values.get("plate_country", "").upper()
+        for key in characteristics.NUMBERS:
+            number = values.get(key, "").strip().upper()
+            if not number:
+                continue
+            for card in cards.filter(**{f"vehicle__{key}": number})[:5]:
+                plate_now = card.vehicle.plates.filter(valid_to__isnull=True).first()
+                if country and plate_now is not None and plate_now.country not in ("", country):
+                    continue
+                out.match(card.id, card.name, key)
                 others.add(str(card.id))
         out.conflict = bool(by_id and others - by_id)
 

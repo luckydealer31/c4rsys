@@ -307,7 +307,12 @@
     "use_existing": "Use «{{name}}»",
     "balance_parts": "Available {{available}} {{currency}} · unpaid {{unpaid}} {{currency}}",
     "open_settlement": "Settlements of clients",
-    "deposit_held": "Deposit held: {{amount}} {{currency}} (not available)"
+    "deposit_held": "Deposit held: {{amount}} {{currency}} (not available)",
+    "messenger": "Way of contact by phone",
+    "messenger_none": "Call / SMS",
+    "messenger_whatsapp": "WhatsApp",
+    "messenger_telegram": "Telegram",
+    "messenger_other": "Other messenger"
   },
   "common": {
     "cancel": "Cancel",
@@ -869,7 +874,9 @@
     "value_invalid": "Wrong value.",
     "import_row_id_conflict": "The ID and other identifiers point to different cards: link or skip.",
     "import_row_posted": "The row is already loaded.",
-    "file_removed": "The file was removed by its retention period."
+    "file_removed": "The file was removed by its retention period.",
+    "messenger_invalid": "A messenger is chosen for a phone only: WhatsApp, Telegram or other.",
+    "messenger_without_phone": "A messenger needs a phone number."
   },
   "history": {
     "action": "Action",
@@ -1749,7 +1756,13 @@
     "acquisition": "Acquisition",
     "acquisition_hint": "For the payback of the vehicle. Payments for it and other expenses are payouts of the company linked to this vehicle.",
     "acquisition_cost": "Cost of acquisition",
-    "acquisition_currency": "Currency"
+    "acquisition_currency": "Currency",
+    "body_number": "Body number",
+    "chassis_number": "Chassis number",
+    "frame_number": "Frame number",
+    "match_body_number": "Another vehicle in the system has this body number — a reason to check the data.",
+    "match_chassis_number": "Another vehicle in the system has this chassis number — a reason to check the data.",
+    "match_frame_number": "Another vehicle in the system has this frame number — a reason to check the data."
   },
   "warehouse": {
     "action_create": "Create",
@@ -3455,6 +3468,9 @@
     "address": "Address",
     "external_id": "External ID",
     "registration": "Registration and tax details",
-    "category": "Category"
+    "category": "Category",
+    "by_body_number": "by body number",
+    "by_chassis_number": "by chassis number",
+    "by_frame_number": "by frame number"
   }
 }
