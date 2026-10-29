@@ -25,7 +25,7 @@ from c4rsys.files import services as files
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext
 from c4rsys.platform.counters import next_number
-from c4rsys.tasks import objects
+from c4rsys.tasks import extensions, objects, series
 from c4rsys.tasks.models import ACTIVE_STATES, Task, TaskComment, TaskLink, TaskPolicy
 
 State = Task.State
@@ -179,6 +179,12 @@ class NewTask:
     main: Link | None = None
     links: list[Link] = field(default_factory=list)
     due: Due | None = None
+    # § 19.4: checklist, group, tags and repetition.
+    checklist: list[str] = field(default_factory=list)
+    checklist_required: bool = False
+    group_id: UUID | None = None
+    tag_ids: list[UUID] = field(default_factory=list)
+    repeat: Any = None
 
 
 def snapshot(t: Task) -> dict[str, Any]:
@@ -232,7 +238,12 @@ def create(ctx: CommandContext, company: Company, data: NewTask) -> Task:
         created_by_user_id=actor.user_id,
         created_by_employment_id=actor.employment_id,
         created_at=timezone.now(),
+        checklist_required=data.checklist_required,
+        group=extensions.group_of(company.id, data.group_id),
     )
+    extensions.tags_by_ids(company.id, data.tag_ids)
+    if data.checklist_required and not data.checklist:
+        raise errors.validation_error("checklist", code="FIELD_REQUIRED")
     if data.assign == "self":
         t.assignee_id = actor.employment_id
         if not eligible(company.id, location_id, actor.employment_id):  # type: ignore[arg-type]
@@ -255,7 +266,22 @@ def create(ctx: CommandContext, company: Company, data: NewTask) -> Task:
             object_id=link.object_id,
             defaults={"created_by_user_id": actor.user_id},
         )
+    extensions.fill_checklist(ctx, t, data.checklist)
+    extensions.set_tags(ctx, t, data.tag_ids, audit=False)
     ctx.audit("task.created", object_type="task", object_id=t.id, after=snapshot(t))
+    if data.repeat is not None:
+        if data.due is None:
+            raise errors.validation_error("due_date", code="TASK_REPEAT_NEEDS_DATE")
+        series.start(
+            ctx,
+            company,
+            t,
+            data.repeat,
+            first_on=data.due.on,
+            due_time=data.due.at,
+            checklist=[x.strip() for x in data.checklist],
+            tag_ids=data.tag_ids,
+        )
     return t
 
 
@@ -317,7 +343,7 @@ def _save(
     return t
 
 
-def _executor_or_manager(ctx: CommandContext, t: Task) -> None:
+def executor_or_manager(ctx: CommandContext, t: Task) -> None:
     """The executor changes the state of an own task; another employee needs «manage»."""
     if _mine(ctx.actor, t) and has(ctx.actor, "tasks.own", t.location_id):
         return
@@ -341,8 +367,6 @@ def take(ctx: CommandContext, t: Task) -> Task:
 
 def _blocked(t: Task) -> None:
     """Hook for the dependencies of part З2: a task waiting for its predecessors does not start."""
-    from c4rsys.tasks import extensions
-
     if extensions.blocked(t):
         raise errors.business_rule("TASK_BLOCKED_BY_DEPENDENCY")
 
@@ -351,7 +375,7 @@ def start(ctx: CommandContext, t: Task) -> Task:
     _active(t)
     if t.state != State.OPEN or t.assignee_id is None:
         raise errors.business_rule("TASK_STATE_INVALID", state=t.state)
-    _executor_or_manager(ctx, t)
+    executor_or_manager(ctx, t)
     _blocked(t)
     before = snapshot(t)
     t.state = State.IN_PROGRESS
@@ -367,7 +391,7 @@ def hold(ctx: CommandContext, t: Task, state: str, note: str) -> Task:
         raise errors.validation_error("note", code="FIELD_REQUIRED")
     if t.state != State.IN_PROGRESS:
         raise errors.business_rule("TASK_STATE_INVALID", state=t.state)
-    _executor_or_manager(ctx, t)
+    executor_or_manager(ctx, t)
     before = snapshot(t)
     t.state = state
     t.state_note = note.strip()
@@ -378,7 +402,7 @@ def resume(ctx: CommandContext, t: Task) -> Task:
     _active(t)
     if t.state not in (State.WAITING, State.PAUSED):
         raise errors.business_rule("TASK_STATE_INVALID", state=t.state)
-    _executor_or_manager(ctx, t)
+    executor_or_manager(ctx, t)
     before = snapshot(t)
     t.state = State.IN_PROGRESS
     t.state_note = ""
@@ -387,12 +411,10 @@ def resume(ctx: CommandContext, t: Task) -> Task:
 
 def complete(ctx: CommandContext, t: Task) -> Task:
     """A manual task is done by its executor or another employee with the rights (§ 19.2.1)."""
-    from c4rsys.tasks import extensions
-
     _active(t)
     if t.source == Task.Source.SYSTEM:
         raise errors.business_rule("TASK_SYSTEM_RESULT_REQUIRED")
-    _executor_or_manager(ctx, t)
+    executor_or_manager(ctx, t)
     _blocked(t)
     extensions.check_completion(t)
     before = snapshot(t)
@@ -498,7 +520,7 @@ def change(ctx: CommandContext, company: Company, t: Task, changes: Changes) -> 
 def add_link(ctx: CommandContext, t: Task, link: Link) -> TaskLink:
     _active(t)
     if t.created_by_employment_id != ctx.actor.employment_id:
-        _executor_or_manager(ctx, t)
+        executor_or_manager(ctx, t)
     objects.resolve(t.company_id, link.object_type, link.object_id, "object")
     item, created = TaskLink.objects.get_or_create(
         company_id=t.company_id,

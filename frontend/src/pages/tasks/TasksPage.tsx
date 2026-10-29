@@ -11,6 +11,7 @@ import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { deviceTimeZone, formatMoment } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
+import { ChecklistCard, DependenciesCard, GroupsTagsAdmin, GroupTagsCard, SeriesCard, useGroups, useTags, WEEKDAYS } from "./Extensions";
 
 type Result = { task: WorkTask };
 export type TaskTarget = { objectType: string; objectId: string };
@@ -68,6 +69,12 @@ function TaskList({ query, empty }: { query: string; empty?: string }) {
             <td>
               {x.title} <PriorityBadge priority={x.priority} />
               {x.overdue ? <span className="badge danger">{t("tasks.overdue")}</span> : null}
+              {x.blocked ? <span className="badge warn">{t("tasks.blocked")}</span> : null}
+              {x.tags.map((tag) => (
+                <span key={tag.id} className="badge">
+                  #{tag.name}
+                </span>
+              ))}
             </td>
             <td className="small">{t(`tasks.state_${x.state}`)}</td>
             <td className="small">{x.assignee_name ?? t("tasks.queue")}</td>
@@ -92,8 +99,21 @@ export function TasksPage() {
   const visible = tabs.filter(([, , shown]) => shown);
   const [tab, setTab] = useState<string>(visible[0]?.[0] ?? "mine");
   const [show, setShow] = useState<"" | "overdue=1" | "closed=1">("");
+  const [tag, setTag] = useState("");
+  const [group, setGroup] = useState("");
+  const [search, setSearch] = useState("");
+  const groups = useGroups();
+  const tags = useTags();
   const current = visible.find(([key]) => key === tab) ?? visible[0];
-  const query = [current?.[1] ?? "", show].filter(Boolean).join("&");
+  const query = [
+    current?.[1] ?? "",
+    show,
+    tag ? `tag=${tag}` : "",
+    group ? `group=${group}` : "",
+    search.trim() ? `q=${encodeURIComponent(search.trim())}` : "",
+  ]
+    .filter(Boolean)
+    .join("&");
   return (
     <div className="page">
       <h1>{t("nav.tasks")}</h1>
@@ -112,11 +132,35 @@ export function TasksPage() {
             <option value="closed=1">{t("tasks.show_closed")}</option>
           </select>
         </Field>
+        <Field label={t("tasks.group")}>
+          <select value={group} onChange={(e) => setGroup(e.target.value)}>
+            <option value="">—</option>
+            {(groups.data?.groups ?? []).map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label={t("tasks.tag")}>
+          <select value={tag} onChange={(e) => setTag(e.target.value)}>
+            <option value="">—</option>
+            {(tags.data?.tags ?? []).map((x) => (
+              <option key={x.id} value={x.id}>
+                #{x.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label={t("tasks.search")}>
+          <input value={search} onChange={(e) => setSearch(e.target.value)} />
+        </Field>
       </div>
       <Card>
         <TaskList query={query} />
       </Card>
       {can("tasks.create") ? <NewTask /> : null}
+      <GroupsTagsAdmin />
       {can("company.settings") ? <TaskPolicyCard /> : null}
     </div>
   );
@@ -137,6 +181,15 @@ export function NewTask({ target, onDone }: { target?: TaskTarget; onDone?: () =
   const [location, setLocation] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [dueTime, setDueTime] = useState("");
+  const [checklist, setChecklist] = useState("");
+  const [checklistRequired, setChecklistRequired] = useState(false);
+  const [group, setGroup] = useState("");
+  const [tagIds, setTagIds] = useState<string[]>([]);
+  const [frequency, setFrequency] = useState("");
+  const [weekdays, setWeekdays] = useState<number[]>([]);
+  const [endsOn, setEndsOn] = useState("");
+  const groups = useGroups();
+  const tags = useTags();
   const create = useCommand<Record<string, unknown>, Result>(`/c/${company.public_id}/tasks`);
   const manage = can("tasks.manage");
   const people = useApi<{ employees: { id: string; name: string }[] }>(
@@ -147,7 +200,23 @@ export function NewTask({ target, onDone }: { target?: TaskTarget; onDone?: () =
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    const body: Record<string, unknown> = { title, description, priority, assign, due_date: dueDate || null, due_time: dueTime || null };
+    const items = checklist
+      .split("\n")
+      .map((x) => x.trim())
+      .filter(Boolean);
+    const body: Record<string, unknown> = {
+      title,
+      description,
+      priority,
+      assign,
+      due_date: dueDate || null,
+      due_time: dueTime || null,
+      checklist: items,
+      checklist_required: checklistRequired && items.length > 0,
+      group_id: group || null,
+      tag_ids: tagIds,
+      repeat: frequency ? { frequency, weekdays, ends_on: endsOn || null } : null,
+    };
     // With an object the scope follows it (§ 19.1.7); without one the employee chooses.
     if (target) body.object = { object_type: target.objectType, object_id: target.objectId };
     else body.location_id = location || null;
@@ -212,8 +281,67 @@ export function NewTask({ target, onDone }: { target?: TaskTarget; onDone?: () =
             <input type="time" value={dueTime} disabled={!dueDate} onChange={(e) => setDueTime(e.target.value)} />
           </Field>
         </div>
+        <Field label={t("tasks.checklist")} hint={t("tasks.checklist_hint")}>
+          <textarea rows={3} value={checklist} onChange={(e) => setChecklist(e.target.value)} />
+        </Field>
+        <label className="small">
+          <input type="checkbox" checked={checklistRequired} onChange={() => setChecklistRequired(!checklistRequired)} /> {t("tasks.checklist_required")}
+        </label>
+        <div className="row">
+          <Field label={t("tasks.group")}>
+            <select value={group} onChange={(e) => setGroup(e.target.value)}>
+              <option value="">—</option>
+              {(groups.data?.groups ?? []).map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label={t("tasks.repeat")} hint={frequency ? t("tasks.repeat_hint") : undefined}>
+            <select value={frequency} onChange={(e) => setFrequency(e.target.value)}>
+              <option value="">{t("tasks.no_repeat")}</option>
+              <option value="daily">{t("tasks.frequency_daily")}</option>
+              <option value="weekly">{t("tasks.frequency_weekly")}</option>
+              <option value="monthly">{t("tasks.frequency_monthly")}</option>
+            </select>
+          </Field>
+          {frequency ? (
+            <Field label={t("tasks.repeat_end")}>
+              <input type="date" value={endsOn} onChange={(e) => setEndsOn(e.target.value)} />
+            </Field>
+          ) : null}
+        </div>
+        {frequency === "weekly" ? (
+          <div className="small">
+            {WEEKDAYS.map((d) => (
+              <label key={d} style={{ marginRight: 10 }}>
+                <input
+                  type="checkbox"
+                  checked={weekdays.includes(d)}
+                  onChange={() => setWeekdays(weekdays.includes(d) ? weekdays.filter((x) => x !== d) : [...weekdays, d])}
+                />{" "}
+                {t(`tasks.weekday_${d}`)}
+              </label>
+            ))}
+          </div>
+        ) : null}
+        {(tags.data?.tags ?? []).length ? (
+          <div className="small">
+            {(tags.data?.tags ?? []).map((x) => (
+              <label key={x.id} style={{ marginRight: 10 }}>
+                <input
+                  type="checkbox"
+                  checked={tagIds.includes(x.id)}
+                  onChange={() => setTagIds(tagIds.includes(x.id) ? tagIds.filter((y) => y !== x.id) : [...tagIds, x.id])}
+                />{" "}
+                #{x.name}
+              </label>
+            ))}
+          </div>
+        ) : null}
         <div className="actions">
-          <button type="submit" disabled={create.pending || !title.trim()}>
+          <button type="submit" disabled={create.pending || !title.trim() || (Boolean(frequency) && !dueDate)}>
             {t("tasks.create")}
           </button>
         </div>
@@ -306,6 +434,7 @@ export function TaskPage() {
       <h1>
         {t("tasks.number", { number: x.number })} · {x.title} <PriorityBadge priority={x.priority} />
         {x.overdue ? <span className="badge danger">{t("tasks.overdue")}</span> : null}
+        {x.blocked ? <span className="badge warn">{t("tasks.blocked")}</span> : null}
       </h1>
       <Card>
         <dl className="facts">
@@ -433,6 +562,10 @@ export function TaskPage() {
           <ErrorMessage error={act.error ?? change.error} />
         </Card>
       ) : null}
+      <ChecklistCard task={x} />
+      <DependenciesCard task={x} />
+      <GroupTagsCard task={x} />
+      <SeriesCard task={x} />
       <Card title={t("tasks.comments")}>
         {x.comments.map((c) => (
           <div key={c.id} className="small" style={{ marginBottom: 6 }}>

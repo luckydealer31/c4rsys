@@ -19,7 +19,7 @@ from c4rsys.companies.views import run_and_respond
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
-from c4rsys.tasks import objects, services
+from c4rsys.tasks import extensions, objects, series, services
 from c4rsys.tasks.models import ACTIVE_STATES, Task
 
 LIST_LIMIT = 300
@@ -38,6 +38,13 @@ def _uuid(value: Any, key: str) -> UUID | None:
         return UUID(str(value))
     except ValueError as exc:
         raise errors.validation_error(key) from exc
+
+
+def _required(data: dict[str, Any], key: str) -> UUID:
+    value = _uuid(data.get(key), key)
+    if value is None:
+        raise errors.validation_error(key, code="FIELD_REQUIRED")
+    return value
 
 
 def _link(data: Any, key: str) -> services.Link | None:
@@ -63,6 +70,43 @@ def _due(data: dict[str, Any]) -> services.Due | None:
     except ValueError as exc:
         raise errors.validation_error("due_date", code="DATE_INVALID") from exc
     return services.Due(on=on, at=at)
+
+
+def _texts(value: Any) -> list[str]:
+    if value in (None, ""):
+        return []
+    if not isinstance(value, list) or not all(isinstance(x, str) for x in value):
+        raise errors.validation_error("checklist")
+    return [x for x in value if x.strip()]
+
+
+def _ids(value: Any, key: str) -> list[UUID]:
+    if value in (None, ""):
+        return []
+    if not isinstance(value, list):
+        raise errors.validation_error(key)
+    return [UUID(str(_uuid(x, key))) for x in value]
+
+
+def _repeat(value: Any) -> series.Repeat | None:
+    """`{frequency: daily | weekly | monthly, weekdays: [1..7], ends_on}` (§ 19.4.1)."""
+    if value in (None, ""):
+        return None
+    if not isinstance(value, dict):
+        raise errors.validation_error("repeat")
+    weekdays = value.get("weekdays") or []
+    if not isinstance(weekdays, list) or not all(
+        isinstance(x, int) and not isinstance(x, bool) for x in weekdays
+    ):
+        raise errors.validation_error("repeat.weekdays")
+    ends = value.get("ends_on")
+    try:
+        ends_on = date.fromisoformat(str(ends)) if ends not in (None, "") else None
+    except ValueError as exc:
+        raise errors.validation_error("repeat.ends_on", code="DATE_INVALID") from exc
+    return series.Repeat(
+        frequency=str(value.get("frequency", "")), weekdays=weekdays, ends_on=ends_on
+    )
 
 
 def _iso(value: Any) -> str | None:
@@ -92,10 +136,30 @@ def _payload(
         "overdue": services.overdue(t),
         "created_at": t.created_at.isoformat(),
         "closed_at": _iso(t.closed_at),
+        "blocked": t.state in ACTIVE_STATES and extensions.blocked(t),
+        "group_id": str(t.group_id) if t.group_id else None,
+        "tags": extensions.tag_names(t),
+        "repeating": t.series_id is not None,
     }
     if detail:
         result.update(
             {
+                "checklist_required": t.checklist_required,
+                "checklist": [
+                    {
+                        "id": str(x.id),
+                        "text": x.text,
+                        "done": x.done,
+                        "done_at": _iso(x.done_at),
+                    }
+                    for x in extensions.checklist_of(t)
+                ],
+                "predecessors": [
+                    {"id": str(x.id), "number": x.number, "title": x.title, "state": x.state}
+                    for x in extensions.predecessors_of(t)
+                ],
+                "series": series.payload(t.series),
+                "series_on": _iso(t.series_on),
                 "description": t.description,
                 "system_event": t.system_event or None,
                 "system_condition": t.system_condition,
@@ -184,6 +248,13 @@ def task_list(request: HttpRequest, cmp: str) -> JsonResponse:
             query = query.filter(assignee__isnull=True, state=Task.State.OPEN)
         elif view == "created":
             query = query.filter(created_by_employment_id=actor.employment_id)
+        # § 19.4.7: search and filter by tags; by group (§ 19.4.5); by the title.
+        if params.get("tag"):
+            query = query.filter(tag_links__tag_id=_uuid(params["tag"], "tag"))
+        if params.get("group"):
+            query = query.filter(group_id=_uuid(params["group"], "group"))
+        if params.get("q"):
+            query = query.filter(title__icontains=params["q"][:100])
         resolver = access.RightsResolver()
         items = [
             t
@@ -209,6 +280,11 @@ def task_list(request: HttpRequest, cmp: str) -> JsonResponse:
         main=_link(data.get("object"), "object"),
         links=[x for x in (_link(item, "links") for item in links) if x is not None],
         due=_due(data),
+        checklist=_texts(data.get("checklist")),
+        checklist_required=data.get("checklist_required") is True,
+        group_id=_uuid(data.get("group_id"), "group_id"),
+        tag_ids=_ids(data.get("tag_ids"), "tag_ids"),
+        repeat=_repeat(data.get("repeat")),
     )
 
     def handler(ctx: CommandContext) -> CommandResult:
@@ -229,6 +305,11 @@ def task_list(request: HttpRequest, cmp: str) -> JsonResponse:
             "links",
             "due_date",
             "due_time",
+            "checklist",
+            "checklist_required",
+            "group_id",
+            "tag_ids",
+            "repeat",
         )
     }
     return run_and_respond(request, "task.create", actor, payload, handler)
@@ -282,7 +363,40 @@ ACTIONS: dict[str, Callable[[CommandContext, Task, dict[str, Any]], Any]] = {
     "comment": lambda ctx, t, data: services.comment(
         ctx, t, data["text"], data["file_id"], data["file_name"]
     ),
+    # § 19.4: checklist, dependencies, group and tags.
+    "checklist_add": lambda ctx, t, data: extensions.add_item(ctx, t, data["text"]),
+    "checklist_rename": lambda ctx, t, data: extensions.rename_item(
+        ctx, t, data["item_id"], data["text"]
+    ),
+    "checklist_move": lambda ctx, t, data: extensions.move_item(
+        ctx, t, data["item_id"], data["position"]
+    ),
+    "checklist_remove": lambda ctx, t, data: extensions.remove_item(ctx, t, data["item_id"]),
+    "checklist_mark": lambda ctx, t, data: extensions.mark_item(
+        ctx, t, data["item_id"], data["done"]
+    ),
+    "depend": lambda ctx, t, data: extensions.add_dependency(ctx, t, data["predecessor_id"]),
+    "undepend": lambda ctx, t, data: extensions.remove_dependency(ctx, t, data["predecessor_id"]),
+    "group": lambda ctx, t, data: _change_group(ctx, t, data["group_id"]),
+    "tags": lambda ctx, t, data: _change_tags(ctx, t, data["tag_ids"]),
 }
+
+
+def _editor(ctx: CommandContext, t: Task) -> None:
+    """Choosing existing groups and tags goes with editing the task (§ 23.9.5)."""
+    if t.created_by_employment_id != ctx.actor.employment_id:
+        if not services.has(ctx.actor, "tasks.manage", t.location_id):
+            raise errors.permission_denied("tasks.manage")
+
+
+def _change_group(ctx: CommandContext, t: Task, group_id: UUID | None) -> None:
+    _editor(ctx, t)
+    extensions.set_group(ctx, t, group_id)
+
+
+def _change_tags(ctx: CommandContext, t: Task, tag_ids: list[UUID]) -> None:
+    _editor(ctx, t)
+    extensions.set_tags(ctx, t, tag_ids)
 
 
 def _arguments(action: str, data: dict[str, Any]) -> dict[str, Any]:
@@ -297,6 +411,26 @@ def _arguments(action: str, data: dict[str, Any]) -> dict[str, Any]:
         return {"assignee_id": assignee}
     if action == "link":
         return {"link": _link(data, "object")}
+    if action in ("checklist_add", "checklist_rename"):
+        result: dict[str, Any] = {"text": get_str(data, "text", max_length=500, required=False)}
+        if action == "checklist_rename":
+            result["item_id"] = _required(data, "item_id")
+        return result
+    if action in ("checklist_move", "checklist_remove", "checklist_mark"):
+        result = {"item_id": _required(data, "item_id")}
+        if action == "checklist_move":
+            result["position"] = get_int(data, "position")
+        if action == "checklist_mark":
+            if not isinstance(data.get("done"), bool):
+                raise errors.validation_error("done")
+            result["done"] = data["done"]
+        return result
+    if action in ("depend", "undepend"):
+        return {"predecessor_id": _required(data, "predecessor_id")}
+    if action == "group":
+        return {"group_id": _uuid(data.get("group_id"), "group_id")}
+    if action == "tags":
+        return {"tag_ids": _ids(data.get("tag_ids"), "tag_ids")}
     if action == "comment":
         return {
             "text": get_str(data, "text", max_length=10000, required=False),
@@ -314,8 +448,9 @@ def task_action(request: HttpRequest, cmp: str, task_id: UUID, action: str) -> J
     company = context.company
     _visible(context, actor, task_id)
     data = parse_json(request)
-    # Comments and links do not conflict with other changes: no expected version for them.
-    expected = None if action in ("comment", "link") else get_int(data, "expected_version")
+    # Comments, links and checklist marks do not conflict with other changes.
+    free = ("comment", "link", "checklist_mark")
+    expected = None if action in free else get_int(data, "expected_version")
     arguments = _arguments(action, data)
 
     def handler(ctx: CommandContext) -> CommandResult:
@@ -364,3 +499,155 @@ def policy(request: HttpRequest, cmp: str) -> JsonResponse:
 
     payload = {"release": release, "change_due": change_due, "expected": expected}
     return run_and_respond(request, "task.policy", actor, payload, handler)
+
+
+# --- Groups and tags (§ 19.4.5, § 19.4.7) --------------------------------------------------------
+
+
+def _group_payload(g: Any) -> dict[str, Any]:
+    return {"id": str(g.id), "name": g.name, "description": g.description, "version": g.version}
+
+
+def _any_task_right(actor: Actor) -> bool:
+    resolver = access.RightsResolver()
+    codes = ("tasks.own", "tasks.queue", "tasks.create", "tasks.view_all", "tasks.manage")
+    return any(resolver.has_permission(actor, p) for p in codes)
+
+
+@require_http_methods(["GET", "POST"])
+def group_list(request: HttpRequest, cmp: str) -> JsonResponse:
+    context, actor = _actor(request, cmp)
+    if request.method == "GET":
+        if not _any_task_right(actor):
+            raise errors.permission_denied("tasks.own")
+        groups = extensions.groups_of(context.company.id)
+        return JsonResponse({"groups": [_group_payload(g) for g in groups]})
+    data = parse_json(request)
+    name = get_str(data, "name", max_length=200)
+    description = get_str(data, "description", max_length=2000, required=False)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        g = extensions.save_group(ctx, context.company, None, name, description)
+        return CommandResult(201, {"group": _group_payload(g)})
+
+    payload = {"name": name, "description": description}
+    return run_and_respond(request, "task_group.create", actor, payload, handler)
+
+
+@require_http_methods(["PATCH", "DELETE"])
+def group_detail(request: HttpRequest, cmp: str, group_id: UUID) -> JsonResponse:
+    context, actor = _actor(request, cmp)
+    if request.method == "DELETE":
+
+        def remove(ctx: CommandContext) -> CommandResult:
+            extensions.remove_group(ctx, context.company, group_id)
+            return CommandResult(200, {"removed": str(group_id)})
+
+        payload = {"group_id": str(group_id)}
+        return run_and_respond(request, "task_group.remove", actor, payload, remove)
+    data = parse_json(request)
+    name = get_str(data, "name", max_length=200)
+    description = get_str(data, "description", max_length=2000, required=False)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        g = extensions.save_group(ctx, context.company, group_id, name, description)
+        return CommandResult(200, {"group": _group_payload(g)})
+
+    payload = {"group_id": str(group_id), "name": name, "description": description}
+    return run_and_respond(request, "task_group.change", actor, payload, handler)
+
+
+@require_http_methods(["GET", "POST"])
+def tag_list(request: HttpRequest, cmp: str) -> JsonResponse:
+    context, actor = _actor(request, cmp)
+    if request.method == "GET":
+        if not _any_task_right(actor):
+            raise errors.permission_denied("tasks.own")
+        tags = extensions.tags_of(context.company.id)
+        return JsonResponse({"tags": [{"id": str(x.id), "name": x.name} for x in tags]})
+    name = get_str(parse_json(request), "name", max_length=100)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        tag = extensions.save_tag(ctx, context.company, None, name)
+        return CommandResult(201, {"tag": {"id": str(tag.id), "name": tag.name}})
+
+    return run_and_respond(request, "task_tag.create", actor, {"name": name}, handler)
+
+
+@require_http_methods(["PATCH", "DELETE"])
+def tag_detail(request: HttpRequest, cmp: str, tag_id: UUID) -> JsonResponse:
+    context, actor = _actor(request, cmp)
+    if request.method == "DELETE":
+
+        def remove(ctx: CommandContext) -> CommandResult:
+            extensions.remove_tag(ctx, context.company, tag_id)
+            return CommandResult(200, {"removed": str(tag_id)})
+
+        return run_and_respond(request, "task_tag.remove", actor, {"tag_id": str(tag_id)}, remove)
+    name = get_str(parse_json(request), "name", max_length=100)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        tag = extensions.save_tag(ctx, context.company, tag_id, name)
+        return CommandResult(200, {"tag": {"id": str(tag.id), "name": tag.name}})
+
+    payload = {"tag_id": str(tag_id), "name": name}
+    return run_and_respond(request, "task_tag.rename", actor, payload, handler)
+
+
+# --- Repetition (§ 19.4.2) -----------------------------------------------------------------------
+
+
+@require_POST
+def task_repeat(request: HttpRequest, cmp: str, task_id: UUID) -> JsonResponse:
+    """«This and the following» (`change`) or the state of the repetition: pause, resume,
+    stop."""
+    context, actor = _actor(request, cmp)
+    company = context.company
+    t = _visible(context, actor, task_id)
+    if t.series_id is None:
+        raise errors.business_rule("TASK_NOT_REPEATING")
+    data = parse_json(request)
+    action = get_str(data, "action", max_length=10)
+    expected = get_int(data, "expected_version")
+    if action not in ("change", "pause", "resume", "stop"):
+        raise errors.validation_error("action")
+    changes = None
+    if action == "change":
+        raw_time = data.get("due_time")
+        raw_end = data.get("ends_on")
+        try:
+            due_time = time.fromisoformat(str(raw_time)) if raw_time not in (None, "") else None
+            ends_on = date.fromisoformat(str(raw_end)) if raw_end not in (None, "") else None
+        except ValueError as exc:
+            raise errors.validation_error("due_time", code="DATE_INVALID") from exc
+        changes = series.SeriesChanges(
+            title=get_str(data, "title", max_length=300) if "title" in data else None,
+            description=get_str(data, "description", max_length=10000, required=False)
+            if "description" in data
+            else None,
+            priority=get_str(data, "priority", max_length=10) if "priority" in data else None,
+            due_time=due_time,
+            due_time_set="due_time" in data,
+            ends_on=ends_on,
+            ends_on_set="ends_on" in data,
+            checklist=_texts(data.get("checklist")) if "checklist" in data else None,
+            checklist_required=data["checklist_required"]
+            if isinstance(data.get("checklist_required"), bool)
+            else None,
+        )
+    states = {"pause": "paused", "resume": "active", "stop": "stopped"}
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        found = services.locked(company.id, task_id, None)
+        held = series.locked(company.id, found.series_id, expected)  # type: ignore[arg-type]
+        if changes is not None:
+            series.change_following(ctx, company, found, changes)
+        else:
+            series.set_state(ctx, held, states[action])
+        found.refresh_from_db()
+        return CommandResult(
+            200, {"task": _payload(found, actor, _names(company.id, [found]), detail=True)}
+        )
+
+    payload = {"task_id": str(task_id), **data}
+    return run_and_respond(request, f"task.repeat_{action}", actor, payload, handler)

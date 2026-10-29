@@ -1277,7 +1277,24 @@ export type WorkTask = {
   overdue: boolean;
   created_at: string;
   closed_at: string | null;
+  blocked: boolean;
+  group_id: string | null;
+  tags: { id: string; name: string }[];
+  repeating: boolean;
   // Detail only.
+  checklist_required: boolean;
+  checklist: { id: string; text: string; done: boolean; done_at: string | null }[];
+  predecessors: { id: string; number: number; title: string; state: string }[];
+  series: {
+    id: string;
+    version: number;
+    frequency: "daily" | "weekly" | "monthly";
+    weekdays: number[];
+    ends_on: string | null;
+    next_on: string | null;
+    state: "active" | "paused" | "stopped";
+  } | null;
+  series_on: string | null;
   description: string;
   system_event: string | null;
   system_condition: string;
