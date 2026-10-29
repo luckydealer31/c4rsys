@@ -31,6 +31,16 @@ BODY_INVITATION = (
     "{url}\n"
 )
 
+SUBJECT_SIGNING = "c4rsys: документ на подпись / document to sign"
+BODY_SIGNING = (
+    "Компания «{company}» просит вас подписать документ «{title}»:\n"
+    "{url}\n"
+    "Ссылка персональная, не пересылайте её.\n\n"
+    "The company «{company}» asks you to sign the document «{title}»:\n"
+    "{url}\n"
+    "The link is personal, do not forward it.\n"
+)
+
 
 def _deliver(email: str, subject: str, body: str, kind: str) -> None:
     try:
@@ -54,3 +64,12 @@ def send_invitation(email: str, company_name: str) -> None:
         return
     body = BODY_INVITATION.format(company=company_name, url=settings.C4R_PUBLIC_URL)
     _deliver(email, SUBJECT_INVITATION, body, "invitation")
+
+
+def send_signing_link(email: str, company_name: str, title: str, url: str) -> None:
+    """A personal link to sign a document (§ 18.3.8; decision Р-4: email only)."""
+    if settings.C4R_MAIL_MODE == "console":
+        logger.warning("DEV MAIL to %s: signing link %s", email, url)
+        return
+    body = BODY_SIGNING.format(company=company_name, title=title, url=url)
+    _deliver(email, SUBJECT_SIGNING, body, "signing link")

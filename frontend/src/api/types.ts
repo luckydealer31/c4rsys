@@ -1183,8 +1183,56 @@ export type CompanyDocument = {
   versions?: { number: number; file_id: string | null; file_name: string; valid_until: string | null; note: string; content: string; created_at: string }[];
   template_id: string | null;
   template_version: number | null;
+  signing: { state: "none" | "pending" | "signed" | "declined"; version: number | null };
   source_type: string | null;
   source_id: string | null;
+};
+
+/** A signer of one version of a document (§ 18.3.3–18.3.7). */
+export type DocumentSigner = {
+  id: string;
+  version_number: number;
+  role: "company" | "client" | "counterparty";
+  name: string;
+  employment_id: string | null;
+  client_id: string | null;
+  counterparty_id: string | null;
+  is_me: boolean;
+  state: "pending" | "signed" | "declined";
+  method: "in_app" | "link" | "paper" | null;
+  decided_at: string | null;
+  confirmed_contact: string | null;
+  comment: string;
+  paper_file_id: string | null;
+  paper_signed_on: string | null;
+  entered_at: string | null;
+  emails: string[];
+  link: { email: string; expires_at: string } | null;
+};
+
+export type DocumentSigning = {
+  document_version: number;
+  status: CompanyDocument["signing"];
+  methods: "both" | "in_app" | "paper";
+  current_version: number | null;
+  sent_version: number | null;
+  template_signers: string[];
+  signers: DocumentSigner[];
+  candidates: { role: DocumentSigner["role"]; id: string; name: string }[];
+};
+
+/** What a personal link shows: only the assigned version (§ 18.3.10). */
+export type SigningLink = {
+  company: string;
+  title: string;
+  number: number;
+  version_number: number;
+  content: string;
+  has_file: boolean;
+  file_name: string;
+  signer_name: string;
+  email: string;
+  expires_at: string;
 };
 
 /** A template: a starting one of the system or the company's own (§ 18.1.5, § 18.2). */

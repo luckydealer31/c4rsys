@@ -101,6 +101,7 @@ th { font-size: 0.85rem; color: var(--muted); font-weight: 600; }
 }
 .badge.ok { background: var(--ok-bg); color: var(--ok); border-color: transparent; }
 .badge.warn { background: var(--warn-bg); border-color: transparent; }
+.badge.danger { background: var(--danger-bg); color: var(--danger); border-color: transparent; }
 
 .topbar {
   display: flex; align-items: center; gap: 16px; padding: 8px 16px; min-height: 56px;

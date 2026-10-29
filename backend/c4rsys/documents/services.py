@@ -59,7 +59,7 @@ def add_kind(ctx: CommandContext, company: Company, name: str) -> DocumentKind:
     return kind
 
 
-def _kind(company_id: UUID, kind_id: UUID) -> DocumentKind:
+def kind_of(company_id: UUID, kind_id: UUID) -> DocumentKind:
     kind = kinds_of(company_id).filter(pk=kind_id).first()
     if kind is None:
         raise errors.validation_error("kind_id", code="DOCUMENT_KIND_UNKNOWN")
@@ -245,7 +245,7 @@ def create(
 ) -> Document:
     """An uploaded document (§ 18.1.3) — or a document made by a template, whose content is
     rendered once its number is known (part Р2)."""
-    _kind(company.id, data.kind_id)
+    kind_of(company.id, data.kind_id)
     _term(data.valid_until, data.warn_days)
     if data.file_id is not None:
         files.usable(
@@ -295,7 +295,7 @@ def locked(company_id: UUID, document_id: UUID, expected_version: int | None) ->
     return d
 
 
-def _require_active(d: Document) -> None:
+def require_active(d: Document) -> None:
     if d.state != Document.State.ACTIVE:
         raise errors.business_rule("DOCUMENT_ARCHIVED")
 
@@ -312,12 +312,12 @@ class Changes:
 
 def change(ctx: CommandContext, d: Document, changes: Changes) -> Document:
     """Details of the document; its content changes only by a new version (§ 18.3.5)."""
-    _require_active(d)
+    require_active(d)
     before = snapshot(d)
     if changes.title is not None:
         d.title = changes.title
     if changes.kind_id is not None:
-        _kind(d.company_id, changes.kind_id)
+        kind_of(d.company_id, changes.kind_id)
         d.kind_id = changes.kind_id
     if changes.document_date is not None:
         d.document_date = changes.document_date
@@ -361,7 +361,7 @@ def add_version(
 ) -> DocumentVersion:
     """A replacement or an extension: a new version keeps the former one; the term and its
     warning follow the new version (§ 18.1.14)."""
-    _require_active(d)
+    require_active(d)
     if file_id is not None:
         files.usable(
             file_id,
@@ -403,7 +403,7 @@ def add_version(
 def archive(ctx: CommandContext, d: Document, reason: str) -> Document:
     """No longer needed: with a reason; the term control and its warning end; the document,
     its links and history stay (§ 18.1.14)."""
-    _require_active(d)
+    require_active(d)
     if not reason.strip():
         raise errors.validation_error("reason", code="FIELD_REQUIRED")
     d.state = Document.State.ARCHIVED
@@ -461,12 +461,15 @@ def file_reader(user_id: UUID, item: Any) -> bool:
     """A document file is read by whoever may view a document holding it (§ 18.5.3)."""
     from c4rsys.companies import access
     from c4rsys.companies.models import Employment
+    from c4rsys.documents.models import DocumentSigner
     from c4rsys.platform.commands import Actor
 
     version = DocumentVersion.objects.select_related("document").filter(file_id=item.id).first()
-    if version is None:
+    scan = DocumentSigner.objects.select_related("document").filter(paper_file_id=item.id).first()
+    holder = version or scan
+    if holder is None:
         return False
-    d = version.document
+    d = holder.document
     employment = Employment.objects.filter(
         company_id=d.company_id, user_id=user_id, state=Employment.State.ACTIVE
     ).first()

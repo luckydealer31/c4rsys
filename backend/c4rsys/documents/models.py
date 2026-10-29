@@ -258,3 +258,163 @@ class DocumentTemplate(models.Model):
 
     def __str__(self) -> str:
         return self.title
+
+
+class DocumentSigner(models.Model):
+    """A required signer of one version of a document: the company's representative, the client
+    or a counterparty, with their own answer and time (§ 18.3.3, § 18.3.6). Signatures belong to
+    the version; a new version does not inherit them (§ 18.3.5)."""
+
+    class Role(models.TextChoices):
+        COMPANY = "company"
+        CLIENT = "client"
+        COUNTERPARTY = "counterparty"
+
+    class State(models.TextChoices):
+        PENDING = "pending"
+        SIGNED = "signed"
+        DECLINED = "declined"
+
+    class Method(models.TextChoices):
+        IN_APP = "in_app"  # a signer with an account inside c4rsys, confirmed by a code
+        LINK = "link"  # a personal link, confirmed by a code to the same contact (§ 18.3.9)
+        PAPER = "paper"  # a scan of the paper signature entered by an employee (§ 18.3.7)
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    document = models.ForeignKey(Document, on_delete=models.PROTECT, related_name="signers")
+    document_version = models.ForeignKey(
+        DocumentVersion, on_delete=models.PROTECT, related_name="signers"
+    )
+    role = models.CharField(max_length=15, choices=Role.choices)
+    employment = models.ForeignKey(
+        "companies.Employment", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    client = models.ForeignKey(
+        "parties.ClientCard", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    counterparty = models.ForeignKey(
+        "parties.Counterparty", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    name = models.CharField(max_length=300)
+    state = models.CharField(max_length=10, choices=State.choices, default=State.PENDING)
+    method = models.CharField(max_length=10, choices=Method.choices, blank=True, default="")
+    decided_at = models.DateTimeField(null=True, blank=True)
+    decided_by_user_id = models.UUIDField(null=True, blank=True)
+    confirmed_contact = models.CharField(max_length=254, blank=True, default="")
+    comment = models.CharField(max_length=2000, blank=True, default="")
+    paper_file = models.ForeignKey(
+        "files.StoredFile", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    paper_signed_on = models.DateField(null=True, blank=True)
+    entered_by_user_id = models.UUIDField(null=True, blank=True)
+    entered_at = models.DateTimeField(null=True, blank=True)
+    code_hash = models.CharField(max_length=128, blank=True, default="")
+    code_expires_at = models.DateTimeField(null=True, blank=True)
+    code_attempts = models.PositiveSmallIntegerField(default=0)
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "document_signer"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "id"], name="document_signer_company_id_uniq"
+            ),
+            models.CheckConstraint(
+                condition=Q(
+                    role="company",
+                    employment__isnull=False,
+                    client__isnull=True,
+                    counterparty__isnull=True,
+                )
+                | Q(
+                    role="client",
+                    client__isnull=False,
+                    employment__isnull=True,
+                    counterparty__isnull=True,
+                )
+                | Q(
+                    role="counterparty",
+                    counterparty__isnull=False,
+                    employment__isnull=True,
+                    client__isnull=True,
+                ),
+                name="document_signer_person_of_role",
+            ),
+            models.CheckConstraint(
+                condition=Q(state="pending") | (Q(decided_at__isnull=False) & ~Q(method="")),
+                name="document_signer_decided_has_method",
+            ),
+            models.CheckConstraint(
+                condition=~Q(method="paper")
+                | Q(paper_file__isnull=False, paper_signed_on__isnull=False),
+                name="document_signer_paper_has_scan",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.role} {self.name}"
+
+
+class SigningInvitation(models.Model):
+    """A personal link to sign one version, to the email of the signer's working card; it has a
+    term, may be revoked and is used once (§ 18.3.8–18.3.10). Only the hash of the token is kept."""
+
+    class State(models.TextChoices):
+        ACTIVE = "active"
+        USED = "used"
+        REVOKED = "revoked"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    signer = models.ForeignKey(DocumentSigner, on_delete=models.PROTECT, related_name="invitations")
+    token_hash = models.CharField(max_length=128, unique=True)
+    email = models.CharField(max_length=254)
+    expires_at = models.DateTimeField()
+    state = models.CharField(max_length=10, choices=State.choices, default=State.ACTIVE)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    code_hash = models.CharField(max_length=128, blank=True, default="")
+    code_expires_at = models.DateTimeField(null=True, blank=True)
+    code_attempts = models.PositiveSmallIntegerField(default=0)
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "document_signing_invitation"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "id"], name="document_signing_invitation_company_id_uniq"
+            ),
+            models.UniqueConstraint(
+                fields=["signer"],
+                condition=Q(state="active"),
+                name="document_signing_one_active_link",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"invitation {self.id}"
+
+
+class KindSigning(models.Model):
+    """Allowed ways of signing of a kind of document in a company (§ 18.4.2); none — both."""
+
+    class Methods(models.TextChoices):
+        IN_APP = "in_app"
+        PAPER = "paper"
+        BOTH = "both"
+
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    kind = models.ForeignKey(DocumentKind, on_delete=models.PROTECT, related_name="+")
+    methods = models.CharField(max_length=10, choices=Methods.choices, default=Methods.BOTH)
+
+    class Meta:
+        db_table = "document_kind_signing"
+        constraints = [
+            models.UniqueConstraint(fields=["company", "kind"], name="document_kind_signing_uniq"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.kind_id}: {self.methods}"

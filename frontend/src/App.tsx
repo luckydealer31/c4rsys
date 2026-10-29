@@ -6,6 +6,7 @@ import { AppShell } from "./layout/AppShell";
 import { CompanyShell } from "./layout/CompanyShell";
 import { ProfilePage } from "./pages/account/ProfilePage";
 import { LoginPage } from "./pages/auth/LoginPage";
+import { SignByLinkPage } from "./pages/documents/Signing";
 import { RegisterPage } from "./pages/auth/RegisterPage";
 import { CompaniesPage } from "./pages/companies/CompaniesPage";
 import { ClientPage, ClientsPage } from "./pages/clients/ClientsPage";
@@ -62,6 +63,7 @@ export function App() {
     return (
       <Routes>
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/sign/:token" element={<SignByLinkPage />} />
         <Route path="*" element={<LoginPage />} />
       </Routes>
     );
@@ -69,6 +71,7 @@ export function App() {
 
   return (
     <Routes>
+      <Route path="/sign/:token" element={<SignByLinkPage />} />
       <Route
         path="/profile"
         element={

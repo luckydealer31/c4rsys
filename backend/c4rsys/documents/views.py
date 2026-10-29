@@ -8,19 +8,21 @@ from datetime import date
 from typing import Any
 from uuid import UUID
 
-from django.http import HttpRequest, JsonResponse
+from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods, require_POST
 
 from c4rsys.accounts.middleware import require_user
 from c4rsys.companies import access
 from c4rsys.companies import services as companies
+from c4rsys.companies.models import Company
 from c4rsys.companies.views import run_and_respond
-from c4rsys.documents import fields, services, templates
+from c4rsys.documents import fields, services, signing, templates
 from c4rsys.documents.models import Document, DocumentLink, DocumentTemplate
+from c4rsys.files import services as files
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
-from c4rsys.platform.http import get_int, get_str, parse_json
+from c4rsys.platform.http import client_ip, get_int, get_str, parse_json
 
 LIST_LIMIT = 300
 
@@ -118,6 +120,11 @@ def _kind_payload(kind: Any) -> dict[str, Any]:
     return {"id": str(kind.id), "code": kind.code or None, "name": kind.name or None}
 
 
+def _status_payload(d: Document) -> dict[str, Any]:
+    found = signing.status(d)
+    return {"state": found.state, "version": found.version}
+
+
 def _document_payload(d: Document, *, detail: bool = False) -> dict[str, Any]:
     today = timezone.localdate()
     current = services.current_version(d)
@@ -145,6 +152,7 @@ def _document_payload(d: Document, *, detail: bool = False) -> dict[str, Any]:
         else None,
         "template_id": str(d.template_id) if d.template_id else None,
         "template_version": d.template_version,
+        "signing": _status_payload(d),
         "source_type": d.source_type or None,
         "source_id": str(d.source_id) if d.source_id else None,
     }
@@ -599,3 +607,335 @@ def document_remake(request: HttpRequest, cmp: str, document_id: UUID) -> JsonRe
             templates.remake(ctx, context.company, d)
 
     return _command(request, cmp, document_id, "documents.create", "document.remake", action, ())
+
+
+# --- Signing (§ 18.3, § 18.4.2) ------------------------------------------------------------------
+
+
+def _signer_payload(d: Document, x: Any, actor: Actor) -> dict[str, Any]:
+    invitation = signing.active_invitation(x)
+    return {
+        "id": str(x.id),
+        "version_number": x.document_version.number,
+        "role": x.role,
+        "name": x.name,
+        "employment_id": str(x.employment_id) if x.employment_id else None,
+        "client_id": str(x.client_id) if x.client_id else None,
+        "counterparty_id": str(x.counterparty_id) if x.counterparty_id else None,
+        "is_me": x.employment_id is not None and x.employment_id == actor.employment_id,
+        "state": x.state,
+        "method": x.method or None,
+        "decided_at": _iso(x.decided_at),
+        "confirmed_contact": x.confirmed_contact or None,
+        "comment": x.comment,
+        "paper_file_id": str(x.paper_file_id) if x.paper_file_id else None,
+        "paper_signed_on": _iso(x.paper_signed_on),
+        "entered_at": _iso(x.entered_at),
+        "emails": signing.emails_of(d, x) if x.state == "pending" else [],
+        "link": {"email": invitation.email, "expires_at": invitation.expires_at.isoformat()}
+        if invitation is not None
+        else None,
+    }
+
+
+def _signing_payload(d: Document, actor: Actor) -> dict[str, Any]:
+    sent = signing.sent_version(d)
+    current = services.current_version(d)
+    roles = d.template.signers if d.template is not None else {}
+    return {
+        "document_version": d.version,
+        "status": _status_payload(d),
+        "methods": signing.methods_of(d.company_id, d.kind_id),
+        "current_version": current.number if current else None,
+        "sent_version": sent.number if sent else None,
+        "template_signers": sorted(role for role, needed in roles.items() if needed),
+        "signers": [_signer_payload(d, x, actor) for x in signing.signers_of(d)],
+        "candidates": [
+            {"role": "company", "id": str(x), "name": name}
+            for x, name in signing.company_candidates(d)
+        ]
+        + [
+            {"role": role, "id": str(x), "name": name}
+            for role, x, name in signing.party_candidates(d)
+        ],
+    }
+
+
+def _people(data: dict[str, Any]) -> list[signing.Person]:
+    value = data.get("signers")
+    if not isinstance(value, list) or not value or len(value) > 20:
+        raise errors.validation_error("signers", code="FIELD_REQUIRED")
+    result = []
+    for item in value:
+        if not isinstance(item, dict) or item.get("role") not in signing.Role.values:
+            raise errors.validation_error("signers")
+        result.append(signing.Person(role=item["role"], person_id=_required(item, "id")))
+    return result
+
+
+@require_http_methods(["GET", "POST"])
+def document_signing(request: HttpRequest, cmp: str, document_id: UUID) -> JsonResponse:
+    """GET — signers of every sent version; POST — send the current version (§ 18.3.5)."""
+    context, actor = _actor(request, cmp)
+    d = _document_for(context, actor, document_id)
+    if request.method == "GET":
+        return JsonResponse({"signing": _signing_payload(d, actor)})
+    _require_on(actor, "documents.upload", d)
+    data = parse_json(request)
+    expected_version = get_int(data, "expected_version")
+    people = _people(data)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        locked = services.locked(context.company.id, document_id, expected_version)
+        signing.send(ctx, locked, people)
+        return CommandResult(200, {"signing": _signing_payload(locked, actor)})
+
+    payload = {
+        "document_id": str(document_id),
+        "expected_version": expected_version,
+        "signers": data.get("signers"),
+    }
+    return run_and_respond(request, "document.send_for_signing", actor, payload, handler)
+
+
+def _signer_command(
+    request: HttpRequest,
+    cmp: str,
+    document_id: UUID,
+    signer_id: UUID,
+    permission: str,
+    command: str,
+    action: Any,
+    keys: tuple[str, ...],
+) -> JsonResponse:
+    """`action(ctx, d, signer, data)` may return an error to answer with after the commit."""
+    context, actor = _actor(request, cmp)
+    d = _document_for(context, actor, document_id)
+    _require_on(actor, permission, d)
+    data = parse_json(request)
+    action(None, None, None, data)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        locked = services.locked(context.company.id, document_id, None)
+        signer = signing.signer_of(locked, signer_id)
+        failed = action(ctx, locked, signer, data)
+        if failed is not None:
+            return CommandResult(failed.status, failed.payload(ctx.request_id))
+        return CommandResult(200, {"signing": _signing_payload(locked, actor)})
+
+    payload = {
+        "document_id": str(document_id),
+        "signer_id": str(signer_id),
+        **{k: data.get(k) for k in keys},
+    }
+    return run_and_respond(request, command, actor, payload, handler)
+
+
+@require_POST
+def signer_code(request: HttpRequest, cmp: str, document_id: UUID, signer_id: UUID) -> JsonResponse:
+    """A one-time code to the employee's email before signing for the company (§ 18.3.9)."""
+
+    def action(ctx: CommandContext | None, d: Any, signer: Any, data: dict[str, Any]) -> None:
+        if ctx is not None:
+            signing.request_code(ctx, d, signer)
+
+    return _signer_command(
+        request, cmp, document_id, signer_id, "documents.sign", "document.signing_code", action, ()
+    )
+
+
+def _decision(data: dict[str, Any]) -> tuple[str, str]:
+    decision = get_str(data, "decision", max_length=10)
+    if decision not in ("sign", "decline"):
+        raise errors.validation_error("decision")
+    comment = get_str(data, "comment", max_length=2000, required=False).strip()
+    return decision, comment
+
+
+@require_POST
+def signer_decide(
+    request: HttpRequest, cmp: str, document_id: UUID, signer_id: UUID
+) -> JsonResponse:
+    """The company's signer signs or declines with the code (§ 18.3.3–18.3.4)."""
+
+    def action(ctx: CommandContext | None, d: Any, signer: Any, data: dict[str, Any]) -> Any:
+        code = get_str(data, "code", max_length=10)
+        decision, comment = _decision(data)
+        if ctx is not None:
+            return signing.decide_in_app(ctx, d, signer, code, decision, comment)
+        return None
+
+    return _signer_command(
+        request,
+        cmp,
+        document_id,
+        signer_id,
+        "documents.sign",
+        "document.signing_decide",
+        action,
+        ("code", "decision", "comment"),
+    )
+
+
+@require_POST
+def signer_invite(
+    request: HttpRequest, cmp: str, document_id: UUID, signer_id: UUID
+) -> JsonResponse:
+    """A personal link to the client or the counterparty (§ 18.3.8–18.3.9)."""
+
+    def action(ctx: CommandContext | None, d: Any, signer: Any, data: dict[str, Any]) -> None:
+        email = get_str(data, "email", max_length=254)
+        days = _days(data, "days")
+        if ctx is not None:
+            signing.invite(ctx, d, signer, email, days)
+
+    return _signer_command(
+        request,
+        cmp,
+        document_id,
+        signer_id,
+        "documents.upload",
+        "document.signing_invite",
+        action,
+        ("email", "days"),
+    )
+
+
+@require_POST
+def signer_revoke(
+    request: HttpRequest, cmp: str, document_id: UUID, signer_id: UUID
+) -> JsonResponse:
+    def action(ctx: CommandContext | None, d: Any, signer: Any, data: dict[str, Any]) -> None:
+        if ctx is not None:
+            signing.revoke(ctx, d, signer)
+
+    return _signer_command(
+        request,
+        cmp,
+        document_id,
+        signer_id,
+        "documents.upload",
+        "document.signing_revoke",
+        action,
+        (),
+    )
+
+
+@require_POST
+def signer_paper(
+    request: HttpRequest, cmp: str, document_id: UUID, signer_id: UUID
+) -> JsonResponse:
+    """A scan of the paper signature with the date of signing (§ 18.3.7)."""
+
+    def action(ctx: CommandContext | None, d: Any, signer: Any, data: dict[str, Any]) -> None:
+        file_id = _required(data, "file_id")
+        signed_on = _date(data, "signed_on")
+        if signed_on is None:
+            raise errors.validation_error("signed_on", code="FIELD_REQUIRED")
+        if ctx is not None:
+            signing.paper(ctx, d, signer, file_id, signed_on)
+
+    return _signer_command(
+        request,
+        cmp,
+        document_id,
+        signer_id,
+        "documents.upload",
+        "document.signing_paper",
+        action,
+        ("file_id", "signed_on"),
+    )
+
+
+@require_http_methods(["GET", "POST"])
+def kind_signing(request: HttpRequest, cmp: str) -> JsonResponse:
+    """Allowed ways of signing by kind (§ 18.4.2): GET — all kinds; POST — one kind."""
+    context, actor = _actor(request, cmp)
+    if request.method == "GET":
+        if not any(_anywhere(actor, p) for p in ("documents.view", "documents.templates")):
+            raise errors.permission_denied("documents.view")
+        found = signing.all_methods(context.company.id)
+        return JsonResponse(
+            {
+                "kinds": [
+                    {"kind_id": str(k.id), "methods": found.get(k.id, "both")}
+                    for k in services.kinds_of(context.company.id)
+                ]
+            }
+        )
+    if not _anywhere(actor, "documents.templates"):
+        raise errors.permission_denied("documents.templates")
+    data = parse_json(request)
+    kind_id = _required(data, "kind_id")
+    methods = get_str(data, "methods", max_length=10)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        signing.set_methods(ctx, context.company, kind_id, methods)
+        return CommandResult(200, {"kind_id": str(kind_id), "methods": methods})
+
+    payload = {"kind_id": str(kind_id), "methods": methods}
+    return run_and_respond(request, "document_kind.signing", actor, payload, handler)
+
+
+# --- The public page of a personal link (§ 18.3.10) ----------------------------------------------
+
+
+def _link_payload(invitation: Any) -> dict[str, Any]:
+    """Only the assigned version and its signer: no order, cards or other documents."""
+    signer = invitation.signer
+    version = signer.document_version
+    d = signer.document
+    company = Company.objects.filter(pk=d.company_id).values_list("display_name", flat=True).first()
+    return {
+        "company": company,
+        "title": d.title,
+        "number": d.number,
+        "version_number": version.number,
+        "content": version.content,
+        "has_file": version.file_id is not None,
+        "file_name": version.file_name,
+        "signer_name": signer.name,
+        "email": signing.masked(invitation.email),
+        "expires_at": invitation.expires_at.isoformat(),
+    }
+
+
+def _require_key(request: HttpRequest) -> None:
+    if not request.headers.get("Idempotency-Key", "").strip():
+        raise errors.validation_error("Idempotency-Key", code="IDEMPOTENCY_KEY_REQUIRED")
+
+
+@require_http_methods(["GET"])
+def link_open(request: HttpRequest, token: str) -> JsonResponse:
+    return JsonResponse({"link": _link_payload(signing.by_token(token))})
+
+
+@require_http_methods(["GET"])
+def link_file(request: HttpRequest, token: str) -> HttpResponse:
+    invitation = signing.by_token(token)
+    version = invitation.signer.document_version
+    item = files.of_company(invitation.company_id, version.file_id) if version.file_id else None
+    if item is None:
+        raise errors.not_found()
+    response = HttpResponse(files.content(item), content_type=item.content_type)
+    response["Cache-Control"] = "private, no-store"
+    response["Content-Disposition"] = "inline"
+    return response
+
+
+@require_POST
+def link_code(request: HttpRequest, token: str) -> JsonResponse:
+    """A one-time code to the email the link was sent to (§ 18.3.9)."""
+    _require_key(request)
+    invitation = signing.link_code(token, client_ip(request))
+    return JsonResponse({"sent_to": signing.masked(invitation.email)})
+
+
+@require_POST
+def link_decide(request: HttpRequest, token: str) -> JsonResponse:
+    _require_key(request)
+    data = parse_json(request)
+    code = get_str(data, "code", max_length=10)
+    decision, comment = _decision(data)
+    invitation = signing.link_decide(token, code, decision, comment)
+    return JsonResponse({"state": invitation.signer.state})

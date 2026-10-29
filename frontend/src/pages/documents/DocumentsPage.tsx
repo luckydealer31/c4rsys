@@ -9,6 +9,7 @@ import type { CompanyDocument, DocumentKind } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
+import { SigningBadge, SigningCard } from "./Signing";
 import { MakeDocument } from "./Templates";
 
 type Result = { document: CompanyDocument };
@@ -89,7 +90,8 @@ function DocumentList({ query, target }: { query: string; target?: LinkTarget })
                 <td className="small">{d.document_date}</td>
                 <td>
                   {d.warning ? <span className="badge warn">{t(`documents.warning_${d.warning}`, { date: d.valid_until })}</span> : null}
-                  {d.state === "archived" ? <span className="badge">{t("documents.archived")}</span> : null}
+                  {d.state === "archived" ? <span className="badge">{t("documents.archived")}</span> : null}{" "}
+                  <SigningBadge state={d.signing.state} />
                 </td>
               </tr>
             ))}
@@ -320,6 +322,7 @@ export function DocumentPage() {
           <div className="document-content" dangerouslySetInnerHTML={{ __html: d.versions[0].content }} />
         </Card>
       ) : null}
+      <SigningCard d={d} />
       <Card title={t("documents.versions")}>
         {(d.versions ?? []).map((v) => (
           <div key={v.number} className="small">

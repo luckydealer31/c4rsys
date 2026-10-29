@@ -156,5 +156,10 @@ def readable(user_id: UUID, file_id: UUID) -> StoredFile | None:
     return item if reader is not None and reader(user_id, item) else None
 
 
+def of_company(company_id: UUID, file_id: UUID) -> StoredFile | None:
+    """A file of the company for a module that has checked the access itself (a signing link)."""
+    return StoredFile.objects.filter(pk=file_id, company_id=company_id).first()
+
+
 def content(item: StoredFile) -> bytes:
     return _path(item.id).read_bytes()

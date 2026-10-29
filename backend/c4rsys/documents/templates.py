@@ -200,7 +200,7 @@ def snapshot(t: DocumentTemplate) -> dict[str, Any]:
 
 
 def _check(company_id: UUID, data: TemplateData) -> None:
-    services._kind(company_id, data.kind_id)
+    services.kind_of(company_id, data.kind_id)
     validate(data.content, data.source, data.required_fields)
     if set(data.signers) - {"company", "client", "counterparty"}:
         raise errors.validation_error("signers")

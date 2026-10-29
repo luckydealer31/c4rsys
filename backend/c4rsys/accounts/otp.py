@@ -75,6 +75,16 @@ def issue_code(flow: AuthFlow, now: datetime, *, deliver: bool, ip: str | None) 
         transaction.on_commit(lambda: mail.send_code(email, code, purpose))
 
 
+def send_contact_code(contact: str, purpose: str, now: datetime, ip: str | None) -> str:
+    """A code for a flow of another module (signing of a document): the same limits and
+    delivery; the holder keeps the code's hash."""
+    check_send_allowed(contact, purpose, now)
+    code = security.generate_code()
+    OtpSendLog.objects.create(contact_value=contact, purpose=purpose, sent_at=now, ip=ip)
+    transaction.on_commit(lambda: mail.send_code(contact, code, purpose))
+    return code
+
+
 class CodeCheck(StrEnum):
     OK = "ok"
     INVALID = "CODE_INVALID"

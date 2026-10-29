@@ -16,4 +16,29 @@ urlpatterns = [
     path("c/<str:cmp>/documents/<uuid:document_id>/unlink", views.document_unlink),
     path("c/<str:cmp>/documents/<uuid:document_id>/archive", views.document_archive),
     path("c/<str:cmp>/documents/<uuid:document_id>/remake", views.document_remake),
+    path("c/<str:cmp>/document-kinds/signing", views.kind_signing),
+    path("c/<str:cmp>/documents/<uuid:document_id>/signing", views.document_signing),
+    path(
+        "c/<str:cmp>/documents/<uuid:document_id>/signers/<uuid:signer_id>/code", views.signer_code
+    ),
+    path(
+        "c/<str:cmp>/documents/<uuid:document_id>/signers/<uuid:signer_id>/decide",
+        views.signer_decide,
+    ),
+    path(
+        "c/<str:cmp>/documents/<uuid:document_id>/signers/<uuid:signer_id>/invite",
+        views.signer_invite,
+    ),
+    path(
+        "c/<str:cmp>/documents/<uuid:document_id>/signers/<uuid:signer_id>/revoke",
+        views.signer_revoke,
+    ),
+    path(
+        "c/<str:cmp>/documents/<uuid:document_id>/signers/<uuid:signer_id>/paper",
+        views.signer_paper,
+    ),
+    path("sign/<str:token>", views.link_open),
+    path("sign/<str:token>/file", views.link_file),
+    path("sign/<str:token>/code", views.link_code),
+    path("sign/<str:token>/decide", views.link_decide),
 ]

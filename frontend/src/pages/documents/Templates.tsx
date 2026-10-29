@@ -10,6 +10,7 @@ import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { useDocumentKinds, useKindName } from "./DocumentsPage";
+import { KindSigningCard } from "./Signing";
 
 type Catalog = {
   fields: { code: string; source: string | null }[];
@@ -92,6 +93,7 @@ export function TemplatesPage() {
           <tbody>{items.filter((x) => x.system).map(row)}</tbody>
         </table>
       </Card>
+      <KindSigningCard />
     </div>
   );
 }

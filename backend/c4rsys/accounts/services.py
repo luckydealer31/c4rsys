@@ -551,6 +551,15 @@ def confirmed_emails(user: UserAccount) -> list[str]:
     return list(user.contacts.filter(kind=LoginContact.Kind.EMAIL).values_list("value", flat=True))
 
 
+def confirmed_emails_of(user_id: UUID) -> list[str]:
+    """Confirmed emails of a profile, for a one-time code of another module."""
+    return list(
+        LoginContact.objects.filter(user_id=user_id, kind=LoginContact.Kind.EMAIL)
+        .order_by("verified_at")
+        .values_list("value", flat=True)
+    )
+
+
 def names(user_ids: set[UUID]) -> dict[UUID, str]:
     """«First Last» of users, for the history shown by other modules."""
     return {
