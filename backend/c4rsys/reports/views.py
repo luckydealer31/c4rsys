@@ -20,13 +20,15 @@ from c4rsys.companies import services as companies
 from c4rsys.companies.models import Company
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor
-from c4rsys.reports import finance, overview, rental, scope
+from c4rsys.reports import finance, overview, rental, scope, service, warehouse
 
 Builder = Callable[[Actor, Company, scope.Filters], list[overview.Block]]
 DASHBOARDS: dict[str, Builder] = {
     "overview": overview.build,
     "rental": rental.build,
     "finance": finance.build,
+    "service": service.build,
+    "warehouse": warehouse.build,
 }
 
 
@@ -50,6 +52,7 @@ def _block(b: overview.Block, names: dict[Any, str]) -> dict[str, Any]:
         "rows": b.rows,
         "area": b.area.payload(names) if b.area is not None else None,
         "accounts": b.accounts,
+        "warehouses": b.warehouses,
         "link": b.link,
     }
 
@@ -121,8 +124,9 @@ def dashboard_xlsx(request: HttpRequest, cmp: str, code: str) -> HttpResponse:
         area = b["area"]
         where = (
             label("whole_company")
-            if (area and area["whole"]) or (b["accounts"] is None and not area)
-            else ", ".join(b["accounts"] or (area["locations"] if area else []))
+            if (area and area["whole"])
+            or (b["accounts"] is None and not b["warehouses"] and not area)
+            else ", ".join(b["accounts"] or b["warehouses"] or (area["locations"] if area else []))
         )
         if b["unit"] == "table":
             sheet.append([label(b["code"]), where])

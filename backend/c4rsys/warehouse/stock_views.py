@@ -58,6 +58,11 @@ def _visible(company_id: UUID, actor: Actor) -> dict[UUID, ActivityContext]:
     }
 
 
+def visible_warehouses(company_id: UUID, actor: Actor) -> dict[UUID, ActivityContext]:
+    """For the reports (§ 21.6.1): the same warehouses as the dashboard of the module."""
+    return _visible(company_id, actor)
+
+
 def _context_of(company_id: UUID, context_id: UUID) -> ActivityContext:
     context = locations.storage_contexts(company_id).filter(pk=context_id).first()
     if context is None:

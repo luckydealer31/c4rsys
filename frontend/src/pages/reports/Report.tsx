@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 
-import { ApiError, downloadFile } from "../../api/client";
+import { api, ApiError, downloadFile } from "../../api/client";
 import { useApi } from "../../api/queries";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
@@ -17,6 +17,7 @@ export type ReportBlock = {
   rows: Record<string, string | number | boolean | null>[];
   area: { whole: boolean; locations: string[] } | null;
   accounts: string[] | null;
+  warehouses?: string[] | null;
   link: string | null;
 };
 
@@ -156,6 +157,7 @@ function BlockValue({ block }: { block: ReportBlock }) {
 
 function areaText(t: (key: string, o?: Record<string, unknown>) => string, block: ReportBlock): string | null {
   if (block.accounts) return t("reports.area_accounts", { names: block.accounts.join(", ") });
+  if (block.warehouses) return t("reports.area_warehouses", { names: block.warehouses.join(", ") });
   if (block.area && !block.area.whole) return t("reports.area_locations", { names: block.area.locations.join(", ") });
   return null;
 }
@@ -231,6 +233,47 @@ export function ReportView({ code, title }: { code: string; title: string }) {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+/** XLSX of a dashboard that has its own page, as «Warehouse» (§ 21.2.9): the same data and the
+ * labels of the interface. The period is the current month, as on the page. */
+export function ExportButton({ code, title }: { code: string; title: string }) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const can = useCan();
+  const [error, setError] = useState<ApiError | null>(null);
+  const [pending, setPending] = useState(false);
+  if (!can("reports.export")) return null;
+
+  async function run() {
+    setError(null);
+    setPending(true);
+    try {
+      const data = await api<Report>(`/c/${company.public_id}/reports/${code}`);
+      const labels: Record<string, string> = { [code]: title };
+      for (const b of data.blocks) {
+        labels[b.code] = metricLabel(t, b.code);
+        for (const key of Object.keys(b.rows[0] ?? {})) labels[`col_${key}`] = t(`reports.col_${key}`, { defaultValue: key });
+      }
+      const headers = { period: t("reports.period"), zone: t("reports.zone"), whole_company: t("reports.whole_company"), no_data: t("reports.no_data") };
+      await downloadFile(`/c/${company.public_id}/reports/${code}/xlsx`, { labels, headers }, `${code}-${data.filters.start}-${data.filters.end}.xlsx`);
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught : new ApiError(0, null));
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <div className="no-print">
+      <div className="actions">
+        <button type="button" className="secondary" disabled={pending} onClick={() => void run()}>
+          {t("reports.xlsx")}
+        </button>
+      </div>
+      <ErrorMessage error={error} />
     </div>
   );
 }

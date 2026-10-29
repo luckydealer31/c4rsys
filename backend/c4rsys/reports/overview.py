@@ -33,6 +33,8 @@ class Block:
     link: str | None = None
     # Money is counted by the accounts the employee may view; partial access names them.
     accounts: list[str] | None = None
+    # The warehouses of the calculation with partial access (§ 21.1.1).
+    warehouses: list[str] | None = None
 
 
 def _money(rows: dict[str, Decimal]) -> list[dict[str, Any]]:

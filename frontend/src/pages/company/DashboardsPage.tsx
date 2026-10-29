@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useCan } from "../../layout/CompanyShell";
-import { ReportView } from "../reports/Report";
+import { ExportButton, ReportView } from "../reports/Report";
 import { WarehouseDashboard } from "../warehouse/Dashboard";
 
 /** Starter dashboards (§ 21.2.6): the company overview, the warehouse; the others come with the
@@ -14,6 +14,7 @@ export function DashboardsPage() {
     ["overview", can("reports.view")],
     ["rental", can("reports.view")],
     ["finance", can("reports.view")],
+    ["service", can("reports.view")],
     ["warehouse", can("warehouse.view")],
   ] as const;
   const visible = tabs.filter(([, shown]) => shown).map(([key]) => key);
@@ -32,7 +33,13 @@ export function DashboardsPage() {
       {tab === "overview" ? <ReportView code="overview" title={t("reports.dashboard_overview")} /> : null}
       {tab === "rental" ? <ReportView code="rental" title={t("reports.dashboard_rental")} /> : null}
       {tab === "finance" ? <ReportView code="finance" title={t("reports.dashboard_finance")} /> : null}
-      {tab === "warehouse" ? <WarehouseDashboard /> : null}
+      {tab === "service" ? <ReportView code="service" title={t("reports.dashboard_service")} /> : null}
+      {tab === "warehouse" ? (
+        <>
+          <ExportButton code="warehouse" title={t("reports.dashboard_warehouse")} />
+          <WarehouseDashboard />
+        </>
+      ) : null}
     </div>
   );
 }
