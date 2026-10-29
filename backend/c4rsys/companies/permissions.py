@@ -151,7 +151,18 @@ PERMISSIONS: dict[str, str] = {
     "documents.templates": "documents",
     "documents.archive": "documents",
     "documents.sign": "documents",
+    # Work tasks (§ 23.9; customer's decision З-3 of 29.10.2026).
+    "tasks.own": "tasks",
+    "tasks.queue": "tasks",
+    "tasks.create": "tasks",
+    "tasks.view_all": "tasks",
+    "tasks.manage": "tasks",
 }
+
+# Decision З-3: the managers get every task right in their area; the others work with their own
+# tasks and the queue and create tasks.
+TASK_ALL = ("tasks.own", "tasks.queue", "tasks.create", "tasks.view_all", "tasks.manage")
+TASK_BASIC = ("tasks.own", "tasks.queue", "tasks.create")
 
 COMPANY_ADMIN = "company_admin"
 RENTAL_MANAGER = "rental_manager"
@@ -201,9 +212,10 @@ SYSTEM_SETS: dict[str, tuple[str, ...]] = {
         "documents.view",
         "documents.upload",
         "documents.create",
+        *TASK_ALL,
     ),
     # § 23.2.5: only the trips assigned to the driver (decision Д-8).
-    DRIVER: ("delivery.drive",),
+    DRIVER: ("delivery.drive", *TASK_BASIC),
     # § 23.2.7; § 23.7.4: the accountant sets selling prices.
     ACCOUNTANT: (
         "finance.payment.receive",
@@ -220,6 +232,7 @@ SYSTEM_SETS: dict[str, tuple[str, ...]] = {
         "rental.view",
         "client.find",
         "warehouse.price.set",
+        *TASK_BASIC,
     ),
     # § 23.2.6: not purchases, confirmation of adjustments, corrections, sale or price policy.
     STOREKEEPER: (
@@ -237,6 +250,7 @@ SYSTEM_SETS: dict[str, tuple[str, ...]] = {
         # PROPOSAL: a missing supplier is added right at a receipt (§ 11.2.8).
         "counterparty.view",
         "counterparty.create",
+        *TASK_BASIC,
     ),
     # § 23.2.3. Entering a result for another executor is not listed there; closing the order is
     # not either (TODO(spec): whether the service manager closes orders).
@@ -279,6 +293,7 @@ SYSTEM_SETS: dict[str, tuple[str, ...]] = {
         "documents.view",
         "documents.upload",
         "documents.create",
+        *TASK_ALL,
     ),
     # § 23.2.4: own works, the post and the general zone, inspections; no prices or payments.
     MECHANIC: (
@@ -288,6 +303,7 @@ SYSTEM_SETS: dict[str, tuple[str, ...]] = {
         "service.view",
         "service.place",
         "service.work",
+        *TASK_BASIC,
     ),
 }
 

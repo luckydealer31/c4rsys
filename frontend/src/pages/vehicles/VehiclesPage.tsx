@@ -11,6 +11,7 @@ import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { formatMoment } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
+import { LinkedTasks } from "../tasks/TasksPage";
 import { LinkedDocuments } from "../documents/DocumentsPage";
 import { VehicleService } from "../service/VehicleService";
 import { VehicleMoves } from "./VehicleMoves";
@@ -332,6 +333,7 @@ export function VehiclePage() {
       {stored && data.state === "active" ? <ReturnToGarage vehicle={data} /> : null}
       {stored ? null : <VehicleService vehicle={data} />}
       <LinkedDocuments objectType="vehicle" objectId={data.id} />
+      <LinkedTasks objectType="vehicle" objectId={data.id} />
       {isClient ? null : <VehicleTariffs vehicleId={data.id} />}
       {isClient ? null : <VehicleMoves vehicle={data} />}
       {!isClient && can("rental.view") ? (

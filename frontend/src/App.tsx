@@ -26,6 +26,7 @@ import { NewServiceOperationPage } from "./pages/service/NewOperation";
 import { ServiceOperationPage } from "./pages/service/OperationPage";
 import { ServicePage } from "./pages/service/ServicePage";
 import { DocumentPage, DocumentsPage } from "./pages/documents/DocumentsPage";
+import { TaskPage, TasksPage } from "./pages/tasks/TasksPage";
 import { DocumentPrintPage, TemplatePage, TemplatesPage } from "./pages/documents/Templates";
 import { DeliveryServicesPage } from "./pages/trips/DeliveryMoney";
 import { NewTripPage, TripPage, TripsPage } from "./pages/trips/TripsPage";
@@ -115,6 +116,8 @@ export function App() {
         <Route path="clients/:id" element={<ClientPage />} />
         <Route path="service" element={<ServicePage />} />
         <Route path="trips" element={<TripsPage />} />
+        <Route path="tasks" element={<TasksPage />} />
+        <Route path="tasks/:id" element={<TaskPage />} />
         <Route path="documents" element={<DocumentsPage />} />
         <Route path="documents/templates" element={<TemplatesPage />} />
         <Route path="documents/templates/:id" element={<TemplatePage />} />

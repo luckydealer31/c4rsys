@@ -61,6 +61,8 @@ export function companyMenu(
     ["trips", "/trips", "trips", [...permissions].some((p) => p.startsWith("delivery."))],
     // Decision Р-6: the registry for whoever may see or add documents.
     ["documents", "/documents", "documents", permissions.has("documents.view") || permissions.has("documents.upload")],
+    // Decision З-3: work tasks for whoever has a right of § 23.9.
+    ["tasks", "/tasks", "tasks", [...permissions].some((p) => p.startsWith("tasks."))],
     ["settings", "/settings", "settings", true],
   ];
   return items.filter(([, , , visible]) => visible).map(([key, path, icon]) => [key, path, icon]);

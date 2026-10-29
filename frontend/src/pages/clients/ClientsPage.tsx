@@ -11,6 +11,7 @@ import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { EmployeesList } from "../settings/EmployeesPage";
 import { CounterpartiesList } from "./Counterparties";
+import { LinkedTasks } from "../tasks/TasksPage";
 import { LinkedDocuments } from "../documents/DocumentsPage";
 
 export function clientName(client: Pick<Client, "kind" | "first_name" | "last_name" | "company_name">) {
@@ -404,6 +405,7 @@ export function ClientPage() {
         </form>
       </Card>
       <LinkedDocuments objectType="client" objectId={data.id} />
+      <LinkedTasks objectType="client" objectId={data.id} />
     </div>
   );
 }

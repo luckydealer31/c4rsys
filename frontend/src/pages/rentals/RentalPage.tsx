@@ -22,6 +22,7 @@ import { CorrectionForm, ExtendForm, ReopenRental, TariffChange } from "./Rental
 import { AnnulRental, TransferRental } from "./RentalOrder";
 import { RentalServices } from "./Services";
 import { CalculationView, Warnings } from "./IssuePage";
+import { LinkedTasks } from "../tasks/TasksPage";
 import { LinkedDocuments } from "../documents/DocumentsPage";
 
 type RentalResponse = { rental: Rental };
@@ -219,6 +220,7 @@ export function RentalPage() {
       </Card>
 
       <LinkedDocuments objectType="rental" objectId={current.id} />
+      <LinkedTasks objectType="rental" objectId={current.id} />
 
       <Card title={t("rentals.block_settlement")}>
         <p>

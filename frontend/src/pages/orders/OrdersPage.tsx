@@ -12,6 +12,7 @@ import { Card, ErrorMessage, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { formatMoment } from "../../time";
 import { clientName } from "../clients/ClientsPage";
+import { LinkedTasks } from "../tasks/TasksPage";
 import { LinkedDocuments } from "../documents/DocumentsPage";
 import { CashReceipt, usePayments } from "../finance/CashReceipt";
 import { OrderServices } from "../rentals/Services";
@@ -272,6 +273,7 @@ export function OrderPage() {
       <SaleGoods order={current} onChange={refresh} />
       <ReopenOrder order={current} onDone={refresh} />
       <LinkedDocuments objectType="order" objectId={current.id} />
+      <LinkedTasks objectType="order" objectId={current.id} />
 
       <Card title={t("orders.payments")}>
         {own.length === 0 ? <p className="muted">{t("orders.no_payments")}</p> : null}

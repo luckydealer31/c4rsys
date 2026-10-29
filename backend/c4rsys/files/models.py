@@ -22,6 +22,8 @@ class StoredFile(models.Model):
         WAREHOUSE_DOCUMENT = "warehouse_document"
         # A file of a company document or of its version (§ 18.1.3).
         COMPANY_DOCUMENT = "company_document"
+        # An attachment of a work task (§ 19.1.8; decision З-10).
+        TASK_ATTACHMENT = "task_attachment"
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     purpose = models.CharField(max_length=30, choices=Purpose.choices)

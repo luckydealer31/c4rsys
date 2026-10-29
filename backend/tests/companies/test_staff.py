@@ -109,7 +109,13 @@ def test_system_sets_of_stage_one() -> None:
     }
     admin = set(sets["company_admin"].permissions.values_list("code", flat=True))
     assert admin == set(PERMISSIONS)
-    assert set(sets["driver"].permissions.values_list("code", flat=True)) == {"delivery.drive"}
+    # Decision З-3: the driver also works with own tasks and the queue and creates tasks.
+    assert set(sets["driver"].permissions.values_list("code", flat=True)) == {
+        "delivery.drive",
+        "tasks.own",
+        "tasks.queue",
+        "tasks.create",
+    }
     assert "order.close_with_debt" not in set(
         sets["rental_manager"].permissions.values_list("code", flat=True)
     )
@@ -425,7 +431,12 @@ def test_company_answer_lists_own_permissions(owner: Client, cmp: str) -> None:
     accountant, _ = _hire(owner, cmp, "acc@example.com", [{"type": "set", "set": "accountant"}])
 
     assert set(owner.get(f"/api/c/{cmp}").json()["permissions"]) == set(PERMISSIONS)
-    assert driver.get(f"/api/c/{cmp}").json()["permissions"] == ["delivery.drive"]
+    assert driver.get(f"/api/c/{cmp}").json()["permissions"] == [
+        "delivery.drive",
+        "tasks.create",
+        "tasks.own",
+        "tasks.queue",
+    ]
     assert accountant.get(f"/api/c/{cmp}").json()["permissions"] == [
         "client.find",
         "finance.account.view",
@@ -440,6 +451,9 @@ def test_company_answer_lists_own_permissions(owner: Client, cmp: str) -> None:
         "finance.transfer",
         "order.view",
         "rental.view",
+        "tasks.create",
+        "tasks.own",
+        "tasks.queue",
         "warehouse.price.set",
     ]
 

@@ -27,7 +27,7 @@ def upload(request: HttpRequest) -> JsonResponse:
     if uploaded is None:
         raise errors.validation_error("file", code="FIELD_REQUIRED")
     document = purpose in services.DOCUMENT_PURPOSES
-    company_document = purpose == services.COMPANY_DOCUMENT
+    company_document = purpose in services.OFFICE_PURPOSES
     limit = (
         services.MAX_PHOTO_BYTES
         if company_document

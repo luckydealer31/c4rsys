@@ -76,6 +76,13 @@ const PATHS: Record<string, ReactNode> = {
       <path d="M14 3v4h4M9 12h6M9 16h6" />
     </>
   ),
+  tasks: (
+    <>
+      {/* A checklist: a tick and two lines. */}
+      <path d="M4 7l2 2 4-4M13 7h7M4 15h3M13 15h7" />
+      <rect x="4" y="13" width="4" height="4" rx="1" />
+    </>
+  ),
   trips: (
     <>
       {/* A route with two points (decision Д-10). */}

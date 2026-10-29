@@ -1255,3 +1255,38 @@ export type DocumentTemplate = {
   state: "active" | "archived";
   template_version: number;
 };
+
+/** A work task of the company (§ 19.1, § 23.9). */
+export type WorkTask = {
+  id: string;
+  version: number;
+  number: number;
+  title: string;
+  priority: "low" | "normal" | "high" | "critical";
+  state: "open" | "in_progress" | "waiting" | "paused" | "done" | "cancelled";
+  state_note: string;
+  location_id: string | null;
+  assignee_id: string | null;
+  assignee_name: string | null;
+  is_mine: boolean;
+  source: "manual" | "system";
+  object_type: string | null;
+  object_id: string | null;
+  due_at: string | null;
+  due_has_time: boolean;
+  overdue: boolean;
+  created_at: string;
+  closed_at: string | null;
+  // Detail only.
+  description: string;
+  system_event: string | null;
+  system_condition: string;
+  cancel_reason: string;
+  created_by_name: string | null;
+  is_creator: boolean;
+  links: { id: string; object_type: string; object_id: string }[];
+  comments: { id: string; text: string; file_id: string | null; file_name: string; author: string; created_at: string }[];
+  history: { id: string; occurred_at: string; actor: { name: string }; action: string; reason: string }[];
+  can: { manage: boolean; own: boolean; queue: boolean };
+  policy: { executor_may_release: boolean; executor_may_change_due: boolean; version: number };
+};
