@@ -12,9 +12,14 @@ class DocumentsConfig(AppConfig):
         from c4rsys.documents import notices, services
         from c4rsys.files import services as files
         from c4rsys.files.models import StoredFile
+        from c4rsys.notifications import rules
         from c4rsys.notifications import services as notifications
 
         # § 18.5.3: a file of a document is read by the rights on the document, not by links.
         files.register_reader(StoredFile.Purpose.COMPANY_DOCUMENT, services.file_reader)
         # Decision Р-7: the warnings of terms go to the notification centre (part З3).
         notifications.register_check(notices.run)
+        # § 20.3.4: the request and the result of signing are mandatory notifications.
+        notifications.register_check(notices.signing)
+        rules.on_journal("document.signed", notices.on_signing_answer)
+        rules.on_journal("document.signing_declined", notices.on_signing_answer)

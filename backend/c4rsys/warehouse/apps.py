@@ -33,3 +33,9 @@ class WarehouseConfig(AppConfig):
                 ["sale_reserve"] if reserves.vehicle_reserved(card_id) else []
             )
         )
+
+        from c4rsys.notifications import services as notifications
+        from c4rsys.warehouse import notices
+
+        # § 20.3.5: expiry of lots (decision З-7).
+        notifications.register_check(notices.run)

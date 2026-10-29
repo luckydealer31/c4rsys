@@ -12,8 +12,10 @@ class ServiceConfig(AppConfig):
         from c4rsys.companies import locations, readiness
         from c4rsys.fleet import moves
         from c4rsys.fleet import services as fleet
+        from c4rsys.notifications import rules
+        from c4rsys.notifications import services as notifications
         from c4rsys.orders import services as orders
-        from c4rsys.service import catalog, operations
+        from c4rsys.service import catalog, notices, operations
 
         # § 4.3.1: a service context is ready with an active work in the catalog.
         readiness.register("service", catalog.has_active_work)
@@ -31,3 +33,6 @@ class ServiceConfig(AppConfig):
         from c4rsys.finance import settlements
 
         settlements.register_obligations(operations.contractor_obligations)
+        # § 20.3.5: maintenance due and works done in the notification centre.
+        notifications.register_check(notices.run)
+        rules.on_journal("service_operation.works_done", notices.on_works_done)

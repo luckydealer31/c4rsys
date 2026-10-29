@@ -16,6 +16,7 @@ from uuid import UUID
 
 from django.db import transaction
 
+from c4rsys.notifications import rules
 from c4rsys.notifications import services as notifications
 from c4rsys.platform.models import AuditEvent
 from c4rsys.tasks.models import ACTIVE_STATES, Task, TaskPolicy
@@ -72,8 +73,12 @@ def sync(t: Task, actor_employment_id: UUID | None) -> None:
     if current != wanted:
         if assigned is not None:
             notifications.resolve(t.company_id, assigned.condition, "task_assignment_changed")
-        # One's own assignment is not news (§ 19.1.2).
-        if wanted is not None and t.assignee_id != actor_employment_id:
+        # One's own assignment is not news (§ 19.1.2); the company may switch it off (§ 20.3.5).
+        if (
+            wanted is not None
+            and t.assignee_id != actor_employment_id
+            and rules.rule(t.company_id, "task.assigned").enabled
+        ):
             notifications.notify(
                 t.company_id,
                 condition=_condition("assigned", t),

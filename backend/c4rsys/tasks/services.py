@@ -628,3 +628,85 @@ def file_reader(user_id: UUID, item: Any) -> bool:
     if employment is None:
         return False
     return can_view(Actor(user_id=user_id, company_id=t.company_id, employment_id=employment.id), t)
+
+
+# --- System tasks (§ 19.1.8–19.1.9, § 19.2.1) ----------------------------------------------------
+
+SYSTEM_PROCESS = "task_schedule"
+
+
+def ensure_system(
+    company_id: UUID,
+    *,
+    event: str,
+    condition: str,
+    location_id: UUID | None,
+    object_type: str,
+    object_id: UUID,
+    params: dict[str, Any],
+    priority: str = Task.Priority.HIGH,
+) -> Task | None:
+    """A system task of an event, once per condition, in the common queue of its scope. The
+    title is the event; the interface shows it in the user's language."""
+    from c4rsys.platform.models import AuditEvent
+
+    found = tasks_of(company_id).filter(
+        source=Task.Source.SYSTEM, system_condition=condition, state__in=ACTIVE_STATES
+    )
+    if found.exists():
+        return None
+    t = Task.objects.create(
+        company_id=company_id,
+        number=next_number(company_id, "task"),
+        title=event,
+        priority=priority,
+        location_id=location_id,
+        source=Task.Source.SYSTEM,
+        system_event=event,
+        system_condition=condition,
+        object_type=object_type,
+        object_id=object_id,
+        created_at=timezone.now(),
+    )
+    AuditEvent.objects.create(
+        company_id=company_id,
+        system_process=SYSTEM_PROCESS,
+        action="task.created",
+        object_type="task",
+        object_id=str(t.id),
+        after={**snapshot(t), "event": event, "params": params},
+    )
+    return t
+
+
+def close_system(company_id: UUID, condition: str, *, done: bool, result: str) -> int:
+    """The required result is recorded (done) or the condition is gone (cancelled); the result
+    is kept (§ 19.2.1)."""
+    from c4rsys.platform.models import AuditEvent
+
+    closed = 0
+    for t in Task.objects.select_for_update().filter(
+        company_id=company_id,
+        source=Task.Source.SYSTEM,
+        system_condition=condition,
+        state__in=ACTIVE_STATES,
+    ):
+        before = snapshot(t)
+        t.state = State.DONE if done else State.CANCELLED
+        t.state_note = result
+        t.cancel_reason = "" if done else result
+        t.closed_at = timezone.now()
+        t.version += 1
+        t.save()
+        notices.sync(t, None)
+        AuditEvent.objects.create(
+            company_id=company_id,
+            system_process=SYSTEM_PROCESS,
+            action="task.completed" if done else "task.cancelled",
+            object_type="task",
+            object_id=str(t.id),
+            before=before,
+            after={**snapshot(t), "result": result},
+        )
+        closed += 1
+    return closed

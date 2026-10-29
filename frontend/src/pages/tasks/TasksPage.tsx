@@ -43,6 +43,11 @@ function useWhen() {
   return (value: string | null) => formatMoment(value, zone, i18n.language);
 }
 
+/** A system task is named by its event in the user's language (§ 19.1.8). */
+export function taskTitle(t: (key: string, options?: Record<string, unknown>) => string, x: WorkTask): string {
+  return x.source === "system" ? t(`tasks.system_${x.title.replaceAll(".", "_")}`, { defaultValue: x.title }) : x.title;
+}
+
 function PriorityBadge({ priority }: { priority: WorkTask["priority"] }) {
   const { t } = useTranslation();
   if (priority === "normal") return null;
@@ -67,7 +72,7 @@ function TaskList({ query, empty }: { query: string; empty?: string }) {
               <Link to={companyPath(company, `/tasks/${x.id}`)}>№ {x.number}</Link>
             </td>
             <td>
-              {x.title} <PriorityBadge priority={x.priority} />
+              {taskTitle(t, x)} <PriorityBadge priority={x.priority} />
               {x.overdue ? <span className="badge danger">{t("tasks.overdue")}</span> : null}
               {x.blocked ? <span className="badge warn">{t("tasks.blocked")}</span> : null}
               {x.tags.map((tag) => (
@@ -435,7 +440,7 @@ export function TaskPage() {
         <Link to={companyPath(company, "/tasks")}>← {t("nav.tasks")}</Link>
       </p>
       <h1>
-        {t("tasks.number", { number: x.number })} · {x.title} <PriorityBadge priority={x.priority} />
+        {t("tasks.number", { number: x.number })} · {taskTitle(t, x)} <PriorityBadge priority={x.priority} />
         {x.overdue ? <span className="badge danger">{t("tasks.overdue")}</span> : null}
         {x.blocked ? <span className="badge warn">{t("tasks.blocked")}</span> : null}
       </h1>

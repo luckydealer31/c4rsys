@@ -199,7 +199,8 @@
     "task_tag_created": "Создан тег",
     "task_tag_renamed": "Переименован тег",
     "task_tag_removed": "Удалён тег",
-    "notification_read": "Уведомления прочитаны"
+    "notification_read": "Уведомления прочитаны",
+    "notification_rule_changed": "Изменено правило уведомлений"
   },
   "finance_articles": {
     "archive": "В архив",
@@ -851,7 +852,9 @@
     "task_repeat_needs_date": "Для повторяющейся задачи нужна дата срока.",
     "task_repeat_state_invalid": "В этом состоянии повторения так нельзя.",
     "task_not_repeating": "Задача не повторяется.",
-    "task_reminders_need_due": "Для напоминаний нужен срок."
+    "task_reminders_need_due": "Для напоминаний нужен срок.",
+    "notification_mandatory": "Обязательное уведомление нельзя изменить.",
+    "notification_recipient_unknown": "Сотрудник не работает в компании."
   },
   "history": {
     "action": "Действие",
@@ -1409,7 +1412,9 @@
     "tariffs": "Тарифы",
     "tariffs_hint": "Тарифы аренды и их условия для ТС.",
     "rental": "Аренда: брони и выдача",
-    "rental_hint": "Политики выдачи и автоотмена при неявке"
+    "rental_hint": "Политики выдачи и автоотмена при неявке",
+    "notifications": "Уведомления и задачи",
+    "notifications_hint": "О каких рабочих событиях, кому, когда и с каким повтором сообщать"
   },
   "setup": {
     "back": "Назад",
@@ -3143,7 +3148,11 @@
     "before_hours": "за {{count}} ч",
     "before_days": "за {{count}} дн",
     "policy_overdue_repeat": "Повторять уведомление о просрочке, часов",
-    "policy_overdue_repeat_hint": "0 — не повторять"
+    "policy_overdue_repeat_hint": "0 — не повторять",
+    "system_rental_exception_pending": "Подтвердить или отклонить исключение при выдаче",
+    "system_rental_inspection_missing": "Урегулировать отсутствующий осмотр",
+    "system_service_maintenance_due": "Запланировать обслуживание",
+    "system_finance_debt": "Взыскать долг по заказу"
   },
   "notifications": {
     "title": "Уведомления",
@@ -3167,6 +3176,43 @@
     "event_task_assigned": "Вам назначена задача № {{number}} «{{title}}»",
     "event_task_reminder": "Приближается срок задачи № {{number}} «{{title}}»",
     "event_task_overdue": "Задача № {{number}} «{{title}}» просрочена",
-    "event_document_term": "Срок документа № {{number}} «{{title}}» — до {{valid_until}}"
+    "event_document_term": "Срок документа № {{number}} «{{title}}» — до {{valid_until}}",
+    "event_employee_access_changed": "Изменился ваш доступ в компании",
+    "rule_employee_access_changed": "Изменение доступа сотрудника",
+    "event_document_signing_requested": "Подпишите документ № {{number}} «{{title}}»",
+    "rule_document_signing_requested": "Запрос подписания документа",
+    "event_document_signing_result": "Ответ по подписанию документа № {{number}} «{{title}}»",
+    "rule_document_signing_result": "Результат подписания документа",
+    "event_rental_exception_pending": "Исключение при выдаче ждёт решения (бронь № {{booking_number}}, {{vehicle}})",
+    "rule_rental_exception_pending": "Исключение при выдаче ждёт подтверждения",
+    "event_rental_inspection_missing": "У возвращённой аренды нет сохранённого осмотра: {{vehicle}}",
+    "rule_rental_inspection_missing": "Отсутствующий осмотр перед закрытием аренды",
+    "event_rental_issue_upcoming": "Скоро выдача: {{vehicle}}, бронь № {{booking_number}}",
+    "rule_rental_issue_upcoming": "Предстоящая выдача",
+    "event_rental_return_upcoming": "Скоро возврат: {{vehicle}}",
+    "rule_rental_return_upcoming": "Предстоящий возврат",
+    "event_rental_return_overdue": "Просрочен возврат: {{vehicle}}",
+    "rule_rental_return_overdue": "Просрочка возврата",
+    "event_rental_booking_cancelled": "Бронь № {{booking_number}} отменена: {{vehicle}}",
+    "rule_rental_booking_cancelled": "Отмена брони",
+    "event_service_maintenance_due": "Обслуживание «{{rule}}»: {{vehicle}}",
+    "rule_service_maintenance_due": "Приближение и просрочка обслуживания",
+    "event_service_works_done": "Работы сервиса № {{number}} завершены: {{vehicle}}",
+    "rule_service_works_done": "Завершение сервисной работы",
+    "event_warehouse_expiry": "Срок годности {{item}} (LOT {{lot}}) — {{expiry_date}}",
+    "rule_warehouse_expiry": "Истечение срока годности",
+    "event_finance_debt": "Заказ № {{number}} закрыт с долгом",
+    "rule_finance_debt": "Задолженность по закрытому заказу",
+    "rule_task_assigned": "Назначение новой рабочей задачи",
+    "rules_hint": "Рабочие уведомления компании: включение, момент до события, повтор, получатели и автоматические задачи.",
+    "working": "Рабочие уведомления",
+    "mandatory": "Обязательные уведомления",
+    "mandatory_hint": "Их нельзя отключить.",
+    "lead_hours": "За сколько часов",
+    "repeat_hours": "Повторять каждые, часов",
+    "repeat_hint": "0 — не повторять",
+    "recipients": "Получатели",
+    "recipients_hint": "Не выбраны — по ответственности и правам; выбранные получают, только если у них есть доступ к объекту",
+    "auto_task": "Также создавать задачу"
   }
 }

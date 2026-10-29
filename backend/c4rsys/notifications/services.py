@@ -130,6 +130,14 @@ def _actors(company_id: UUID) -> list[Actor]:
     ]
 
 
+def active_employments(company_id: UUID) -> list[UUID]:
+    return list(
+        Employment.objects.filter(
+            company_id=company_id, state=Employment.State.ACTIVE, user__isnull=False
+        ).values_list("id", flat=True)
+    )
+
+
 def with_permission(company_id: UUID, permission: str, location_id: UUID | None) -> list[UUID]:
     """Active employees with the right in the location, or in the whole company."""
     resolver = access.RightsResolver()

@@ -12,8 +12,9 @@ class RentalsConfig(AppConfig):
         from c4rsys.companies import locations, readiness
         from c4rsys.fleet import moves
         from c4rsys.fleet import services as fleet
+        from c4rsys.notifications import services as notifications
         from c4rsys.orders import services as orders
-        from c4rsys.rentals import billing, extra_lines, order_links, rentals, tariffs
+        from c4rsys.rentals import billing, extra_lines, notices, order_links, rentals, tariffs
 
         readiness.register("rental", tariffs.rental_conditions_met)
         locations.register_blockers(rentals.location_blockers)
@@ -32,3 +33,5 @@ class RentalsConfig(AppConfig):
         # § 12.2.1–12.2.2: proposals become bookings; the cancelled order takes its positions.
         orders.register_on_formed(order_links.on_order_formed)
         orders.register_on_cancel(order_links.on_order_cancel)
+        # § 20.3.5, § 14.3.7, decision З-11: notifications and system tasks of rentals.
+        notifications.register_check(notices.run)

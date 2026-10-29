@@ -199,7 +199,8 @@
     "task_tag_created": "Tag created",
     "task_tag_renamed": "Tag renamed",
     "task_tag_removed": "Tag removed",
-    "notification_read": "Notifications read"
+    "notification_read": "Notifications read",
+    "notification_rule_changed": "Notification rule changed"
   },
   "finance_articles": {
     "archive": "Archive",
@@ -851,7 +852,9 @@
     "task_repeat_needs_date": "A repeating task needs a deadline date.",
     "task_repeat_state_invalid": "Not possible in this state of the repetition.",
     "task_not_repeating": "The task does not repeat.",
-    "task_reminders_need_due": "Reminders need a deadline."
+    "task_reminders_need_due": "Reminders need a deadline.",
+    "notification_mandatory": "A mandatory notification cannot be changed.",
+    "notification_recipient_unknown": "The employee is not active in the company."
   },
   "history": {
     "action": "Action",
@@ -1409,7 +1412,9 @@
     "tariffs": "Tariffs",
     "tariffs_hint": "Rental tariffs and their terms for vehicles.",
     "rental": "Rental: bookings and issue",
-    "rental_hint": "Issue policies and auto-cancel at no-show"
+    "rental_hint": "Issue policies and auto-cancel at no-show",
+    "notifications": "Notifications and tasks",
+    "notifications_hint": "Which working events notify whom, when and with which repetition"
   },
   "setup": {
     "back": "Back",
@@ -3143,7 +3148,11 @@
     "before_hours": "{{count}} h before",
     "before_days": "{{count}} d before",
     "policy_overdue_repeat": "Repeat the overdue notice, hours",
-    "policy_overdue_repeat_hint": "0 — do not repeat"
+    "policy_overdue_repeat_hint": "0 — do not repeat",
+    "system_rental_exception_pending": "Confirm or reject the issue exception",
+    "system_rental_inspection_missing": "Settle the missing inspection",
+    "system_service_maintenance_due": "Plan the maintenance",
+    "system_finance_debt": "Collect the debt of the order"
   },
   "notifications": {
     "title": "Notifications",
@@ -3167,6 +3176,43 @@
     "event_task_assigned": "You are assigned the task № {{number}} «{{title}}»",
     "event_task_reminder": "The deadline of the task № {{number}} «{{title}}» is near",
     "event_task_overdue": "The task № {{number}} «{{title}}» is overdue",
-    "event_document_term": "The term of the document № {{number}} «{{title}}» ends on {{valid_until}}"
+    "event_document_term": "The term of the document № {{number}} «{{title}}» ends on {{valid_until}}",
+    "event_employee_access_changed": "Your access in the company has changed",
+    "rule_employee_access_changed": "Change of an employee's access",
+    "event_document_signing_requested": "Sign the document № {{number}} «{{title}}»",
+    "rule_document_signing_requested": "Request to sign a document",
+    "event_document_signing_result": "Answer on the signing of the document № {{number}} «{{title}}»",
+    "rule_document_signing_result": "Result of signing a document",
+    "event_rental_exception_pending": "An issue exception waits for a decision (booking № {{booking_number}}, {{vehicle}})",
+    "rule_rental_exception_pending": "Issue exception waiting for confirmation",
+    "event_rental_inspection_missing": "A returned rental has no saved inspection: {{vehicle}}",
+    "rule_rental_inspection_missing": "Missing inspection before closing a rental",
+    "event_rental_issue_upcoming": "Issue soon: {{vehicle}}, booking № {{booking_number}}",
+    "rule_rental_issue_upcoming": "Upcoming issue",
+    "event_rental_return_upcoming": "Return soon: {{vehicle}}",
+    "rule_rental_return_upcoming": "Upcoming return",
+    "event_rental_return_overdue": "The return is overdue: {{vehicle}}",
+    "rule_rental_return_overdue": "Overdue return",
+    "event_rental_booking_cancelled": "Booking № {{booking_number}} is cancelled: {{vehicle}}",
+    "rule_rental_booking_cancelled": "Booking cancelled",
+    "event_service_maintenance_due": "Maintenance «{{rule}}» of {{vehicle}}",
+    "rule_service_maintenance_due": "Maintenance soon or overdue",
+    "event_service_works_done": "Works of the service № {{number}} are done: {{vehicle}}",
+    "rule_service_works_done": "Service works done",
+    "event_warehouse_expiry": "Expiry of {{item}} (LOT {{lot}}) — {{expiry_date}}",
+    "rule_warehouse_expiry": "Expiry of a lot",
+    "event_finance_debt": "Order № {{number}} is closed with debt",
+    "rule_finance_debt": "Debt of a closed order",
+    "rule_task_assigned": "A new task is assigned",
+    "rules_hint": "Working notifications of the company: switch on or off, the moment before the occasion, the repetition, recipients and automatic tasks.",
+    "working": "Working notifications",
+    "mandatory": "Mandatory notifications",
+    "mandatory_hint": "They cannot be switched off.",
+    "lead_hours": "Hours before",
+    "repeat_hours": "Repeat every, hours",
+    "repeat_hint": "0 — do not repeat",
+    "recipients": "Recipients",
+    "recipients_hint": "None chosen — by responsibility and rights; the chosen ones receive it only with access to the object",
+    "auto_task": "Also create a task"
   }
 }

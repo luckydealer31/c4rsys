@@ -112,3 +112,43 @@ class NotificationRepeat(models.Model):
 
     def __str__(self) -> str:
         return f"{self.notification_id}@{self.at}"
+
+
+class NotificationRule(models.Model):
+    """The company's rule of a working event (§ 20.3.5–20.3.6; decisions З-7, З-8): on or off,
+    the moment of the first notification, the repetition interval, chosen recipients among those
+    with access and, where § 19.1.9 allows, an automatic task. Absent — the defaults."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    event = models.CharField(max_length=60)
+    enabled = models.BooleanField(default=True)
+    lead_minutes = models.PositiveIntegerField(default=0)
+    repeat_minutes = models.PositiveIntegerField(default=0)
+    recipient_ids = models.JSONField(default=list, blank=True)
+    auto_task = models.BooleanField(default=False)
+    updated_by_user_id = models.UUIDField()
+    updated_at = models.DateTimeField(default=now)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "notification_rule"
+        constraints = [
+            models.UniqueConstraint(fields=["company", "event"], name="notification_rule_uniq"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.company_id}:{self.event}"
+
+
+class JournalCursor(models.Model):
+    """How far the journal of actions has been read for instant events (§ 20.3.5)."""
+
+    name = models.CharField(max_length=40, primary_key=True)
+    last_id = models.UUIDField(null=True, blank=True)
+
+    class Meta:
+        db_table = "notification_journal_cursor"
+
+    def __str__(self) -> str:
+        return self.name

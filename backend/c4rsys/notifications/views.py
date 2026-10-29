@@ -89,13 +89,10 @@ def notification_list(request: HttpRequest) -> JsonResponse:
 
 @require_GET
 def notification_count(request: HttpRequest) -> JsonResponse:
-    """Unread active notifications, for the mark in the header."""
+    """Unread notifications, for the mark in the header: also the instant events, which are done
+    at once (§ 20.3.5)."""
     user, _session = require_user(request)
-    count = (
-        _mine(user.id)
-        .filter(read_at__isnull=True, notification__state=Notification.State.ACTIVE)
-        .count()
-    )
+    count = _mine(user.id).filter(read_at__isnull=True).count()
     return JsonResponse({"unread": count})
 
 
@@ -162,3 +159,113 @@ def notification_read(request: HttpRequest) -> JsonResponse:
             request_id=get_request_id(request),
         )
     )
+
+
+# --- Rules of the company (§ 20.3.5–20.3.6) ------------------------------------------------------
+
+
+def _company(request: HttpRequest, cmp: str) -> tuple[Any, Actor]:
+    from c4rsys.companies import services as companies
+
+    user, session = require_user(request)
+    context = companies.resolve_company(user, cmp, session.id)
+    return context, companies.company_actor(user, context, session.id)
+
+
+def _rule_payload(r: Any) -> dict[str, Any]:
+    from c4rsys.notifications import rules
+
+    spec = rules.EVENTS[r.event]
+    return {
+        "event": r.event,
+        "kind": spec.kind,
+        "mandatory": spec.mandatory,
+        "has_lead": spec.has_lead,
+        "can_task": spec.task,
+        "enabled": r.enabled,
+        "lead_minutes": r.lead_minutes,
+        "repeat_minutes": r.repeat_minutes,
+        "recipient_ids": [str(x) for x in r.recipient_ids],
+        "auto_task": r.auto_task,
+        "version": r.version,
+    }
+
+
+def _settings(actor: Actor) -> None:
+    from c4rsys.companies import access
+
+    if not access.RightsResolver().has_permission(actor, "company.settings"):
+        raise errors.permission_denied("company.settings")
+
+
+@require_GET
+def rule_list(request: HttpRequest, cmp: str) -> JsonResponse:
+    from c4rsys.companies import staff
+    from c4rsys.notifications import rules
+    from c4rsys.notifications import services as notifications
+
+    context, actor = _company(request, cmp)
+    _settings(actor)
+    people = notifications.active_employments(context.company.id)
+    names = staff.employee_names(context.company.id, set(people)) if people else {}
+    return JsonResponse(
+        {
+            "rules": [_rule_payload(r) for r in rules.rules_of(context.company.id)],
+            "employees": sorted(
+                ({"id": str(x), "name": names.get(x, "")} for x in people),
+                key=lambda e: e["name"],
+            ),
+        }
+    )
+
+
+@require_POST
+def rule_change(request: HttpRequest, cmp: str) -> JsonResponse:
+    import json
+
+    from c4rsys.companies.views import run_and_respond
+    from c4rsys.notifications import rules
+
+    context, actor = _company(request, cmp)
+    _settings(actor)
+    try:
+        data = json.loads(request.body or b"{}")
+    except ValueError as exc:
+        raise errors.validation_error("body") from exc
+    if not isinstance(data, dict):
+        raise errors.validation_error("body")
+    event = str(data.get("event", ""))
+    numbers = {}
+    for key in ("lead_minutes", "repeat_minutes", "expected_version"):
+        value = data.get(key, 0)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise errors.validation_error(key)
+        numbers[key] = value
+    flags = {}
+    for key in ("enabled", "auto_task"):
+        if not isinstance(data.get(key, False), bool):
+            raise errors.validation_error(key)
+        flags[key] = bool(data.get(key, False))
+    raw = data.get("recipient_ids") or []
+    if not isinstance(raw, list):
+        raise errors.validation_error("recipient_ids")
+    try:
+        recipient_ids = [UUID(str(x)) for x in raw]
+    except ValueError as exc:
+        raise errors.validation_error("recipient_ids") from exc
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        found = rules.set_rule(
+            ctx,
+            context.company,
+            event,
+            enabled=flags["enabled"],
+            lead_minutes=numbers["lead_minutes"],
+            repeat_minutes=numbers["repeat_minutes"],
+            recipient_ids=recipient_ids,
+            auto_task=flags["auto_task"],
+            expected=numbers["expected_version"],
+        )
+        return CommandResult(200, {"rule": _rule_payload(found)})
+
+    return run_and_respond(request, "notification.rule", actor, data, handler)

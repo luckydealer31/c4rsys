@@ -199,7 +199,8 @@
     "task_tag_created": "สร้างแท็ก",
     "task_tag_renamed": "เปลี่ยนชื่อแท็ก",
     "task_tag_removed": "ลบแท็ก",
-    "notification_read": "อ่านการแจ้งเตือน"
+    "notification_read": "อ่านการแจ้งเตือน",
+    "notification_rule_changed": "เปลี่ยนกฎการแจ้งเตือน"
   },
   "finance_articles": {
     "archive": "เก็บเข้าคลัง",
@@ -851,7 +852,9 @@
     "task_repeat_needs_date": "งานที่ทำซ้ำต้องมีวันที่กำหนด",
     "task_repeat_state_invalid": "ทำไม่ได้ในสถานะการทำซ้ำนี้",
     "task_not_repeating": "งานนี้ไม่ทำซ้ำ",
-    "task_reminders_need_due": "การเตือนต้องมีกำหนด"
+    "task_reminders_need_due": "การเตือนต้องมีกำหนด",
+    "notification_mandatory": "เปลี่ยนการแจ้งเตือนบังคับไม่ได้",
+    "notification_recipient_unknown": "พนักงานไม่ได้ทำงานในบริษัท"
   },
   "history": {
     "action": "Action",
@@ -1409,7 +1412,9 @@
     "tariffs": "Tariffs",
     "tariffs_hint": "Rental tariffs and their terms for vehicles.",
     "rental": "การเช่า: การจองและการส่งมอบ",
-    "rental_hint": "นโยบายการส่งมอบและการยกเลิกอัตโนมัติเมื่อไม่มา"
+    "rental_hint": "นโยบายการส่งมอบและการยกเลิกอัตโนมัติเมื่อไม่มา",
+    "notifications": "การแจ้งเตือนและงาน",
+    "notifications_hint": "แจ้งเหตุการณ์ใด ให้ใคร เมื่อไร และทำซ้ำอย่างไร"
   },
   "setup": {
     "back": "Back",
@@ -3143,7 +3148,11 @@
     "before_hours": "{{count}} ชม. ก่อน",
     "before_days": "{{count}} วันก่อน",
     "policy_overdue_repeat": "แจ้งเตือนเลยกำหนดซ้ำทุก (ชั่วโมง)",
-    "policy_overdue_repeat_hint": "0 — ไม่ซ้ำ"
+    "policy_overdue_repeat_hint": "0 — ไม่ซ้ำ",
+    "system_rental_exception_pending": "ยืนยันหรือปฏิเสธข้อยกเว้นการส่งมอบ",
+    "system_rental_inspection_missing": "จัดการการตรวจสภาพที่ขาด",
+    "system_service_maintenance_due": "วางแผนการบำรุงรักษา",
+    "system_finance_debt": "เรียกเก็บหนี้ของคำสั่งซื้อ"
   },
   "notifications": {
     "title": "การแจ้งเตือน",
@@ -3167,6 +3176,43 @@
     "event_task_assigned": "คุณได้รับมอบหมายงาน № {{number}} «{{title}}»",
     "event_task_reminder": "ใกล้กำหนดงาน № {{number}} «{{title}}»",
     "event_task_overdue": "งาน № {{number}} «{{title}}» เลยกำหนด",
-    "event_document_term": "เอกสาร № {{number}} «{{title}}» หมดอายุ {{valid_until}}"
+    "event_document_term": "เอกสาร № {{number}} «{{title}}» หมดอายุ {{valid_until}}",
+    "event_employee_access_changed": "สิทธิ์ของคุณในบริษัทเปลี่ยนแปลง",
+    "rule_employee_access_changed": "การเปลี่ยนสิทธิ์ของพนักงาน",
+    "event_document_signing_requested": "โปรดลงนามเอกสาร № {{number}} «{{title}}»",
+    "rule_document_signing_requested": "คำขอลงนามเอกสาร",
+    "event_document_signing_result": "คำตอบการลงนามเอกสาร № {{number}} «{{title}}»",
+    "rule_document_signing_result": "ผลการลงนามเอกสาร",
+    "event_rental_exception_pending": "ข้อยกเว้นการส่งมอบรอการตัดสินใจ (การจอง № {{booking_number}}, {{vehicle}})",
+    "rule_rental_exception_pending": "ข้อยกเว้นการส่งมอบรอการยืนยัน",
+    "event_rental_inspection_missing": "การเช่าที่คืนแล้วไม่มีการตรวจสภาพที่บันทึก: {{vehicle}}",
+    "rule_rental_inspection_missing": "ไม่มีการตรวจสภาพก่อนปิดการเช่า",
+    "event_rental_issue_upcoming": "ใกล้ส่งมอบ: {{vehicle}} การจอง № {{booking_number}}",
+    "rule_rental_issue_upcoming": "การส่งมอบที่ใกล้ถึง",
+    "event_rental_return_upcoming": "ใกล้คืนรถ: {{vehicle}}",
+    "rule_rental_return_upcoming": "การคืนที่ใกล้ถึง",
+    "event_rental_return_overdue": "คืนรถเลยกำหนด: {{vehicle}}",
+    "rule_rental_return_overdue": "คืนรถเลยกำหนด",
+    "event_rental_booking_cancelled": "การจอง № {{booking_number}} ถูกยกเลิก: {{vehicle}}",
+    "rule_rental_booking_cancelled": "การยกเลิกการจอง",
+    "event_service_maintenance_due": "การบำรุงรักษา «{{rule}}»: {{vehicle}}",
+    "rule_service_maintenance_due": "การบำรุงรักษาใกล้ถึงหรือเลยกำหนด",
+    "event_service_works_done": "งานบริการ № {{number}} เสร็จแล้ว: {{vehicle}}",
+    "rule_service_works_done": "งานบริการเสร็จ",
+    "event_warehouse_expiry": "วันหมดอายุ {{item}} (LOT {{lot}}) — {{expiry_date}}",
+    "rule_warehouse_expiry": "วันหมดอายุของล็อต",
+    "event_finance_debt": "คำสั่งซื้อ № {{number}} ปิดพร้อมหนี้ค้าง",
+    "rule_finance_debt": "หนี้ของคำสั่งซื้อที่ปิดแล้ว",
+    "rule_task_assigned": "การมอบหมายงานใหม่",
+    "rules_hint": "การแจ้งเตือนงานของบริษัท: เปิดปิด เวลาแจ้งล่วงหน้า การทำซ้ำ ผู้รับ และงานอัตโนมัติ",
+    "working": "การแจ้งเตือนงาน",
+    "mandatory": "การแจ้งเตือนบังคับ",
+    "mandatory_hint": "ปิดไม่ได้",
+    "lead_hours": "กี่ชั่วโมงก่อน",
+    "repeat_hours": "ทำซ้ำทุก (ชั่วโมง)",
+    "repeat_hint": "0 — ไม่ซ้ำ",
+    "recipients": "ผู้รับ",
+    "recipients_hint": "ไม่เลือก — ตามความรับผิดชอบและสิทธิ์ ผู้ที่เลือกจะได้รับเมื่อมีสิทธิ์ในวัตถุเท่านั้น",
+    "auto_task": "สร้างงานด้วย"
   }
 }
