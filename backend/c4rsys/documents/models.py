@@ -66,6 +66,18 @@ class Document(models.Model):
     state = models.CharField(max_length=10, choices=State.choices, default=State.ACTIVE)
     archive_reason = models.CharField(max_length=1000, blank=True, default="")
     archived_at = models.DateTimeField(null=True, blank=True)
+    # Made by a template: which one and which version of it (§ 18.5.2).
+    template = models.ForeignKey(
+        "documents.DocumentTemplate",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    template_version = models.PositiveIntegerField(null=True, blank=True)
+    # The object the template's data came from, to make the document again (§ 18.5.2).
+    source_type = models.CharField(max_length=20, blank=True, default="")
+    source_id = models.UUIDField(null=True, blank=True)
     created_at = models.DateTimeField(default=now)
     updated_at = models.DateTimeField(auto_now=True)
     version = models.PositiveIntegerField(default=1)
@@ -186,3 +198,63 @@ class DocumentLink(models.Model):
 
     def __str__(self) -> str:
         return f"{self.document_id}->{self.object_type}:{self.object_id}"
+
+
+class DocumentTemplate(models.Model):
+    """A template: a starting one of the system in its language, or the company's own (§ 18.1.5).
+    The content is text with simple formatting and fields `{{source.field}}` and tables
+    `{{table:source.collection}}` (§ 18.2.2; decision Р-1). A change makes a new version of the
+    template; made documents keep theirs (§ 18.5.2)."""
+
+    class Source(models.TextChoices):
+        RENTAL = "rental"
+        ORDER = "order"
+        SERVICE_OPERATION = "service_operation"
+        DELIVERY = "delivery"
+        CLIENT = "client"
+        VEHICLE = "vehicle"
+        NONE = "none"
+
+    class State(models.TextChoices):
+        ACTIVE = "active"
+        ARCHIVED = "archived"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(
+        Company, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    code = models.CharField(max_length=40, blank=True, default="")
+    language = models.CharField(max_length=5, blank=True, default="")
+    title = models.CharField(max_length=300)
+    kind = models.ForeignKey(DocumentKind, on_delete=models.PROTECT, related_name="+")
+    source = models.CharField(max_length=20, choices=Source.choices)
+    content = models.TextField()
+    required_fields = models.JSONField(default=list, blank=True)
+    # Who signs a document of this template: the company, the client, a counterparty (§ 18.3.3).
+    signers = models.JSONField(default=dict, blank=True)
+    state = models.CharField(max_length=10, choices=State.choices, default=State.ACTIVE)
+    template_version = models.PositiveIntegerField(default=1)
+    created_by_user_id = models.UUIDField(null=True, blank=True)
+    created_at = models.DateTimeField(default=now)
+    updated_at = models.DateTimeField(auto_now=True)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "document_template"
+        constraints = [
+            models.CheckConstraint(
+                condition=~Q(title=""), name="document_template_title_not_empty"
+            ),
+            models.CheckConstraint(
+                condition=Q(company__isnull=True) & ~Q(code="") | Q(company__isnull=False),
+                name="document_template_system_has_code",
+            ),
+            models.UniqueConstraint(
+                fields=["code", "language"],
+                condition=Q(company__isnull=True),
+                name="document_template_system_uniq",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return self.title

@@ -9,6 +9,7 @@ import type { CompanyDocument, DocumentKind } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
+import { MakeDocument } from "./Templates";
 
 type Result = { document: CompanyDocument };
 export type LinkTarget = { objectType: string; objectId: string };
@@ -34,11 +35,17 @@ function useRefresh() {
 /** The registry of company documents with the warnings of terms (§ 18.1.10, § 18.1.13). */
 export function DocumentsPage() {
   const { t } = useTranslation();
+  const company = useCompany();
   const can = useCan();
   const [filter, setFilter] = useState<"" | "warnings=1" | "archived=1">("");
   return (
     <div className="page">
       <h1>{t("nav.documents")}</h1>
+      <div className="actions" style={{ marginBottom: 12, marginTop: 0 }}>
+        <Link className="button secondary" to={companyPath(company, "/documents/templates")}>
+          {t("documents.templates")}
+        </Link>
+      </div>
       <div className="row" style={{ marginBottom: 12 }}>
         <Field label={t("documents.show")}>
           <select value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)}>
@@ -185,12 +192,14 @@ function UploadDocument({ target }: { target?: LinkTarget }) {
 export function LinkedDocuments({ objectType, objectId }: LinkTarget) {
   const { t } = useTranslation();
   const can = useCan();
+  const refresh = useRefresh();
   const [adding, setAdding] = useState(false);
   if (!can("documents.view") && !can("documents.upload")) return null;
   return (
     <>
       <h2>{t("nav.documents")}</h2>
       {can("documents.view") ? <DocumentList query="" target={{ objectType, objectId }} /> : null}
+      {can("documents.create") ? <MakeDocument objectType={objectType} objectId={objectId} onDone={refresh} /> : null}
       {can("documents.upload") ? (
         adding ? (
           <UploadDocument target={{ objectType, objectId }} />
@@ -236,6 +245,7 @@ export function DocumentPage() {
   const addVersion = useCommand<Record<string, unknown>, Result>(`${base}/versions`);
   const archive = useCommand<Record<string, unknown>, Result>(`${base}/archive`);
   const unlink = useCommand<Record<string, unknown>, Result>(`${base}/unlink`);
+  const remake = useCommand<Record<string, unknown>, Result>(`${base}/remake`);
   if (query.isLoading) return <Loading />;
   if (!d) return <ErrorMessage error={query.error instanceof ApiError ? query.error : null} />;
   const active = d.state === "active";
@@ -289,6 +299,27 @@ export function DocumentPage() {
           ) : null}
         </dl>
       </Card>
+      {d.versions?.[0]?.content ? (
+        <Card title={t("documents.content_title")}>
+          <div className="actions" style={{ marginTop: 0 }}>
+            <Link className="button secondary" to={companyPath(company, `/documents/${d.id}/print/${d.versions[0].number}`)}>
+              {t("documents.print")}
+            </Link>
+            {active && d.template_id && can("documents.create") ? (
+              <button
+                type="button"
+                className="secondary"
+                disabled={remake.pending}
+                onClick={() => void remake.run({ expected_version: d.version }).then((r) => (r ? refresh() : undefined))}
+              >
+                {t("documents.remake")}
+              </button>
+            ) : null}
+          </div>
+          <ErrorMessage error={remake.error} />
+          <div className="document-content" dangerouslySetInnerHTML={{ __html: d.versions[0].content }} />
+        </Card>
+      ) : null}
       <Card title={t("documents.versions")}>
         {(d.versions ?? []).map((v) => (
           <div key={v.number} className="small">
@@ -297,7 +328,9 @@ export function DocumentPage() {
               <a href={`/api/files/${v.file_id}`} target="_blank" rel="noreferrer">
                 {v.file_name || t("documents.open_file")}
               </a>
-            ) : null}
+            ) : (
+              <Link to={companyPath(company, `/documents/${d.id}/print/${v.number}`)}>{t("documents.open_content")}</Link>
+            )}
             {v.valid_until ? ` · ${t("documents.valid_until")}: ${v.valid_until}` : ""}
             {v.note ? ` · ${v.note}` : ""}
           </div>

@@ -13,7 +13,7 @@ from django.utils import timezone
 from tests.accounts.helpers import post
 from tests.companies.helpers import hire, key
 from tests.files.helpers import upload
-from tests.rentals.scenario import Scenario, add_location, build
+from tests.rentals.scenario import Scenario, add_location
 
 pytestmark = pytest.mark.django_db
 
@@ -25,11 +25,6 @@ def _docx() -> bytes:
     with zipfile.ZipFile(buffer, "w") as package:
         package.writestr("word/document.xml", "<w:document/>")
     return buffer.getvalue()
-
-
-@pytest.fixture
-def s(owner: Client) -> Scenario:
-    return build(owner)
 
 
 def _file(client: Client, content: bytes = PDF) -> str:

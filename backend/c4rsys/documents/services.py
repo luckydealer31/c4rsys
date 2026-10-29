@@ -237,8 +237,14 @@ def _term(valid_until: date | None, warn_days: int | None) -> None:
         raise errors.validation_error("valid_until", code="FIELD_REQUIRED")
 
 
-def create(ctx: CommandContext, company: Company, data: NewDocument) -> Document:
-    """An uploaded document (§ 18.1.3) — or a document made by a template (part Р2)."""
+def create(
+    ctx: CommandContext,
+    company: Company,
+    data: NewDocument,
+    render: Callable[[int], str] | None = None,
+) -> Document:
+    """An uploaded document (§ 18.1.3) — or a document made by a template, whose content is
+    rendered once its number is known (part Р2)."""
     _kind(company.id, data.kind_id)
     _term(data.valid_until, data.warn_days)
     if data.file_id is not None:
@@ -248,7 +254,7 @@ def create(ctx: CommandContext, company: Company, data: NewDocument) -> Document
             user_id=ctx.actor.user_id,
             company_id=company.id,
         )
-    elif not data.content:
+    elif not data.content and render is None:
         raise errors.validation_error("file_id", code="FIELD_REQUIRED")
     d = Document.objects.create(
         company=company,
@@ -269,7 +275,7 @@ def create(ctx: CommandContext, company: Company, data: NewDocument) -> Document
         number=1,
         file_id=data.file_id,
         file_name=data.file_name,
-        content=data.content,
+        content=render(d.number) if render is not None else data.content,
         valid_until=data.valid_until,
         created_by_user_id=ctx.actor.user_id,
     )

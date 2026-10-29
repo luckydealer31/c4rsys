@@ -16,8 +16,8 @@ from c4rsys.accounts.middleware import require_user
 from c4rsys.companies import access
 from c4rsys.companies import services as companies
 from c4rsys.companies.views import run_and_respond
-from c4rsys.documents import services
-from c4rsys.documents.models import Document, DocumentLink
+from c4rsys.documents import fields, services, templates
+from c4rsys.documents.models import Document, DocumentLink, DocumentTemplate
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
@@ -143,6 +143,10 @@ def _document_payload(d: Document, *, detail: bool = False) -> dict[str, Any]:
         }
         if current
         else None,
+        "template_id": str(d.template_id) if d.template_id else None,
+        "template_version": d.template_version,
+        "source_type": d.source_type or None,
+        "source_id": str(d.source_id) if d.source_id else None,
     }
     if detail:
         result["links"] = [
@@ -156,6 +160,7 @@ def _document_payload(d: Document, *, detail: bool = False) -> dict[str, Any]:
                 "file_name": v.file_name,
                 "valid_until": _iso(v.valid_until),
                 "note": v.note,
+                "content": v.content,
                 "created_at": v.created_at.isoformat(),
             }
             for v in services.versions_of(d)
@@ -391,3 +396,206 @@ def document_archive(request: HttpRequest, cmp: str, document_id: UUID) -> JsonR
     return _command(
         request, cmp, document_id, "documents.archive", "document.archive", action, ("reason",)
     )
+
+
+# --- Templates (§ 18.1.4–18.1.5, § 18.2) ---------------------------------------------------------
+
+
+def _template_payload(t: DocumentTemplate) -> dict[str, Any]:
+    return {
+        "id": str(t.id),
+        "version": t.version,
+        "system": t.company_id is None,
+        "code": t.code or None,
+        "content": t.content,
+        "kind_id": str(t.kind_id),
+        **templates.snapshot(t),
+    }
+
+
+@require_http_methods(["GET"])
+def field_catalog(request: HttpRequest, cmp: str) -> JsonResponse:
+    """The agreed system fields and tables with the sources that give them (§ 18.2.6)."""
+    _actor(request, cmp)
+    return JsonResponse(
+        {
+            "fields": [{"code": k, "source": v or None} for k, v in fields.FIELDS.items()],
+            "tables": [
+                {"code": k, "columns": list(v), "source": templates.TABLE_SOURCES[k]}
+                for k, v in fields.TABLES.items()
+            ],
+            "sources": {k: sorted(v) for k, v in templates.SOURCES_OF.items()},
+        }
+    )
+
+
+def _template_data(data: dict[str, Any]) -> templates.TemplateData:
+    required = data.get("required_fields") or []
+    signers = data.get("signers") or {}
+    if not isinstance(required, list) or not all(isinstance(x, str) for x in required):
+        raise errors.validation_error("required_fields")
+    if not isinstance(signers, dict) or not all(isinstance(v, bool) for v in signers.values()):
+        raise errors.validation_error("signers")
+    return templates.TemplateData(
+        title=get_str(data, "title", max_length=300).strip(),
+        kind_id=_required(data, "kind_id"),
+        source=get_str(data, "source", max_length=20),
+        content=get_str(data, "content", max_length=100_000),
+        required_fields=required,
+        signers={k: bool(v) for k, v in signers.items()},
+        language=get_str(data, "language", max_length=5, required=False),
+    )
+
+
+@require_http_methods(["GET", "POST"])
+def template_list(request: HttpRequest, cmp: str) -> JsonResponse:
+    context, actor = _actor(request, cmp)
+    if request.method == "GET":
+        if not any(
+            _anywhere(actor, p)
+            for p in ("documents.view", "documents.create", "documents.templates")
+        ):
+            raise errors.permission_denied("documents.create")
+        items = templates.templates_of(context.company.id).order_by(
+            "company_id", "code", "language", "title"
+        )
+        return JsonResponse({"templates": [_template_payload(t) for t in items]})
+    if not _anywhere(actor, "documents.templates"):
+        raise errors.permission_denied("documents.templates")
+    data = parse_json(request)
+    copy_from = _uuid(data.get("copy_from"), "copy_from")
+    if copy_from is not None:
+        source = templates.get(context.company.id, copy_from)
+        data = {
+            "title": data.get("title") or source.title,
+            "kind_id": str(source.kind_id),
+            "source": source.source,
+            "content": source.content,
+            "required_fields": list(source.required_fields),
+            "signers": dict(source.signers),
+            "language": source.language,
+        }
+    new = _template_data(data)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        return CommandResult(
+            201, {"template": _template_payload(templates.create(ctx, context.company, new))}
+        )
+
+    payload = {
+        k: data.get(k)
+        for k in ("title", "kind_id", "source", "content", "required_fields", "signers", "language")
+    }
+    payload["copy_from"] = str(copy_from) if copy_from else None
+    return run_and_respond(request, "document_template.create", actor, payload, handler)
+
+
+@require_http_methods(["GET", "PATCH"])
+def template_detail(request: HttpRequest, cmp: str, template_id: UUID) -> JsonResponse:
+    context, actor = _actor(request, cmp)
+    if request.method == "GET":
+        if not any(
+            _anywhere(actor, p)
+            for p in ("documents.view", "documents.create", "documents.templates")
+        ):
+            raise errors.permission_denied("documents.create")
+        return JsonResponse(
+            {"template": _template_payload(templates.get(context.company.id, template_id))}
+        )
+    if not _anywhere(actor, "documents.templates"):
+        raise errors.permission_denied("documents.templates")
+    data = parse_json(request)
+    expected_version = get_int(data, "expected_version")
+    archived = data.get("archived")
+    if archived is not None and not isinstance(archived, bool):
+        raise errors.validation_error("archived")
+    new = None if archived is not None else _template_data(data)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        t = templates.locked(context.company.id, template_id, expected_version)
+        if new is not None:
+            templates.change(ctx, t, new)
+        else:
+            templates.set_archived(ctx, t, bool(archived))
+        return CommandResult(200, {"template": _template_payload(t)})
+
+    payload = {
+        "template_id": str(template_id),
+        "expected_version": expected_version,
+        "archived": archived,
+        **{
+            k: data.get(k)
+            for k in (
+                "title",
+                "kind_id",
+                "source",
+                "content",
+                "required_fields",
+                "signers",
+                "language",
+            )
+        },
+    }
+    return run_and_respond(request, "document_template.change", actor, payload, handler)
+
+
+@require_POST
+def document_preview(request: HttpRequest, cmp: str) -> JsonResponse:
+    """The result before making, with the fields without data (§ 18.2.4); nothing is saved."""
+    context, actor = _actor(request, cmp)
+    if not _anywhere(actor, "documents.create"):
+        raise errors.permission_denied("documents.create")
+    data = parse_json(request)
+    t = templates.get(context.company.id, _required(data, "template_id"))
+    found = templates.preview(
+        context.company,
+        t,
+        _uuid(data.get("source_id"), "source_id"),
+        employment_id=actor.employment_id,
+        on=_date(data, "document_date"),
+    )
+    return JsonResponse(
+        {
+            "html": found.html,
+            "missing_required": found.missing_required,
+            "missing_optional": found.missing_optional,
+        }
+    )
+
+
+@require_POST
+def document_from_template(request: HttpRequest, cmp: str) -> JsonResponse:
+    context, actor = _actor(request, cmp)
+    if not _anywhere(actor, "documents.create"):
+        raise errors.permission_denied("documents.create")
+    data = parse_json(request)
+    template_id = _required(data, "template_id")
+    source_id = _uuid(data.get("source_id"), "source_id")
+    title = get_str(data, "title", max_length=300, required=False).strip()
+    on = _date(data, "document_date") or timezone.localdate()
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        t = templates.get(context.company.id, template_id)
+        d = templates.make(ctx, context.company, t, source_id, title=title, on=on)
+        _require_on(actor, "documents.create", d)
+        return CommandResult(201, {"document": _document_payload(d, detail=True)})
+
+    payload = {
+        "template_id": str(template_id),
+        "source_id": str(source_id) if source_id else None,
+        "title": title,
+        "document_date": on.isoformat(),
+    }
+    return run_and_respond(request, "document.from_template", actor, payload, handler)
+
+
+@require_POST
+def document_remake(request: HttpRequest, cmp: str, document_id: UUID) -> JsonResponse:
+    """An unsigned document made again by the current template (§ 18.5.2)."""
+    context, actor = _actor(request, cmp)
+
+    def action(ctx: CommandContext | None, d: Any, data: dict[str, Any]) -> None:
+        if ctx is not None:
+            templates.remake(ctx, context.company, d)
+
+    return _command(request, cmp, document_id, "documents.create", "document.remake", action, ())

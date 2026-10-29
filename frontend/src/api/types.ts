@@ -1180,5 +1180,26 @@ export type CompanyDocument = {
   archive_reason: string;
   current_version: { number: number; file_id: string | null; file_name: string; has_content: boolean } | null;
   links?: { id: string; object_type: string; object_id: string }[];
-  versions?: { number: number; file_id: string | null; file_name: string; valid_until: string | null; note: string; created_at: string }[];
+  versions?: { number: number; file_id: string | null; file_name: string; valid_until: string | null; note: string; content: string; created_at: string }[];
+  template_id: string | null;
+  template_version: number | null;
+  source_type: string | null;
+  source_id: string | null;
+};
+
+/** A template: a starting one of the system or the company's own (§ 18.1.5, § 18.2). */
+export type DocumentTemplate = {
+  id: string;
+  version: number;
+  system: boolean;
+  code: string | null;
+  title: string;
+  kind_id: string;
+  source: "rental" | "order" | "service_operation" | "delivery" | "client" | "vehicle" | "none";
+  language: string;
+  content: string;
+  required_fields: string[];
+  signers: Record<string, boolean>;
+  state: "active" | "archived";
+  template_version: number;
 };

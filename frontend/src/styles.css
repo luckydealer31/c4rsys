@@ -233,3 +233,14 @@ button.link { background: none; border: none; padding: 0; color: var(--accent); 
   font-size: inherit; }
 .line-card { border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
 .line-card h3 { margin-top: 0; }
+
+/* Content of a document made by a template (decision Р-1). */
+.document-content { background: #fff; color: #111; padding: 24px; border-radius: 6px; line-height: 1.5; }
+.document-content table { border-collapse: collapse; width: 100%; margin: 8px 0; }
+.document-content th, .document-content td { border: 1px solid #999; padding: 4px 8px; text-align: left; }
+.document-content .missing { background: #ffe08a; color: #6b4b00; padding: 0 2px; border-radius: 2px; }
+@media print {
+  .no-print, .rail, nav, header { display: none !important; }
+  .print-page { padding: 0; }
+  .document-content { padding: 0; }
+}
