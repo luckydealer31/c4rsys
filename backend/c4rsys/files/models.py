@@ -33,6 +33,8 @@ class StoredFile(models.Model):
     size = models.PositiveIntegerField()
     sha256 = models.CharField(max_length=64)
     created_at = models.DateTimeField(default=timezone.now)
+    # The content was removed by its retention period (§ 22.2.4); the details stay.
+    removed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "stored_file"

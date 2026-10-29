@@ -112,6 +112,9 @@ class NewVehicle:
     details: Characteristics = field(default_factory=Characteristics)
     relation: str = VehicleCard.Relation.OWN
     owner: owners.Owner = field(default_factory=owners.Owner)
+    # Allowed usage contexts given by an import (§ 22.3.1); None — all applicable ones.
+    contexts: tuple[str, ...] | None = None
+    possible_duplicate: bool = False
 
 
 def create_vehicle(ctx: CommandContext, company: Company, data: NewVehicle) -> VehicleCard:
@@ -150,6 +153,7 @@ def create_vehicle(ctx: CommandContext, company: Company, data: NewVehicle) -> V
         relation=data.relation,
         accounting_location_id=location_id,
         odometer_unit=data.odometer_unit,
+        possible_duplicate=data.possible_duplicate,
         created_by_user_id=ctx.actor.user_id,
         created_at=now,
     )
@@ -158,6 +162,10 @@ def create_vehicle(ctx: CommandContext, company: Company, data: NewVehicle) -> V
         # A client vehicle is only serviced, and service is implied (§ 8.1.2).
         usable = frozenset()
     contexts = sorted(locations.context_types_in_company(company.id) & usable)
+    if data.contexts is not None:
+        if not set(data.contexts) <= set(contexts):
+            raise errors.validation_error("contexts", code="CONTEXT_NOT_APPLICABLE")
+        contexts = sorted(set(data.contexts))
     VehicleCardContext.objects.bulk_create(
         VehicleCardContext(company=company, vehicle_card=card, context_type=t) for t in contexts
     )
@@ -640,3 +648,27 @@ def set_acquisition(
         after={"cost": cost, "currency": card.acquisition_currency_id},
     )
     return card
+
+
+def applicable_contexts(company_id: UUID) -> set[str]:
+    """Usage contexts a new own or managed vehicle may be switched on for (§ 8.5.1)."""
+    return set(locations.context_types_in_company(company_id) & USAGE_CONTEXT_TYPES)
+
+
+def remove_imported(company_id: UUID, card_ids: list[UUID]) -> None:
+    """Cancel of an import (§ 22.2.5): the cards it created, with their contexts, declared
+    owners and readings; the global vehicle goes too unless another card refers to it. Any other
+    reference raises ProtectedError and the caller refuses the cancel."""
+    from c4rsys.fleet.models import VehicleOwnerClaim
+
+    for card in VehicleCard.objects.select_for_update().filter(
+        company_id=company_id, pk__in=card_ids
+    ):
+        vehicle = card.vehicle
+        VehicleCardContext.objects.filter(vehicle_card=card).delete()
+        VehicleOwnerClaim.objects.filter(vehicle_card=card).delete()
+        OdometerReading.objects.filter(vehicle_card=card).delete()
+        card.delete()
+        if not VehicleCard.objects.filter(vehicle=vehicle).exists():
+            vehicle.plates.all().delete()
+            vehicle.delete()

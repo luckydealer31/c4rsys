@@ -13,7 +13,7 @@ import { CompaniesPage } from "./pages/companies/CompaniesPage";
 import { ClientPage, ClientsPage } from "./pages/clients/ClientsPage";
 import { CounterpartyPage } from "./pages/clients/Counterparties";
 import { CompanyPage } from "./pages/company/CompanyPage";
-import { ImportPage } from "./pages/warehouse/ImportPage";
+import { ImportPage } from "./pages/imports/ImportPage";
 import { ItemPage, NewItemPage } from "./pages/warehouse/ItemPage";
 import { NewPurchasePage, PurchasePage } from "./pages/warehouse/Purchases";
 import { InventoryPage } from "./pages/warehouse/Inventory";
@@ -142,6 +142,7 @@ export function App() {
         <Route path="warehouse" element={<WarehousePage />} />
         <Route path="warehouse/items/new" element={<NewItemPage />} />
         <Route path="warehouse/import" element={<ImportPage />} />
+        <Route path="imports" element={<ImportPage />} />
         <Route path="warehouse/items/:id" element={<ItemPage />} />
         <Route path="warehouse/receipts/new" element={<ReceiptPage />} />
         <Route path="warehouse/receipts/:id" element={<ReceiptPage />} />

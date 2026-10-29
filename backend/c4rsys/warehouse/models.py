@@ -265,6 +265,9 @@ class ImportOperation(models.Model):
 
     class Kind(models.TextChoices):
         ITEMS = "items"
+        VEHICLES = "vehicles"
+        CLIENTS = "clients"
+        COUNTERPARTIES = "counterparties"
 
     class State(models.TextChoices):
         CHECKED = "checked"
@@ -290,6 +293,10 @@ class ImportOperation(models.Model):
     cancelled_at = models.DateTimeField(null=True, blank=True)
     loaded_count = models.PositiveIntegerField(default=0)
     skipped_count = models.PositiveIntegerField(default=0)
+    # Corrected files uploaded from the history (§ 22.2.7): {file, file_name, sha256, at, by}.
+    uploads = models.JSONField(default=list)
+    # The source and corrected files are removed six months after the first upload (§ 22.2.4).
+    files_removed_at = models.DateTimeField(null=True, blank=True)
     version = models.PositiveIntegerField(default=1)
 
     class Meta:

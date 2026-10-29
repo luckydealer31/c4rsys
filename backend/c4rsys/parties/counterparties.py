@@ -28,6 +28,11 @@ class CounterpartyData:
     middle_name: str = ""
     company_name: str = ""
     comment: str = ""
+    # Optional data of the import template (§ 22.3.3).
+    registration: str = ""
+    address: str = ""
+    category: str = ""
+    external_id: str = ""
 
     def check_minimum(self) -> None:
         """Person: first and last name; company: name (§ 6.2.7–6.2.8, § 22.3.3)."""
@@ -56,6 +61,11 @@ def snapshot(card: Counterparty) -> dict[str, Any]:
         "middle_name": card.middle_name,
         "company_name": card.company_name,
         "comment": card.comment,
+        "registration": card.registration,
+        "address": card.address,
+        "category": card.category,
+        "external_id": card.external_id,
+        "possible_duplicate": card.possible_duplicate,
         "state": card.state,
         "contacts": [
             {"kind": c.kind, "value": c.value} for c in card.contacts.order_by("kind", "value")
@@ -78,7 +88,12 @@ def _write_contacts(card: Counterparty, contacts: list[Contact]) -> None:
 
 
 def create(
-    ctx: CommandContext, company: Company, data: CounterpartyData, contacts: list[Contact]
+    ctx: CommandContext,
+    company: Company,
+    data: CounterpartyData,
+    contacts: list[Contact],
+    *,
+    possible_duplicate: bool = False,
 ) -> Counterparty:
     data.check_minimum()
     if not contacts:
@@ -91,6 +106,11 @@ def create(
         middle_name=data.middle_name,
         company_name=data.company_name,
         comment=data.comment,
+        registration=data.registration,
+        address=data.address,
+        category=data.category,
+        external_id=data.external_id,
+        possible_duplicate=possible_duplicate,
         created_by_user_id=ctx.actor.user_id,
         created_at=timezone.now(),
     )

@@ -14,6 +14,8 @@ from pathlib import Path
 from uuid import UUID
 
 from django.conf import settings
+from django.db import transaction
+from django.utils import timezone
 
 from c4rsys.files.models import StoredFile
 from c4rsys.platform import errors
@@ -165,4 +167,14 @@ def of_company(company_id: UUID, file_id: UUID) -> StoredFile | None:
 
 
 def content(item: StoredFile) -> bytes:
+    if item.removed_at is not None:
+        raise errors.business_rule("FILE_REMOVED")
     return _path(item.id).read_bytes()
+
+
+def remove(file_id: UUID) -> None:
+    """Removes the content by its retention period; the details of the file stay. Call inside
+    the caller's transaction: the content is deleted after it commits."""
+    StoredFile.objects.filter(pk=file_id, removed_at__isnull=True).update(removed_at=timezone.now())
+    path = _path(file_id)
+    transaction.on_commit(lambda: path.unlink(missing_ok=True))

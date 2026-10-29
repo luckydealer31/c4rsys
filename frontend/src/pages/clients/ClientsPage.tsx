@@ -276,6 +276,13 @@ export function ClientForm({ onCreated }: { onCreated?: (client: Client) => void
 }
 
 /** Client card: data, contacts, settlement balance (§ 6.2.12, § 6.7.2). */
+/** Contacts beyond the first phone and the first email, which the form edits. */
+export function extraContacts(contacts: ClientContact[]): ClientContact[] {
+  const firstPhone = contacts.find((c) => c.kind === "phone");
+  const firstEmail = contacts.find((c) => c.kind === "email");
+  return contacts.filter((c) => c !== firstPhone && c !== firstEmail);
+}
+
 export function ClientPage() {
   const { t } = useTranslation();
   const { id = "" } = useParams();
@@ -304,6 +311,9 @@ export function ClientPage() {
     company_name: data.company_name,
     phone: data.contacts.find((c) => c.kind === "phone")?.value ?? "",
     email: data.contacts.find((c) => c.kind === "email")?.value ?? "",
+    address: data.address,
+    comment: data.comment,
+    external_id: data.external_id,
   };
 
   const current = data;
@@ -312,6 +322,9 @@ export function ClientPage() {
     const contacts: ClientContact[] = [];
     if (values.phone?.trim()) contacts.push({ kind: "phone", value: values.phone });
     if (values.email?.trim()) contacts.push({ kind: "email", value: values.email });
+    // Further phones and emails (from an import) are kept as they are.
+    contacts.push(...extraContacts(current.contacts));
+    const texts = { address: values.address, comment: values.comment, external_id: values.external_id };
     const body: Record<string, unknown> =
       current.kind === "person"
         ? {
@@ -319,8 +332,9 @@ export function ClientPage() {
             last_name: values.last_name,
             middle_name: values.middle_name,
             contacts,
+            ...texts,
           }
-        : { company_name: values.company_name, contacts };
+        : { company_name: values.company_name, contacts, ...texts };
     if ((await update.run({ ...body, expected_version: current.version })) !== null) {
       setForm(null);
       await queryClient.invalidateQueries({ queryKey: ["client", company.public_id, id] });
@@ -339,7 +353,10 @@ export function ClientPage() {
 
   return (
     <div className="page">
-      <h1>{clientName(data)}</h1>
+      <h1>
+        {clientName(data)}{" "}
+        {data.possible_duplicate ? <span className="badge warn">{t("imports.possible_duplicate")}</span> : null}
+      </h1>
       <Card title={t("clients.balance")}>
         {Object.entries(balance.data?.balance ?? {}).length === 0 ? (
           <p className="muted">0</p>
@@ -394,6 +411,14 @@ export function ClientPage() {
             {field("phone", t("clients.phone"))}
             {field("email", t("auth.email"))}
           </div>
+          {extraContacts(data.contacts).map((c) => (
+            <p key={`${c.kind}-${c.value}`} className="small">
+              {c.kind === "phone" ? t("clients.phone") : t("auth.email")}: {c.value}
+            </p>
+          ))}
+          {field("address", t("imports.address"))}
+          {field("comment", t("warehouse.comment"))}
+          {field("external_id", t("imports.external_id"))}
           <ErrorMessage error={update.error} />
           {can("client.edit") ? (
             <div className="actions">

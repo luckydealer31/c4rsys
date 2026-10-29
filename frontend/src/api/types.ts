@@ -294,6 +294,10 @@ export type Client = {
   middle_name: string;
   birth_date: string | null;
   company_name: string;
+  address: string;
+  comment: string;
+  external_id: string;
+  possible_duplicate: boolean;
   contacts: ClientContact[];
 };
 
@@ -684,13 +688,17 @@ export type ImportRow = {
   action: "create" | "skip" | "link" | "create_duplicate" | "error";
   target: string | null;
   result: "created" | "linked" | "skipped" | "conflict" | null;
-  item_id: string | null;
+  /** The ID points to one record, other identifiers to another (§ 22.2.3). */
+  conflict?: boolean;
+  record_id: string | null;
 };
+
+export type ImportKind = "items" | "vehicles" | "clients" | "counterparties";
 
 export type ImportOperation = {
   id: string;
   version: number;
-  kind: string;
+  kind: ImportKind;
   state: "checked" | "posted" | "cancelled";
   file_name: string;
   created_at: string;
@@ -699,7 +707,19 @@ export type ImportOperation = {
   loaded_count: number;
   skipped_count: number;
   rows_count: number;
-  warnings: { code: string; column?: string; import?: string; loaded?: number; skipped?: number }[];
+  warnings: {
+    code: string;
+    column?: string;
+    import?: string;
+    loaded?: number;
+    skipped?: number;
+    number?: number;
+    row?: string;
+    rows?: number;
+  }[];
+  uploads: { file_name: string; at: string }[];
+  files_kept_until: string;
+  files_removed: boolean;
   rows?: ImportRow[];
 };
 
@@ -714,6 +734,11 @@ export type Counterparty = {
   middle_name: string;
   company_name: string;
   comment: string;
+  registration: string;
+  address: string;
+  category: string;
+  external_id: string;
+  possible_duplicate: boolean;
   state: "active" | "archived";
   contacts: ClientContact[];
 };

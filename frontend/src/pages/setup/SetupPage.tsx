@@ -92,7 +92,7 @@ export function SetupPage() {
               <Link className="button secondary" to={companyPath(company, "/warehouse")}>
                 {t("nav.warehouse")}
               </Link>
-              <Link className="button secondary" to={companyPath(company, "/warehouse/import")}>
+              <Link className="button secondary" to={companyPath(company, "/imports?kind=vehicles")}>
                 {t("setup.import")}
               </Link>
             </>

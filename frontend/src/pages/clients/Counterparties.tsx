@@ -8,6 +8,9 @@ import type { ClientContact, Counterparty } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
+import { extraContacts } from "./ClientsPage";
+
+type Texts = { registration: string; address: string; category: string; external_id: string };
 
 type Draft = {
   kind: "person" | "company";
@@ -185,7 +188,7 @@ export function CounterpartyPage() {
   const update = useCommand<Record<string, unknown>, unknown>(base, "PATCH");
   const archive = useCommand<{ expected_version: number }, unknown>(`${base}/archive`);
   const restore = useCommand<{ expected_version: number }, unknown>(`${base}/restore`);
-  const [form, setForm] = useState<Draft | null>(null);
+  const [form, setForm] = useState<(Draft & { texts?: Texts }) | null>(null);
   if (card.isLoading) return <div className="page"><Loading /></div>;
   const data = card.data?.counterparty;
   if (!data) return <div className="page"><ErrorMessage error={null} /></div>;
@@ -199,6 +202,12 @@ export function CounterpartyPage() {
     phone: data.contacts.find((c) => c.kind === "phone")?.value ?? "",
     email: data.contacts.find((c) => c.kind === "email")?.value ?? "",
     comment: data.comment,
+  };
+  const texts = form?.texts ?? {
+    registration: data.registration,
+    address: data.address,
+    category: data.category,
+    external_id: data.external_id,
   };
   const editable = can("counterparty.edit") && data.state === "active";
 
@@ -214,7 +223,14 @@ export function CounterpartyPage() {
       current.kind === "person"
         ? { first_name: values.first_name, last_name: values.last_name, middle_name: values.middle_name }
         : { company_name: values.company_name };
-    const body = { ...names, comment: values.comment, contacts: contactsOf(values), expected_version: current.version };
+    const body = {
+      ...names,
+      ...texts,
+      comment: values.comment,
+      // Further phones and emails (from an import) are kept as they are.
+      contacts: [...contactsOf(values), ...extraContacts(current.contacts)],
+      expected_version: current.version,
+    };
     if ((await update.run(body)) !== null) await refresh();
   }
 
@@ -223,7 +239,16 @@ export function CounterpartyPage() {
       <input
         value={values[key]}
         disabled={!editable}
-        onChange={(e) => setForm({ ...values, [key]: e.target.value })}
+        onChange={(e) => setForm({ ...values, [key]: e.target.value, texts })}
+      />
+    </Field>
+  );
+  const text = (key: keyof typeof texts, label: string) => (
+    <Field label={label}>
+      <input
+        value={texts[key]}
+        disabled={!editable}
+        onChange={(e) => setForm({ ...values, texts: { ...texts, [key]: e.target.value } })}
       />
     </Field>
   );
@@ -235,7 +260,8 @@ export function CounterpartyPage() {
       </p>
       <h1>
         {data.name}{" "}
-        {data.state === "archived" ? <span className="badge warn">{t("counterparties.archived")}</span> : null}
+        {data.state === "archived" ? <span className="badge warn">{t("counterparties.archived")}</span> : null}{" "}
+        {data.possible_duplicate ? <span className="badge warn">{t("imports.possible_duplicate")}</span> : null}
       </h1>
       <Card>
         <form className="stack" onSubmit={save}>
@@ -253,7 +279,18 @@ export function CounterpartyPage() {
             {field("phone", t("clients.phone"))}
             {field("email", t("auth.email"))}
           </div>
+          {extraContacts(data.contacts).map((c) => (
+            <p key={`${c.kind}-${c.value}`} className="small">
+              {c.kind === "phone" ? t("clients.phone") : t("auth.email")}: {c.value}
+            </p>
+          ))}
           {field("comment", t("warehouse.comment"))}
+          {text("registration", t("imports.registration"))}
+          <div className="row">
+            {text("address", t("imports.address"))}
+            {text("category", t("imports.category"))}
+            {text("external_id", t("imports.external_id"))}
+          </div>
           <ErrorMessage error={update.error ?? archive.error ?? restore.error} />
           <div className="actions">
             {editable ? (

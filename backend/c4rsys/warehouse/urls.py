@@ -1,5 +1,6 @@
 from django.urls import path
 
+from c4rsys.warehouse import import_views as imv
 from c4rsys.warehouse import inventory_views as inv
 from c4rsys.warehouse import operations_views as ops
 from c4rsys.warehouse import prices_views as pr
@@ -109,11 +110,21 @@ urlpatterns = [
     path("c/<str:cmp>/warehouse/reasons", ops.reason_list),
     path("c/<str:cmp>/warehouse/reasons/<uuid:reason_id>", ops.reason_detail),
     path("c/<str:cmp>/warehouse/settings", ops.settings),
-    path("c/<str:cmp>/warehouse/imports/template", views.import_template),
-    path("c/<str:cmp>/warehouse/imports", views.import_list),
-    path("c/<str:cmp>/warehouse/imports/<uuid:operation_id>", views.import_detail),
-    path("c/<str:cmp>/warehouse/imports/<uuid:operation_id>/file", views.import_file),
-    path("c/<str:cmp>/warehouse/imports/<uuid:operation_id>/decisions", views.import_decisions),
-    path("c/<str:cmp>/warehouse/imports/<uuid:operation_id>/post", views.import_post),
-    path("c/<str:cmp>/warehouse/imports/<uuid:operation_id>/cancel", views.import_cancel),
+    path("c/<str:cmp>/warehouse/imports/template", imv.import_template),
+    path("c/<str:cmp>/warehouse/imports", imv.import_list, {"default_kind": "items"}),
+    path("c/<str:cmp>/imports/template/<str:kind>", imv.import_template),
+    path("c/<str:cmp>/imports", imv.import_list),
+    *[
+        route
+        for prefix in ("warehouse/imports", "imports")
+        for route in (
+            path(f"c/<str:cmp>/{prefix}/<uuid:operation_id>", imv.import_detail),
+            path(f"c/<str:cmp>/{prefix}/<uuid:operation_id>/file", imv.import_file),
+            path(f"c/<str:cmp>/{prefix}/<uuid:operation_id>/correction", imv.import_correction),
+            path(f"c/<str:cmp>/{prefix}/<uuid:operation_id>/reupload", imv.import_reupload),
+            path(f"c/<str:cmp>/{prefix}/<uuid:operation_id>/decisions", imv.import_decisions),
+            path(f"c/<str:cmp>/{prefix}/<uuid:operation_id>/post", imv.import_post),
+            path(f"c/<str:cmp>/{prefix}/<uuid:operation_id>/cancel", imv.import_cancel),
+        )
+    ],
 ]

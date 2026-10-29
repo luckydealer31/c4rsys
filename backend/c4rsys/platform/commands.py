@@ -87,6 +87,14 @@ class CommandContext:
     def audit_entries(self) -> list[AuditEvent]:
         return list(self._entries)
 
+    def audit_mark(self) -> int:
+        """For a step run in a database savepoint: entries queued after the mark are dropped by
+        `discard_audit` if the savepoint is rolled back, so the journal tells only what stayed."""
+        return len(self._entries)
+
+    def discard_audit(self, mark: int) -> None:
+        del self._entries[mark:]
+
 
 Handler = Callable[[CommandContext], CommandResult]
 

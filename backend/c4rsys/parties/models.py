@@ -32,6 +32,12 @@ class ClientCard(models.Model):
     middle_name = models.CharField(max_length=150, blank=True, default="")
     birth_date = models.DateField(null=True, blank=True)
     company_name = models.CharField(max_length=200, blank=True, default="")
+    # Optional data of the import template (§ 22.3.2).
+    address = models.CharField(max_length=500, blank=True, default="")
+    comment = models.TextField(blank=True, default="")
+    external_id = models.CharField(max_length=100, blank=True, default="")
+    # Created by an import as a possible duplicate of another card (§ 22.2.3, § 22.3.2).
+    possible_duplicate = models.BooleanField(default=False)
     linked_user_id = models.UUIDField(null=True, blank=True)
     state = models.CharField(max_length=10, choices=State.choices, default=State.ACTIVE)
     created_by_user_id = models.UUIDField()
@@ -123,6 +129,12 @@ class Counterparty(models.Model):
     middle_name = models.CharField(max_length=150, blank=True, default="")
     company_name = models.CharField(max_length=200, blank=True, default="")
     comment = models.TextField(blank=True, default="")
+    # Optional data of the import template (§ 22.3.3).
+    registration = models.CharField(max_length=500, blank=True, default="")
+    address = models.CharField(max_length=500, blank=True, default="")
+    category = models.CharField(max_length=100, blank=True, default="")
+    external_id = models.CharField(max_length=100, blank=True, default="")
+    possible_duplicate = models.BooleanField(default=False)
     linked_user_id = models.UUIDField(null=True, blank=True)
     state = models.CharField(max_length=10, choices=State.choices, default=State.ACTIVE)
     created_by_user_id = models.UUIDField()

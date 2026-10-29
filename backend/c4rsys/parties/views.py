@@ -60,6 +60,19 @@ def _name(data: dict[str, Any], key: str, max_length: int = NAME_MAX) -> str:
     return get_str(data, key, max_length=max_length, required=False)
 
 
+# Optional texts of the cards with their maximum length (§ 22.3.2–22.3.3).
+CLIENT_TEXTS = {"address": 500, "comment": 2000, "external_id": 100}
+COUNTERPARTY_TEXTS = {"registration": 500, "address": 500, "category": 100, "external_id": 100}
+
+
+def _texts(data: dict[str, Any], fields: dict[str, int], only_given: bool) -> dict[str, str]:
+    return {
+        key: get_str(data, key, max_length=length, required=False)
+        for key, length in fields.items()
+        if key in data or not only_given
+    }
+
+
 @require_http_methods(["GET", "POST"])
 def client_list(request: HttpRequest, cmp: str) -> JsonResponse:
     context, actor = _actor(request, cmp)
@@ -79,6 +92,7 @@ def client_list(request: HttpRequest, cmp: str) -> JsonResponse:
         middle_name=_name(data, "middle_name"),
         birth_date=_birth_date(data),
         company_name=_name(data, "company_name", COMPANY_NAME_MAX),
+        **_texts(data, CLIENT_TEXTS, only_given=False),
     )
     client.check_minimum()
     contacts = services.parse_contacts(data.get("contacts", []), required=True)
@@ -104,6 +118,7 @@ def client_list(request: HttpRequest, cmp: str) -> JsonResponse:
         "middle_name": client.middle_name,
         "birth_date": client.birth_date.isoformat() if client.birth_date else None,
         "company_name": client.company_name,
+        **{key: getattr(client, key) for key in CLIENT_TEXTS},
         "contacts": [c.as_dict() for c in contacts],
     }
     return run_and_respond(request, "client.create", actor, payload, handler)
@@ -133,6 +148,7 @@ def client_detail(request: HttpRequest, cmp: str, client_id: UUID) -> JsonRespon
         changes["company_name"] = _name(data, "company_name", COMPANY_NAME_MAX)
     if "birth_date" in data:
         changes["birth_date"] = _birth_date(data)
+    changes.update(_texts(data, CLIENT_TEXTS, only_given=True))
     contacts = (
         services.parse_contacts(data["contacts"], required=True) if "contacts" in data else None
     )
@@ -217,6 +233,7 @@ def counterparty_list(request: HttpRequest, cmp: str) -> JsonResponse:
         middle_name=_name(data, "middle_name"),
         company_name=_name(data, "company_name", COMPANY_NAME_MAX),
         comment=get_str(data, "comment", max_length=COMMENT_MAX, required=False),
+        **_texts(data, COUNTERPARTY_TEXTS, only_given=False),
     )
     card_data.check_minimum()
     contacts = services.parse_contacts(data.get("contacts", []), required=True)
@@ -233,6 +250,7 @@ def counterparty_list(request: HttpRequest, cmp: str) -> JsonResponse:
         "middle_name": card_data.middle_name,
         "company_name": card_data.company_name,
         "comment": card_data.comment,
+        **{key: getattr(card_data, key) for key in COUNTERPARTY_TEXTS},
         "contacts": [c.as_dict() for c in contacts],
     }
     return run_and_respond(request, "counterparty.create", actor, payload, handler)
@@ -260,6 +278,7 @@ def counterparty_detail(request: HttpRequest, cmp: str, counterparty_id: UUID) -
         changes["company_name"] = _name(data, "company_name", COMPANY_NAME_MAX)
     if "comment" in data:
         changes["comment"] = get_str(data, "comment", max_length=COMMENT_MAX, required=False)
+    changes.update(_texts(data, COUNTERPARTY_TEXTS, only_given=True))
     contacts = (
         services.parse_contacts(data["contacts"], required=True) if "contacts" in data else None
     )

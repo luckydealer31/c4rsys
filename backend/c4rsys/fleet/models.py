@@ -156,6 +156,8 @@ class VehicleCard(models.Model):
     acquisition_currency = models.ForeignKey(
         "platform.Currency", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
+    # Created by an import as a possible duplicate of another card (§ 22.2.3).
+    possible_duplicate = models.BooleanField(default=False)
     created_by_user_id = models.UUIDField()
     created_at = models.DateTimeField(default=now)
     updated_at = models.DateTimeField(auto_now=True)

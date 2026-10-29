@@ -91,7 +91,7 @@ services:
     environment:
       DATABASE_URL: postgres://c4rsys:${POSTGRES_PASSWORD}@db:5432/c4rsys
       DJANGO_DEBUG: "0"
-    command: sh -c "while true; do python manage.py run_task_schedule; python manage.py run_notifications; sleep 300; done"
+    command: sh -c "while true; do python manage.py run_task_schedule; python manage.py run_notifications; python manage.py remove_import_files; sleep 300; done"
     healthcheck:
       disable: true
     depends_on:

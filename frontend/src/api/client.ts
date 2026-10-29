@@ -115,9 +115,14 @@ export async function uploadFile(
 }
 
 /** Upload of an import file (§ 22.2.2): the server checks it and stores the operation. */
-export async function uploadImport<T>(path: string, file: File): Promise<T> {
+export async function uploadImport<T>(
+  path: string,
+  file: File,
+  fields: Record<string, string> = {},
+): Promise<T> {
   const body = new FormData();
   body.append("file", file);
+  for (const [name, value] of Object.entries(fields)) body.append(name, value);
   let response: Response;
   try {
     response = await fetch(`/api${path}`, {

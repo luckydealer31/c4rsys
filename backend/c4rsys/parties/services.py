@@ -81,6 +81,10 @@ class ClientData:
     middle_name: str = ""
     birth_date: date | None = None
     company_name: str = ""
+    # Optional data of the import template (§ 22.3.2).
+    address: str = ""
+    comment: str = ""
+    external_id: str = ""
 
     def check_minimum(self) -> None:
         """Person: first and last name; company: name (§ 6.2.7–6.2.8)."""
@@ -113,6 +117,10 @@ def snapshot(card: ClientCard) -> dict[str, Any]:
         "middle_name": card.middle_name,
         "birth_date": card.birth_date.isoformat() if card.birth_date else None,
         "company_name": card.company_name,
+        "address": card.address,
+        "comment": card.comment,
+        "external_id": card.external_id,
+        "possible_duplicate": card.possible_duplicate,
         "contacts": [
             {"kind": c.kind, "value": c.value} for c in card.contacts.order_by("kind", "value")
         ],
@@ -134,7 +142,12 @@ def _write_contacts(card: ClientCard, contacts: list[Contact]) -> None:
 
 
 def create_client(
-    ctx: CommandContext, company: Company, data: ClientData, contacts: list[Contact]
+    ctx: CommandContext,
+    company: Company,
+    data: ClientData,
+    contacts: list[Contact],
+    *,
+    possible_duplicate: bool = False,
 ) -> ClientCard:
     """A local card without an account (§ 6.2.4, § 6.2.10). Possible duplicates do not block
     creation: the manager has compared them and decided (§ 6.1.11)."""
@@ -149,6 +162,10 @@ def create_client(
         middle_name=data.middle_name,
         birth_date=data.birth_date,
         company_name=data.company_name,
+        address=data.address,
+        comment=data.comment,
+        external_id=data.external_id,
+        possible_duplicate=possible_duplicate,
         created_by_user_id=ctx.actor.user_id,
         created_at=timezone.now(),
     )
