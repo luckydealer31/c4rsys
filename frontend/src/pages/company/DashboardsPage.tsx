@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useCan } from "../../layout/CompanyShell";
+import { PersonalDashboards } from "../reports/Personal";
 import { ExportButton, ReportView } from "../reports/Report";
 import { WarehouseDashboard } from "../warehouse/Dashboard";
 
@@ -15,6 +16,7 @@ export function DashboardsPage() {
     ["rental", can("reports.view")],
     ["finance", can("reports.view")],
     ["service", can("reports.view")],
+    ["personal", can("reports.view")],
     ["warehouse", can("warehouse.view")],
   ] as const;
   const visible = tabs.filter(([, shown]) => shown).map(([key]) => key);
@@ -34,6 +36,7 @@ export function DashboardsPage() {
       {tab === "rental" ? <ReportView code="rental" title={t("reports.dashboard_rental")} /> : null}
       {tab === "finance" ? <ReportView code="finance" title={t("reports.dashboard_finance")} /> : null}
       {tab === "service" ? <ReportView code="service" title={t("reports.dashboard_service")} /> : null}
+      {tab === "personal" ? <PersonalDashboards /> : null}
       {tab === "warehouse" ? (
         <>
           <ExportButton code="warehouse" title={t("reports.dashboard_warehouse")} />

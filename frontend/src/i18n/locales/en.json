@@ -201,7 +201,10 @@
     "task_tag_removed": "Tag removed",
     "notification_read": "Notifications read",
     "notification_rule_changed": "Notification rule changed",
-    "vehicle_acquisition_changed": "Acquisition changed"
+    "vehicle_acquisition_changed": "Acquisition changed",
+    "report_dashboard_created": "Dashboard created",
+    "report_dashboard_changed": "Dashboard changed",
+    "report_dashboard_removed": "Dashboard deleted"
   },
   "finance_articles": {
     "archive": "Archive",
@@ -854,7 +857,8 @@
     "task_reminders_need_due": "Reminders need a deadline.",
     "notification_mandatory": "A mandatory notification cannot be changed.",
     "notification_recipient_unknown": "The employee is not active in the company.",
-    "vehicle_acquisition_only_own": "Only for an own vehicle."
+    "vehicle_acquisition_only_own": "Only for an own vehicle.",
+    "report_metric_unknown": "Unknown metric."
   },
   "history": {
     "action": "Action",
@@ -3368,6 +3372,17 @@
     "value_in_progress": "in progress",
     "value_works_done": "works done",
     "value_terminated": "terminated",
-    "value_done": "done"
+    "value_done": "done",
+    "dashboard_personal": "My dashboards",
+    "personal_choose": "Dashboard",
+    "personal_new": "New dashboard",
+    "personal_create": "Create",
+    "personal_edit": "Choose metrics",
+    "personal_done": "Close",
+    "personal_none": "No dashboards of your own yet.",
+    "personal_empty": "Choose the metrics of this dashboard.",
+    "personal_name": "Name",
+    "personal_hint": "Only you see this dashboard. Each metric is counted by its own dashboard and your rights.",
+    "personal_remove": "Delete the dashboard"
   }
 }

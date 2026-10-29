@@ -9,9 +9,10 @@ import io
 import json
 from collections.abc import Callable
 from typing import Any
+from uuid import UUID
 
 from django.http import HttpRequest, HttpResponse, JsonResponse
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 from openpyxl import Workbook
 
 from c4rsys.accounts.middleware import require_user
@@ -20,7 +21,7 @@ from c4rsys.companies import services as companies
 from c4rsys.companies.models import Company
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor
-from c4rsys.reports import finance, overview, rental, scope, service, warehouse
+from c4rsys.reports import finance, overview, personal, rental, scope, service, warehouse
 
 Builder = Callable[[Actor, Company, scope.Filters], list[overview.Block]]
 DASHBOARDS: dict[str, Builder] = {
@@ -61,6 +62,12 @@ def _report(request: HttpRequest, cmp: str, code: str, permission: str) -> dict[
     context, actor = _actor(request, cmp)
     _require(actor, permission)
     builder = DASHBOARDS.get(code)
+    if code.startswith("p-"):
+        # A personal dashboard of the employee (§ 21.2.4).
+        try:
+            builder = personal.builder_for(UUID(code[2:]), DASHBOARDS)
+        except ValueError as exc:
+            raise errors.not_found() from exc
     if builder is None:
         raise errors.not_found()
     filters = scope.parse(request.GET, context.company)
@@ -172,3 +179,85 @@ def dashboard_xlsx(request: HttpRequest, cmp: str, code: str) -> HttpResponse:
     )
     response["Content-Disposition"] = f'attachment; filename="{code}-{f["start"]}-{f["end"]}.xlsx"'
     return response
+
+
+# --- Personal dashboards (§ 21.2.4–21.2.5) -------------------------------------------------------
+
+
+def _body(request: HttpRequest) -> dict[str, Any]:
+    try:
+        data = json.loads(request.body or b"{}")
+    except ValueError as exc:
+        raise errors.validation_error("body") from exc
+    if not isinstance(data, dict):
+        raise errors.validation_error("body")
+    return data
+
+
+def _metrics(data: dict[str, Any]) -> list[str]:
+    value = data.get("metrics") or []
+    if not isinstance(value, list) or not all(isinstance(x, str) for x in value):
+        raise errors.validation_error("metrics")
+    return value
+
+
+@require_http_methods(["GET", "POST"])
+def personal_list(request: HttpRequest, cmp: str) -> JsonResponse:
+    from c4rsys.companies.views import run_and_respond
+    from c4rsys.platform.commands import CommandContext, CommandResult
+
+    context, actor = _actor(request, cmp)
+    _require(actor, "reports.view")
+    if request.method == "GET":
+        return JsonResponse(
+            {
+                "dashboards": [personal.payload(d) for d in personal.dashboards_of(actor)],
+                "catalog": personal.catalog(),
+            }
+        )
+    data = _body(request)
+    name = str(data.get("name", ""))
+    metrics = _metrics(data)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        found = personal.save(ctx, context.company, None, name, metrics, None)
+        return CommandResult(201, {"dashboard": personal.payload(found)})
+
+    payload = {"name": name, "metrics": metrics}
+    return run_and_respond(request, "report.dashboard_create", actor, payload, handler)
+
+
+@require_http_methods(["PUT", "DELETE"])
+def personal_detail(request: HttpRequest, cmp: str, dashboard_id: UUID) -> JsonResponse:
+    from c4rsys.companies.views import run_and_respond
+    from c4rsys.platform.commands import CommandContext, CommandResult
+
+    context, actor = _actor(request, cmp)
+    _require(actor, "reports.view")
+    personal.own(actor, dashboard_id)
+    if request.method == "DELETE":
+
+        def remove(ctx: CommandContext) -> CommandResult:
+            personal.remove(ctx, dashboard_id)
+            return CommandResult(200, {"removed": str(dashboard_id)})
+
+        removing = {"dashboard_id": str(dashboard_id)}
+        return run_and_respond(request, "report.dashboard_remove", actor, removing, remove)
+    data = _body(request)
+    name = str(data.get("name", ""))
+    metrics = _metrics(data)
+    expected = data.get("expected_version")
+    if isinstance(expected, bool) or not isinstance(expected, int):
+        raise errors.validation_error("expected_version", code="INTEGER_REQUIRED")
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        found = personal.save(ctx, context.company, dashboard_id, name, metrics, expected)
+        return CommandResult(200, {"dashboard": personal.payload(found)})
+
+    payload: dict[str, Any] = {
+        "dashboard_id": str(dashboard_id),
+        "name": name,
+        "metrics": metrics,
+        "v": expected,
+    }
+    return run_and_respond(request, "report.dashboard_change", actor, payload, handler)

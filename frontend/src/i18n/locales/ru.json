@@ -201,7 +201,10 @@
     "task_tag_removed": "Удалён тег",
     "notification_read": "Уведомления прочитаны",
     "notification_rule_changed": "Изменено правило уведомлений",
-    "vehicle_acquisition_changed": "Изменена стоимость приобретения"
+    "vehicle_acquisition_changed": "Изменена стоимость приобретения",
+    "report_dashboard_created": "Создан дашборд",
+    "report_dashboard_changed": "Изменён дашборд",
+    "report_dashboard_removed": "Удалён дашборд"
   },
   "finance_articles": {
     "archive": "В архив",
@@ -854,7 +857,8 @@
     "task_reminders_need_due": "Для напоминаний нужен срок.",
     "notification_mandatory": "Обязательное уведомление нельзя изменить.",
     "notification_recipient_unknown": "Сотрудник не работает в компании.",
-    "vehicle_acquisition_only_own": "Только для своего ТС."
+    "vehicle_acquisition_only_own": "Только для своего ТС.",
+    "report_metric_unknown": "Неизвестный показатель."
   },
   "history": {
     "action": "Действие",
@@ -3368,6 +3372,17 @@
     "value_in_progress": "выполняется",
     "value_works_done": "работы завершены",
     "value_terminated": "прекращена",
-    "value_done": "выполнена"
+    "value_done": "выполнена",
+    "dashboard_personal": "Мои дашборды",
+    "personal_choose": "Дашборд",
+    "personal_new": "Новый дашборд",
+    "personal_create": "Создать",
+    "personal_edit": "Выбрать показатели",
+    "personal_done": "Закрыть",
+    "personal_none": "Своих дашбордов пока нет.",
+    "personal_empty": "Выберите показатели этого дашборда.",
+    "personal_name": "Название",
+    "personal_hint": "Этот дашборд видите только вы. Каждый показатель считается так же, как в своём дашборде, и по вашим правам.",
+    "personal_remove": "Удалить дашборд"
   }
 }

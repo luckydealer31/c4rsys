@@ -201,7 +201,10 @@
     "task_tag_removed": "ลบแท็ก",
     "notification_read": "อ่านการแจ้งเตือน",
     "notification_rule_changed": "เปลี่ยนกฎการแจ้งเตือน",
-    "vehicle_acquisition_changed": "เปลี่ยนราคาซื้อ"
+    "vehicle_acquisition_changed": "เปลี่ยนราคาซื้อ",
+    "report_dashboard_created": "สร้างแดชบอร์ด",
+    "report_dashboard_changed": "แก้ไขแดชบอร์ด",
+    "report_dashboard_removed": "ลบแดชบอร์ด"
   },
   "finance_articles": {
     "archive": "เก็บเข้าคลัง",
@@ -854,7 +857,8 @@
     "task_reminders_need_due": "การเตือนต้องมีกำหนด",
     "notification_mandatory": "เปลี่ยนการแจ้งเตือนบังคับไม่ได้",
     "notification_recipient_unknown": "พนักงานไม่ได้ทำงานในบริษัท",
-    "vehicle_acquisition_only_own": "เฉพาะรถของบริษัท"
+    "vehicle_acquisition_only_own": "เฉพาะรถของบริษัท",
+    "report_metric_unknown": "ไม่รู้จักตัวชี้วัด"
   },
   "history": {
     "action": "Action",
@@ -3368,6 +3372,17 @@
     "value_in_progress": "กำลังทำ",
     "value_works_done": "งานเสร็จ",
     "value_terminated": "ยุติ",
-    "value_done": "เสร็จ"
+    "value_done": "เสร็จ",
+    "dashboard_personal": "แดชบอร์ดของฉัน",
+    "personal_choose": "แดชบอร์ด",
+    "personal_new": "แดชบอร์ดใหม่",
+    "personal_create": "สร้าง",
+    "personal_edit": "เลือกตัวชี้วัด",
+    "personal_done": "ปิด",
+    "personal_none": "ยังไม่มีแดชบอร์ดของคุณ",
+    "personal_empty": "เลือกตัวชี้วัดของแดชบอร์ดนี้",
+    "personal_name": "ชื่อ",
+    "personal_hint": "มีเพียงคุณที่เห็นแดชบอร์ดนี้ ตัวชี้วัดคำนวณเหมือนในแดชบอร์ดต้นทางและตามสิทธิ์ของคุณ",
+    "personal_remove": "ลบแดชบอร์ด"
   }
 }
