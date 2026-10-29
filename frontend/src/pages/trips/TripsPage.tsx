@@ -13,6 +13,7 @@ import { deviceTimeZone, formatMoment, fromLocalInput, toLocalInput } from "../.
 import { useOrders } from "../orders/OrdersPage";
 import { useLocations } from "../settings/LocationsPage";
 import { useVehicles } from "../vehicles/VehiclesPage";
+import { PriceFields, TripExpenses, TripPrice, useDeliveryServices } from "./DeliveryMoney";
 
 const FINAL: Delivery["state"][] = ["completed", "cancelled", "terminated"];
 const RESULTS = ["handed_to_client", "taken_from_client", "accepted_in_location", "not_handed", "other"] as const;
@@ -64,13 +65,18 @@ export function TripsPage() {
   return (
     <div className="page">
       <h1>{t("nav.trips")}</h1>
-      {can("delivery.create") ? (
-        <div className="actions" style={{ marginBottom: 16, marginTop: 0 }}>
+      <div className="actions" style={{ marginBottom: 16, marginTop: 0 }}>
+        {can("delivery.create") ? (
           <Link className="button" to={companyPath(company, "/trips/new")}>
             {t("trips.new")}
           </Link>
-        </div>
-      ) : null}
+        ) : null}
+        {can("delivery.catalog") || can("delivery.view") ? (
+          <Link className="button secondary" to={companyPath(company, "/trips/services")}>
+            {t("trips.catalog")}
+          </Link>
+        ) : null}
+      </div>
       {can("delivery.drive") || can("delivery.take") ? (
         <Card title={t("trips.mine")}>
           <TripTable items={mine.data?.deliveries ?? []} loading={mine.isLoading} />
@@ -189,6 +195,9 @@ export function NewTripPage() {
   const [address, setAddress] = useState("");
   const [comment, setComment] = useState("");
   const [driverId, setDriverId] = useState("");
+  const services = useDeliveryServices(Boolean(orderId));
+  const [serviceId, setServiceId] = useState("");
+  const [price, setPrice] = useState("");
   const zone = company.timezone ?? deviceTimeZone();
   const [start, setStart] = useState(toLocalInput(new Date(Date.now() + 3600_000), zone));
   const [end, setEnd] = useState(toLocalInput(new Date(Date.now() + 2 * 3600_000), zone));
@@ -205,6 +214,8 @@ export function NewTripPage() {
       planned_end: fromLocalInput(end, zone),
       driver_id: driverId || null,
       order_id: orderId,
+      service_id: orderId ? serviceId || null : null,
+      price: orderId ? price.trim().replace(",", ".") || null : null,
     });
     if (result) {
       await refresh();
@@ -278,6 +289,15 @@ export function NewTripPage() {
               </Field>
             ) : null}
           </div>
+          {orderId ? (
+            <PriceFields
+              services={services.data?.services ?? []}
+              serviceId={serviceId}
+              setServiceId={setServiceId}
+              price={price}
+              setPrice={setPrice}
+            />
+          ) : null}
           <ErrorMessage error={create.error} />
           <div className="actions">
             <button type="submit" disabled={create.pending || !vehicleId || (kind === "location" ? !locationId : !address.trim())}>
@@ -365,6 +385,8 @@ export function TripPage() {
           </p>
         ) : null}
       </Card>
+      {!d.is_internal && d.price !== undefined ? <TripPrice d={d} /> : null}
+      {d.expenses !== undefined ? <TripExpenses d={d} /> : null}
       {d.state === "planned" ? <PlannedActions d={d} own={own} zone={zone} /> : null}
       {d.state === "in_transit" ? <RunningActions d={d} own={own} zone={zone} /> : null}
     </div>

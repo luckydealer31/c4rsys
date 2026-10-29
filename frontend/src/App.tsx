@@ -24,6 +24,7 @@ import { ServiceCatalogPage } from "./pages/service/Catalog";
 import { NewServiceOperationPage } from "./pages/service/NewOperation";
 import { ServiceOperationPage } from "./pages/service/OperationPage";
 import { ServicePage } from "./pages/service/ServicePage";
+import { DeliveryServicesPage } from "./pages/trips/DeliveryMoney";
 import { NewTripPage, TripPage, TripsPage } from "./pages/trips/TripsPage";
 import { FinancePage } from "./pages/finance/FinancePage";
 import { OrderPage, OrdersPage } from "./pages/orders/OrdersPage";
@@ -110,6 +111,7 @@ export function App() {
         <Route path="service" element={<ServicePage />} />
         <Route path="trips" element={<TripsPage />} />
         <Route path="trips/new" element={<NewTripPage />} />
+        <Route path="trips/services" element={<DeliveryServicesPage />} />
         <Route path="trips/:id" element={<TripPage />} />
         <Route path="service/works" element={<ServiceCatalogPage />} />
         <Route path="service/operations/new" element={<NewServiceOperationPage />} />

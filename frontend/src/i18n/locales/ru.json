@@ -136,7 +136,11 @@
     "delivery_terminated": "Поездка прекращена",
     "delivery_cancelled": "Поездка отменена",
     "delivery_attached": "Поездка прикреплена к заказу",
-    "order_delivery_moved_in": "Доставка перенесена из внутреннего заказа"
+    "order_delivery_moved_in": "Доставка перенесена из внутреннего заказа",
+    "delivery_service_created": "Услуга доставки добавлена",
+    "delivery_service_changed": "Услуга доставки изменена",
+    "delivery_price_changed": "Цена доставки изменена",
+    "delivery_expense_added": "Расход по поездке добавлен"
   },
   "finance_articles": {
     "archive": "В архив",
@@ -730,7 +734,11 @@
     "delivery_not_in_transit": "Поездка не в пути.",
     "delivery_result_needs_location": "«Принято в локации» возможно, только если конечная точка — локация компании.",
     "vehicle_in_transit": "ТС уже в пути.",
-    "delivery_in_client_order": "Поездка уже в заказе клиента."
+    "delivery_in_client_order": "Поездка уже в заказе клиента.",
+    "delivery_service_unknown": "Услуга доставки не найдена.",
+    "delivery_service_archived": "Услуга доставки в архиве.",
+    "delivery_internal_no_price": "У внутреннего перемещения нет цены для клиента.",
+    "delivery_cancelled": "Поездка отменена."
   },
   "history": {
     "action": "Действие",
@@ -1079,7 +1087,9 @@
     "delivery_finish": "Завершать и прекращать поездки",
     "delivery_cancel": "Отменять поездки до начала",
     "delivery_correct": "Исправлять завершённые поездки",
-    "delivery_drive": "Свои поездки водителя"
+    "delivery_drive": "Свои поездки водителя",
+    "delivery_catalog": "Управлять каталогом доставки",
+    "delivery_price": "Изменять цену доставки"
   },
   "positions": {
     "director": "Директор"
@@ -2665,6 +2675,22 @@
     "finish": "Завершение поездки",
     "finish_button": "Завершить",
     "terminate": "Маршрут не завершён",
-    "terminate_button": "Прекратить"
+    "terminate_button": "Прекратить",
+    "catalog": "Услуги доставки",
+    "service": "Услуга доставки",
+    "price_by_hand": "Цена вручную",
+    "price": "Цена",
+    "price_override_hint": "Пусто — цена каталога; другая цена — по праву",
+    "price_title": "Цена для клиента",
+    "no_price": "Цена не задана",
+    "expenses": "Расходы компании",
+    "no_expenses": "Расходов нет.",
+    "account": "Касса или счёт",
+    "article": "Статья расходов",
+    "amount": "Сумма",
+    "add_expense": "Добавить расход",
+    "no_services": "Услуг доставки пока нет.",
+    "new_service": "Новая услуга доставки",
+    "add_service": "Добавить"
   }
 }

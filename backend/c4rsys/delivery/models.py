@@ -67,6 +67,19 @@ class Delivery(models.Model):
     result = models.CharField(max_length=24, choices=Result.choices, blank=True, default="")
     result_comment = models.CharField(max_length=2000, blank=True, default="")
     end_reason = models.CharField(max_length=2000, blank=True, default="")
+    # The paid position of a client delivery (§ 15.2.2, § 15.2.6): a service of the catalog and
+    # the price, kept apart from the operation; an internal move has none.
+    service = models.ForeignKey(
+        "delivery.DeliveryService",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    price = models.DecimalField(max_digits=20, decimal_places=4, null=True, blank=True)
+    currency = models.ForeignKey(
+        "platform.Currency", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
     # Who entered the start and the end, apart from the driver (§ 15.2.5, § 23.6.2).
     started_by_user_id = models.UUIDField(null=True, blank=True)
     finished_by_user_id = models.UUIDField(null=True, blank=True)
@@ -81,6 +94,10 @@ class Delivery(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["company", "id"], name="delivery_company_id_uniq"),
             models.UniqueConstraint(fields=["company", "number"], name="delivery_number_uniq"),
+            models.CheckConstraint(
+                condition=Q(price__isnull=True) | Q(price__gte=0, currency__isnull=False),
+                name="delivery_price_has_currency",
+            ),
             # § 15.1.3: a planned move has its planned start and end; entered afterwards it may
             # have none.
             models.CheckConstraint(
@@ -149,3 +166,60 @@ class Delivery(models.Model):
 
     def __str__(self) -> str:
         return f"delivery {self.number}"
+
+
+class DeliveryService(models.Model):
+    """A delivery service of the company catalog: a name and a base price in the main currency
+    (§ 15.2.6). No pricing by distance or zones in the first version."""
+
+    class State(models.TextChoices):
+        ACTIVE = "active"
+        ARCHIVED = "archived"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    name = models.CharField(max_length=200)
+    price = models.DecimalField(max_digits=20, decimal_places=4)
+    currency = models.ForeignKey("platform.Currency", on_delete=models.PROTECT, related_name="+")
+    state = models.CharField(max_length=10, choices=State.choices, default=State.ACTIVE)
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "delivery_service"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "id"], name="delivery_service_company_id_uniq"
+            ),
+            models.CheckConstraint(condition=~Q(name=""), name="delivery_service_name_not_empty"),
+            models.CheckConstraint(condition=Q(price__gte=0), name="delivery_service_price_gte_0"),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class DeliveryExpense(models.Model):
+    """An actual expense of the company on a trip: a payout with an expense article linked to it
+    (§ 15.2.3; decision Д-6). It does not change the price for the client."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    delivery = models.ForeignKey(Delivery, on_delete=models.PROTECT, related_name="expenses")
+    money_movement = models.OneToOneField(
+        "finance.MoneyMovement", on_delete=models.PROTECT, related_name="+"
+    )
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "delivery_expense"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "id"], name="delivery_expense_company_id_uniq"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"expense {self.money_movement_id}"

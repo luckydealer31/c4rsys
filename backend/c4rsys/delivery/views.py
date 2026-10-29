@@ -18,8 +18,8 @@ from c4rsys.accounts.middleware import require_user
 from c4rsys.companies import access, staff
 from c4rsys.companies import services as companies
 from c4rsys.companies.views import run_and_respond
-from c4rsys.delivery import services
-from c4rsys.delivery.models import Delivery
+from c4rsys.delivery import money, services
+from c4rsys.delivery.models import Delivery, DeliveryService
 from c4rsys.fleet import services as fleet
 from c4rsys.orders import services as orders
 from c4rsys.platform import errors
@@ -161,7 +161,43 @@ def _iso(value: datetime | None) -> str | None:
     return value.isoformat() if value else None
 
 
-def _delivery_payload(d: Delivery, *, detail: bool = False) -> dict[str, Any]:
+def _amount(data: dict[str, Any], key: str) -> Decimal | None:
+    """A non-negative amount with at most four places, or empty."""
+    value = data.get(key)
+    if value in (None, ""):
+        return None
+    if isinstance(value, bool) or not isinstance(value, str | int | float):
+        raise errors.validation_error(key, code="AMOUNT_INVALID")
+    try:
+        amount = Decimal(str(value))
+    except InvalidOperation as exc:
+        raise errors.validation_error(key, code="AMOUNT_INVALID") from exc
+    exponent = amount.as_tuple().exponent
+    if (
+        not amount.is_finite()
+        or amount < 0
+        or amount >= Decimal(10) ** 15
+        or (isinstance(exponent, int) and -exponent > 4)
+    ):
+        raise errors.validation_error(key, code="AMOUNT_INVALID")
+    return amount
+
+
+def _price(data: dict[str, Any]) -> money.Price:
+    return money.Price(service_id=_uuid(data, "service_id"), price=_amount(data, "price"))
+
+
+def _require_price(actor: Actor, d_location: UUID, price: money.Price, company_id: UUID) -> None:
+    """Changing the price substituted from the catalog needs its right (decision Д-5)."""
+    if price.given:
+        _, _, override = price.resolve(company_id)
+        if override:
+            _require(actor, "delivery.price", d_location)
+
+
+def _delivery_payload(
+    d: Delivery, *, detail: bool = False, actor: Actor | None = None
+) -> dict[str, Any]:
     order = orders.get_order(d.company_id, d.order_id)
     names = staff.employee_names(d.company_id, {d.driver_id} if d.driver_id else set())
     result: dict[str, Any] = {
@@ -186,13 +222,21 @@ def _delivery_payload(d: Delivery, *, detail: bool = False) -> dict[str, Any]:
         "result_comment": d.result_comment,
         "end_reason": d.end_reason,
     }
+    # The driver of their own trip does not see the client's price (§ 15.2.1, § 23.2.5).
+    managed = actor is None or _can(actor, "delivery.view", d.from_location_id)
+    if managed:
+        result["service_id"] = str(d.service_id) if d.service_id else None
+        result["price"] = money.amount_text(d.price)
+        result["currency"] = d.currency_id
     if detail:
         result["driver_overlaps"] = services.driver_overlaps(d)
+        if managed:
+            result["expenses"] = money.expenses_of(d)
     return result
 
 
-def _result(d: Delivery, status: int = 200) -> CommandResult:
-    return CommandResult(status, {"delivery": _delivery_payload(d, detail=True)})
+def _result(d: Delivery, status: int = 200, actor: Actor | None = None) -> CommandResult:
+    return CommandResult(status, {"delivery": _delivery_payload(d, detail=True, actor=actor)})
 
 
 # --- List and creation ---------------------------------------------------------------------------
@@ -236,14 +280,16 @@ def delivery_list(request: HttpRequest, cmp: str) -> JsonResponse:
             if _visible(actor, d) or (
                 params.get("free") == "1" and _can(actor, "delivery.take", d.from_location_id)
             ):
-                items.append(_delivery_payload(d))
+                items.append(_delivery_payload(d, actor=actor))
         return JsonResponse({"deliveries": items})
 
     data = parse_json(request)
     new = _new(data)
+    price = _price(data)
     card = fleet.get_card(context.company.id, new.vehicle_card_id)
     source = services.source_location(card, new.from_point)
     _require(actor, "delivery.create", source)
+    _require_price(actor, source, price, context.company.id)
     if new.driver_id is not None:
         _require(actor, "delivery.assign", source)
     if new.order_id is not None:
@@ -252,9 +298,11 @@ def delivery_list(request: HttpRequest, cmp: str) -> JsonResponse:
             raise errors.permission_denied("order.edit")
 
     def handler(ctx: CommandContext) -> CommandResult:
-        return _result(services.create(ctx, context.company, new), 201)
+        d = services.create(ctx, context.company, new)
+        money.apply_price(ctx, d, price, "delivery_added")
+        return _result(d, 201, actor)
 
-    payload = _payload(data, *ROUTE_KEYS, "driver_id", "order_id")
+    payload = _payload(data, *ROUTE_KEYS, "driver_id", "order_id", "service_id", "price")
     return run_and_respond(request, "delivery.create", actor, payload, handler)
 
 
@@ -284,7 +332,7 @@ def delivery_record(request: HttpRequest, cmp: str) -> JsonResponse:
         raise errors.permission_denied("vehicle.move")
 
     def handler(ctx: CommandContext) -> CommandResult:
-        return _result(services.record(ctx, context.company, new), 201)
+        return _result(services.record(ctx, context.company, new), 201, actor)
 
     payload = _payload(
         data, "vehicle_card_id", "to", "driver_id", "actual_start", "actual_end", "result"
@@ -305,7 +353,7 @@ def delivery_detail(request: HttpRequest, cmp: str, delivery_id: UUID) -> JsonRe
     context, actor = _actor(request, cmp)
     d = _delivery_for(context, actor, delivery_id)
     if request.method == "GET":
-        return JsonResponse({"delivery": _delivery_payload(d, detail=True)})
+        return JsonResponse({"delivery": _delivery_payload(d, detail=True, actor=actor)})
     _require(actor, "delivery.edit", d.from_location_id)
     data = parse_json(request)
     new = _new({**data, "vehicle_card_id": str(d.vehicle_card_id)})
@@ -313,7 +361,7 @@ def delivery_detail(request: HttpRequest, cmp: str, delivery_id: UUID) -> JsonRe
 
     def handler(ctx: CommandContext) -> CommandResult:
         locked = services.locked(context.company.id, delivery_id, expected_version)
-        return _result(services.change(ctx, locked, new))
+        return _result(services.change(ctx, locked, new), actor=actor)
 
     payload = {"delivery_id": str(delivery_id), **_payload(data, *ROUTE_KEYS, "expected_version")}
     return run_and_respond(request, "delivery.change", actor, payload, handler)
@@ -337,7 +385,7 @@ def _command(
 
     def handler(ctx: CommandContext) -> CommandResult:
         locked = services.locked(context.company.id, delivery_id, expected_version)
-        return _result(action(ctx, locked, data))
+        return _result(action(ctx, locked, data), actor=actor)
 
     payload = {
         "delivery_id": str(delivery_id),
@@ -375,7 +423,7 @@ def delivery_take(request: HttpRequest, cmp: str, delivery_id: UUID) -> JsonResp
 
     def handler(ctx: CommandContext) -> CommandResult:
         locked = services.locked(context.company.id, delivery_id, expected_version)
-        return _result(services.take(ctx, locked))
+        return _result(services.take(ctx, locked), actor=actor)
 
     payload = {"delivery_id": str(delivery_id), "expected_version": expected_version}
     return run_and_respond(request, "delivery.take", actor, payload, handler)
@@ -463,6 +511,7 @@ def delivery_attach(request: HttpRequest, cmp: str, delivery_id: UUID) -> JsonRe
 
     def check(actor: Actor, d: Delivery, data: dict[str, Any]) -> None:
         _require(actor, "delivery.edit", d.from_location_id)
+        _require_price(actor, d.from_location_id, _price(data), d.company_id)
         order = orders.get_order(d.company_id, _required(data, "order_id"))
         if not orders.has_right(actor, order, "order.edit"):
             raise errors.permission_denied("order.edit")
@@ -473,9 +522,15 @@ def delivery_attach(request: HttpRequest, cmp: str, delivery_id: UUID) -> JsonRe
         delivery_id,
         "delivery.attach",
         check,
-        lambda ctx, d, data: services.attach(ctx, d, _required(data, "order_id")),
-        ("order_id",),
+        lambda ctx, d, data: _attached(ctx, d, data),
+        ("order_id", "service_id", "price"),
     )
+
+
+def _attached(ctx: CommandContext, d: Delivery, data: dict[str, Any]) -> Delivery:
+    services.attach(ctx, d, _required(data, "order_id"))
+    money.apply_price(ctx, d, _price(data), "delivery_attached")
+    return d
 
 
 @require_GET
@@ -492,3 +547,128 @@ def drivers(request: HttpRequest, cmp: str) -> JsonResponse:
             )
         }
     )
+
+
+# --- Price, catalog and expenses (§ 15.2.2–15.2.3, § 15.2.6) -------------------------------------
+
+
+@require_POST
+def delivery_price(request: HttpRequest, cmp: str, delivery_id: UUID) -> JsonResponse:
+    """The paid position of a client delivery is changed with «Change the delivery price»."""
+
+    def check(actor: Actor, d: Delivery, data: dict[str, Any]) -> None:
+        _require(actor, "delivery.price", d.from_location_id)
+        if not _price(data).given:
+            raise errors.validation_error("price", code="FIELD_REQUIRED")
+
+    def action(ctx: CommandContext, d: Delivery, data: dict[str, Any]) -> Delivery:
+        orders.ensure_editable(d.company_id, d.order_id)
+        before = services.snapshot(d)
+        money.apply_price(ctx, d, _price(data), "delivery_price_changed")
+        d.version += 1
+        d.save(update_fields=["version", "updated_at"])
+        after = services.snapshot(d)
+        ctx.audit(
+            "delivery.price_changed",
+            object_type="delivery",
+            object_id=d.id,
+            before={k: v for k, v in before.items() if v != after[k]},
+            after={k: v for k, v in after.items() if v != before[k]},
+        )
+        return d
+
+    return _command(
+        request, cmp, delivery_id, "delivery.price", check, action, ("service_id", "price")
+    )
+
+
+@require_POST
+def delivery_expense(request: HttpRequest, cmp: str, delivery_id: UUID) -> JsonResponse:
+    """An actual expense: a payout with an expense article from an account the employee may pay
+    from (§ 15.2.3, § 23.6.6; decision Д-6)."""
+    context, actor = _actor(request, cmp)
+    d = _delivery_for(context, actor, delivery_id)
+    data = parse_json(request)
+    account_id = _required(data, "cash_account_id")
+    if not access.RightsResolver().has_permission(actor, "finance.payout", resource_id=account_id):
+        raise errors.permission_denied("finance.payout")
+    amount = _amount(data, "amount")
+    if amount is None or amount == 0:
+        raise errors.validation_error("amount", code="AMOUNT_INVALID")
+    new = money.NewExpense(
+        cash_account_id=account_id,
+        amount=amount,
+        currency=get_str(data, "currency", max_length=3).upper(),
+        article_id=_required(data, "article_id"),
+        counterparty_id=_uuid(data, "counterparty_id"),
+        note=_text(data, "note"),
+    )
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        locked = services.locked(context.company.id, delivery_id, None)
+        money.add_expense(ctx, locked, new)
+        return _result(locked, 201, actor)
+
+    payload = {
+        "delivery_id": str(d.id),
+        **_payload(data, "cash_account_id", "amount", "currency", "article_id", "counterparty_id"),
+        "note": new.note,
+    }
+    return run_and_respond(request, "delivery.expense", actor, payload, handler)
+
+
+def _service_payload(service: DeliveryService) -> dict[str, Any]:
+    return {"id": str(service.id), "version": service.version, **money.service_snapshot(service)}
+
+
+@require_http_methods(["GET", "POST"])
+def service_list(request: HttpRequest, cmp: str) -> JsonResponse:
+    context, actor = _actor(request, cmp)
+    if request.method == "GET":
+        if not any(
+            _can(actor, p) for p in ("delivery.view", "delivery.create", "delivery.catalog")
+        ):
+            raise errors.permission_denied("delivery.view")
+        items = DeliveryService.objects.filter(company=context.company).order_by("name")
+        return JsonResponse({"services": [_service_payload(x) for x in items]})
+    _require(actor, "delivery.catalog")
+    data = parse_json(request)
+    name = get_str(data, "name", max_length=200).strip()
+    price = _amount(data, "price")
+    if price is None:
+        raise errors.validation_error("price", code="FIELD_REQUIRED")
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        service = money.create_service(ctx, context.company, name, price)
+        return CommandResult(201, {"service": _service_payload(service)})
+
+    return run_and_respond(
+        request, "delivery_service.create", actor, {"name": name, "price": str(price)}, handler
+    )
+
+
+@require_http_methods(["PATCH"])
+def service_detail(request: HttpRequest, cmp: str, service_id: UUID) -> JsonResponse:
+    context, actor = _actor(request, cmp)
+    _require(actor, "delivery.catalog")
+    data = parse_json(request)
+    name = get_str(data, "name", max_length=200, required=False).strip() or None
+    price = _amount(data, "price")
+    archived = data.get("archived")
+    if archived is not None and not isinstance(archived, bool):
+        raise errors.validation_error("archived")
+    expected_version = get_int(data, "expected_version")
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        service = money.locked_service(context.company.id, service_id, expected_version)
+        service = money.change_service(ctx, service, name=name, price=price, archived=archived)
+        return CommandResult(200, {"service": _service_payload(service)})
+
+    payload = {
+        "service_id": str(service_id),
+        "name": name,
+        "price": str(price) if price is not None else None,
+        "archived": archived,
+        "expected_version": expected_version,
+    }
+    return run_and_respond(request, "delivery_service.change", actor, payload, handler)

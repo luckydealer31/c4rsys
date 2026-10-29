@@ -136,7 +136,11 @@
     "delivery_terminated": "ยุติการเดินทาง",
     "delivery_cancelled": "ยกเลิกการเดินทาง",
     "delivery_attached": "ผูกการเดินทางกับคำสั่งซื้อ",
-    "order_delivery_moved_in": "ย้ายการส่งมาจากคำสั่งซื้อภายใน"
+    "order_delivery_moved_in": "ย้ายการส่งมาจากคำสั่งซื้อภายใน",
+    "delivery_service_created": "เพิ่มบริการส่งรถ",
+    "delivery_service_changed": "แก้ไขบริการส่งรถ",
+    "delivery_price_changed": "เปลี่ยนราคาส่งรถ",
+    "delivery_expense_added": "เพิ่มค่าใช้จ่ายการเดินทาง"
   },
   "finance_articles": {
     "archive": "เก็บเข้าคลัง",
@@ -730,7 +734,11 @@
     "delivery_not_in_transit": "การเดินทางไม่ได้อยู่ระหว่างทาง",
     "delivery_result_needs_location": "«รับที่สาขา» ใช้ได้เมื่อปลายทางเป็นสาขาของบริษัท",
     "vehicle_in_transit": "รถกำลังเดินทางอยู่",
-    "delivery_in_client_order": "การเดินทางอยู่ในคำสั่งซื้อของลูกค้าแล้ว"
+    "delivery_in_client_order": "การเดินทางอยู่ในคำสั่งซื้อของลูกค้าแล้ว",
+    "delivery_service_unknown": "ไม่พบบริการส่งรถ",
+    "delivery_service_archived": "บริการส่งรถถูกเก็บเข้าคลัง",
+    "delivery_internal_no_price": "การย้ายภายในไม่มีราคาสำหรับลูกค้า",
+    "delivery_cancelled": "การเดินทางถูกยกเลิก"
   },
   "history": {
     "action": "Action",
@@ -1079,7 +1087,9 @@
     "delivery_finish": "ปิดหรือยุติการเดินทาง",
     "delivery_cancel": "ยกเลิกก่อนเริ่ม",
     "delivery_correct": "แก้ไขการเดินทางที่เสร็จแล้ว",
-    "delivery_drive": "การเดินทางของตนในฐานะคนขับ"
+    "delivery_drive": "การเดินทางของตนในฐานะคนขับ",
+    "delivery_catalog": "จัดการบริการส่งรถ",
+    "delivery_price": "เปลี่ยนราคาส่งรถ"
   },
   "positions": {
     "director": "Director"
@@ -2665,6 +2675,22 @@
     "finish": "จบการเดินทาง",
     "finish_button": "เสร็จสิ้น",
     "terminate": "เส้นทางไม่เสร็จ",
-    "terminate_button": "ยุติ"
+    "terminate_button": "ยุติ",
+    "catalog": "บริการส่งรถ",
+    "service": "บริการส่งรถ",
+    "price_by_hand": "ราคากำหนดเอง",
+    "price": "ราคา",
+    "price_override_hint": "ว่าง — ราคาจากรายการ ราคาอื่นต้องมีสิทธิ์",
+    "price_title": "ราคาสำหรับลูกค้า",
+    "no_price": "ยังไม่มีราคา",
+    "expenses": "ค่าใช้จ่ายของบริษัท",
+    "no_expenses": "ไม่มีค่าใช้จ่าย",
+    "account": "เงินสดหรือบัญชี",
+    "article": "หมวดค่าใช้จ่าย",
+    "amount": "จำนวนเงิน",
+    "add_expense": "เพิ่มค่าใช้จ่าย",
+    "no_services": "ยังไม่มีบริการส่งรถ",
+    "new_service": "บริการส่งรถใหม่",
+    "add_service": "เพิ่ม"
   }
 }

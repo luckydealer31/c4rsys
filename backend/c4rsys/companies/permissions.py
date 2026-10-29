@@ -140,6 +140,9 @@ PERMISSIONS: dict[str, str] = {
     "delivery.cancel": "delivery",
     "delivery.correct": "delivery",
     "delivery.drive": "delivery",
+    # § 15.2.6 (decision Д-5): the catalog of delivery services; changing the substituted price.
+    "delivery.catalog": "delivery",
+    "delivery.price": "delivery",
 }
 
 COMPANY_ADMIN = "company_admin"
@@ -185,6 +188,7 @@ SYSTEM_SETS: dict[str, tuple[str, ...]] = {
         "delivery.edit",
         "delivery.assign",
         "delivery.cancel",
+        "delivery.price",
     ),
     # § 23.2.5: only the trips assigned to the driver (decision Д-8).
     DRIVER: ("delivery.drive",),

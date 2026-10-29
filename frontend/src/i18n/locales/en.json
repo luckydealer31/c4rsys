@@ -136,7 +136,11 @@
     "delivery_terminated": "Trip terminated",
     "delivery_cancelled": "Trip cancelled",
     "delivery_attached": "Trip attached to an order",
-    "order_delivery_moved_in": "Delivery added from an internal order"
+    "order_delivery_moved_in": "Delivery added from an internal order",
+    "delivery_service_created": "Delivery service added",
+    "delivery_service_changed": "Delivery service changed",
+    "delivery_price_changed": "Delivery price changed",
+    "delivery_expense_added": "Trip expense added"
   },
   "finance_articles": {
     "archive": "Archive",
@@ -730,7 +734,11 @@
     "delivery_not_in_transit": "The trip is not on the way.",
     "delivery_result_needs_location": "«Accepted in the location» needs a location of the company as the end point.",
     "vehicle_in_transit": "The vehicle is already on the way.",
-    "delivery_in_client_order": "The trip is already in a client order."
+    "delivery_in_client_order": "The trip is already in a client order.",
+    "delivery_service_unknown": "Delivery service not found.",
+    "delivery_service_archived": "The delivery service is archived.",
+    "delivery_internal_no_price": "An internal move has no price for a client.",
+    "delivery_cancelled": "The trip is cancelled."
   },
   "history": {
     "action": "Action",
@@ -1079,7 +1087,9 @@
     "delivery_finish": "Complete or terminate trips",
     "delivery_cancel": "Cancel trips before the start",
     "delivery_correct": "Correct completed trips",
-    "delivery_drive": "Own trips as the driver"
+    "delivery_drive": "Own trips as the driver",
+    "delivery_catalog": "Manage delivery services",
+    "delivery_price": "Change the delivery price"
   },
   "positions": {
     "director": "Director"
@@ -2665,6 +2675,22 @@
     "finish": "End of the trip",
     "finish_button": "Complete",
     "terminate": "The route was not finished",
-    "terminate_button": "Terminate"
+    "terminate_button": "Terminate",
+    "catalog": "Delivery services",
+    "service": "Delivery service",
+    "price_by_hand": "Price by hand",
+    "price": "Price",
+    "price_override_hint": "Empty — the catalog price; another price needs the right",
+    "price_title": "Price for the client",
+    "no_price": "No price",
+    "expenses": "Expenses of the company",
+    "no_expenses": "No expenses.",
+    "account": "Cash desk or account",
+    "article": "Expense article",
+    "amount": "Amount",
+    "add_expense": "Add the expense",
+    "no_services": "No delivery services yet.",
+    "new_service": "New delivery service",
+    "add_service": "Add"
   }
 }

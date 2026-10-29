@@ -1133,4 +1133,19 @@ export type Delivery = {
   result_comment: string;
   end_reason: string;
   driver_overlaps?: { id: string; number: number; planned_start: string | null; planned_end: string | null }[];
+  /** The paid position of a client delivery; not shown to a driver of their own trip. */
+  service_id?: string | null;
+  price?: string | null;
+  currency?: string | null;
+  expenses?: { id: string; number: number; amount: string; currency: string; article_id: string | null; note: string; posted_at: string | null }[];
+};
+
+/** A delivery service of the catalog (§ 15.2.6). */
+export type DeliveryService = {
+  id: string;
+  version: number;
+  name: string;
+  price: string;
+  currency: string;
+  state: "active" | "archived";
 };

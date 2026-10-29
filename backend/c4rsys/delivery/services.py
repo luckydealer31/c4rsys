@@ -29,6 +29,7 @@ from django.utils import timezone
 
 from c4rsys.companies import locations
 from c4rsys.companies.models import Company, Employment
+from c4rsys.delivery import money
 from c4rsys.delivery.models import Delivery
 from c4rsys.fleet import moves
 from c4rsys.fleet import services as fleet
@@ -79,6 +80,8 @@ def snapshot(d: Delivery) -> dict[str, Any]:
         "actual_start": d.actual_start,
         "actual_end": d.actual_end,
         "result": d.result or None,
+        "service": str(d.service_id) if d.service_id else None,
+        "price": money.amount_text(d.price),
     }
 
 
@@ -134,10 +137,11 @@ def operations_for_order(company_id: UUID, order_id: UUID) -> list[OperationSumm
 
 
 def history_for_order(company_id: UUID, order_id: UUID) -> list[tuple[str, str]]:
-    return [
-        ("delivery", str(i))
-        for i in deliveries_of(company_id).filter(order_id=order_id).values_list("id", flat=True)
-    ]
+    objects: list[tuple[str, str]] = []
+    for i in deliveries_of(company_id).filter(order_id=order_id).values_list("id", flat=True):
+        objects.append(("delivery", str(i)))
+        objects += money.history(i)
+    return objects
 
 
 def on_order_cancel(ctx: CommandContext, company_id: UUID, order_id: UUID, reason: str) -> None:
@@ -481,6 +485,7 @@ def _cancel(ctx: CommandContext, d: Delivery, reason: str) -> None:
     d.state = State.CANCELLED
     d.end_reason = reason
     _save(ctx, d, "delivery.cancelled", before)
+    money.recharge(ctx, d, "delivery_cancelled")
 
 
 def cancel(ctx: CommandContext, d: Delivery, reason: str) -> Delivery:
