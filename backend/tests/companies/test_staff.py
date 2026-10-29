@@ -451,6 +451,8 @@ def test_company_answer_lists_own_permissions(owner: Client, cmp: str) -> None:
         "finance.transfer",
         "order.view",
         "rental.view",
+        "reports.export",
+        "reports.view",
         "tasks.create",
         "tasks.own",
         "tasks.queue",

@@ -1,21 +1,34 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Card } from "../../components/ui";
 import { useCan } from "../../layout/CompanyShell";
+import { ReportView } from "../reports/Report";
 import { WarehouseDashboard } from "../warehouse/Dashboard";
 
-/** Dashboards (decision of 24.10.2026): the starter dashboard «Warehouse» (§ 21.6.1); the
- * others come with their modules. */
+/** Starter dashboards (§ 21.2.6): the company overview, the warehouse; the others come with the
+ * parts of the reports block. Each shows only the data the employee may see (§ 21.1.1). */
 export function DashboardsPage() {
   const { t } = useTranslation();
   const can = useCan();
+  const tabs = [
+    ["overview", can("reports.view")],
+    ["warehouse", can("warehouse.view")],
+  ] as const;
+  const visible = tabs.filter(([, shown]) => shown).map(([key]) => key);
+  const [tab, setTab] = useState<string>(visible[0] ?? "");
   return (
     <div className="page">
       <h1>{t("nav.dashboards")}</h1>
-      {can("warehouse.view") ? <WarehouseDashboard /> : null}
-      <Card>
-        <p className="muted">{t("dashboards.later")}</p>
-      </Card>
+      <div className="actions no-print" style={{ marginTop: 0, marginBottom: 12 }}>
+        {visible.map((key) => (
+          <button key={key} type="button" className={key === tab ? "" : "secondary"} onClick={() => setTab(key)}>
+            {t(`reports.dashboard_${key}`)}
+          </button>
+        ))}
+      </div>
+      {!visible.length ? <p className="muted">{t("reports.no_rights")}</p> : null}
+      {tab === "overview" ? <ReportView code="overview" title={t("reports.dashboard_overview")} /> : null}
+      {tab === "warehouse" ? <WarehouseDashboard /> : null}
     </div>
   );
 }

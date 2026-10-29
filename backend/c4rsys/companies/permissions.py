@@ -157,6 +157,10 @@ PERMISSIONS: dict[str, str] = {
     "tasks.create": "tasks",
     "tasks.view_all": "tasks",
     "tasks.manage": "tasks",
+    # Reports (§ 23.8.5; customer's decision О-1 of 29.10.2026): viewing and export are separate;
+    # the data inside stays limited by the rights of each section (§ 21.1.1).
+    "reports.view": "reports",
+    "reports.export": "reports",
 }
 
 # Decision З-3: the managers get every task right in their area; the others work with their own
@@ -213,6 +217,7 @@ SYSTEM_SETS: dict[str, tuple[str, ...]] = {
         "documents.upload",
         "documents.create",
         *TASK_ALL,
+        "reports.view",
     ),
     # § 23.2.5: only the trips assigned to the driver (decision Д-8).
     DRIVER: ("delivery.drive", *TASK_BASIC),
@@ -233,6 +238,8 @@ SYSTEM_SETS: dict[str, tuple[str, ...]] = {
         "client.find",
         "warehouse.price.set",
         *TASK_BASIC,
+        "reports.view",
+        "reports.export",
     ),
     # § 23.2.6: not purchases, confirmation of adjustments, corrections, sale or price policy.
     STOREKEEPER: (
@@ -251,6 +258,7 @@ SYSTEM_SETS: dict[str, tuple[str, ...]] = {
         "counterparty.view",
         "counterparty.create",
         *TASK_BASIC,
+        "reports.view",
     ),
     # § 23.2.3. Entering a result for another executor is not listed there; closing the order is
     # not either (TODO(spec): whether the service manager closes orders).
@@ -294,6 +302,7 @@ SYSTEM_SETS: dict[str, tuple[str, ...]] = {
         "documents.upload",
         "documents.create",
         *TASK_ALL,
+        "reports.view",
     ),
     # § 23.2.4: own works, the post and the general zone, inspections; no prices or payments.
     MECHANIC: (

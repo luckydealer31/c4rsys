@@ -362,9 +362,7 @@
     "state_ready": "Ready",
     "warehouse": "Warehouse"
   },
-  "dashboards": {
-    "later": "Dashboards come later."
-  },
+  "dashboards": {},
   "employees": {
     "block": "Block access",
     "invitation": "Invitation",
@@ -1222,7 +1220,10 @@
     "tasks_create": "สร้างงาน",
     "tasks_view_all": "ดูงานทั้งหมดในพื้นที่",
     "tasks_manage": "จัดการงาน",
-    "section_tasks": "งาน"
+    "section_tasks": "งาน",
+    "section_reports": "รายงาน",
+    "reports_view": "ดูรายงาน",
+    "reports_export": "ส่งออกรายงาน"
   },
   "positions": {
     "director": "Director"
@@ -3214,5 +3215,42 @@
     "recipients": "ผู้รับ",
     "recipients_hint": "ไม่เลือก — ตามความรับผิดชอบและสิทธิ์ ผู้ที่เลือกจะได้รับเมื่อมีสิทธิ์ในวัตถุเท่านั้น",
     "auto_task": "สร้างงานด้วย"
+  },
+  "reports": {
+    "metric_rental_issues_today": "การส่งมอบที่คาดว่าจะมีวันนี้",
+    "metric_rental_returns_today": "การคืนที่คาดว่าจะมีวันนี้",
+    "metric_rental_active": "การเช่าที่ดำเนินอยู่",
+    "metric_rental_overdue_returns": "การคืนที่เลยกำหนด",
+    "metric_fleet_total": "รถทั้งหมด",
+    "metric_fleet_available": "รถที่ว่าง",
+    "metric_fleet_in_rental": "อยู่ระหว่างเช่า",
+    "metric_fleet_in_service": "อยู่ในงานบริการ",
+    "metric_finance_receipts": "รายรับในช่วงเวลา",
+    "metric_finance_expenses": "รายจ่ายในช่วงเวลา",
+    "metric_finance_balances": "ยอดคงเหลือบัญชี",
+    "metric_finance_debt": "หนี้ค้างของลูกค้า",
+    "metric_service_maintenance_overdue": "การบำรุงรักษาที่เลยกำหนด",
+    "metric_warehouse_below_minimum": "ต่ำกว่าสต็อกขั้นต่ำ",
+    "metric_documents_unsigned": "เอกสารที่ยังไม่ลงนาม",
+    "dashboard_overview": "ภาพรวมบริษัท",
+    "dashboard_warehouse": "คลังสินค้า",
+    "start": "ตั้งแต่",
+    "end": "ถึง",
+    "location": "สาขา",
+    "all_locations": "ทั้งหมดที่เข้าถึงได้",
+    "zone": "เขตเวลา",
+    "zone_hint": "ว่าง — ของบริษัทหรือสาขา",
+    "period": "ช่วงเวลา",
+    "applied": "ช่วง {{start}} — {{end}} เขตเวลา {{zone}}",
+    "print": "พิมพ์หรือบันทึกเป็น PDF",
+    "xlsx": "ส่งออก XLSX",
+    "no_data": "ไม่มีข้อมูล",
+    "nothing_available": "ไม่มีข้อมูลที่คุณเข้าถึงได้ในรายงานนี้",
+    "no_rights": "คุณไม่มีสิทธิ์ดูรายงาน",
+    "whole_company": "ทั้งบริษัท",
+    "area_locations": "คำนวณจาก: {{names}}",
+    "area_accounts": "คำนวณจากบัญชี: {{names}}",
+    "without_rate": "ไม่มีอัตรา: {{currencies}}",
+    "open_list": "เปิดรายการ"
   }
 }

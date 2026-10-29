@@ -251,3 +251,12 @@ button.link { background: none; border: none; padding: 0; color: var(--accent); 
   .print-page { padding: 0; }
   .document-content { padding: 0; }
 }
+
+/* Reports (§ 21.2.6): blocks of a dashboard; the print view keeps every block (§ 21.2.11). */
+.metric-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.metric { font-size: 22px; font-weight: 600; }
+@media print {
+  .no-print { display: none !important; }
+  .metric-grid { display: block; }
+  .metric-grid > * { break-inside: avoid; }
+}

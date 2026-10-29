@@ -51,6 +51,31 @@ async function csrfToken(): Promise<string> {
   return cookie("csrftoken") ?? "";
 }
 
+/** A file made by the server from a POST body, saved by the browser (§ 21.2.9). */
+export async function downloadFile(path: string, body: unknown, filename: string): Promise<void> {
+  const response = await fetch(`/api${path}`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json", "X-CSRFToken": await csrfToken() },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    let payload: ErrorBody | null = null;
+    try {
+      payload = (await response.json()) as ErrorBody;
+    } catch {
+      payload = null;
+    }
+    throw new ApiError(response.status, payload?.error ?? null);
+  }
+  const url = URL.createObjectURL(await response.blob());
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 export type RequestOptions = {
   method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   body?: unknown;

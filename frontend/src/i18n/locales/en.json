@@ -362,9 +362,7 @@
     "state_ready": "Ready",
     "warehouse": "Warehouse"
   },
-  "dashboards": {
-    "later": "Dashboards come later."
-  },
+  "dashboards": {},
   "employees": {
     "block": "Block access",
     "invitation": "Invitation",
@@ -1222,7 +1220,10 @@
     "tasks_create": "Create tasks",
     "tasks_view_all": "View all tasks of the area",
     "tasks_manage": "Manage tasks",
-    "section_tasks": "Tasks"
+    "section_tasks": "Tasks",
+    "section_reports": "Reports",
+    "reports_view": "View reports",
+    "reports_export": "Export reports"
   },
   "positions": {
     "director": "Director"
@@ -3214,5 +3215,42 @@
     "recipients": "Recipients",
     "recipients_hint": "None chosen — by responsibility and rights; the chosen ones receive it only with access to the object",
     "auto_task": "Also create a task"
+  },
+  "reports": {
+    "metric_rental_issues_today": "Issues expected today",
+    "metric_rental_returns_today": "Returns expected today",
+    "metric_rental_active": "Active rentals",
+    "metric_rental_overdue_returns": "Overdue returns",
+    "metric_fleet_total": "Vehicles",
+    "metric_fleet_available": "Available vehicles",
+    "metric_fleet_in_rental": "In rental",
+    "metric_fleet_in_service": "In service",
+    "metric_finance_receipts": "Receipts for the period",
+    "metric_finance_expenses": "Expenses for the period",
+    "metric_finance_balances": "Balances of accounts",
+    "metric_finance_debt": "Unpaid debt of clients",
+    "metric_service_maintenance_overdue": "Overdue maintenance",
+    "metric_warehouse_below_minimum": "Below the minimum stock",
+    "metric_documents_unsigned": "Documents not signed",
+    "dashboard_overview": "Company overview",
+    "dashboard_warehouse": "Warehouse",
+    "start": "From",
+    "end": "To",
+    "location": "Location",
+    "all_locations": "All available",
+    "zone": "Time zone",
+    "zone_hint": "Empty — the company's or the location's",
+    "period": "Period",
+    "applied": "Period {{start}} — {{end}}, zone {{zone}}",
+    "print": "Print or save as PDF",
+    "xlsx": "Export to XLSX",
+    "no_data": "No data",
+    "nothing_available": "No data available to you in this report.",
+    "no_rights": "No reports are available to you.",
+    "whole_company": "Whole company",
+    "area_locations": "Counted for: {{names}}",
+    "area_accounts": "Counted for the accounts: {{names}}",
+    "without_rate": "without a rate: {{currencies}}",
+    "open_list": "Open the list"
   }
 }

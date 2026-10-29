@@ -55,6 +55,7 @@ INSTALLED_APPS = [
     "c4rsys.delivery",
     "c4rsys.tasks",
     "c4rsys.notifications",
+    "c4rsys.reports",
     "c4rsys.documents",
 ]
 

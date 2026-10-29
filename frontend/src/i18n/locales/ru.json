@@ -362,9 +362,7 @@
     "state_ready": "Готово",
     "warehouse": "Склад"
   },
-  "dashboards": {
-    "later": "Раздел дашбордов появится позже."
-  },
+  "dashboards": {},
   "employees": {
     "block": "Заблокировать доступ",
     "invitation": "Приглашение",
@@ -1222,7 +1220,10 @@
     "tasks_create": "Создавать задачи",
     "tasks_view_all": "Просматривать все задачи области",
     "tasks_manage": "Управлять задачами",
-    "section_tasks": "Задачи"
+    "section_tasks": "Задачи",
+    "section_reports": "Отчёты",
+    "reports_view": "Просматривать отчёты",
+    "reports_export": "Выгружать отчёты"
   },
   "positions": {
     "director": "Директор"
@@ -3214,5 +3215,42 @@
     "recipients": "Получатели",
     "recipients_hint": "Не выбраны — по ответственности и правам; выбранные получают, только если у них есть доступ к объекту",
     "auto_task": "Также создавать задачу"
+  },
+  "reports": {
+    "metric_rental_issues_today": "Ожидаемые сегодня выдачи (брони на сегодня)",
+    "metric_rental_returns_today": "Ожидаемые сегодня возвраты",
+    "metric_rental_active": "Активные аренды",
+    "metric_rental_overdue_returns": "Просроченные возвраты",
+    "metric_fleet_total": "Всего ТС",
+    "metric_fleet_available": "Доступные ТС",
+    "metric_fleet_in_rental": "В аренде",
+    "metric_fleet_in_service": "В сервисе",
+    "metric_finance_receipts": "Поступления за период",
+    "metric_finance_expenses": "Расходы за период",
+    "metric_finance_balances": "Остатки счетов и касс",
+    "metric_finance_debt": "Непогашенная задолженность клиентов",
+    "metric_service_maintenance_overdue": "Просроченное обслуживание ТС",
+    "metric_warehouse_below_minimum": "Ниже минимального остатка",
+    "metric_documents_unsigned": "Неподписанные документы",
+    "dashboard_overview": "Обзор компании",
+    "dashboard_warehouse": "Склад",
+    "start": "С",
+    "end": "По",
+    "location": "Локация",
+    "all_locations": "Все доступные",
+    "zone": "Часовой пояс",
+    "zone_hint": "Пусто — пояс компании или локации",
+    "period": "Период",
+    "applied": "Период {{start}} — {{end}}, пояс {{zone}}",
+    "print": "Печать или сохранить в PDF",
+    "xlsx": "Выгрузить в XLSX",
+    "no_data": "Данные отсутствуют",
+    "nothing_available": "В этом отчёте нет доступных вам данных.",
+    "no_rights": "Вам не доступны отчёты.",
+    "whole_company": "Вся компания",
+    "area_locations": "Рассчитано по локациям: {{names}}",
+    "area_accounts": "Рассчитано по счетам: {{names}}",
+    "without_rate": "без курса: {{currencies}}",
+    "open_list": "Открыть список"
   }
 }
