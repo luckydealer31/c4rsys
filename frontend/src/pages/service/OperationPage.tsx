@@ -16,6 +16,7 @@ import {
   HOLDING_STATES,
   OPERATION_KEYS,
   price,
+  useContractors,
   useExecutors,
   useServiceOperation,
   useServicePosts,
@@ -69,14 +70,28 @@ export function ServiceOperationPage() {
             </Link>
             {op.is_internal ? ` · ${t("orders.internal_order")}` : ""}
           </dd>
-          <dt>{t("service.location")}</dt>
-          <dd>{location?.name ?? "—"}</dd>
+          {op.location_id ? (
+            <>
+              <dt>{t("service.location")}</dt>
+              <dd>{location?.name ?? "—"}</dd>
+            </>
+          ) : null}
+          {op.counterparty_name ? (
+            <>
+              <dt>{t("service.contractor")}</dt>
+              <dd>{op.counterparty_name}</dd>
+            </>
+          ) : null}
           <dt>{t("service.reason")}</dt>
           <dd>{op.reason}</dd>
           <dt>{t("service.plan")}</dt>
           <dd>{op.planned_start ? `${when(op.planned_start)} — ${when(op.planned_end)}` : t("service.no_plan")}</dd>
-          <dt>{t("service.place")}</dt>
-          <dd>{op.post_name ?? t("service.general_zone")}</dd>
+          {op.location_id ? (
+            <>
+              <dt>{t("service.place")}</dt>
+              <dd>{op.post_name ?? t("service.general_zone")}</dd>
+            </>
+          ) : null}
           {op.accepted_at ? (
             <>
               <dt>{t("service.accepted_at")}</dt>
@@ -103,6 +118,7 @@ export function ServiceOperationPage() {
         ))}
       </Card>
       <Jobs op={op} zone={zone} />
+      <Handovers op={op} zone={zone} />
       {!final ? <OperationActions op={op} zone={zone} /> : null}
     </div>
   );
@@ -114,10 +130,10 @@ function OperationActions({ op, zone }: { op: ServiceOperation; zone: string }) 
   return (
     <>
       {can("service.create") ? <AddJob op={op} /> : null}
-      {op.state === "planned" && can("service.accept") ? <Accept op={op} zone={zone} /> : null}
+      {op.location_id && op.state === "planned" && can("service.accept") ? <Accept op={op} zone={zone} /> : null}
       {(op.state === "planned" || op.state === "accepted") && can("service.create") ? <Plan op={op} zone={zone} /> : null}
-      {holding && can("service.place") ? <Place op={op} /> : null}
-      {holding && can("service.complete") ? <Finish op={op} /> : null}
+      {op.location_id && op.accepted_at && holding && can("service.place") ? <Place op={op} /> : null}
+      {op.state !== "planned" && can("service.complete") ? <Finish op={op} /> : null}
       {can("service.cancel") ? <End op={op} /> : null}
     </>
   );
@@ -314,12 +330,15 @@ function AddJob({ op }: { op: ServiceOperation }) {
   const { t } = useTranslation();
   const company = useCompany();
   const refresh = useRefresh();
+  const can = useCan();
   const works = useServiceWorks();
+  const contractors = useContractors(can("service.external"));
   const [workId, setWorkId] = useState("");
+  const [contractorId, setContractorId] = useState("");
   const add = useCommand<Record<string, unknown>, Result>(opCommand(company.public_id, op, "jobs"));
   async function submit(event: FormEvent) {
     event.preventDefault();
-    const result = await add.run({ work_id: workId, expected_version: op.version });
+    const result = await add.run({ work_id: workId, contractor_id: contractorId || null, expected_version: op.version });
     if (result) {
       setWorkId("");
       await refresh();
@@ -340,6 +359,18 @@ function AddJob({ op }: { op: ServiceOperation }) {
               ))}
           </select>
         </Field>
+        {can("service.external") && op.location_id ? (
+          <Field label={t("service.performer")}>
+            <select value={contractorId} onChange={(e) => setContractorId(e.target.value)}>
+              <option value="">{t("service.own_staff")}</option>
+              {(contractors.data?.counterparties ?? []).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+        ) : null}
         <div className="actions">
           <button type="submit" className="secondary" disabled={add.pending || !workId}>
             {t("service.add")}
@@ -367,7 +398,10 @@ function Jobs({ op, zone }: { op: ServiceOperation; zone: string }) {
             {price(job.price, job.currency, t)}
             {job.pricing === "hours" && job.hours ? ` · ${t("service.terms_hours", { hours: Number(job.hours) })}` : ""}
             {" · "}
-            {job.executor_name ?? t("service.no_executor")}
+            {job.contractor_id
+              ? `${t("service.contractor")}: ${job.contractor_name ?? "—"}`
+              : (job.executor_name ?? t("service.no_executor"))}
+            {job.contractor_cost !== null ? ` · ${t("service.contractor_cost_value", { cost: Number(job.contractor_cost), currency: job.currency })}` : ""}
           </div>
           {job.actual_start ? (
             <div className="muted small">
@@ -386,7 +420,7 @@ function Jobs({ op, zone }: { op: ServiceOperation; zone: string }) {
   );
 }
 
-type Mode = "" | "start" | "complete" | "terminate" | "cancel" | "price" | "assign";
+type Mode = "" | "start" | "complete" | "terminate" | "cancel" | "price" | "assign" | "contractor-cost";
 
 function JobActions({ op, job, zone }: { op: ServiceOperation; job: ServiceJob; zone: string }) {
   const { t } = useTranslation();
@@ -394,14 +428,16 @@ function JobActions({ op, job, zone }: { op: ServiceOperation; job: ServiceJob; 
   const [mode, setMode] = useState<Mode>("");
   const holding = HOLDING_STATES.includes(op.state);
   const orderOpen = op.order_state !== "closed" && op.order_state !== "cancelled";
+  const own = job.contractor_id === null;
   const buttons: [Mode | "take", string, boolean][] = [
-    ["take", t("service.take"), job.state === "planned" && !job.executor_id && can("service.work")],
-    ["assign", t("service.assign"), (job.state === "planned" || job.state === "in_progress") && can("service.assign")],
-    ["start", t("service.start"), job.state === "planned" && holding && can("service.work")],
+    ["take", t("service.take"), own && job.state === "planned" && !job.executor_id && can("service.work")],
+    ["assign", t("service.assign"), own && (job.state === "planned" || job.state === "in_progress") && can("service.assign")],
+    ["start", t("service.start"), job.state === "planned" && (holding || !own) && !FINAL_STATES.includes(op.state) && can("service.work")],
     ["complete", t("service.complete"), job.state === "in_progress" && can("service.work")],
     ["terminate", t("service.terminate_job"), job.state === "in_progress" && can("service.work")],
     ["cancel", t("service.cancel_job"), job.state === "planned" && can("service.cancel")],
     ["price", t("service.change_price"), job.state !== "cancelled" && orderOpen && can("service.price")],
+    ["contractor-cost", t("service.contractor_cost"), !own && job.state !== "cancelled" && orderOpen && can("service.external")],
   ];
   const visible = buttons.filter(([, , shown]) => shown);
   if (visible.length === 0) return null;
@@ -454,6 +490,8 @@ function JobForm({ mode, job, zone, onDone }: { mode: Exclude<Mode, "">; job: Se
   const [reason, setReason] = useState("");
   const [amount, setAmount] = useState(job.price !== null ? String(Number(job.price)) : "");
   const [executor, setExecutor] = useState(job.executor_id ?? "");
+  const [cost, setCost] = useState(job.contractor_cost !== null ? String(Number(job.contractor_cost)) : "");
+  const contractor = job.contractor_id !== null;
   const path = mode === "assign" ? "assign" : mode;
   const command = useCommand<Record<string, unknown>, Result>(`/c/${company.public_id}/service/jobs/${job.id}/${path}`);
   const number = (value: string) => value.trim().replace(",", ".") || null;
@@ -467,6 +505,9 @@ function JobForm({ mode, job, zone, onDone }: { mode: Exclude<Mode, "">; job: Se
       body.comment = comment;
     }
     if (mode === "complete") body.odometer = number(odometer);
+    if (contractor && (mode === "complete" || mode === "terminate" || mode === "contractor-cost")) {
+      body.contractor_cost = number(cost);
+    }
     if (mode === "terminate" || mode === "cancel") body.reason = reason;
     if (mode === "terminate" || mode === "price") body.price = number(amount);
     if (mode === "assign") body.executor_id = executor || null;
@@ -485,9 +526,16 @@ function JobForm({ mode, job, zone, onDone }: { mode: Exclude<Mode, "">; job: Se
       </Field>,
     );
   }
+  if (contractor && (mode === "complete" || mode === "terminate" || mode === "contractor-cost")) {
+    fields.push(
+      <Field key="cost" label={`${t("service.contractor_cost")}, ${job.currency}`} hint={t("service.contractor_cost_hint")}>
+        <input inputMode="decimal" value={cost} onChange={(e) => setCost(e.target.value)} />
+      </Field>,
+    );
+  }
   if (mode === "complete") {
     fields.push(
-      <Field key="odometer" label={t("service.odometer")}>
+      <Field key="odometer" label={t("service.odometer")} hint={contractor ? t("service.odometer_optional") : undefined}>
         <input inputMode="decimal" value={odometer} onChange={(e) => setOdometer(e.target.value)} />
       </Field>,
     );
@@ -528,7 +576,8 @@ function JobForm({ mode, job, zone, onDone }: { mode: Exclude<Mode, "">; job: Se
     );
   }
   const blocked =
-    (mode === "complete" && !odometer.trim()) ||
+    (mode === "complete" && !contractor && !odometer.trim()) ||
+    (mode === "contractor-cost" && !cost.trim()) ||
     (mode === "terminate" && !reason.trim()) ||
     (mode === "price" && !amount.trim());
   return (
@@ -654,5 +703,111 @@ function MaterialRow({ material }: { material: ServiceMaterial }) {
         </form>
       ) : null}
     </div>
+  );
+}
+
+/** The vehicle or a part handed over to a contractor and returned, apart from the results of
+ * the works (§ 16.6.6). */
+function Handovers({ op, zone }: { op: ServiceOperation; zone: string }) {
+  const { t, i18n } = useTranslation();
+  const company = useCompany();
+  const can = useCan();
+  const refresh = useRefresh();
+  const contractors = useContractors(can("service.handover"));
+  const [kind, setKind] = useState<"vehicle" | "part">("vehicle");
+  const [description, setDescription] = useState("");
+  const [contractorId, setContractorId] = useState(op.counterparty_id ?? "");
+  const [at, setAt] = useState(toLocalInput(new Date(), zone));
+  const hand = useCommand<Record<string, unknown>, Result>(opCommand(company.public_id, op, "handovers"));
+  const mayHand = can("service.handover") && !FINAL_STATES.includes(op.state);
+  if (op.handovers.length === 0 && !mayHand) return null;
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const result = await hand.run({
+      kind,
+      description,
+      counterparty_id: contractorId || null,
+      handed_at: fromLocalInput(at, zone),
+      expected_version: op.version,
+    });
+    if (result) {
+      setDescription("");
+      await refresh();
+    }
+  }
+  return (
+    <Card title={t("service.handovers")}>
+      {op.handovers.map((h) => (
+        <div key={h.id} className="small">
+          {h.kind === "vehicle" ? t("service.handover_vehicle") : h.description} → {h.counterparty_name ?? "—"} ·{" "}
+          {formatMoment(h.handed_at, zone, i18n.language)}
+          {h.returned_at
+            ? ` · ${t("service.returned_at", { at: formatMoment(h.returned_at, zone, i18n.language) })}`
+            : null}
+          {!h.returned_at && can("service.handover") ? <ReturnHandover handoverId={h.id} version={h.version} zone={zone} /> : null}
+        </div>
+      ))}
+      {mayHand ? (
+        <form className="row" onSubmit={submit}>
+          <Field label={t("service.handover_what")}>
+            <select value={kind} onChange={(e) => setKind(e.target.value as "vehicle" | "part")}>
+              <option value="vehicle">{t("service.handover_vehicle")}</option>
+              <option value="part">{t("service.handover_part")}</option>
+            </select>
+          </Field>
+          {kind === "part" ? (
+            <Field label={t("service.part_description")}>
+              <input value={description} onChange={(e) => setDescription(e.target.value)} />
+            </Field>
+          ) : null}
+          <Field label={t("service.contractor")}>
+            <select value={contractorId} onChange={(e) => setContractorId(e.target.value)}>
+              <option value="">—</option>
+              {(contractors.data?.counterparties ?? []).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label={t("service.handed_at")}>
+            <input type="datetime-local" value={at} onChange={(e) => setAt(e.target.value)} />
+          </Field>
+          <div className="actions">
+            <button type="submit" className="secondary" disabled={hand.pending || !contractorId || (kind === "part" && !description.trim())}>
+              {t("service.hand_over")}
+            </button>
+          </div>
+          <ErrorMessage error={hand.error} />
+        </form>
+      ) : null}
+    </Card>
+  );
+}
+
+function ReturnHandover({ handoverId, version, zone }: { handoverId: string; version: number; zone: string }) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const refresh = useRefresh();
+  const [at, setAt] = useState(toLocalInput(new Date(), zone));
+  const back = useCommand<Record<string, unknown>, Result>(`/c/${company.public_id}/service/handovers/${handoverId}/return`);
+  return (
+    <form
+      className="row"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void back.run({ returned_at: fromLocalInput(at, zone), expected_version: version }).then((r) => (r ? refresh() : undefined));
+      }}
+    >
+      <Field label={t("service.returned")}>
+        <input type="datetime-local" value={at} onChange={(e) => setAt(e.target.value)} />
+      </Field>
+      <div className="actions">
+        <button type="submit" className="secondary small" disabled={back.pending}>
+          {t("service.mark_returned")}
+        </button>
+      </div>
+      <ErrorMessage error={back.error} />
+    </form>
   );
 }

@@ -119,7 +119,10 @@
     "service_material_added": "Part issued to a work",
     "service_material_returned": "Part returned unused",
     "service_material_consumed": "Part used",
-    "service_material_price_changed": "Price of a part changed"
+    "service_material_price_changed": "Price of a part changed",
+    "service_job_contractor_cost_changed": "Contractor's cost changed",
+    "service_handover_handed_over": "Handed over to a contractor",
+    "service_handover_returned": "Returned from a contractor"
   },
   "finance_articles": {
     "archive": "Archive",
@@ -695,7 +698,12 @@
     "service_without_jobs": "The operation has no works: add them or cancel it.",
     "service_jobs_not_finished": "Not every work has a result: done, cancelled or terminated.",
     "service_materials_issued": "Parts are issued to the work: return them to the warehouse first.",
-    "service_material_settled": "Nothing of this part is left to settle."
+    "service_material_settled": "Nothing of this part is left to settle.",
+    "service_external": "The service is at an external contractor: hand the vehicle over instead.",
+    "service_job_contractor": "The work is done by a contractor: it has no internal executor.",
+    "service_job_not_contractor": "The work is not done by a contractor.",
+    "service_handover_returned": "It has already returned.",
+    "vehicle_already_handed_over": "The vehicle is already with a contractor."
   },
   "history": {
     "action": "Action",
@@ -1028,7 +1036,9 @@
     "service_work_others": "Enter results for another executor",
     "service_complete": "Finish service operations",
     "service_price": "Change prices of works in orders",
-    "service_catalog": "Manage the catalog of works, prices and norm hours"
+    "service_catalog": "Manage the catalog of works, prices and norm hours",
+    "service_external": "Create services at external contractors",
+    "service_handover": "Record handover to and return from contractors"
   },
   "positions": {
     "director": "Director"
@@ -2502,6 +2512,24 @@
     "consume_material": "Used",
     "quantity_unit": "Quantity, {{unit}}",
     "all_outstanding": "Empty — all that is left",
-    "blocker_service_materials_unsettled": "Issued parts are not settled: mark them used or return them to the warehouse."
+    "blocker_service_materials_unsettled": "Issued parts are not settled: mark them used or return them to the warehouse.",
+    "at_contractor": "At an external contractor",
+    "contractor": "Contractor",
+    "performer": "Who does it",
+    "own_staff": "Our employees",
+    "contractor_cost": "Contractor's cost",
+    "contractor_cost_value": "contractor {{cost}} {{currency}}",
+    "contractor_cost_hint": "What the company owes the contractor; the client's price is separate",
+    "odometer_optional": "Optional for a contractor's work",
+    "handovers": "Handed to contractors",
+    "handover_vehicle": "Vehicle",
+    "handover_part": "A part",
+    "handover_what": "What is handed over",
+    "part_description": "Part",
+    "handed_at": "Handed over",
+    "hand_over": "Hand over",
+    "returned_at": "returned {{at}}",
+    "returned": "Returned",
+    "mark_returned": "Returned"
   }
 }

@@ -11,6 +11,7 @@ or a charge, money is a money record.
 """
 
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
@@ -260,6 +261,29 @@ def _supplier_money(company_id: UUID, counterparty_id: UUID | None = None) -> Qu
     return query
 
 
+@dataclass(frozen=True)
+class Obligation:
+    """What the company owes a counterparty from another module, for example the cost of a
+    contractor's service work (§ 16.6.3)."""
+
+    counterparty_id: UUID
+    currency: str
+    amount: Decimal
+
+
+# (company_id, counterparty_id or None for all) -> obligations of the company to counterparties.
+ObligationsProvider = Callable[[UUID, UUID | None], list[Any]]
+_obligations: list[ObligationsProvider] = []
+
+
+def register_obligations(provider: ObligationsProvider) -> None:
+    _obligations.append(provider)
+
+
+def _module_obligations(company_id: UUID, counterparty_id: UUID | None) -> list[Any]:
+    return [o for p in _obligations for o in p(company_id, counterparty_id)]
+
+
 @dataclass
 class Payable:
     """What the company owes a counterparty per currency: positive — the company owes,
@@ -274,6 +298,8 @@ def payable(company_id: UUID, counterparty_id: UUID) -> Payable:
     for value in warehouse.receipts(company_id, supplier_id=counterparty_id):
         _add(result.amounts, value.currency, value.amount)
         result.incomplete = result.incomplete or value.incomplete
+    for obligation in _module_obligations(company_id, counterparty_id):
+        _add(result.amounts, obligation.currency, obligation.amount)
     for currency, amount in _entries_net(
         SettlementEntry.objects.filter(company_id=company_id, counterparty_id=counterparty_id)
     ).items():
@@ -310,6 +336,7 @@ def payable(company_id: UUID, counterparty_id: UUID) -> Payable:
 
 def counterparties_with_balance(company_id: UUID) -> list[tuple[UUID, Payable]]:
     ids: set[UUID] = {v.supplier_id for v in warehouse.receipts(company_id) if v.supplier_id}
+    ids |= {o.counterparty_id for o in _module_obligations(company_id, None)}
     ids |= set(_supplier_money(company_id).values_list("counterparty_id", flat=True))
     ids |= set(
         SettlementEntry.objects.filter(

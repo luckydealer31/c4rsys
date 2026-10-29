@@ -3,6 +3,7 @@ import type { TFunction } from "i18next";
 import { useApi } from "../../api/queries";
 import type {
   Company,
+  Counterparty,
   Location,
   QueueJob,
   ServiceOperation,
@@ -67,6 +68,16 @@ export function useExecutors(enabled = true) {
   return useApi<{ employees: { id: string; name: string }[] }>(
     ["service-executors", company.public_id],
     `/c/${company.public_id}/service/executors`,
+    enabled,
+  );
+}
+
+/** Active counterparties: external contractors of the service (§ 16.6.1). */
+export function useContractors(enabled = true) {
+  const company = useCompany();
+  return useApi<{ counterparties: Counterparty[] }>(
+    ["counterparties", company.public_id, "", false],
+    `/c/${company.public_id}/counterparties?q=&state=active`,
     enabled,
   );
 }

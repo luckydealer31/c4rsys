@@ -26,3 +26,7 @@ class ServiceConfig(AppConfig):
         orders.register_on_client_assigned(operations.on_client_assigned)
         orders.register_on_cancel(operations.on_order_cancel)
         orders.register_history(operations.history_for_order)
+        # § 16.6.3: the cost of a contractor's work is owed to the counterparty.
+        from c4rsys.finance import settlements
+
+        settlements.register_obligations(operations.contractor_obligations)

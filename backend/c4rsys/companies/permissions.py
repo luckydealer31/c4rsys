@@ -124,6 +124,10 @@ PERMISSIONS: dict[str, str] = {
     "service.complete": "service",
     "service.price": "service",
     "service.catalog": "service",
+    # § 23.6.4: creating a service at an external counterparty; recording the handover to the
+    # contractor and the return (part С4).
+    "service.external": "service",
+    "service.handover": "service",
 }
 
 COMPANY_ADMIN = "company_admin"
@@ -229,6 +233,8 @@ SYSTEM_SETS: dict[str, tuple[str, ...]] = {
         "service.complete",
         "service.price",
         "service.catalog",
+        "service.external",
+        "service.handover",
     ),
     # § 23.2.4: own works, the post and the general zone, inspections; no prices or payments.
     MECHANIC: (

@@ -167,7 +167,14 @@ class ServiceOperation(models.Model):
     vehicle_card = models.ForeignKey(
         "fleet.VehicleCard", on_delete=models.PROTECT, related_name="+"
     )
-    location = models.ForeignKey(Location, on_delete=models.PROTECT, related_name="+")
+    # Empty for a service only at an external counterparty (§ 16.6.1).
+    location = models.ForeignKey(
+        Location, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    # The external counterparty of the operation; its works go to them by default (§ 16.6.1).
+    counterparty = models.ForeignKey(
+        "parties.Counterparty", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
     reason = models.CharField(max_length=2000)
     planned_start = models.DateTimeField(null=True, blank=True)
     planned_end = models.DateTimeField(null=True, blank=True)
@@ -211,9 +218,15 @@ class ServiceOperation(models.Model):
                 ),
                 name="service_operation_plan_complete",
             ),
+            # A work of a contractor may start without the vehicle in the company's service, so
+            # only «accepted» needs the moment of acceptance (part С4).
             models.CheckConstraint(
-                condition=Q(state="planned") | Q(state="cancelled") | Q(accepted_at__isnull=False),
+                condition=~Q(state="accepted") | Q(accepted_at__isnull=False),
                 name="service_operation_accepted_has_time",
+            ),
+            models.CheckConstraint(
+                condition=Q(location__isnull=False) | Q(counterparty__isnull=False),
+                name="service_operation_place_known",
             ),
             # § 16.2.5: no overlapping records on the same post.
             ExclusionConstraint(
@@ -256,6 +269,15 @@ class ServiceJob(models.Model):
     executor = models.ForeignKey(
         Employment, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
+    # A work of an external contractor instead of an internal executor; its cost to the company
+    # is apart from the price for the client (§ 16.6.2–16.6.3).
+    contractor = models.ForeignKey(
+        "parties.Counterparty", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    contractor_cost = models.DecimalField(max_digits=20, decimal_places=4, null=True, blank=True)
+    contractor_currency = models.ForeignKey(
+        Currency, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
     state = models.CharField(max_length=12, choices=State.choices, default=State.PLANNED)
     actual_start = models.DateTimeField(null=True, blank=True)
     actual_end = models.DateTimeField(null=True, blank=True)
@@ -288,8 +310,19 @@ class ServiceJob(models.Model):
                 name="service_job_finished_has_end",
             ),
             models.CheckConstraint(
-                condition=~Q(state="done") | Q(odometer__isnull=False),
+                condition=~Q(state="done")
+                | Q(odometer__isnull=False)
+                | Q(contractor__isnull=False),
                 name="service_job_done_has_odometer",
+            ),
+            models.CheckConstraint(
+                condition=Q(executor__isnull=True) | Q(contractor__isnull=True),
+                name="service_job_executor_or_contractor",
+            ),
+            models.CheckConstraint(
+                condition=Q(contractor_cost__isnull=True)
+                | Q(contractor_cost__gte=0, contractor_currency__isnull=False),
+                name="service_job_contractor_cost_currency",
             ),
         ]
         indexes = [
@@ -342,3 +375,53 @@ class ServiceMaterial(models.Model):
 
     def __str__(self) -> str:
         return f"material {self.item_name}"
+
+
+class ServiceHandover(models.Model):
+    """The vehicle or a separate part handed over to an external contractor and its return; kept
+    apart from the results of the works (§ 16.6.1, § 16.6.6)."""
+
+    class Kind(models.TextChoices):
+        VEHICLE = "vehicle"
+        PART = "part"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    operation = models.ForeignKey(
+        ServiceOperation, on_delete=models.PROTECT, related_name="handovers"
+    )
+    counterparty = models.ForeignKey(
+        "parties.Counterparty", on_delete=models.PROTECT, related_name="+"
+    )
+    kind = models.CharField(max_length=10, choices=Kind.choices)
+    description = models.CharField(max_length=500, blank=True, default="")
+    handed_at = models.DateTimeField()
+    returned_at = models.DateTimeField(null=True, blank=True)
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "service_handover"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "id"], name="service_handover_company_id_uniq"
+            ),
+            models.CheckConstraint(
+                condition=Q(kind="vehicle") | ~Q(description=""),
+                name="service_handover_part_described",
+            ),
+            models.CheckConstraint(
+                condition=Q(returned_at__isnull=True) | Q(returned_at__gte=F("handed_at")),
+                name="service_handover_return_after",
+            ),
+            # The vehicle is with one contractor at a time.
+            models.UniqueConstraint(
+                fields=["operation"],
+                condition=Q(kind="vehicle", returned_at__isnull=True),
+                name="service_handover_one_vehicle_out",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"handover {self.kind}"

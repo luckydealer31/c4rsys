@@ -6,13 +6,13 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 import type { Client, ServiceOperation } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
-import { companyPath, useCompany } from "../../layout/CompanyShell";
+import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { fromLocalInput } from "../../time";
 import { clientName } from "../clients/ClientsPage";
 import { ClientFinder } from "../rentals/IssuePage";
 import { useLocations } from "../settings/LocationsPage";
 import { useVehicles } from "../vehicles/VehiclesPage";
-import { serviceLocations, useServicePosts, useServiceWorks, workTerms, zoneOf } from "./hooks";
+import { serviceLocations, useContractors, useServicePosts, useServiceWorks, workTerms, zoneOf } from "./hooks";
 
 /** A service operation in an order: the vehicle and the reason first; the client is taken from
  * the order; the works now or after the diagnostics (§ 16.1.6). A new order is made for the
@@ -38,21 +38,30 @@ export function NewServiceOperationPage() {
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [postId, setPostId] = useState("");
+  // § 16.6.1: «Service» → «At an external counterparty»; no own service location is needed.
+  const [external, setExternal] = useState(params.get("external") === "1");
+  const [contractorId, setContractorId] = useState("");
+  const can = useCan();
+  const contractors = useContractors(can("service.external"));
   const create = useCommand<Record<string, unknown>, { operation: ServiceOperation }>(
     `/c/${company.public_id}/service/operations`,
   );
   // § 16.2.2: a single available service location is set by itself.
-  const location = places.find((l) => l.id === locationId) ?? (places.length === 1 ? places[0] : undefined);
+  const location = external
+    ? undefined
+    : (places.find((l) => l.id === locationId) ?? (places.length === 1 ? places[0] : undefined));
   const zone = zoneOf(location, company);
   const cars = (vehicles.data?.vehicles ?? []).filter((v) => v.state === "active" && !v.storage);
   const active = (works.data?.works ?? []).filter((w) => w.state === "active");
-  const ready = Boolean(location && vehicleId && reason.trim() && (orderId || internal || client));
+  const ready = Boolean(
+    (external ? contractorId : location) && vehicleId && reason.trim() && (orderId || internal || client),
+  );
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!location) return;
     const body: Record<string, unknown> = {
-      location_id: location.id,
+      location_id: location?.id ?? null,
+      counterparty_id: external ? contractorId : null,
       vehicle_card_id: vehicleId,
       reason,
       work_ids: chosen,
@@ -80,17 +89,36 @@ export function NewServiceOperationPage() {
       {locations.isLoading || vehicles.isLoading ? <Loading /> : null}
       <Card>
         <form className="stack" onSubmit={submit}>
+          {can("service.external") ? (
+            <label className="small">
+              <input type="checkbox" checked={external} onChange={() => setExternal(!external)} />{" "}
+              {t("service.at_contractor")}
+            </label>
+          ) : null}
           <div className="row">
-            <Field label={t("service.location")}>
-              <select value={location?.id ?? ""} onChange={(e) => setLocationId(e.target.value)}>
-                {places.length !== 1 ? <option value="">—</option> : null}
-                {places.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
+            {external ? (
+              <Field label={t("service.contractor")}>
+                <select value={contractorId} onChange={(e) => setContractorId(e.target.value)}>
+                  <option value="">—</option>
+                  {(contractors.data?.counterparties ?? []).map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            ) : (
+              <Field label={t("service.location")}>
+                <select value={location?.id ?? ""} onChange={(e) => setLocationId(e.target.value)}>
+                  {places.length !== 1 ? <option value="">—</option> : null}
+                  {places.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
             <Field label={t("service.vehicle")}>
               <select value={vehicleId} onChange={(e) => setVehicleId(e.target.value)}>
                 <option value="">—</option>
@@ -149,18 +177,20 @@ export function NewServiceOperationPage() {
             <Field label={t("service.planned_end")}>
               <input type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} />
             </Field>
-            <Field label={t("service.post")} hint={t("service.post_optional")}>
-              <select value={postId} onChange={(e) => setPostId(e.target.value)}>
-                <option value="">{t("service.general_zone")}</option>
-                {(posts.data?.posts ?? [])
-                  .filter((p) => p.location_id === location?.id && p.state === "active")
-                  .map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-              </select>
-            </Field>
+            {external ? null : (
+              <Field label={t("service.post")} hint={t("service.post_optional")}>
+                <select value={postId} onChange={(e) => setPostId(e.target.value)}>
+                  <option value="">{t("service.general_zone")}</option>
+                  {(posts.data?.posts ?? [])
+                    .filter((p) => p.location_id === location?.id && p.state === "active")
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                </select>
+              </Field>
+            )}
           </div>
           <ErrorMessage error={create.error} />
           <div className="actions">

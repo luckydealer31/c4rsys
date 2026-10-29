@@ -34,6 +34,12 @@ urlpatterns = [
     path("c/<str:cmp>/service/materials/<uuid:material_id>/return", views.material_return),
     path("c/<str:cmp>/service/materials/<uuid:material_id>/consume", views.material_consume),
     path("c/<str:cmp>/service/materials/<uuid:material_id>/price", views.material_price),
+    path("c/<str:cmp>/service/jobs/<uuid:job_id>/contractor-cost", views.job_contractor_cost),
+    path(
+        "c/<str:cmp>/service/operations/<uuid:operation_id>/handovers",
+        views.operation_hand_over,
+    ),
+    path("c/<str:cmp>/service/handovers/<uuid:handover_id>/return", views.handover_return),
     path("c/<str:cmp>/service/queue", views.queue),
     path("c/<str:cmp>/service/executors", views.executors),
 ]

@@ -20,11 +20,13 @@ from c4rsys.companies import services as companies
 from c4rsys.companies.views import run_and_respond
 from c4rsys.fleet import services as fleet
 from c4rsys.orders import services as orders
+from c4rsys.parties import counterparties
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
 from c4rsys.service import catalog, materials, operations
 from c4rsys.service.models import (
+    ServiceHandover,
     ServiceJob,
     ServiceMaterial,
     ServiceOperation,
@@ -336,7 +338,9 @@ def post_detail(request: HttpRequest, cmp: str, post_id: UUID) -> JsonResponse:
 # --- Operations (§ 16.1.6, § 16.2–16.4) ----------------------------------------------------------
 
 
-def _job_payload(job: ServiceJob, names: dict[UUID, str]) -> dict[str, Any]:
+def _job_payload(
+    job: ServiceJob, names: dict[UUID, str], parties: dict[UUID, str] | None = None
+) -> dict[str, Any]:
     snap = job.snapshot
     return {
         "id": str(job.id),
@@ -353,6 +357,9 @@ def _job_payload(job: ServiceJob, names: dict[UUID, str]) -> dict[str, Any]:
         "currency": job.currency_id,
         "executor_id": str(job.executor_id) if job.executor_id else None,
         "executor_name": names.get(job.executor_id) if job.executor_id else None,
+        "contractor_id": str(job.contractor_id) if job.contractor_id else None,
+        "contractor_name": (parties or {}).get(job.contractor_id) if job.contractor_id else None,
+        "contractor_cost": catalog.amount_text(job.contractor_cost),
         "state": job.state,
         "actual_start": job.actual_start.isoformat() if job.actual_start else None,
         "actual_end": job.actual_end.isoformat() if job.actual_end else None,
@@ -396,6 +403,13 @@ def _operation_payload(op: ServiceOperation, *, detail: bool = True) -> dict[str
     order = orders.get_order(op.company_id, op.order_id)
     jobs = operations.jobs_of(op)
     names = staff.employee_names(op.company_id, {j.executor_id for j in jobs if j.executor_id})
+    handovers = list(ServiceHandover.objects.filter(operation=op).order_by("handed_at", "id"))
+    parties = counterparties.names(
+        op.company_id,
+        {j.contractor_id for j in jobs if j.contractor_id}
+        | {h.counterparty_id for h in handovers}
+        | ({op.counterparty_id} if op.counterparty_id else set()),
+    )
     post_name = (
         ServicePost.objects.filter(pk=op.post_id).values_list("name", flat=True).first()
         if op.post_id
@@ -415,7 +429,9 @@ def _operation_payload(op: ServiceOperation, *, detail: bool = True) -> dict[str
         "vehicle_name": fleet.card_names(op.company_id, {op.vehicle_card_id}).get(
             op.vehicle_card_id
         ),
-        "location_id": str(op.location_id),
+        "location_id": str(op.location_id) if op.location_id else None,
+        "counterparty_id": str(op.counterparty_id) if op.counterparty_id else None,
+        "counterparty_name": parties.get(op.counterparty_id) if op.counterparty_id else None,
         "reason": op.reason,
         "planned_start": _iso(op.planned_start),
         "planned_end": _iso(op.planned_end),
@@ -425,7 +441,20 @@ def _operation_payload(op: ServiceOperation, *, detail: bool = True) -> dict[str
         "finished_at": _iso(op.finished_at),
         "end_reason": op.end_reason,
         "created_at": op.created_at.isoformat(),
-        "jobs": [_job_payload(j, names) for j in jobs],
+        "jobs": [_job_payload(j, names, parties) for j in jobs],
+        "handovers": [
+            {
+                "id": str(h.id),
+                "version": h.version,
+                "kind": h.kind,
+                "description": h.description,
+                "counterparty_id": str(h.counterparty_id),
+                "counterparty_name": parties.get(h.counterparty_id),
+                "handed_at": h.handed_at.isoformat(),
+                "returned_at": _iso(h.returned_at),
+            }
+            for h in handovers
+        ],
         "materials": _materials_payload([j.id for j in jobs]),
     }
     if detail:
@@ -453,7 +482,7 @@ def operation_list(request: HttpRequest, cmp: str) -> JsonResponse:
         order_param = request.GET.get("order_id")
         if order_param:
             query = query.filter(order_id=_required_uuid({"o": order_param}, "o"))
-        allowed: dict[UUID, bool] = {}
+        allowed: dict[UUID | None, bool] = {}
         items = []
         for op in query[:300]:
             if op.location_id not in allowed:
@@ -463,8 +492,12 @@ def operation_list(request: HttpRequest, cmp: str) -> JsonResponse:
         return JsonResponse({"operations": items})
 
     data = parse_json(request)
-    location_id = _required_uuid(data, "location_id")
+    location_id = _uuid(data, "location_id", required=False)
+    counterparty_id = _uuid(data, "counterparty_id", required=False)
     _require(actor, "service.create", location_id)
+    if counterparty_id is not None or location_id is None:
+        # § 16.6.1, § 23.6.4: a service at an external counterparty.
+        _require(actor, "service.external")
     order_id = _uuid(data, "order_id", required=False)
     client_id = _uuid(data, "client_id", required=False)
     internal = data.get("internal") is True
@@ -482,6 +515,7 @@ def operation_list(request: HttpRequest, cmp: str) -> JsonResponse:
     new = operations.NewOperation(
         vehicle_card_id=_required_uuid(data, "vehicle_card_id"),
         location_id=location_id,
+        counterparty_id=counterparty_id,
         reason=_text(data, "reason", required=True),
         order_id=order_id,
         client_id=client_id,
@@ -505,6 +539,7 @@ def operation_list(request: HttpRequest, cmp: str) -> JsonResponse:
         data,
         "vehicle_card_id",
         "location_id",
+        "counterparty_id",
         "reason",
         "order_id",
         "client_id",
@@ -546,7 +581,7 @@ def _operation_command(
     _require(actor, permission, op.location_id)
     data = parse_json(request)
     expected_version = get_int(data, "expected_version")
-    action(None, None, data)  # validates the input before the command runs
+    action(None, op, {**data, "_actor": actor})  # validates the input before the command runs
 
     def handler(ctx: CommandContext) -> CommandResult:
         locked = operations.locked_operation(context.company.id, operation_id, expected_version)
@@ -621,8 +656,11 @@ def operation_add_job(request: HttpRequest, cmp: str, operation_id: UUID) -> Jso
     def action(ctx: CommandContext | None, op: Any, data: dict[str, Any]) -> None:
         work_id = _required_uuid(data, "work_id")
         executor_id = _uuid(data, "executor_id", required=False)
+        contractor_id = _uuid(data, "contractor_id", required=False)
+        if ctx is None and contractor_id is not None:
+            _require(data["_actor"], "service.external")
         if ctx is not None:
-            operations.add_job(ctx, op, work_id, executor_id)
+            operations.add_job(ctx, op, work_id, executor_id, contractor_id)
 
     return _operation_command(
         request,
@@ -631,7 +669,7 @@ def operation_add_job(request: HttpRequest, cmp: str, operation_id: UUID) -> Jso
         "service.create",
         "service_operation.add_job",
         action,
-        ("work_id", "executor_id"),
+        ("work_id", "executor_id", "contractor_id"),
     )
 
 
@@ -765,11 +803,10 @@ def job_complete(request: HttpRequest, cmp: str, job_id: UUID) -> JsonResponse:
     def action(ctx: CommandContext | None, job: Any, data: dict[str, Any]) -> None:
         at = _moment(data, "actual_end", required=True)
         odometer = _amount(data, "odometer", places=1)
-        if odometer is None:
-            raise errors.validation_error("odometer", code="FIELD_REQUIRED")
         comment = _text(data, "comment", required=False)
+        cost = _amount(data, "contractor_cost")
         if ctx is not None and at is not None:
-            operations.complete(ctx, job, at, odometer, comment)
+            operations.complete(ctx, job, at, odometer, comment, cost)
 
     return _job_command(
         request,
@@ -778,7 +815,7 @@ def job_complete(request: HttpRequest, cmp: str, job_id: UUID) -> JsonResponse:
         "service.work",
         "service_job.complete",
         action,
-        ("actual_end", "odometer", "comment"),
+        ("actual_end", "odometer", "comment", "contractor_cost"),
         own_or_others=True,
     )
 
@@ -790,8 +827,9 @@ def job_terminate(request: HttpRequest, cmp: str, job_id: UUID) -> JsonResponse:
         reason = _text(data, "reason", required=True)
         price = _amount(data, "price")
         comment = _text(data, "comment", required=False)
+        cost = _amount(data, "contractor_cost")
         if ctx is not None and at is not None:
-            operations.terminate(ctx, job, at, reason, price, comment)
+            operations.terminate(ctx, job, at, reason, price, comment, cost)
 
     return _job_command(
         request,
@@ -800,7 +838,7 @@ def job_terminate(request: HttpRequest, cmp: str, job_id: UUID) -> JsonResponse:
         "service.work",
         "service_job.terminate",
         action,
-        ("actual_end", "reason", "price", "comment"),
+        ("actual_end", "reason", "price", "comment", "contractor_cost"),
         own_or_others=True,
     )
 
@@ -840,7 +878,7 @@ def queue(request: HttpRequest, cmp: str) -> JsonResponse:
         .select_related("operation")
         .order_by("created_at", "id")[:300]
     )
-    allowed: dict[UUID, bool] = {}
+    allowed: dict[UUID | None, bool] = {}
     items = []
     for job in jobs:
         location_id = job.operation.location_id
@@ -992,3 +1030,92 @@ def material_price(request: HttpRequest, cmp: str, material_id: UUID) -> JsonRes
         materials.set_price(ctx, m, price)
 
     return _material_command(request, cmp, material_id, "service_material.price", action)
+
+
+# --- External contractors (§ 16.6) ---------------------------------------------------------------
+
+
+@require_POST
+def job_contractor_cost(request: HttpRequest, cmp: str, job_id: UUID) -> JsonResponse:
+    """The contractor's cost for the company, apart from the client's price (§ 16.6.3)."""
+
+    def action(ctx: CommandContext | None, job: Any, data: dict[str, Any]) -> None:
+        cost = _amount(data, "contractor_cost")
+        if cost is None:
+            raise errors.validation_error("contractor_cost", code="FIELD_REQUIRED")
+        if ctx is not None:
+            operations.set_contractor_cost(ctx, job, cost)
+
+    return _job_command(
+        request,
+        cmp,
+        job_id,
+        "service.external",
+        "service_job.contractor_cost",
+        action,
+        ("contractor_cost",),
+    )
+
+
+@require_POST
+def operation_hand_over(request: HttpRequest, cmp: str, operation_id: UUID) -> JsonResponse:
+    """The vehicle or a part handed over to a contractor (§ 16.6.6; § 23.6.4)."""
+
+    def action(ctx: CommandContext | None, op: Any, data: dict[str, Any]) -> None:
+        at = _moment(data, "handed_at", required=True)
+        kind = get_str(data, "kind", max_length=10)
+        description = _text(data, "description", required=False)
+        counterparty_id = _uuid(data, "counterparty_id", required=False)
+        if ctx is not None and at is not None:
+            operations.hand_over(
+                ctx,
+                op,
+                kind=kind,
+                description=description,
+                counterparty_id=counterparty_id,
+                at=at,
+            )
+
+    return _operation_command(
+        request,
+        cmp,
+        operation_id,
+        "service.handover",
+        "service_operation.hand_over",
+        action,
+        ("handed_at", "kind", "description", "counterparty_id"),
+    )
+
+
+@require_POST
+def handover_return(request: HttpRequest, cmp: str, handover_id: UUID) -> JsonResponse:
+    """The actual return from the contractor, apart from the acceptance of the works."""
+    context, actor = _actor(request, cmp)
+    handover = (
+        ServiceHandover.objects.select_related("operation")
+        .filter(company=context.company, pk=handover_id)
+        .first()
+    )
+    if handover is None or not _visible(actor, handover.operation):
+        raise errors.not_found()
+    _require(actor, "service.handover", handover.operation.location_id)
+    data = parse_json(request)
+    expected_version = get_int(data, "expected_version")
+    at = _moment(data, "returned_at", required=True)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        operations.locked_operation(context.company.id, handover.operation_id)
+        locked = ServiceHandover.objects.select_for_update().get(pk=handover_id)
+        if locked.version != expected_version:
+            raise errors.version_conflict()
+        if at is not None:
+            operations.mark_returned(ctx, locked, at)
+        op = operations.get_operation(context.company.id, handover.operation_id)
+        return CommandResult(200, {"operation": _operation_payload(op)})
+
+    payload = {
+        "handover_id": str(handover_id),
+        "expected_version": expected_version,
+        "returned_at": data.get("returned_at"),
+    }
+    return run_and_respond(request, "service_handover.return", actor, payload, handler)

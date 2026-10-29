@@ -222,7 +222,7 @@ class Terms:
     snapshot: dict[str, Any]
 
 
-def terms_for(work: ServiceWork, location_id: UUID) -> Terms:
+def terms_for(work: ServiceWork, location_id: UUID | None) -> Terms:
     """Fixed: the catalog price, maybe not known yet. Hours: norm hours × the rate of the work, of
     the location or of the company; without hours or a rate the price is not known (§ 16.1.4)."""
     minor = work.currency.minor_units
@@ -232,7 +232,8 @@ def terms_for(work: ServiceWork, location_id: UUID) -> Terms:
         if work.rate is not None:
             rate, source = work.rate, "work"
         else:
-            for loc, name in ((location_id, "location"), (None, "company")):
+            steps = ((location_id, "location"),) if location_id is not None else ()
+            for loc, name in (*steps, (None, "company")):
                 found = ServiceRate.objects.filter(_rate_of(work.company_id, loc)).first()
                 if found is not None:
                     rate, source = found.rate, name

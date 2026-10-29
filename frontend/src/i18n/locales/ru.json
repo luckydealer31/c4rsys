@@ -119,7 +119,10 @@
     "service_material_added": "Запчасть выдана в работу",
     "service_material_returned": "Запчасть возвращена",
     "service_material_consumed": "Расход запчасти",
-    "service_material_price_changed": "Цена запчасти изменена"
+    "service_material_price_changed": "Цена запчасти изменена",
+    "service_job_contractor_cost_changed": "Стоимость подрядчика изменена",
+    "service_handover_handed_over": "Передано подрядчику",
+    "service_handover_returned": "Возвращено от подрядчика"
   },
   "finance_articles": {
     "archive": "В архив",
@@ -695,7 +698,12 @@
     "service_without_jobs": "В операции нет работ: добавьте их или отмените операцию.",
     "service_jobs_not_finished": "Не у каждой работы есть итог: выполнена, отменена или прекращена.",
     "service_materials_issued": "К работе выданы запчасти: сначала верните их на склад.",
-    "service_material_settled": "По этой запчасти нечего учитывать."
+    "service_material_settled": "По этой запчасти нечего учитывать.",
+    "service_external": "Сервис у внешнего контрагента: вместо приёма передайте ТС подрядчику.",
+    "service_job_contractor": "Работу выполняет подрядчик: внутреннего исполнителя у неё нет.",
+    "service_job_not_contractor": "Работу выполняет не подрядчик.",
+    "service_handover_returned": "Уже возвращено.",
+    "vehicle_already_handed_over": "ТС уже передано подрядчику."
   },
   "history": {
     "action": "Действие",
@@ -1028,7 +1036,9 @@
     "service_work_others": "Вносить результат за другого исполнителя",
     "service_complete": "Завершать сервисные операции",
     "service_price": "Менять цену работ в заказе",
-    "service_catalog": "Управлять каталогом работ, ценами и нормочасами"
+    "service_catalog": "Управлять каталогом работ, ценами и нормочасами",
+    "service_external": "Создавать внешний сервис у контрагента",
+    "service_handover": "Фиксировать передачу и возврат от подрядчика"
   },
   "positions": {
     "director": "Директор"
@@ -2502,6 +2512,24 @@
     "consume_material": "Израсходовано",
     "quantity_unit": "Количество, {{unit}}",
     "all_outstanding": "Пусто — весь остаток",
-    "blocker_service_materials_unsettled": "Выданные запчасти не учтены: отметьте расход или верните их на склад."
+    "blocker_service_materials_unsettled": "Выданные запчасти не учтены: отметьте расход или верните их на склад.",
+    "at_contractor": "У внешнего контрагента",
+    "contractor": "Подрядчик",
+    "performer": "Кто выполняет",
+    "own_staff": "Свои сотрудники",
+    "contractor_cost": "Стоимость подрядчика",
+    "contractor_cost_value": "подрядчик {{cost}} {{currency}}",
+    "contractor_cost_hint": "Долг компании перед подрядчиком; цена для клиента отдельно",
+    "odometer_optional": "Для работы подрядчика необязательно",
+    "handovers": "Передано подрядчикам",
+    "handover_vehicle": "ТС",
+    "handover_part": "Деталь",
+    "handover_what": "Что передаётся",
+    "part_description": "Деталь",
+    "handed_at": "Передано",
+    "hand_over": "Передать",
+    "returned_at": "возвращено {{at}}",
+    "returned": "Возвращено",
+    "mark_returned": "Вернулось"
   }
 }

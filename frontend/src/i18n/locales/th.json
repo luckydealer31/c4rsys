@@ -119,7 +119,10 @@
     "service_material_added": "เบิกอะไหล่ให้งาน",
     "service_material_returned": "คืนอะไหล่",
     "service_material_consumed": "ใช้อะไหล่",
-    "service_material_price_changed": "เปลี่ยนราคาอะไหล่"
+    "service_material_price_changed": "เปลี่ยนราคาอะไหล่",
+    "service_job_contractor_cost_changed": "เปลี่ยนค่าผู้รับเหมา",
+    "service_handover_handed_over": "ส่งมอบให้ผู้รับเหมา",
+    "service_handover_returned": "รับคืนจากผู้รับเหมา"
   },
   "finance_articles": {
     "archive": "เก็บเข้าคลัง",
@@ -695,7 +698,12 @@
     "service_without_jobs": "งานบริการไม่มีงานย่อย: เพิ่มงานหรือยกเลิก",
     "service_jobs_not_finished": "ยังมีงานที่ไม่มีผล: เสร็จ ยกเลิก หรือยุติ",
     "service_materials_issued": "มีอะไหล่ที่เบิกให้งาน: กรุณาคืนคลังก่อน",
-    "service_material_settled": "อะไหล่นี้ไม่มีส่วนที่ต้องสรุป"
+    "service_material_settled": "อะไหล่นี้ไม่มีส่วนที่ต้องสรุป",
+    "service_external": "งานบริการอยู่ที่ผู้รับเหมาภายนอก: ให้ส่งมอบรถแทน",
+    "service_job_contractor": "งานนี้ทำโดยผู้รับเหมา: ไม่มีผู้รับผิดชอบภายใน",
+    "service_job_not_contractor": "งานนี้ไม่ได้ทำโดยผู้รับเหมา",
+    "service_handover_returned": "ได้คืนแล้ว",
+    "vehicle_already_handed_over": "รถอยู่กับผู้รับเหมาแล้ว"
   },
   "history": {
     "action": "Action",
@@ -1028,7 +1036,9 @@
     "service_work_others": "บันทึกผลแทนผู้รับผิดชอบอื่น",
     "service_complete": "ปิดงานบริการ",
     "service_price": "เปลี่ยนราคางานในคำสั่งซื้อ",
-    "service_catalog": "จัดการรายการงาน ราคา และชั่วโมงมาตรฐาน"
+    "service_catalog": "จัดการรายการงาน ราคา และชั่วโมงมาตรฐาน",
+    "service_external": "สร้างงานบริการที่ผู้รับเหมาภายนอก",
+    "service_handover": "บันทึกการส่งมอบและรับคืนจากผู้รับเหมา"
   },
   "positions": {
     "director": "Director"
@@ -2502,6 +2512,24 @@
     "consume_material": "ใช้แล้ว",
     "quantity_unit": "จำนวน, {{unit}}",
     "all_outstanding": "ว่าง — ทั้งหมดที่เหลือ",
-    "blocker_service_materials_unsettled": "อะไหล่ที่เบิกยังไม่สรุป: บันทึกการใช้หรือคืนคลัง"
+    "blocker_service_materials_unsettled": "อะไหล่ที่เบิกยังไม่สรุป: บันทึกการใช้หรือคืนคลัง",
+    "at_contractor": "ที่ผู้รับเหมาภายนอก",
+    "contractor": "ผู้รับเหมา",
+    "performer": "ผู้ดำเนินการ",
+    "own_staff": "พนักงานของเรา",
+    "contractor_cost": "ค่าผู้รับเหมา",
+    "contractor_cost_value": "ผู้รับเหมา {{cost}} {{currency}}",
+    "contractor_cost_hint": "ยอดที่บริษัทต้องจ่ายผู้รับเหมา แยกจากราคาลูกค้า",
+    "odometer_optional": "ไม่บังคับสำหรับงานผู้รับเหมา",
+    "handovers": "ส่งให้ผู้รับเหมา",
+    "handover_vehicle": "รถ",
+    "handover_part": "ชิ้นส่วน",
+    "handover_what": "สิ่งที่ส่งมอบ",
+    "part_description": "ชิ้นส่วน",
+    "handed_at": "ส่งมอบเมื่อ",
+    "hand_over": "ส่งมอบ",
+    "returned_at": "ได้คืน {{at}}",
+    "returned": "ได้คืน",
+    "mark_returned": "ได้คืนแล้ว"
   }
 }

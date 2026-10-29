@@ -999,6 +999,9 @@ export type ServiceJob = {
   currency: string;
   executor_id: string | null;
   executor_name: string | null;
+  contractor_id: string | null;
+  contractor_name: string | null;
+  contractor_cost: string | null;
   state: "planned" | "in_progress" | "done" | "cancelled" | "terminated";
   actual_start: string | null;
   actual_end: string | null;
@@ -1019,7 +1022,9 @@ export type ServiceOperation = {
   client_id: string | null;
   vehicle_card_id: string;
   vehicle_name: string | null;
-  location_id: string;
+  location_id: string | null;
+  counterparty_id: string | null;
+  counterparty_name: string | null;
   reason: string;
   planned_start: string | null;
   planned_end: string | null;
@@ -1031,6 +1036,7 @@ export type ServiceOperation = {
   created_at: string;
   jobs: ServiceJob[];
   materials: ServiceMaterial[];
+  handovers: ServiceHandover[];
   blockers?: string[];
 };
 
@@ -1053,3 +1059,15 @@ export type ServiceMaterial = {
 };
 
 export type QueueJob = ServiceJob & { operation_number: number; location_id: string; vehicle_name: string | null };
+
+/** The vehicle or a part handed over to an external contractor (§ 16.6.6). */
+export type ServiceHandover = {
+  id: string;
+  version: number;
+  kind: "vehicle" | "part";
+  description: string;
+  counterparty_id: string;
+  counterparty_name: string | null;
+  handed_at: string;
+  returned_at: string | null;
+};
