@@ -77,7 +77,8 @@ def _require_free(
     card_id: UUID, start: datetime, end: datetime, exclude: UUID | None = None
 ) -> None:
     found = conflicts(card_id, start, end, exclude=exclude)
-    if found:
+    # § 14.6.3: a booking over a delivery of the vehicle is saved with a warning.
+    if any(not c.get("warning") for c in found):
         raise errors.business_rule("VEHICLE_NOT_AVAILABLE", conflicts=found)
 
 

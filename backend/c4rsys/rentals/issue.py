@@ -149,7 +149,13 @@ def issue(ctx: CommandContext, request: IssueRequest) -> Issued:
     _check_available(card, request.actual_start)
     _check_not_booked(card, request.actual_start, request.planned_end, request.booking_id)
     # Other operations holding the vehicle, for example a service (customer's decision С-3).
-    held = fleet.occupancy(card.company_id, card.id, request.actual_start, request.planned_end)
+    held = [
+        c
+        for c in fleet.occupancy(
+            card.company_id, card.id, request.actual_start, request.planned_end
+        )
+        if not c.get("planned")
+    ]
     if held:
         raise errors.business_rule("VEHICLE_NOT_AVAILABLE", conflicts=held)
     place = request.place.checked()

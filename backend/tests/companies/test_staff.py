@@ -109,7 +109,7 @@ def test_system_sets_of_stage_one() -> None:
     }
     admin = set(sets["company_admin"].permissions.values_list("code", flat=True))
     assert admin == set(PERMISSIONS)
-    assert not sets["driver"].permissions.exists()
+    assert set(sets["driver"].permissions.values_list("code", flat=True)) == {"delivery.drive"}
     assert "order.close_with_debt" not in set(
         sets["rental_manager"].permissions.values_list("code", flat=True)
     )
@@ -425,7 +425,7 @@ def test_company_answer_lists_own_permissions(owner: Client, cmp: str) -> None:
     accountant, _ = _hire(owner, cmp, "acc@example.com", [{"type": "set", "set": "accountant"}])
 
     assert set(owner.get(f"/api/c/{cmp}").json()["permissions"]) == set(PERMISSIONS)
-    assert driver.get(f"/api/c/{cmp}").json()["permissions"] == []
+    assert driver.get(f"/api/c/{cmp}").json()["permissions"] == ["delivery.drive"]
     assert accountant.get(f"/api/c/{cmp}").json()["permissions"] == [
         "client.find",
         "finance.account.view",

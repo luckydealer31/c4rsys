@@ -1098,3 +1098,39 @@ export type MaintenanceRule = {
     due_odometer: string | null;
   };
 };
+
+/** A point of a move: a location of the company or «A / Other» (§ 15.1.2). */
+export type DeliveryPoint = {
+  kind: "location" | "other";
+  location: string;
+  name: string;
+  address: string;
+  comment: string;
+  lat: string | null;
+  lng: string | null;
+};
+
+/** A delivery or an internal move (ТЗ гл. 15). */
+export type Delivery = {
+  id: string;
+  version: number;
+  number: number;
+  state: "planned" | "in_transit" | "completed" | "cancelled" | "terminated";
+  order_id: string;
+  order_number: number;
+  is_internal: boolean;
+  vehicle_card_id: string;
+  vehicle_name: string | null;
+  from: DeliveryPoint;
+  to: DeliveryPoint;
+  planned_start: string | null;
+  planned_end: string | null;
+  driver_id: string | null;
+  driver_name: string | null;
+  actual_start: string | null;
+  actual_end: string | null;
+  result: string | null;
+  result_comment: string;
+  end_reason: string;
+  driver_overlaps?: { id: string; number: number; planned_start: string | null; planned_end: string | null }[];
+};

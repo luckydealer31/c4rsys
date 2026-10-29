@@ -17,6 +17,8 @@ class Migration(migrations.Migration):
         ('fleet', '0010_vehicle_storage'),
         ('orders', '0004_preliminary_and_cancel'),
         ('platform', '0004_companycounter'),
+        # The exclusion constraint of posts needs btree_gist, installed there.
+        ('rentals', '0005_rental'),
     ]
 
     operations = [

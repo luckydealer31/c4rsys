@@ -128,6 +128,18 @@ PERMISSIONS: dict[str, str] = {
     # contractor and the return (part С4).
     "service.external": "service",
     "service.handover": "service",
+    # Delivery and internal move (§ 23.6.6; customer's decision Д-8 of 29.10.2026). `drive` —
+    # the driver's own trips: seeing them and recording their start and end (§ 23.2.5).
+    "delivery.view": "delivery",
+    "delivery.create": "delivery",
+    "delivery.edit": "delivery",
+    "delivery.assign": "delivery",
+    "delivery.take": "delivery",
+    "delivery.start": "delivery",
+    "delivery.finish": "delivery",
+    "delivery.cancel": "delivery",
+    "delivery.correct": "delivery",
+    "delivery.drive": "delivery",
 }
 
 COMPANY_ADMIN = "company_admin"
@@ -167,9 +179,15 @@ SYSTEM_SETS: dict[str, tuple[str, ...]] = {
         "order.cancel",
         "finance.payment.receive",
         "tariff.view",
+        # § 23.2.2: related deliveries and the driver (decision Д-8).
+        "delivery.view",
+        "delivery.create",
+        "delivery.edit",
+        "delivery.assign",
+        "delivery.cancel",
     ),
-    # § 23.2.5: no permission of stage 1.
-    DRIVER: (),
+    # § 23.2.5: only the trips assigned to the driver (decision Д-8).
+    DRIVER: ("delivery.drive",),
     # § 23.2.7; § 23.7.4: the accountant sets selling prices.
     ACCOUNTANT: (
         "finance.payment.receive",
@@ -235,6 +253,12 @@ SYSTEM_SETS: dict[str, tuple[str, ...]] = {
         "service.catalog",
         "service.external",
         "service.handover",
+        # § 23.2.3: related deliveries and the driver (decision Д-8).
+        "delivery.view",
+        "delivery.create",
+        "delivery.edit",
+        "delivery.assign",
+        "delivery.cancel",
     ),
     # § 23.2.4: own works, the post and the general zone, inspections; no prices or payments.
     MECHANIC: (

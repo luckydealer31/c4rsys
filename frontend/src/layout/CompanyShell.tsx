@@ -41,7 +41,10 @@ export function companyPath(company: Pick<Company, "public_id">, path = ""): str
  * finance, clients and counterparties and settings always; orders after «Complete» of the setup
  * wizard; rental, service and warehouse with such a context in some location; the garage with
  * a rental or a service context. The order of items is a PROPOSAL. */
-export function companyMenu(company: Company): [key: string, path: string, icon: IconName][] {
+export function companyMenu(
+  company: Company,
+  permissions: Set<string> = new Set(),
+): [key: string, path: string, icon: IconName][] {
   const has = (type: ContextType) => contextAvailable(type) && company.context_types.includes(type);
   // Order of the customer (24.10.2026): company, dashboards, contacts, garage, finance, then
   // the directions and settings. Orders keep their place after finance (PROPOSAL).
@@ -54,6 +57,8 @@ export function companyMenu(company: Company): [key: string, path: string, icon:
     ["rentals", "/rentals", "rentals", has("rental")],
     ["service", "/service", "service", has("service")],
     ["warehouse", "/warehouse", "warehouse", has("warehouse")],
+    // Decision Д-10: trips for whoever plans, takes or drives them.
+    ["trips", "/trips", "trips", [...permissions].some((p) => p.startsWith("delivery."))],
     ["settings", "/settings", "settings", true],
   ];
   return items.filter(([, , , visible]) => visible).map(([key, path, icon]) => [key, path, icon]);
@@ -89,7 +94,7 @@ export function CompanyShell({ user }: { user: User }) {
   const sidebar = data ? (
     <>
       <CompanyLink company={data} />
-      {companyMenu(data).map(([key, path, icon]) => (
+      {companyMenu(data, company.data?.permissions).map(([key, path, icon]) => (
         <RailLink key={key} to={`/c/${cmp}${path}`} icon={icon} label={t(`nav.${key}`)} />
       ))}
     </>
