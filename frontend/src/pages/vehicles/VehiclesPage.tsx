@@ -334,6 +334,7 @@ export function VehiclePage() {
       {stored ? null : <VehicleService vehicle={data} />}
       <LinkedDocuments objectType="vehicle" objectId={data.id} />
       <LinkedTasks objectType="vehicle" objectId={data.id} />
+      {data.relation === "own" ? <Acquisition vehicle={data} /> : null}
       {isClient ? null : <VehicleTariffs vehicleId={data.id} />}
       {isClient ? null : <VehicleMoves vehicle={data} />}
       {!isClient && can("rental.view") ? (
@@ -489,5 +490,47 @@ function AssignedTariff({ tariff, vehicleId }: { tariff: Tariff; vehicleId: stri
       <Link to={companyPath(company, `/rentals/tariffs/${tariff.id}`)}>{tariff.name}</Link>
       {tariff.state === "archived" ? <span className="badge"> {t("tariffs.archived")}</span> : null}
     </p>
+  );
+}
+
+/** The cost of acquisition of an own vehicle, for its payback (§ 21.4.2; decision О-3). */
+function Acquisition({ vehicle }: { vehicle: Vehicle }) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const can = useCan();
+  const client = useQueryClient();
+  const [cost, setCost] = useState(vehicle.acquisition?.cost ? String(Number(vehicle.acquisition.cost)) : "");
+  const [currency, setCurrency] = useState(vehicle.acquisition?.currency ?? company.main_currency ?? "");
+  const save = useCommand<Record<string, unknown>, { vehicle: Vehicle }>(`/c/${company.public_id}/vehicles/${vehicle.id}/acquisition`, "PUT");
+  const editable = can("vehicle.edit");
+  return (
+    <Card title={t("vehicles.acquisition")}>
+      <p className="muted small">{t("vehicles.acquisition_hint")}</p>
+      <div className="row">
+        <Field label={t("vehicles.acquisition_cost")}>
+          <input value={cost} inputMode="decimal" disabled={!editable} onChange={(e) => setCost(e.target.value.replace(/[^\d.]/g, ""))} />
+        </Field>
+        <Field label={t("vehicles.acquisition_currency")}>
+          <input value={currency} maxLength={3} disabled={!editable} onChange={(e) => setCurrency(e.target.value.toUpperCase())} />
+        </Field>
+        {editable ? (
+          <div className="actions">
+            <button
+              type="button"
+              className="secondary"
+              disabled={save.pending}
+              onClick={() =>
+                void save
+                  .run({ cost: cost || null, currency: cost ? currency : null, expected_version: vehicle.version })
+                  .then((r) => (r ? client.invalidateQueries({ queryKey: ["vehicle", company.public_id, vehicle.id] }) : undefined))
+              }
+            >
+              {t("common.save")}
+            </button>
+          </div>
+        ) : null}
+      </div>
+      <ErrorMessage error={save.error} />
+    </Card>
   );
 }

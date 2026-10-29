@@ -150,6 +150,12 @@ class VehicleCard(models.Model):
         ActivityContext, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
     stored_at = models.DateTimeField(null=True, blank=True)
+    # The cost of acquisition of an own vehicle, for its payback (§ 21.4.2; decision О-3).
+    # Empty — unknown, never taken for zero.
+    acquisition_cost = models.DecimalField(max_digits=20, decimal_places=4, null=True, blank=True)
+    acquisition_currency = models.ForeignKey(
+        "platform.Currency", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
     created_by_user_id = models.UUIDField()
     created_at = models.DateTimeField(default=now)
     updated_at = models.DateTimeField(auto_now=True)
@@ -170,6 +176,11 @@ class VehicleCard(models.Model):
             models.CheckConstraint(
                 condition=Q(storage_context__isnull=True) | Q(relation="own"),
                 name="vehicle_card_only_own_in_storage",
+            ),
+            models.CheckConstraint(
+                condition=Q(acquisition_cost__isnull=True, acquisition_currency__isnull=True)
+                | Q(relation="own", acquisition_cost__gte=0, acquisition_currency__isnull=False),
+                name="vehicle_card_acquisition_of_own",
             ),
         ]
 

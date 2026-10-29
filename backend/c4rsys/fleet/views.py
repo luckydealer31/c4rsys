@@ -57,6 +57,9 @@ def _payload(card: VehicleCard) -> dict[str, Any]:
         "rental_readiness": services.rental_readiness(card),
         "characteristics": characteristics.describe(card.vehicle),
         "owner": owners.describe(card),
+        "acquisition": None
+        if card.acquisition_cost is None
+        else {"cost": str(card.acquisition_cost), "currency": card.acquisition_currency_id},
         "storage": None
         if card.storage_context_id is None
         else {
@@ -444,3 +447,41 @@ def drivers(request: HttpRequest, cmp: str) -> JsonResponse:
         key=lambda x: x["name"],
     )
     return JsonResponse({"drivers": items})
+
+
+@require_http_methods(["PUT"])
+def vehicle_acquisition(request: HttpRequest, cmp: str, card_id: UUID) -> JsonResponse:
+    """The cost of acquisition of an own vehicle (§ 21.4.2; decision О-3); empty — unknown."""
+    from decimal import Decimal, InvalidOperation
+
+    context, actor = _actor(request, cmp)
+    card = services.get_card(context.company.id, card_id)
+    if not _allowed(actor, "vehicle.view", card):
+        raise errors.not_found()
+    if not _allowed(actor, "vehicle.edit", card):
+        raise errors.permission_denied("vehicle.edit")
+    data = parse_json(request)
+    expected_version = get_int(data, "expected_version")
+    raw = data.get("cost")
+    cost = None
+    currency = None
+    if raw not in (None, ""):
+        try:
+            cost = Decimal(str(raw))
+        except InvalidOperation as exc:
+            raise errors.validation_error("cost", code="AMOUNT_INVALID") from exc
+        currency = get_str(data, "currency", max_length=3).upper()
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        services.set_acquisition(ctx, context.company.id, card_id, cost, currency, expected_version)
+        return CommandResult(
+            200, {"vehicle": _payload(services.get_card(context.company.id, card_id))}
+        )
+
+    payload = {
+        "card_id": str(card_id),
+        "cost": str(cost) if cost is not None else None,
+        "currency": currency,
+        "expected_version": expected_version,
+    }
+    return run_and_respond(request, "vehicle.acquisition", actor, payload, handler)

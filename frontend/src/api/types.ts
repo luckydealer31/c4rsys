@@ -215,6 +215,8 @@ export type Vehicle = {
   characteristics: VehicleCharacteristics;
   /** On a warehouse as a stock item (§ 8.1.5); null — in the garage. */
   storage: { context_id: string; location_id: string; since: string | null } | null;
+  /** Cost of acquisition of an own vehicle, for payback (§ 21.4.2; decision О-3). */
+  acquisition?: { cost: string; currency: string } | null;
   /** Declared owner (§ 8.3.13); unconfirmed until the owner answers the request. */
   owner: {
     kind: "company" | "profile" | "person" | "organization" | "client" | "none";

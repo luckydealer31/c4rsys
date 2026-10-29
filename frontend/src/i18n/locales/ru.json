@@ -200,7 +200,8 @@
     "task_tag_renamed": "Переименован тег",
     "task_tag_removed": "Удалён тег",
     "notification_read": "Уведомления прочитаны",
-    "notification_rule_changed": "Изменено правило уведомлений"
+    "notification_rule_changed": "Изменено правило уведомлений",
+    "vehicle_acquisition_changed": "Изменена стоимость приобретения"
   },
   "finance_articles": {
     "archive": "В архив",
@@ -852,7 +853,8 @@
     "task_not_repeating": "Задача не повторяется.",
     "task_reminders_need_due": "Для напоминаний нужен срок.",
     "notification_mandatory": "Обязательное уведомление нельзя изменить.",
-    "notification_recipient_unknown": "Сотрудник не работает в компании."
+    "notification_recipient_unknown": "Сотрудник не работает в компании.",
+    "vehicle_acquisition_only_own": "Только для своего ТС."
   },
   "history": {
     "action": "Действие",
@@ -1708,7 +1710,11 @@
     "year": "Год выпуска",
     "garage_title": "Вернуть в гараж",
     "garage_text": "ТС вернётся со склада в гараж тем же ТС: ID, характеристики, документы и история сохранятся. Затем можно разрешить аренду или сервис.",
-    "garage_button": "Вернуть в гараж"
+    "garage_button": "Вернуть в гараж",
+    "acquisition": "Приобретение",
+    "acquisition_hint": "Для окупаемости ТС. Оплаты покупки и другие расходы — выплаты компании со ссылкой на это ТС.",
+    "acquisition_cost": "Стоимость приобретения",
+    "acquisition_currency": "Валюта"
   },
   "warehouse": {
     "action_create": "Создать",
@@ -3251,6 +3257,52 @@
     "area_locations": "Рассчитано по локациям: {{names}}",
     "area_accounts": "Рассчитано по счетам: {{names}}",
     "without_rate": "без курса: {{currencies}}",
-    "open_list": "Открыть список"
+    "open_list": "Открыть список",
+    "dashboard_rental": "Аренда и парк ТС",
+    "vehicle": "ТС",
+    "all_vehicles": "Все",
+    "yes": "да",
+    "unit_hours": "ч",
+    "unit_percent": "%",
+    "metric_rental_bookings_by_state": "Брони периода по состояниям",
+    "metric_rental_started": "Начатые аренды",
+    "metric_rental_finished": "Завершённые аренды",
+    "metric_rental_cancelled": "Отменённые до выдачи",
+    "metric_rental_hours": "Фактическое время в аренде",
+    "metric_rental_charges": "Начисления по арендам",
+    "metric_rental_payments": "Оплаты заказов с арендой",
+    "metric_rental_debt": "Задолженность заказов с арендой",
+    "metric_rental_daily_cost": "Стоимость аренды по дням использования",
+    "metric_fleet_utilization": "Загрузка арендой",
+    "metric_fleet_idle_hours": "Простой",
+    "metric_fleet_future_hours": "Будущая занятость бронями",
+    "metric_fleet_by_vehicle": "По ТС",
+    "metric_fleet_payback": "Окупаемость своих ТС",
+    "col_state": "Состояние",
+    "col_count": "Количество",
+    "col_day": "День",
+    "col_currency": "Валюта",
+    "col_amount": "Сумма",
+    "col_preliminary": "Предварительно",
+    "col_vehicle": "ТС",
+    "col_rentals": "Аренд",
+    "col_rental_hours": "В аренде, ч",
+    "col_service_hours": "В сервисе, ч",
+    "col_utilization": "Загрузка, %",
+    "col_expenses": "Расходы",
+    "col_mileage": "Пробег",
+    "col_acquisition": "Приобретение",
+    "col_invested": "Вложено",
+    "col_received": "Получено",
+    "col_unrecovered": "Невозмещённые вложения",
+    "value_booked": "забронирована",
+    "value_active": "активна",
+    "value_returned": "возвращена",
+    "value_cancelled": "отменена",
+    "value_annulled": "аннулирована",
+    "value_proposed": "предложена",
+    "value_not_enough_data": "Недостаточно данных",
+    "value_paid_back": "Окупилось",
+    "value_not_paid_back": "Ещё не окупилось"
   }
 }

@@ -31,6 +31,7 @@ class Filters:
     zone: str
     location_id: UUID | None = None
     vehicle_id: UUID | None = None
+    tariff_id: UUID | None = None
 
     @property
     def tz(self) -> ZoneInfo:
@@ -59,6 +60,7 @@ class Filters:
             "zone": self.zone,
             "location_id": str(self.location_id) if self.location_id else None,
             "vehicle_id": str(self.vehicle_id) if self.vehicle_id else None,
+            "tariff_id": str(self.tariff_id) if self.tariff_id else None,
         }
 
 
@@ -101,7 +103,7 @@ def parse(params: QueryDict, company: Company) -> Filters:
     end = _date(params, "end") or today
     if end < start or (end - start).days > MAX_DAYS:
         raise errors.validation_error("end", code="PERIOD_INVALID")
-    return Filters(start, end, zone, location_id, _uuid(params, "vehicle"))
+    return Filters(start, end, zone, location_id, _uuid(params, "vehicle"), _uuid(params, "tariff"))
 
 
 @dataclass(frozen=True)

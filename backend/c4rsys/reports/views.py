@@ -20,10 +20,10 @@ from c4rsys.companies import services as companies
 from c4rsys.companies.models import Company
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor
-from c4rsys.reports import overview, scope
+from c4rsys.reports import overview, rental, scope
 
 Builder = Callable[[Actor, Company, scope.Filters], list[overview.Block]]
-DASHBOARDS: dict[str, Builder] = {"overview": overview.build}
+DASHBOARDS: dict[str, Builder] = {"overview": overview.build, "rental": rental.build}
 
 
 def _actor(request: HttpRequest, cmp: str) -> tuple[companies.CompanyContext, Actor]:
@@ -65,6 +65,16 @@ def _report(request: HttpRequest, cmp: str, code: str, permission: str) -> dict[
         "main_currency": context.company.main_currency_id,
         "blocks": [_block(b, names) for b in blocks],
     }
+
+
+def _cell(value: Any) -> Any:
+    """Numbers as numbers, the rest as text."""
+    if isinstance(value, bool | int | float) or value is None:
+        return value
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return str(value)
 
 
 @require_GET
@@ -110,6 +120,22 @@ def dashboard_xlsx(request: HttpRequest, cmp: str, code: str) -> HttpResponse:
             if (area and area["whole"]) or (b["accounts"] is None and not area)
             else ", ".join(b["accounts"] or (area["locations"] if area else []))
         )
+        if b["unit"] == "table":
+            sheet.append([label(b["code"]), where])
+            if not b["rows"]:
+                sheet.append(["", label("no_data")])
+                continue
+            keys = [k for k in b["rows"][0] if not k.endswith("_id")]
+            sheet.append(["", *[label(f"col_{k}") for k in keys]])
+            for row in b["rows"]:
+                sheet.append(["", *[_cell(row.get(k)) for k in keys]])
+            continue
+        if b["unit"] in ("hours", "percent"):
+            value = b["value"]
+            sheet.append(
+                [label(b["code"]), float(value) if value is not None else label("no_data"), where]
+            )
+            continue
         if b["unit"] == "count":
             sheet.append(
                 [

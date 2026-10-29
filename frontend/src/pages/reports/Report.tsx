@@ -7,13 +7,14 @@ import { useApi } from "../../api/queries";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { useLocations } from "../settings/LocationsPage";
+import { useVehicles } from "../vehicles/VehiclesPage";
 
 export type ReportBlock = {
   code: string;
   section: string;
-  unit: "count" | "money" | "accounts";
-  value: number | { amount: string; currency: string; missing: string[] } | null;
-  rows: { currency?: string; amount?: string; name?: string; balance?: string }[];
+  unit: "count" | "money" | "accounts" | "hours" | "percent" | "table";
+  value: number | string | { amount: string; currency: string; missing: string[] } | null;
+  rows: Record<string, string | number | boolean | null>[];
   area: { whole: boolean; locations: string[] } | null;
   accounts: string[] | null;
   link: string | null;
@@ -26,7 +27,7 @@ type Report = {
   blocks: ReportBlock[];
 };
 
-export type ReportFilters = { start: string; end: string; tz: string; location: string };
+export type ReportFilters = { start: string; end: string; tz: string; location: string; vehicle: string };
 
 export function metricLabel(t: (key: string) => string, code: string): string {
   return t(`reports.metric_${code.replaceAll(".", "_")}`);
@@ -36,6 +37,7 @@ export function metricLabel(t: (key: string) => string, code: string): string {
 function FilterBar({ value, onChange }: { value: ReportFilters; onChange: (next: ReportFilters) => void }) {
   const { t } = useTranslation();
   const locations = useLocations();
+  const vehicles = useVehicles();
   return (
     <div className="row no-print">
       <Field label={t("reports.start")}>
@@ -54,6 +56,16 @@ function FilterBar({ value, onChange }: { value: ReportFilters; onChange: (next:
           ))}
         </select>
       </Field>
+      <Field label={t("reports.vehicle")}>
+        <select value={value.vehicle} onChange={(e) => onChange({ ...value, vehicle: e.target.value })}>
+          <option value="">{t("reports.all_vehicles")}</option>
+          {(vehicles.data?.vehicles ?? []).map((v) => (
+            <option key={v.id} value={v.id}>
+              {v.name}
+            </option>
+          ))}
+        </select>
+      </Field>
       <Field label={t("reports.zone")} hint={t("reports.zone_hint")}>
         <input value={value.tz} placeholder="Asia/Bangkok" onChange={(e) => onChange({ ...value, tz: e.target.value.trim() })} />
       </Field>
@@ -61,15 +73,55 @@ function FilterBar({ value, onChange }: { value: ReportFilters; onChange: (next:
   );
 }
 
+function cellText(t: (key: string) => string, key: string, value: string | number | boolean | null): string {
+  if (value === null || value === undefined) return "—";
+  if (typeof value === "boolean") return value ? t("reports.yes") : "";
+  if (key === "state") return t(`reports.value_${String(value)}`);
+  return String(value);
+}
+
+function BlockTable({ block }: { block: ReportBlock }) {
+  const { t } = useTranslation();
+  if (!block.rows.length) return <div className="muted">{t("reports.no_data")}</div>;
+  const keys = Object.keys(block.rows[0] ?? {}).filter((k) => !k.endsWith("_id"));
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table className="small">
+        <thead>
+          <tr>
+            {keys.map((k) => (
+              <th key={k}>{t(`reports.col_${k}`)}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {block.rows.map((row, index) => (
+            <tr key={index}>
+              {keys.map((k) => (
+                <td key={k}>{cellText(t, k, row[k] ?? null)}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function BlockValue({ block }: { block: ReportBlock }) {
   const { t } = useTranslation();
+  if (block.unit === "table") return <BlockTable block={block} />;
+  if (block.unit === "hours" || block.unit === "percent") {
+    if (block.value === null) return <div className="metric">{t("reports.no_data")}</div>;
+    return <div className="metric">{String(block.value)} {t(`reports.unit_${block.unit}`)}</div>;
+  }
   if (block.unit === "count") return <div className="metric">{block.value === null ? t("reports.no_data") : String(block.value)}</div>;
   if (block.unit === "money") {
     if (!block.rows.length) return <div className="metric">{block.value === 0 ? "0" : t("reports.no_data")}</div>;
     return (
       <div>
         {block.rows.map((r) => (
-          <div key={r.currency} className="metric">
+          <div key={String(r.currency)} className="metric">
             {r.amount} {r.currency}
           </div>
         ))}
@@ -86,7 +138,7 @@ function BlockValue({ block }: { block: ReportBlock }) {
         </div>
       ) : null}
       {block.rows.map((r) => (
-        <div key={r.name} className="small">
+        <div key={String(r.name)} className="small">
           {r.name}: {r.balance} {r.currency}
         </div>
       ))}
@@ -106,7 +158,7 @@ export function ReportView({ code, title }: { code: string; title: string }) {
   const { t } = useTranslation();
   const company = useCompany();
   const can = useCan();
-  const [filters, setFilters] = useState<ReportFilters>({ start: "", end: "", tz: "", location: "" });
+  const [filters, setFilters] = useState<ReportFilters>({ start: "", end: "", tz: "", location: "", vehicle: "" });
   const [exportError, setExportError] = useState<ApiError | null>(null);
   const query = new URLSearchParams(Object.entries(filters).filter(([, v]) => v) as [string, string][]).toString();
   const report = useApi<Report>(["report", company.public_id, code, query], `/c/${company.public_id}/reports/${code}?${query}`);
@@ -116,7 +168,10 @@ export function ReportView({ code, title }: { code: string; title: string }) {
     if (!data) return;
     setExportError(null);
     const labels: Record<string, string> = { [code]: title };
-    for (const b of data.blocks) labels[b.code] = metricLabel(t, b.code);
+    for (const b of data.blocks) {
+      labels[b.code] = metricLabel(t, b.code);
+      for (const key of Object.keys(b.rows[0] ?? {})) labels[`col_${key}`] = t(`reports.col_${key}`);
+    }
     const headers = {
       period: t("reports.period"),
       zone: t("reports.zone"),

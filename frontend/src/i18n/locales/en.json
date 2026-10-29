@@ -200,7 +200,8 @@
     "task_tag_renamed": "Tag renamed",
     "task_tag_removed": "Tag removed",
     "notification_read": "Notifications read",
-    "notification_rule_changed": "Notification rule changed"
+    "notification_rule_changed": "Notification rule changed",
+    "vehicle_acquisition_changed": "Acquisition changed"
   },
   "finance_articles": {
     "archive": "Archive",
@@ -852,7 +853,8 @@
     "task_not_repeating": "The task does not repeat.",
     "task_reminders_need_due": "Reminders need a deadline.",
     "notification_mandatory": "A mandatory notification cannot be changed.",
-    "notification_recipient_unknown": "The employee is not active in the company."
+    "notification_recipient_unknown": "The employee is not active in the company.",
+    "vehicle_acquisition_only_own": "Only for an own vehicle."
   },
   "history": {
     "action": "Action",
@@ -1708,7 +1710,11 @@
     "year": "Year",
     "garage_title": "Return to the garage",
     "garage_text": "The vehicle returns from the warehouse to the garage as the same vehicle: ID, characteristics, documents and history stay. Then rental or service can be allowed.",
-    "garage_button": "Return to the garage"
+    "garage_button": "Return to the garage",
+    "acquisition": "Acquisition",
+    "acquisition_hint": "For the payback of the vehicle. Payments for it and other expenses are payouts of the company linked to this vehicle.",
+    "acquisition_cost": "Cost of acquisition",
+    "acquisition_currency": "Currency"
   },
   "warehouse": {
     "action_create": "Create",
@@ -3251,6 +3257,52 @@
     "area_locations": "Counted for: {{names}}",
     "area_accounts": "Counted for the accounts: {{names}}",
     "without_rate": "without a rate: {{currencies}}",
-    "open_list": "Open the list"
+    "open_list": "Open the list",
+    "dashboard_rental": "Rental and fleet",
+    "vehicle": "Vehicle",
+    "all_vehicles": "All",
+    "yes": "yes",
+    "unit_hours": "h",
+    "unit_percent": "%",
+    "metric_rental_bookings_by_state": "Bookings of the period by state",
+    "metric_rental_started": "Rentals started",
+    "metric_rental_finished": "Rentals finished",
+    "metric_rental_cancelled": "Cancelled before the issue",
+    "metric_rental_hours": "Time in rental",
+    "metric_rental_charges": "Charges of rentals",
+    "metric_rental_payments": "Payments to rental orders",
+    "metric_rental_debt": "Debt of rental orders",
+    "metric_rental_daily_cost": "Rental cost by days of use",
+    "metric_fleet_utilization": "Utilisation by rental",
+    "metric_fleet_idle_hours": "Idle time",
+    "metric_fleet_future_hours": "Future occupancy by bookings",
+    "metric_fleet_by_vehicle": "By vehicle",
+    "metric_fleet_payback": "Payback of own vehicles",
+    "col_state": "State",
+    "col_count": "Count",
+    "col_day": "Day",
+    "col_currency": "Currency",
+    "col_amount": "Amount",
+    "col_preliminary": "Preliminary",
+    "col_vehicle": "Vehicle",
+    "col_rentals": "Rentals",
+    "col_rental_hours": "In rental, h",
+    "col_service_hours": "In service, h",
+    "col_utilization": "Utilisation, %",
+    "col_expenses": "Expenses",
+    "col_mileage": "Mileage",
+    "col_acquisition": "Acquisition",
+    "col_invested": "Invested",
+    "col_received": "Received",
+    "col_unrecovered": "Not recovered",
+    "value_booked": "booked",
+    "value_active": "active",
+    "value_returned": "returned",
+    "value_cancelled": "cancelled",
+    "value_annulled": "annulled",
+    "value_proposed": "proposed",
+    "value_not_enough_data": "Not enough data",
+    "value_paid_back": "Paid back",
+    "value_not_paid_back": "Not paid back yet"
   }
 }

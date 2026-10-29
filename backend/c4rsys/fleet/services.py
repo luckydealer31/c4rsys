@@ -601,3 +601,42 @@ def stored_cards(company_id: UUID, context_ids: set[UUID]) -> list[UUID]:
             storage_context_id__in=context_ids,
         ).values_list("id", flat=True)
     )
+
+
+def set_acquisition(
+    ctx: CommandContext,
+    company_id: UUID,
+    card_id: UUID,
+    cost: Decimal | None,
+    currency: str | None,
+    expected_version: int,
+) -> VehicleCard:
+    """Only for an own vehicle: payback is counted for the owner company only (§ 21.4.2)."""
+    from c4rsys.platform.models import Currency
+
+    card = lock_card(company_id, card_id)
+    if card.version != expected_version:
+        raise errors.version_conflict()
+    if cost is not None:
+        if card.relation != VehicleCard.Relation.OWN:
+            raise errors.business_rule("VEHICLE_ACQUISITION_ONLY_OWN")
+        if cost < 0:
+            raise errors.validation_error("cost", code="AMOUNT_INVALID")
+        if not Currency.objects.filter(code=currency).exists():
+            raise errors.validation_error("currency", code="CURRENCY_UNKNOWN")
+    before = {
+        "cost": card.acquisition_cost,
+        "currency": card.acquisition_currency_id,
+    }
+    card.acquisition_cost = cost
+    card.acquisition_currency_id = currency if cost is not None else None
+    card.version += 1
+    card.save(update_fields=["acquisition_cost", "acquisition_currency", "version", "updated_at"])
+    ctx.audit(
+        "vehicle.acquisition_changed",
+        object_type="vehicle_card",
+        object_id=card.id,
+        before=before,
+        after={"cost": cost, "currency": card.acquisition_currency_id},
+    )
+    return card

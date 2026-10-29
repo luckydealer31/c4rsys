@@ -200,7 +200,8 @@
     "task_tag_renamed": "เปลี่ยนชื่อแท็ก",
     "task_tag_removed": "ลบแท็ก",
     "notification_read": "อ่านการแจ้งเตือน",
-    "notification_rule_changed": "เปลี่ยนกฎการแจ้งเตือน"
+    "notification_rule_changed": "เปลี่ยนกฎการแจ้งเตือน",
+    "vehicle_acquisition_changed": "เปลี่ยนราคาซื้อ"
   },
   "finance_articles": {
     "archive": "เก็บเข้าคลัง",
@@ -852,7 +853,8 @@
     "task_not_repeating": "งานนี้ไม่ทำซ้ำ",
     "task_reminders_need_due": "การเตือนต้องมีกำหนด",
     "notification_mandatory": "เปลี่ยนการแจ้งเตือนบังคับไม่ได้",
-    "notification_recipient_unknown": "พนักงานไม่ได้ทำงานในบริษัท"
+    "notification_recipient_unknown": "พนักงานไม่ได้ทำงานในบริษัท",
+    "vehicle_acquisition_only_own": "เฉพาะรถของบริษัท"
   },
   "history": {
     "action": "Action",
@@ -1708,7 +1710,11 @@
     "year": "Year",
     "garage_title": "คืนเข้าโรงรถ",
     "garage_text": "รถจะกลับจากคลังเข้าโรงรถเป็นคันเดิม ID ข้อมูล เอกสาร และประวัติยังอยู่ จากนั้นอนุญาตเช่าหรือบริการได้",
-    "garage_button": "คืนเข้าโรงรถ"
+    "garage_button": "คืนเข้าโรงรถ",
+    "acquisition": "การซื้อ",
+    "acquisition_hint": "สำหรับความคุ้มทุน การชำระและค่าใช้จ่ายอื่นคือการจ่ายเงินที่ผูกกับรถคันนี้",
+    "acquisition_cost": "ราคาซื้อ",
+    "acquisition_currency": "สกุลเงิน"
   },
   "warehouse": {
     "action_create": "Create",
@@ -3251,6 +3257,52 @@
     "area_locations": "คำนวณจาก: {{names}}",
     "area_accounts": "คำนวณจากบัญชี: {{names}}",
     "without_rate": "ไม่มีอัตรา: {{currencies}}",
-    "open_list": "เปิดรายการ"
+    "open_list": "เปิดรายการ",
+    "dashboard_rental": "การเช่าและยานพาหนะ",
+    "vehicle": "รถ",
+    "all_vehicles": "ทั้งหมด",
+    "yes": "ใช่",
+    "unit_hours": "ชม.",
+    "unit_percent": "%",
+    "metric_rental_bookings_by_state": "การจองในช่วงตามสถานะ",
+    "metric_rental_started": "การเช่าที่เริ่ม",
+    "metric_rental_finished": "การเช่าที่สิ้นสุด",
+    "metric_rental_cancelled": "ยกเลิกก่อนส่งมอบ",
+    "metric_rental_hours": "เวลาที่อยู่ในการเช่า",
+    "metric_rental_charges": "ค่าใช้จ่ายการเช่า",
+    "metric_rental_payments": "การชำระคำสั่งซื้อที่มีการเช่า",
+    "metric_rental_debt": "หนี้คำสั่งซื้อที่มีการเช่า",
+    "metric_rental_daily_cost": "ค่าเช่าตามวันที่ใช้",
+    "metric_fleet_utilization": "อัตราการใช้งานเช่า",
+    "metric_fleet_idle_hours": "เวลาว่าง",
+    "metric_fleet_future_hours": "การจองล่วงหน้า",
+    "metric_fleet_by_vehicle": "ตามรถ",
+    "metric_fleet_payback": "ความคุ้มทุนของรถของบริษัท",
+    "col_state": "สถานะ",
+    "col_count": "จำนวน",
+    "col_day": "วัน",
+    "col_currency": "สกุลเงิน",
+    "col_amount": "จำนวนเงิน",
+    "col_preliminary": "เบื้องต้น",
+    "col_vehicle": "รถ",
+    "col_rentals": "การเช่า",
+    "col_rental_hours": "เช่า (ชม.)",
+    "col_service_hours": "บริการ (ชม.)",
+    "col_utilization": "อัตราใช้งาน %",
+    "col_expenses": "ค่าใช้จ่าย",
+    "col_mileage": "ระยะทาง",
+    "col_acquisition": "ราคาซื้อ",
+    "col_invested": "ลงทุน",
+    "col_received": "ได้รับ",
+    "col_unrecovered": "ยังไม่คืนทุน",
+    "value_booked": "จองแล้ว",
+    "value_active": "ดำเนินอยู่",
+    "value_returned": "คืนแล้ว",
+    "value_cancelled": "ยกเลิก",
+    "value_annulled": "เพิกถอน",
+    "value_proposed": "เสนอ",
+    "value_not_enough_data": "ข้อมูลไม่พอ",
+    "value_paid_back": "คืนทุนแล้ว",
+    "value_not_paid_back": "ยังไม่คืนทุน"
   }
 }
