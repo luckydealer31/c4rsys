@@ -778,6 +778,7 @@ def rental_quote(request: HttpRequest, cmp: str) -> JsonResponse:
         snapshot=snapshot,
         start=start,
         planned_end=end,
+        rental_id=booking_id,
     )
     granted = issue_policies.exception_of(booking_id) if booking_id else None
     return JsonResponse(

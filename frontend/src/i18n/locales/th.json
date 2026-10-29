@@ -162,7 +162,10 @@
     "document_signing_code_sent": "ส่งรหัสลงนามแล้ว",
     "document_signing_code_rejected": "รหัสลงนามไม่ถูกต้อง",
     "document_paper_signature_entered": "บันทึกลายเซ็นบนกระดาษ",
-    "document_kind_signing_changed": "เปลี่ยนวิธีลงนาม"
+    "document_kind_signing_changed": "เปลี่ยนวิธีลงนาม",
+    "document_requirement_added": "เพิ่มเอกสารที่ต้องมี",
+    "document_requirement_removed": "ลบเอกสารที่ต้องมี",
+    "service_act_setting_changed": "เปลี่ยนการตั้งค่าใบรับรอง"
   },
   "finance_articles": {
     "archive": "เก็บเข้าคลัง",
@@ -790,7 +793,10 @@
     "signing_link_not_active": "ไม่มีลิงก์ที่ใช้งานได้",
     "signing_link_used": "ลิงก์ถูกใช้แล้ว",
     "signing_link_revoked": "ลิงก์ถูกยกเลิก",
-    "signing_link_expired": "ลิงก์หมดอายุ"
+    "signing_link_expired": "ลิงก์หมดอายุ",
+    "document_requirement_exists": "เอกสารนี้ต้องมีในขั้นตอนนี้อยู่แล้ว",
+    "service_act_signed_needs_required": "การลงนามต้องกำหนดให้มีใบรับรองก่อน",
+    "template_unknown": "ไม่พบแม่แบบ"
   },
   "history": {
     "action": "Action",
@@ -1009,7 +1015,9 @@
     "condition_service_price_missing_service_work": "งานบริการที่เสร็จแล้วยังไม่มีราคา",
     "condition_service_materials_unsettled_service_work": "อะไหล่ที่เบิกให้งานบริการยังไม่ใช้และไม่คืน",
     "line_delivery": "การส่งรถ",
-    "condition_not_finished_delivery": "การส่งยังไม่เสร็จ: ทำให้เสร็จ ยุติ หรือยกเลิก"
+    "condition_not_finished_delivery": "การส่งยังไม่เสร็จ: ทำให้เสร็จ ยุติ หรือยกเลิก",
+    "condition_service_act_missing_service_work": "ไม่มีใบรับรองงานที่เสร็จของงานบริการ",
+    "condition_service_act_not_signed_service_work": "ลูกค้ายังไม่ลงนามใบรับรองงานที่เสร็จ"
   },
   "payments": {
     "account": "Cash desk or account",
@@ -1298,7 +1306,8 @@
     "time_zone": "Times are shown in {{zone}}.",
     "vehicle": "Vehicle",
     "vehicle_and_client": "Vehicle, tariff and client",
-    "state_proposed": "เสนอแล้ว"
+    "state_proposed": "เสนอแล้ว",
+    "missing_return_documents_missing": "ไม่มีเอกสารที่ต้องมีเมื่อคืน"
   },
   "rights": {
     "add": "Add rights",
@@ -1752,7 +1761,8 @@
     "client_has_debt": "The client has a debt: {{amounts}}.",
     "payment_incomplete": "ชำระค่าเช่าไม่ครบ: ขาด {{amounts}} จะเป็นหนี้ของคำสั่ง",
     "payment_not_checked": "ไม่มีวันสิ้นสุดตามแผน: ตรวจสอบการชำระค่าเช่าไม่ได้",
-    "inspection_not_done": "ยังไม่ได้ตรวจสภาพตามที่กำหนด: บันทึกข้อขัดแย้งแล้ว"
+    "inspection_not_done": "ยังไม่ได้ตรวจสภาพตามที่กำหนด: บันทึกข้อขัดแย้งแล้ว",
+    "documents_missing": "ไม่มีเอกสารที่ต้องมี: {{documents}}"
   },
   "counterparties": {
     "search": "ค้นหาตามชื่อหรือช่องทางติดต่อ",
@@ -2678,7 +2688,9 @@
     "copy": "คัดลอก",
     "history": "งานที่ทำกับรถ",
     "no_history": "ยังไม่มีงาน",
-    "maintenance_due": "ถึงกำหนดบำรุงรักษา"
+    "maintenance_due": "ถึงกำหนดบำรุงรักษา",
+    "blocker_service_act_missing": "ไม่มีใบรับรองงานที่เสร็จ: คำสั่งซื้อจะปิดไม่ได้",
+    "blocker_service_act_not_signed": "ลูกค้ายังไม่ลงนามใบรับรอง: คำสั่งซื้อจะปิดไม่ได้"
   },
   "trips": {
     "new": "การเดินทางใหม่",
@@ -2882,7 +2894,24 @@
     "link_code_hint": "เพื่อลงนามหรือปฏิเสธ ให้ยืนยันด้วยรหัสที่ส่งไปยัง {{email}}",
     "code_sent_to": "ส่งไปยัง {{email}}",
     "link_answer_signed": "ลงนามเอกสารแล้ว ขอบคุณ",
-    "link_answer_declined": "คุณปฏิเสธการลงนาม บริษัทจะเห็นคำตอบของคุณ"
+    "link_answer_declined": "คุณปฏิเสธการลงนาม บริษัทจะเห็นคำตอบของคุณ",
+    "requirements_title": "เอกสารการเช่าตามขั้นตอน",
+    "requirements_hint": "เอกสารนับเมื่อเชื่อมโยงกับการเช่า เมื่อส่งมอบ หากไม่มีจะใช้นโยบาย «เอกสาร» เมื่อคืน หากไม่มีจะปิดการดำเนินการไม่ได้",
+    "stage": "ขั้นตอน",
+    "stage_before_issue": "ก่อนส่งมอบ",
+    "stage_at_issue": "ขณะส่งมอบ",
+    "stage_at_return": "ขณะคืน",
+    "requirements_none": "ไม่ต้องมีเอกสาร",
+    "requirement_what": "แม่แบบหรือประเภท",
+    "need": "ต้องการ",
+    "need_present": "มีเอกสาร",
+    "need_signed": "ลงนามแล้ว",
+    "requirement_add": "เพิ่ม",
+    "requirement_remove": "ลบ",
+    "service_act_title": "ใบรับรองงานที่เสร็จ",
+    "service_act_hint": "ใบรับรองคือเอกสารประเภท «ใบรับรอง» ที่เชื่อมโยงกับงานบริการ คำสั่งซื้อภายในไม่ต้องมี",
+    "service_act_required": "คำสั่งซื้อของลูกค้าที่มีงานบริการปิดไม่ได้หากไม่มีใบรับรอง",
+    "service_act_signed": "ลูกค้าต้องลงนามในใบรับรอง"
   },
   "document_fields": {
     "company__name": "ชื่อบริษัท",

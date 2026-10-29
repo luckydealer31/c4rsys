@@ -178,6 +178,13 @@ def blockers(operation: ServiceOperation, internal: bool) -> tuple[str, ...]:
     ).exists()
     if unpriced or materials.unpriced(job_ids):
         result.append("service_price_missing")
+    if operation.state == Op.WORKS_DONE:
+        # The act of completed works by the company's setting (§ 16.7.6; decision Р-9).
+        from c4rsys.documents import requirements as document_requirements
+
+        result.extend(
+            document_requirements.service_act_blockers(operation.company_id, operation.id)
+        )
     return tuple(result)
 
 

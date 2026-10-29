@@ -162,7 +162,10 @@
     "document_signing_code_sent": "Код подписания отправлен",
     "document_signing_code_rejected": "Неверный код подписания",
     "document_paper_signature_entered": "Внесена бумажная подпись",
-    "document_kind_signing_changed": "Способы подписи изменены"
+    "document_kind_signing_changed": "Способы подписи изменены",
+    "document_requirement_added": "Добавлен обязательный документ",
+    "document_requirement_removed": "Убран обязательный документ",
+    "service_act_setting_changed": "Изменена настройка акта"
   },
   "finance_articles": {
     "archive": "В архив",
@@ -790,7 +793,10 @@
     "signing_link_not_active": "Нет действующей ссылки.",
     "signing_link_used": "Ссылка уже использована.",
     "signing_link_revoked": "Ссылка отозвана.",
-    "signing_link_expired": "Срок ссылки истёк."
+    "signing_link_expired": "Срок ссылки истёк.",
+    "document_requirement_exists": "Этот документ уже требуется на этапе.",
+    "service_act_signed_needs_required": "Подпись акта возможна, только если акт обязателен.",
+    "template_unknown": "Неизвестный шаблон."
   },
   "history": {
     "action": "Действие",
@@ -1009,7 +1015,9 @@
     "condition_service_price_missing_service_work": "У выполненной сервисной работы нет цены",
     "condition_service_materials_unsettled_service_work": "Выданные в сервисную работу запчасти не израсходованы и не возвращены",
     "line_delivery": "Доставка",
-    "condition_not_finished_delivery": "Доставка не завершена: завершите, прекратите или отмените её"
+    "condition_not_finished_delivery": "Доставка не завершена: завершите, прекратите или отмените её",
+    "condition_service_act_missing_service_work": "Нет акта выполненных работ по сервису",
+    "condition_service_act_not_signed_service_work": "Акт выполненных работ не подписан клиентом"
   },
   "payments": {
     "account": "Касса или счёт",
@@ -1298,7 +1306,8 @@
     "time_zone": "Время показано в зоне {{zone}}.",
     "vehicle": "ТС",
     "vehicle_and_client": "ТС, тариф и клиент",
-    "state_proposed": "Предложена"
+    "state_proposed": "Предложена",
+    "missing_return_documents_missing": "Нет документов, обязательных при возврате"
   },
   "rights": {
     "add": "Добавить права",
@@ -1752,7 +1761,8 @@
     "client_has_debt": "У клиента есть долг: {{amounts}}.",
     "payment_incomplete": "Аренда оплачена не полностью: не хватает {{amounts}}. Останется долгом по заказу.",
     "payment_not_checked": "Нет планового окончания: оплату аренды проверить нельзя.",
-    "inspection_not_done": "Требуемая проверка состояния не проведена: зафиксирован конфликт."
+    "inspection_not_done": "Требуемая проверка состояния не проведена: зафиксирован конфликт.",
+    "documents_missing": "Нет обязательных документов: {{documents}}."
   },
   "counterparties": {
     "search": "Поиск по названию, имени или контакту",
@@ -2678,7 +2688,9 @@
     "copy": "Скопировать",
     "history": "Выполненные работы",
     "no_history": "Работ пока нет.",
-    "maintenance_due": "Требуется обслуживание"
+    "maintenance_due": "Требуется обслуживание",
+    "blocker_service_act_missing": "Нет акта выполненных работ: заказ не закроется.",
+    "blocker_service_act_not_signed": "Акт не подписан клиентом: заказ не закроется."
   },
   "trips": {
     "new": "Новая поездка",
@@ -2882,7 +2894,24 @@
     "link_code_hint": "Чтобы подписать или отклонить, подтвердите кодом, который придёт на {{email}}.",
     "code_sent_to": "Отправлен на {{email}}",
     "link_answer_signed": "Документ подписан. Спасибо.",
-    "link_answer_declined": "Вы отклонили подписание. Компания увидит ваш ответ."
+    "link_answer_declined": "Вы отклонили подписание. Компания увидит ваш ответ.",
+    "requirements_title": "Документы аренды по этапам",
+    "requirements_hint": "Документ засчитывается, если он связан с арендой. При выдаче отсутствие обрабатывает политика «Документы»; при возврате без него не завершить оформление.",
+    "stage": "Этап",
+    "stage_before_issue": "До выдачи",
+    "stage_at_issue": "При выдаче",
+    "stage_at_return": "При возврате",
+    "requirements_none": "Ничего не требуется",
+    "requirement_what": "Шаблон или вид",
+    "need": "Нужно",
+    "need_present": "наличие",
+    "need_signed": "подписан",
+    "requirement_add": "Добавить",
+    "requirement_remove": "Убрать",
+    "service_act_title": "Акт выполненных работ",
+    "service_act_hint": "Акт — документ вида «Акт», связанный с сервисной операцией. Во внутреннем заказе акт не нужен.",
+    "service_act_required": "Заказ клиента с сервисом не закрывается без акта",
+    "service_act_signed": "Акт подписывается клиентом"
   },
   "document_fields": {
     "company__name": "Название компании",

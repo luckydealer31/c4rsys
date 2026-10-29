@@ -41,4 +41,10 @@ urlpatterns = [
     path("sign/<str:token>/file", views.link_file),
     path("sign/<str:token>/code", views.link_code),
     path("sign/<str:token>/decide", views.link_decide),
+    path("c/<str:cmp>/document-requirements", views.requirement_list),
+    path(
+        "c/<str:cmp>/document-requirements/<uuid:requirement_id>/remove",
+        views.requirement_remove,
+    ),
+    path("c/<str:cmp>/service-act-setting", views.service_act_setting),
 ]

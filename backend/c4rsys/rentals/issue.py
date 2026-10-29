@@ -243,6 +243,7 @@ def _assess(
     client_id: UUID,
     order_id: UUID,
     snapshot: dict[str, Any] | None,
+    rental_id: UUID | None = None,
 ) -> issue_policies.Assessment:
     return issue_policies.assess(
         company_id,
@@ -252,6 +253,7 @@ def _assess(
         snapshot=snapshot,
         start=request.actual_start,
         planned_end=request.planned_end,
+        rental_id=rental_id,
     )
 
 
@@ -298,7 +300,13 @@ def _issue_booking(
     booking.planned_end = request.planned_end or booking.planned_end
     request = replace(request, planned_end=booking.planned_end)
     assessment = _assess(
-        card.company_id, request, location.id, client.id, order.id, booking.tariff_snapshot
+        card.company_id,
+        request,
+        location.id,
+        client.id,
+        order.id,
+        booking.tariff_snapshot,
+        rental_id=booking.id,
     )
     if request.planned_return_location_id is not None:
         booking.planned_return_location_id = request.planned_return_location_id

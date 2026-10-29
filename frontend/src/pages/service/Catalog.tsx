@@ -7,6 +7,7 @@ import type { Location, ServicePost, ServiceRate, ServiceWork } from "../../api/
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
+import { ServiceActCard } from "../documents/Requirements";
 import { useLocations } from "../settings/LocationsPage";
 import {
   serviceLocations,
@@ -58,6 +59,7 @@ export function ServiceCatalogPage() {
       ) : null}
       {can("service.catalog") ? <Rates places={places} /> : null}
       {can("company.settings") ? <Posts places={places} /> : null}
+      {can("company.settings") ? <ServiceActCard /> : null}
     </div>
   );
 }

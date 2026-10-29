@@ -502,7 +502,11 @@ export type ServiceLine = {
   version: number;
 };
 
-export type Warning ={ code: string; amounts?: Record<string, string> };
+export type Warning = {
+  code: string;
+  amounts?: Record<string, string>;
+  documents?: { template?: string; kind_code?: string | null; kind_name?: string | null }[];
+};
 
 export type OrderAmounts = { charged: string; paid: string; to_pay: string; overpaid: string };
 

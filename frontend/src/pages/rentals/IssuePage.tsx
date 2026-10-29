@@ -37,7 +37,7 @@ type VehicleTariff = { id: string; name: string; currency: string; ranges: Price
 const UNMET_WARNING: Record<IssueRequirement["code"], string> = {
   payment: "PAYMENT_INCOMPLETE",
   debt: "CLIENT_HAS_DEBT",
-  documents: "",
+  documents: "DOCUMENTS_MISSING",
 };
 
 /** The preliminary calculation with the policies of the issue (§ 13.6.6, § 14.3). */
@@ -448,6 +448,9 @@ export function Warnings({ warnings }: { warnings: Warning[] }) {
           {t(`warnings.${warning.code.toLowerCase()}`, {
             amounts: Object.entries(warning.amounts ?? {})
               .map(([currency, amount]) => `${amount} ${currency}`)
+              .join(", "),
+            documents: (warning.documents ?? [])
+              .map((d) => d.template ?? d.kind_name ?? t(`documents.kind_${d.kind_code ?? ""}`))
               .join(", "),
           })}
         </div>

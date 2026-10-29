@@ -10,6 +10,7 @@ from uuid import UUID
 
 from django.utils import timezone
 
+from c4rsys.documents import requirements as document_requirements
 from c4rsys.fleet import services as fleet
 from c4rsys.inspections import services as inspections
 from c4rsys.inspections.models import Inspection
@@ -32,6 +33,10 @@ def missing_conditions(rental: Rental) -> list[str]:
             or record.fuel_value is None
         ):
             missing.append(f"{kind}_inspection_not_saved")
+    # Documents of the stage «at the return» (§ 18.4.1; decision Р-8).
+    stage = (document_requirements.Stage.AT_RETURN,)
+    if document_requirements.unmet_for_rental(rental.company_id, rental.id, stage):
+        missing.append("return_documents_missing")
     return missing
 
 

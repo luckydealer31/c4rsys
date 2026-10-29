@@ -17,7 +17,7 @@ from c4rsys.companies import access
 from c4rsys.companies import services as companies
 from c4rsys.companies.models import Company
 from c4rsys.companies.views import run_and_respond
-from c4rsys.documents import fields, services, signing, templates
+from c4rsys.documents import fields, requirements, services, signing, templates
 from c4rsys.documents.models import Document, DocumentLink, DocumentTemplate
 from c4rsys.files import services as files
 from c4rsys.platform import errors
@@ -939,3 +939,97 @@ def link_decide(request: HttpRequest, token: str) -> JsonResponse:
     decision, comment = _decision(data)
     invitation = signing.link_decide(token, code, decision, comment)
     return JsonResponse({"state": invitation.signer.state})
+
+
+# --- Required documents (§ 18.4.1, § 16.7.6; decisions Р-8, Р-9) ---------------------------------
+
+
+def _requirement_payload(r: Any) -> dict[str, Any]:
+    return {
+        "id": str(r.id),
+        "stage": r.stage,
+        "need": r.need,
+        "template_id": str(r.template_id) if r.template_id else None,
+        "template_title": r.template.title if r.template else None,
+        "kind_id": str(r.kind_id) if r.kind_id else None,
+    }
+
+
+def _settings_reader(actor: Actor) -> None:
+    if not any(_anywhere(actor, p) for p in ("company.settings", "documents.view")):
+        raise errors.permission_denied("company.settings")
+
+
+@require_http_methods(["GET", "POST"])
+def requirement_list(request: HttpRequest, cmp: str) -> JsonResponse:
+    """Documents required at the stages of rentals of the company."""
+    context, actor = _actor(request, cmp)
+    if request.method == "GET":
+        _settings_reader(actor)
+        items = requirements.of_company(context.company.id)
+        return JsonResponse({"requirements": [_requirement_payload(r) for r in items]})
+    if not _anywhere(actor, "company.settings"):
+        raise errors.permission_denied("company.settings")
+    data = parse_json(request)
+    stage = get_str(data, "stage", max_length=15)
+    need = get_str(data, "need", max_length=10)
+    template_id = _uuid(data.get("template_id"), "template_id")
+    kind_id = _uuid(data.get("kind_id"), "kind_id")
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        item = requirements.add(
+            ctx, context.company, stage=stage, need=need, template_id=template_id, kind_id=kind_id
+        )
+        return CommandResult(201, {"requirement": _requirement_payload(item)})
+
+    payload = {k: data.get(k) for k in ("stage", "need", "template_id", "kind_id")}
+    return run_and_respond(request, "document_requirement.add", actor, payload, handler)
+
+
+@require_POST
+def requirement_remove(request: HttpRequest, cmp: str, requirement_id: UUID) -> JsonResponse:
+    context, actor = _actor(request, cmp)
+    if not _anywhere(actor, "company.settings"):
+        raise errors.permission_denied("company.settings")
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        requirements.remove(ctx, context.company, requirement_id)
+        return CommandResult(200, {"removed": str(requirement_id)})
+
+    payload = {"requirement_id": str(requirement_id)}
+    return run_and_respond(request, "document_requirement.remove", actor, payload, handler)
+
+
+def _act_payload(setting: requirements.ActSetting) -> dict[str, Any]:
+    return {
+        "act_required": setting.act_required,
+        "act_signed": setting.act_signed,
+        "version": setting.version,
+    }
+
+
+@require_http_methods(["GET", "PUT"])
+def service_act_setting(request: HttpRequest, cmp: str) -> JsonResponse:
+    """The act of completed works of a client's service: required, signed by the client."""
+    context, actor = _actor(request, cmp)
+    if request.method == "GET":
+        if not any(_anywhere(actor, p) for p in ("company.settings", "service.view")):
+            raise errors.permission_denied("company.settings")
+        return JsonResponse({"setting": _act_payload(requirements.service_act(context.company.id))})
+    if not _anywhere(actor, "company.settings"):
+        raise errors.permission_denied("company.settings")
+    data = parse_json(request)
+    act_required = data.get("act_required")
+    act_signed = data.get("act_signed")
+    if not isinstance(act_required, bool) or not isinstance(act_signed, bool):
+        raise errors.validation_error("act_required")
+    expected = get_int(data, "expected_version")
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        setting = requirements.set_service_act(
+            ctx, context.company, act_required, act_signed, expected
+        )
+        return CommandResult(200, {"setting": _act_payload(setting)})
+
+    payload = {"act_required": act_required, "act_signed": act_signed, "expected": expected}
+    return run_and_respond(request, "service.act_setting", actor, payload, handler)

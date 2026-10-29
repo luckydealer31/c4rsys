@@ -18,6 +18,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from c4rsys.companies import locations
+from c4rsys.documents import requirements as document_requirements
 from c4rsys.finance import payments
 from c4rsys.orders import services as orders
 from c4rsys.platform import errors
@@ -153,6 +154,7 @@ def assess(
     snapshot: dict[str, Any] | None,
     start: datetime,
     planned_end: datetime | None,
+    rental_id: UUID | None = None,
 ) -> Assessment:
     """Checks client debt (§ 14.3.5) and the payment of the new rental (§ 14.3.2) by the policy
     in effect. Full payment: paid to the order, beyond its other charges, at least the preliminary
@@ -166,6 +168,14 @@ def assess(
             if policy["debt"] == IssuePolicy.Debt.DECIDE:
                 result.unmet.append(item)
             result.warnings.append({"code": "CLIENT_HAS_DEBT", "amounts": item["amounts"]})
+    # Documents of the stages «before the issue» and «at the issue» (§ 18.4.1; decision Р-8).
+    documents = document_requirements.unmet_for_rental(
+        company_id, rental_id, document_requirements.AT_ISSUE
+    )
+    if documents:
+        if policy["documents"] == IssuePolicy.Documents.REQUIRE:
+            result.unmet.append({"code": "documents", "documents": documents})
+        result.warnings.append({"code": "DOCUMENTS_MISSING", "documents": documents})
     if snapshot is None:
         return result
     strict = policy["payment"] == IssuePolicy.Payment.REQUIRE

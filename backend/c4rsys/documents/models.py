@@ -418,3 +418,78 @@ class KindSigning(models.Model):
 
     def __str__(self) -> str:
         return f"{self.kind_id}: {self.methods}"
+
+
+class DocumentRequirement(models.Model):
+    """A document required at a stage of the company's rentals: before the issue, at the issue
+    or at the return, present or signed (§ 18.4.1; decision Р-8). It is named by a template or by
+    a kind; a document counts when it is linked to the rental."""
+
+    class Stage(models.TextChoices):
+        BEFORE_ISSUE = "before_issue"
+        AT_ISSUE = "at_issue"
+        AT_RETURN = "at_return"
+
+    class Need(models.TextChoices):
+        PRESENT = "present"
+        SIGNED = "signed"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    stage = models.CharField(max_length=15, choices=Stage.choices)
+    template = models.ForeignKey(
+        DocumentTemplate, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    kind = models.ForeignKey(
+        DocumentKind, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    need = models.CharField(max_length=10, choices=Need.choices)
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "document_requirement"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(template__isnull=False, kind__isnull=True)
+                | Q(template__isnull=True, kind__isnull=False),
+                name="document_requirement_template_or_kind",
+            ),
+            models.UniqueConstraint(
+                fields=["company", "stage", "template"],
+                condition=Q(template__isnull=False),
+                name="document_requirement_template_uniq",
+            ),
+            models.UniqueConstraint(
+                fields=["company", "stage", "kind"],
+                condition=Q(kind__isnull=False),
+                name="document_requirement_kind_uniq",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.stage}: {self.template_id or self.kind_id}"
+
+
+class ServiceActSetting(models.Model):
+    """The act of completed works of a client's service (§ 16.7.6; decision Р-9): required and
+    signed by the client; both off by default. An internal order needs no act (§ 16.6.4)."""
+
+    company = models.OneToOneField(Company, on_delete=models.PROTECT, related_name="+")
+    act_required = models.BooleanField(default=False)
+    act_signed = models.BooleanField(default=False)
+    updated_by_user_id = models.UUIDField()
+    updated_at = models.DateTimeField(default=now)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "document_service_act_setting"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(act_signed=False) | Q(act_required=True),
+                name="document_service_act_signed_needs_required",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"service act: {self.act_required}/{self.act_signed}"

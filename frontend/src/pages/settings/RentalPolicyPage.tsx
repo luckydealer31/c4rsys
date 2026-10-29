@@ -6,6 +6,7 @@ import { useApi } from "../../api/queries";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { useCan, useCompany } from "../../layout/CompanyShell";
+import { DocumentRequirementsCard } from "../documents/Requirements";
 import { IssuePolicyForm } from "../rentals/IssueRules";
 import { useLocations } from "./LocationsPage";
 
@@ -38,6 +39,7 @@ export function RentalPolicyPage() {
           <PolicyForm locationId={id} />
         </Card>
       ))}
+      <DocumentRequirementsCard />
     </div>
   );
 }

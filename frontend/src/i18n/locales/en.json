@@ -162,7 +162,10 @@
     "document_signing_code_sent": "Signing code sent",
     "document_signing_code_rejected": "Wrong signing code",
     "document_paper_signature_entered": "Paper signature entered",
-    "document_kind_signing_changed": "Ways of signing changed"
+    "document_kind_signing_changed": "Ways of signing changed",
+    "document_requirement_added": "Required document added",
+    "document_requirement_removed": "Required document removed",
+    "service_act_setting_changed": "Act setting changed"
   },
   "finance_articles": {
     "archive": "Archive",
@@ -790,7 +793,10 @@
     "signing_link_not_active": "No active link.",
     "signing_link_used": "The link has been used already.",
     "signing_link_revoked": "The link is revoked.",
-    "signing_link_expired": "The link has expired."
+    "signing_link_expired": "The link has expired.",
+    "document_requirement_exists": "This document is already required at the stage.",
+    "service_act_signed_needs_required": "The signature needs the act to be required.",
+    "template_unknown": "Unknown template."
   },
   "history": {
     "action": "Action",
@@ -1009,7 +1015,9 @@
     "condition_service_price_missing_service_work": "A done service work has no price",
     "condition_service_materials_unsettled_service_work": "Parts issued to a service work are neither used nor returned",
     "line_delivery": "Delivery",
-    "condition_not_finished_delivery": "A delivery is not finished: complete, terminate or cancel it"
+    "condition_not_finished_delivery": "A delivery is not finished: complete, terminate or cancel it",
+    "condition_service_act_missing_service_work": "No act of completed works for the service",
+    "condition_service_act_not_signed_service_work": "The act of completed works is not signed by the client"
   },
   "payments": {
     "account": "Cash desk or account",
@@ -1298,7 +1306,8 @@
     "time_zone": "Times are shown in {{zone}}.",
     "vehicle": "Vehicle",
     "vehicle_and_client": "Vehicle, tariff and client",
-    "state_proposed": "Proposed"
+    "state_proposed": "Proposed",
+    "missing_return_documents_missing": "No documents required at the return"
   },
   "rights": {
     "add": "Add rights",
@@ -1752,7 +1761,8 @@
     "client_has_debt": "The client has a debt: {{amounts}}.",
     "payment_incomplete": "The rental is not paid in full: {{amounts}} missing. It stays a debt of the order.",
     "payment_not_checked": "No planned end: the payment of the rental cannot be checked.",
-    "inspection_not_done": "The required condition check was not done: a conflict is recorded."
+    "inspection_not_done": "The required condition check was not done: a conflict is recorded.",
+    "documents_missing": "No required documents: {{documents}}."
   },
   "counterparties": {
     "search": "Search by name or contact",
@@ -2678,7 +2688,9 @@
     "copy": "Copy",
     "history": "Works on the vehicle",
     "no_history": "No works yet.",
-    "maintenance_due": "Maintenance due"
+    "maintenance_due": "Maintenance due",
+    "blocker_service_act_missing": "No act of completed works: the order will not close.",
+    "blocker_service_act_not_signed": "The act is not signed by the client: the order will not close."
   },
   "trips": {
     "new": "New trip",
@@ -2882,7 +2894,24 @@
     "link_code_hint": "To sign or decline, confirm with a code sent to {{email}}.",
     "code_sent_to": "Sent to {{email}}",
     "link_answer_signed": "The document is signed. Thank you.",
-    "link_answer_declined": "You declined to sign. The company is told."
+    "link_answer_declined": "You declined to sign. The company is told.",
+    "requirements_title": "Documents of rentals by stages",
+    "requirements_hint": "A document counts when it is linked to the rental. At the issue an absent one is handled by the policy «Documents»; at the return it keeps the formalization from completing.",
+    "stage": "Stage",
+    "stage_before_issue": "Before the issue",
+    "stage_at_issue": "At the issue",
+    "stage_at_return": "At the return",
+    "requirements_none": "Nothing required",
+    "requirement_what": "Template or kind",
+    "need": "Needed",
+    "need_present": "present",
+    "need_signed": "signed",
+    "requirement_add": "Add",
+    "requirement_remove": "Remove",
+    "service_act_title": "Act of completed works",
+    "service_act_hint": "The act is a document of the kind «Act» linked to the service. An internal order needs no act.",
+    "service_act_required": "A client's order with service is not closed without the act",
+    "service_act_signed": "The act is signed by the client"
   },
   "document_fields": {
     "company__name": "Company name",
