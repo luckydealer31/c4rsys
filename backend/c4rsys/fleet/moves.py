@@ -28,6 +28,10 @@ def register_busy(check: BusyCheck) -> None:
     _busy.append(check)
 
 
+def busy_reasons(company_id: UUID, card_id: UUID) -> list[str]:
+    return [code for check in _busy for code in check(company_id, card_id)]
+
+
 @dataclass(frozen=True)
 class MoveRequest:
     vehicle_card_id: UUID
@@ -51,7 +55,7 @@ def record_move(ctx: CommandContext, company_id: UUID, request: MoveRequest) -> 
     if request.to_location_id == source:
         raise errors.validation_error("to_location_id", code="MOVE_SAME_LOCATION")
     locations.require_usable(company_id, request.to_location_id, "to_location_id")
-    busy = [code for check in _busy for code in check(company_id, card.id)]
+    busy = busy_reasons(company_id, card.id)
     if busy:
         raise errors.business_rule("VEHICLE_BUSY", reasons=busy)
     driver = Employment.objects.filter(

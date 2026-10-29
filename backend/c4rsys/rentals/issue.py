@@ -148,6 +148,10 @@ def issue(ctx: CommandContext, request: IssueRequest) -> Issued:
     tariff = Tariff.objects.select_related("currency").get(pk=tariff.pk)
     _check_available(card, request.actual_start)
     _check_not_booked(card, request.actual_start, request.planned_end, request.booking_id)
+    # Other operations holding the vehicle, for example a service (customer's decision С-3).
+    held = fleet.occupancy(card.company_id, card.id, request.actual_start, request.planned_end)
+    if held:
+        raise errors.business_rule("VEHICLE_NOT_AVAILABLE", conflicts=held)
     place = request.place.checked()
     request = replace(
         request,

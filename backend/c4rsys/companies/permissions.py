@@ -109,6 +109,21 @@ PERMISSIONS: dict[str, str] = {
     "order.reopen": "order",
     # § 12.2.1 (customer's decision З4): cancelling a whole order.
     "order.cancel": "order",
+    # Service (§ 23.6.4; customer's decisions С-6, С-7 of 29.10.2026). `service.work` covers
+    # starting and finishing one's own work and taking a free one; `service.complete` marks the
+    # works of an operation done (the order then closes by «Close orders»); `service.price`
+    # changes the price of a work in an order (§ 23.2.3).
+    "service.view": "service",
+    "service.create": "service",
+    "service.cancel": "service",
+    "service.accept": "service",
+    "service.place": "service",
+    "service.assign": "service",
+    "service.work": "service",
+    "service.work.others": "service",
+    "service.complete": "service",
+    "service.price": "service",
+    "service.catalog": "service",
 }
 
 COMPANY_ADMIN = "company_admin"
@@ -116,6 +131,8 @@ RENTAL_MANAGER = "rental_manager"
 DRIVER = "driver"
 ACCOUNTANT = "accountant"
 STOREKEEPER = "storekeeper"
+SERVICE_MANAGER = "service_manager"
+MECHANIC = "mechanic"
 
 SYSTEM_SETS: dict[str, tuple[str, ...]] = {
     # § 23.2.1: full operational access, settings and employee management.
@@ -182,6 +199,41 @@ SYSTEM_SETS: dict[str, tuple[str, ...]] = {
         # PROPOSAL: a missing supplier is added right at a receipt (§ 11.2.8).
         "counterparty.view",
         "counterparty.create",
+    ),
+    # § 23.2.3. Entering a result for another executor is not listed there; closing the order is
+    # not either (TODO(spec): whether the service manager closes orders).
+    SERVICE_MANAGER: (
+        "vehicle.view",
+        "client.find",
+        "client.list",
+        "client.create",
+        "client.edit",
+        "counterparty.view",
+        "counterparty.create",
+        "counterparty.edit",
+        "order.view",
+        "order.create",
+        "order.edit",
+        "finance.payment.receive",
+        "service.view",
+        "service.create",
+        "service.cancel",
+        "service.accept",
+        "service.place",
+        "service.assign",
+        "service.work",
+        "service.complete",
+        "service.price",
+        "service.catalog",
+    ),
+    # § 23.2.4: own works, the post and the general zone, inspections; no prices or payments.
+    MECHANIC: (
+        "vehicle.view",
+        "inspection.create",
+        "inspection.conduct",
+        "service.view",
+        "service.place",
+        "service.work",
     ),
 }
 

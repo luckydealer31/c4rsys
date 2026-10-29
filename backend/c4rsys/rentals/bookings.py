@@ -67,6 +67,9 @@ def conflicts(
             and (until is None or until > start)
         ):
             result.append({"kind": "rental", "id": str(rental.id), "state": rental.state})
+    # Operations of other modules, for example a service (customer's decision С-3).
+    company_id = VehicleCard.objects.filter(pk=card_id).values_list("company_id", flat=True)
+    result += fleet.occupancy(company_id.get(), card_id, start, end)
     return result
 
 

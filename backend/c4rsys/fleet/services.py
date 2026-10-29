@@ -49,6 +49,23 @@ def context_blockers(company_id: UUID, card_id: UUID, context_type: str) -> list
     ]
 
 
+# (company_id, vehicle_card_id, start, end or None for an open end) -> operations of other
+# modules that hold the vehicle in the interval, as {"kind", "id", ...}. A booking and an issue
+# are refused over them like over another rental (customer's decision С-3 of 29.10.2026).
+Occupancy = Callable[[UUID, UUID, datetime, datetime | None], list[dict[str, Any]]]
+_occupancy: list[Occupancy] = []
+
+
+def register_occupancy(provider: Occupancy) -> None:
+    _occupancy.append(provider)
+
+
+def occupancy(
+    company_id: UUID, card_id: UUID, start: datetime, end: datetime | None
+) -> list[dict[str, Any]]:
+    return [item for p in _occupancy for item in p(company_id, card_id, start, end)]
+
+
 def cards_of(company_id: UUID) -> QuerySet[VehicleCard]:
     return (
         VehicleCard.objects.filter(company_id=company_id)

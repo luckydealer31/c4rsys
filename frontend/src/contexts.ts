@@ -6,7 +6,7 @@ export const AVAILABLE_CONTEXTS: readonly ContextType[] = ["rental", "service", 
 
 /** Types whose modules already work. A context of another type cannot be set up yet, so it is
  * shown as «module in development» instead of «needs setup». */
-const WORKING_MODULES: readonly ContextType[] = ["rental", "warehouse"];
+const WORKING_MODULES: readonly ContextType[] = ["rental", "service", "warehouse"];
 
 export function contextAvailable(type: ContextType): boolean {
   return AVAILABLE_CONTEXTS.includes(type);

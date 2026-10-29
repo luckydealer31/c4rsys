@@ -1,0 +1,904 @@
+"""Service operations and their works (ТЗ § 16.1.6–16.1.7, § 16.2–16.4, § 16.7.2; customer's
+decisions С-3…С-7 of 29.10.2026).
+
+* An operation is created in an order — an existing one or a new one of the client or of the
+  company itself — for one vehicle and a reason; the works may be added at once or after the
+  diagnostics (§ 16.1.6). It is planned with or without a post; a post takes no overlapping
+  records (§ 16.2.5), the general zone has no limit (§ 16.3.4).
+* The vehicle is accepted into the general zone or onto a post; that does not start the works
+  (§ 16.2.8). Each work starts separately by its executor (§ 16.4.1); one executor per work.
+* Work states: planned, in progress, done, cancelled before the start, terminated after it
+  (§ 16.4.7). «Works done» needs a final result of every work (§ 16.7.2); the operation may also
+  be cancelled before any start or terminated after one (§ 16.4.8). A final state frees the post
+  and the general zone (§ 16.1.4).
+* An operation holds the vehicle: by its planned interval, after the acceptance until its final
+  state; a booking and an issue over it are refused (decision С-3).
+* A work is charged into the order when done — by its price — or terminated — by the price the
+  employee gives; a cancelled one is not; a work without a price is charged once it gets one, and
+  a client order with such a work does not close (§ 16.1.4; decision С-4). An internal order
+  takes no selling price (§ 16.6.5).
+* The vehicle is accepted without a required inspection (decision С-5).
+"""
+
+from dataclasses import dataclass
+from datetime import datetime
+from decimal import Decimal
+from typing import Any
+from uuid import UUID
+
+from django.db import IntegrityError, transaction
+from django.db.models import Q, QuerySet
+from django.utils import timezone
+
+from c4rsys.companies.models import Company, Employment
+from c4rsys.finance import charges
+from c4rsys.finance.charges import charge_ids_for_source
+from c4rsys.finance.models import ChargeEntry
+from c4rsys.fleet import moves
+from c4rsys.fleet import services as fleet
+from c4rsys.fleet.models import VehicleCard
+from c4rsys.orders import services as orders
+from c4rsys.orders.models import Order
+from c4rsys.orders.services import OperationSummary
+from c4rsys.platform import errors
+from c4rsys.platform.commands import CommandContext
+from c4rsys.platform.counters import next_number
+from c4rsys.service import catalog
+from c4rsys.service.models import (
+    OPEN_STATES,
+    ServiceJob,
+    ServiceOperation,
+    ServicePost,
+    ServiceWork,
+)
+
+Op = ServiceOperation.State
+Job = ServiceJob.State
+SOURCE = ChargeEntry.SourceType.SERVICE_JOB
+FINAL_OPERATION = (Op.WORKS_DONE, Op.CANCELLED, Op.TERMINATED)
+FINAL_JOB = (Job.DONE, Job.CANCELLED, Job.TERMINATED)
+HOLDING = (Op.ACCEPTED, Op.IN_PROGRESS)  # the vehicle is in the service
+
+
+def _not_future(moment: datetime, field: str) -> None:
+    if moment > timezone.now():
+        raise errors.business_rule("FUTURE_TIME_NOT_ALLOWED", field=field)
+
+
+# --- Reading -------------------------------------------------------------------------------------
+
+
+def operations_of(company_id: UUID) -> QuerySet[ServiceOperation]:
+    return ServiceOperation.objects.filter(company_id=company_id)
+
+
+def get_operation(company_id: UUID, operation_id: UUID) -> ServiceOperation:
+    operation = operations_of(company_id).filter(pk=operation_id).first()
+    if operation is None:
+        raise errors.not_found()
+    return operation
+
+
+def jobs_of(operation: ServiceOperation) -> list[ServiceJob]:
+    return list(ServiceJob.objects.filter(operation=operation).order_by("created_at", "id"))
+
+
+def get_job(company_id: UUID, job_id: UUID) -> ServiceJob:
+    job = (
+        ServiceJob.objects.select_related("operation")
+        .filter(company_id=company_id, pk=job_id)
+        .first()
+    )
+    if job is None:
+        raise errors.not_found()
+    return job
+
+
+def post_in_use(post_id: UUID) -> bool:
+    return ServiceOperation.objects.filter(post_id=post_id, state__in=OPEN_STATES).exists()
+
+
+def post_taken_by(post_id: UUID, exclude: UUID | None = None) -> ServiceOperation | None:
+    """The operation whose vehicle stands on the post now."""
+    query = ServiceOperation.objects.filter(post_id=post_id, state__in=HOLDING)
+    if exclude is not None:
+        query = query.exclude(pk=exclude)
+    return query.first()
+
+
+# --- Charges (decision С-4) ----------------------------------------------------------------------
+
+
+def _charge(ctx: CommandContext, job: ServiceJob, reason: str) -> None:
+    client_id = orders.chargeable_client(job.order_id)
+    if client_id is None:
+        return
+    if job.state in (Job.DONE, Job.TERMINATED) and job.price is not None:
+        amount = job.price
+    elif job.state in (Job.DONE, Job.TERMINATED):
+        return
+    else:
+        amount = Decimal(0)
+    charges.set_charge(
+        ctx,
+        company_id=job.company_id,
+        order_id=job.order_id,
+        client_id=client_id,
+        source_type=SOURCE,
+        source_id=job.id,
+        amount=amount,
+        currency=job.currency_id,
+        reason=reason,
+        calculation={**job.snapshot, "price": catalog.amount_text(job.price)},
+    )
+
+
+def on_client_assigned(ctx: CommandContext, company_id: UUID, order_id: UUID) -> None:
+    """The order got its client: what was estimated is charged (decision Р25)."""
+    for job in ServiceJob.objects.select_for_update().filter(
+        company_id=company_id, order_id=order_id
+    ):
+        _charge(ctx, job, "client_assigned")
+
+
+def estimated_for_order(company_id: UUID, order_id: UUID) -> dict[str, Decimal]:
+    """The works of an order without a client or of a preliminary one, not charged."""
+    if orders.chargeable_client(order_id) is not None:
+        return {}
+    result: dict[str, Decimal] = {}
+    for job in ServiceJob.objects.filter(
+        company_id=company_id, order_id=order_id, price__isnull=False
+    ).exclude(state=Job.CANCELLED):
+        if job.price is None:
+            continue
+        result[job.currency_id] = result.get(job.currency_id, Decimal(0)) + job.price
+    return result
+
+
+# --- The order sees its operations (§ 12.1.9) ----------------------------------------------------
+
+
+def blockers(operation: ServiceOperation, internal: bool) -> tuple[str, ...]:
+    """A done or terminated work of a client order needs a price or an explicit zero
+    (§ 16.1.4)."""
+    if internal:
+        return ()
+    unpriced = ServiceJob.objects.filter(
+        operation=operation, state__in=(Job.DONE, Job.TERMINATED), price__isnull=True
+    ).exists()
+    return ("service_price_missing",) if unpriced else ()
+
+
+def operations_for_order(company_id: UUID, order_id: UUID) -> list[OperationSummary]:
+    internal = Order.objects.filter(pk=order_id).values_list("is_internal", flat=True).first()
+    result = []
+    for op in operations_of(company_id).filter(order_id=order_id).order_by("number"):
+        result.append(
+            OperationSummary(
+                type="service_work",
+                id=op.id,
+                state=op.state,
+                location_id=op.location_id,
+                finished=op.state in FINAL_OPERATION,
+                blockers=blockers(op, bool(internal)),
+            )
+        )
+    return result
+
+
+def history_for_order(company_id: UUID, order_id: UUID) -> list[tuple[str, str]]:
+    objects: list[tuple[str, str]] = []
+    for op in operations_of(company_id).filter(order_id=order_id):
+        objects.append(("service_operation", str(op.id)))
+        for job in ServiceJob.objects.filter(operation=op):
+            objects.append(("service_job", str(job.id)))
+            objects += [("charge_entry", str(c)) for c in charge_ids_for_source(SOURCE, job.id)]
+    return objects
+
+
+def on_order_cancel(ctx: CommandContext, company_id: UUID, order_id: UUID, reason: str) -> None:
+    """The cancelled order takes its operations not started; a started work refuses (§ 12.2.1)."""
+    for op in ServiceOperation.objects.select_for_update().filter(
+        company_id=company_id, order_id=order_id
+    ):
+        if op.state in FINAL_OPERATION:
+            continue
+        if (
+            ServiceJob.objects.filter(operation=op)
+            .exclude(state__in=(Job.PLANNED, Job.CANCELLED))
+            .exists()
+        ):
+            raise errors.business_rule("ORDER_HAS_STARTED_OPERATIONS")
+        _cancel(ctx, op, reason)
+
+
+# --- Vehicle occupancy (decision С-3) ------------------------------------------------------------
+
+
+def occupancy(
+    company_id: UUID, card_id: UUID, start: datetime, end: datetime | None
+) -> list[dict[str, Any]]:
+    """Operations holding the vehicle in [start, end): the planned interval of a planned one; from
+    the acceptance up to the final state of an accepted one."""
+    result = []
+    query = ServiceOperation.objects.filter(company_id=company_id, vehicle_card_id=card_id)
+    planned = query.filter(state=Op.PLANNED, planned_end__gt=start)
+    if end is not None:
+        planned = planned.filter(planned_start__lt=end)
+    held = query.filter(state__in=HOLDING)
+    finished = query.filter(
+        state__in=FINAL_OPERATION, accepted_at__isnull=False, finished_at__gt=start
+    )
+    if end is not None:
+        held = held.filter(accepted_at__lt=end)
+        finished = finished.filter(accepted_at__lt=end)
+    for op in (*planned, *held, *finished):
+        result.append({"kind": "service", "id": str(op.id), "number": op.number})
+    return result
+
+
+def vehicle_busy(company_id: UUID, card_id: UUID) -> list[str]:
+    """A vehicle accepted into the service is not moved until the operation ends."""
+    return (
+        ["in_service"]
+        if ServiceOperation.objects.filter(
+            company_id=company_id, vehicle_card_id=card_id, state__in=HOLDING
+        ).exists()
+        else []
+    )
+
+
+def location_blockers(company_id: UUID, location_id: UUID, context_type: str | None) -> list[str]:
+    """Operations not finished keep the location and its service context (§ 4.4.1–4.4.2)."""
+    if context_type not in (None, "service"):
+        return []
+    unfinished = ServiceOperation.objects.filter(
+        company_id=company_id, location_id=location_id
+    ).exclude(state__in=FINAL_OPERATION)
+    return ["service_operations_not_finished"] if unfinished.exists() else []
+
+
+# --- Creation (§ 16.1.6, § 16.2.1–16.2.7) --------------------------------------------------------
+
+
+def _check_vehicle(card: VehicleCard) -> None:
+    if card.state != VehicleCard.State.ACTIVE:
+        raise errors.business_rule("VEHICLE_ARCHIVED", field="vehicle_card_id")
+    if card.storage_context_id is not None:
+        # § 16.2.1: a vehicle of a warehouse is first returned to the garage (§ 8.1.5).
+        raise errors.business_rule("VEHICLE_IN_WAREHOUSE", field="vehicle_card_id")
+
+
+def _post(company_id: UUID, location_id: UUID, post_id: UUID | None) -> ServicePost | None:
+    if post_id is None:
+        return None
+    post = ServicePost.objects.filter(
+        company_id=company_id, pk=post_id, location_id=location_id
+    ).first()
+    if post is None:
+        raise errors.validation_error("post_id", code="POST_UNKNOWN")
+    if post.state != ServicePost.State.ACTIVE:
+        raise errors.business_rule("POST_ARCHIVED", field="post_id")
+    return post
+
+
+@dataclass(frozen=True)
+class Plan:
+    start: datetime | None
+    end: datetime | None
+    post_id: UUID | None
+
+    def validate(self) -> None:
+        if (self.start is None) != (self.end is None):
+            raise errors.validation_error(
+                "planned_end" if self.end is None else "planned_start", code="FIELD_REQUIRED"
+            )
+        if self.start is not None and self.end is not None and self.end <= self.start:
+            raise errors.validation_error("planned_end", code="PERIOD_INVALID")
+
+
+def _save_plan(op: ServiceOperation, plan: Plan, *fields: str) -> None:
+    op.planned_start = plan.start
+    op.planned_end = plan.end
+    op.planned_period = (plan.start, plan.end) if plan.start is not None else None
+    op.post_id = plan.post_id
+    try:
+        with transaction.atomic():
+            if fields:
+                op.save(update_fields=list(fields))
+            else:
+                op.save()
+    except IntegrityError as exc:
+        # § 16.2.5: the post is taken in this interval; another time or post is chosen.
+        raise errors.business_rule("POST_NOT_AVAILABLE", field="post_id") from exc
+
+
+@dataclass(frozen=True)
+class NewOperation:
+    vehicle_card_id: UUID
+    location_id: UUID
+    reason: str
+    order_id: UUID | None
+    client_id: UUID | None
+    internal: bool
+    plan: Plan
+    work_ids: tuple[UUID, ...]
+
+
+def snapshot(op: ServiceOperation) -> dict[str, Any]:
+    return {
+        "number": op.number,
+        "order": str(op.order_id),
+        "vehicle": str(op.vehicle_card_id),
+        "location": str(op.location_id),
+        "reason": op.reason,
+        "planned_start": op.planned_start,
+        "planned_end": op.planned_end,
+        "post": str(op.post_id) if op.post_id else None,
+        "state": op.state,
+    }
+
+
+def create_operation(ctx: CommandContext, company: Company, data: NewOperation) -> ServiceOperation:
+    data.plan.validate()
+    card = fleet.lock_card(company.id, data.vehicle_card_id)  # vehicle → operation → order
+    _check_vehicle(card)
+    catalog.require_service_location(company.id, data.location_id, "location_id")
+    _post(company.id, data.location_id, data.plan.post_id)
+    if data.order_id is not None:
+        order = orders.lock_open_order(company.id, data.order_id, preliminary_ok=True)
+    elif data.internal:
+        order = orders.create_internal_order(
+            ctx, company_id=company.id, responsible_employment_id=ctx.actor.employment_id
+        )
+    elif data.client_id is not None:
+        order = orders.create_order(
+            ctx,
+            company_id=company.id,
+            client_id=data.client_id,
+            responsible_employment_id=ctx.actor.employment_id,
+        )
+    else:
+        raise errors.business_rule("CLIENT_REQUIRED", field="client_id")
+    op = ServiceOperation(
+        company=company,
+        number=next_number(company.id, "service_operation"),
+        order=order,
+        vehicle_card=card,
+        location_id=data.location_id,
+        reason=data.reason,
+        created_by_user_id=ctx.actor.user_id,
+        created_at=timezone.now(),
+    )
+    _save_plan(op, data.plan)
+    ctx.audit(
+        "service_operation.created",
+        object_type="service_operation",
+        object_id=op.id,
+        after=snapshot(op),
+    )
+    for work_id in data.work_ids:
+        _add_job(ctx, op, work_id)
+    return op
+
+
+def locked_operation(
+    company_id: UUID, operation_id: UUID, expected_version: int | None = None
+) -> ServiceOperation:
+    found = (
+        operations_of(company_id).filter(pk=operation_id).values_list("vehicle_card_id", flat=True)
+    )
+    card_id = found.first()
+    if card_id is None:
+        raise errors.not_found()
+    fleet.lock_card(company_id, card_id)
+    op = ServiceOperation.objects.select_for_update().get(pk=operation_id)
+    if expected_version is not None and op.version != expected_version:
+        raise errors.version_conflict()
+    return op
+
+
+def _bump(op: ServiceOperation, *fields: str) -> None:
+    op.version += 1
+    op.save(update_fields=[*fields, "version", "updated_at"])
+
+
+def _require_not_final(op: ServiceOperation) -> None:
+    if op.state in FINAL_OPERATION:
+        raise errors.business_rule("SERVICE_OPERATION_FINISHED", state=op.state)
+
+
+def change_plan(ctx: CommandContext, op: ServiceOperation, plan: Plan) -> ServiceOperation:
+    """Until the service starts its planned time and post change (§ 16.2.6); after the start
+    the actual times are corrected instead."""
+    plan.validate()
+    if op.state not in (Op.PLANNED, Op.ACCEPTED):
+        raise errors.business_rule("SERVICE_OPERATION_STARTED")
+    orders.ensure_editable(op.company_id, op.order_id)
+    _post(op.company_id, op.location_id, plan.post_id)
+    if op.state == Op.ACCEPTED and plan.post_id is not None:
+        taken = post_taken_by(plan.post_id, exclude=op.id)
+        if taken is not None:
+            raise errors.business_rule("POST_OCCUPIED", field="post_id", operation=taken.number)
+    before = snapshot(op)
+    op.version += 1
+    _save_plan(
+        op,
+        plan,
+        "planned_start",
+        "planned_end",
+        "planned_period",
+        "post",
+        "version",
+        "updated_at",
+    )
+    after = snapshot(op)
+    if before == after:
+        raise errors.business_rule("NOTHING_CHANGED")
+    ctx.audit(
+        "service_operation.plan_changed",
+        object_type="service_operation",
+        object_id=op.id,
+        before={k: v for k, v in before.items() if v != after[k]},
+        after={k: v for k, v in after.items() if v != before[k]},
+    )
+    return op
+
+
+# --- Acceptance and place (§ 16.2.8, § 16.3) -----------------------------------------------------
+
+
+def accept(
+    ctx: CommandContext, op: ServiceOperation, at: datetime, post_id: UUID | None
+) -> ServiceOperation:
+    """The vehicle arrives: into the general zone or onto a free post. An own or managed vehicle
+    must be bound to the service location — another location needs an internal move first
+    (§ 16.2.1, § 16.2.8). The acceptance does not start the works."""
+    if op.state != Op.PLANNED:
+        raise errors.business_rule("SERVICE_ALREADY_ACCEPTED", state=op.state)
+    orders.ensure_open(op.company_id, op.order_id)
+    _not_future(at, "accepted_at")
+    card = VehicleCard.objects.get(pk=op.vehicle_card_id)
+    _check_vehicle(card)
+    if (
+        card.relation != VehicleCard.Relation.CLIENT
+        and card.accounting_location_id != op.location_id
+    ):
+        raise errors.business_rule(
+            "VEHICLE_LOCATION_MISMATCH",
+            field="vehicle_card_id",
+            vehicle_location=str(card.accounting_location_id),
+        )
+    # TODO(spec): § 8.5.2 lets a vehicle be serviced during its rental; until that path is
+    # detailed a vehicle that is in a rental or moving is not accepted.
+    busy = [code for code in moves.busy_reasons(op.company_id, card.id) if code != "in_service"]
+    if busy:
+        raise errors.business_rule("VEHICLE_BUSY", reasons=busy)
+    _post(op.company_id, op.location_id, post_id)
+    if post_id is not None:
+        taken = post_taken_by(post_id, exclude=op.id)
+        if taken is not None:
+            raise errors.business_rule("POST_OCCUPIED", field="post_id", operation=taken.number)
+    op.state = Op.ACCEPTED
+    op.accepted_at = at
+    op.version += 1
+    _save_plan(
+        op,
+        Plan(op.planned_start, op.planned_end, post_id),
+        "state",
+        "accepted_at",
+        "post",
+        "planned_start",
+        "planned_end",
+        "planned_period",
+        "version",
+        "updated_at",
+    )
+    ctx.audit(
+        "service_operation.vehicle_accepted",
+        object_type="service_operation",
+        object_id=op.id,
+        before={"state": Op.PLANNED},
+        after={"state": op.state, "accepted_at": at, "post": str(post_id) if post_id else None},
+    )
+    return op
+
+
+def place(ctx: CommandContext, op: ServiceOperation, post_id: UUID | None) -> ServiceOperation:
+    """Moves the vehicle between a post and the general zone; leaving the post frees it without
+    finishing the service (§ 16.3.4–16.3.5)."""
+    if op.state not in HOLDING:
+        raise errors.business_rule("SERVICE_VEHICLE_NOT_ACCEPTED", state=op.state)
+    if op.post_id == post_id:
+        raise errors.business_rule("NOTHING_CHANGED")
+    _post(op.company_id, op.location_id, post_id)
+    if post_id is not None:
+        taken = post_taken_by(post_id, exclude=op.id)
+        if taken is not None:
+            raise errors.business_rule("POST_OCCUPIED", field="post_id", operation=taken.number)
+    before = str(op.post_id) if op.post_id else None
+    op.version += 1
+    _save_plan(
+        op,
+        Plan(op.planned_start, op.planned_end, post_id),
+        "post",
+        "planned_start",
+        "planned_end",
+        "planned_period",
+        "version",
+        "updated_at",
+    )
+    ctx.audit(
+        "service_operation.placed",
+        object_type="service_operation",
+        object_id=op.id,
+        before={"post": before},
+        after={"post": str(post_id) if post_id else None},
+    )
+    return op
+
+
+# --- Works of the operation (§ 16.1.3, § 16.4) ---------------------------------------------------
+
+
+def job_snapshot(job: ServiceJob) -> dict[str, Any]:
+    return {
+        "operation": str(job.operation_id),
+        "work": str(job.work_id),
+        "name": job.snapshot.get("name"),
+        "price": catalog.amount_text(job.price),
+        "currency": job.currency_id,
+        "executor": str(job.executor_id) if job.executor_id else None,
+        "state": job.state,
+        "actual_start": job.actual_start,
+        "actual_end": job.actual_end,
+        "odometer": catalog.amount_text(job.odometer),
+    }
+
+
+def _add_job(
+    ctx: CommandContext, op: ServiceOperation, work_id: UUID, executor_id: UUID | None = None
+) -> ServiceJob:
+    work = (
+        ServiceWork.objects.select_related("currency")
+        .filter(company_id=op.company_id, pk=work_id)
+        .first()
+    )
+    if work is None:
+        raise errors.validation_error("work_id", code="SERVICE_WORK_UNKNOWN")
+    if work.state != ServiceWork.State.ACTIVE:
+        raise errors.business_rule("SERVICE_WORK_ARCHIVED", field="work_id")
+    terms = catalog.terms_for(work, op.location_id)
+    job = ServiceJob.objects.create(
+        company_id=op.company_id,
+        operation=op,
+        order_id=op.order_id,
+        work=work,
+        snapshot=terms.snapshot,
+        price=terms.price,
+        currency=work.currency,
+        executor_id=_employee(op.company_id, executor_id),
+        created_by_user_id=ctx.actor.user_id,
+    )
+    ctx.audit(
+        "service_job.added",
+        object_type="service_job",
+        object_id=job.id,
+        after=job_snapshot(job),
+    )
+    return job
+
+
+def add_job(
+    ctx: CommandContext, op: ServiceOperation, work_id: UUID, executor_id: UUID | None
+) -> ServiceJob:
+    """A work is added at once or after the diagnostics (§ 16.1.6) while the operation is not
+    finished."""
+    _require_not_final(op)
+    orders.ensure_editable(op.company_id, op.order_id)
+    job = _add_job(ctx, op, work_id, executor_id)
+    _bump(op)
+    return job
+
+
+def _employee(company_id: UUID, employment_id: UUID | None) -> UUID | None:
+    if employment_id is None:
+        return None
+    found = Employment.objects.filter(
+        company_id=company_id, pk=employment_id, state=Employment.State.ACTIVE
+    ).exists()
+    if not found:
+        raise errors.validation_error("executor_id", code="EMPLOYEE_NOT_ACTIVE")
+    return employment_id
+
+
+def locked_job(company_id: UUID, job_id: UUID, expected_version: int) -> ServiceJob:
+    job = get_job(company_id, job_id)
+    op = locked_operation(company_id, job.operation_id)
+    job = ServiceJob.objects.select_for_update().get(pk=job_id)
+    job.operation = op
+    if job.version != expected_version:
+        raise errors.version_conflict()
+    return job
+
+
+def _save_job(ctx: CommandContext, job: ServiceJob, action: str, before: dict[str, Any]) -> None:
+    job.version += 1
+    job.save()
+    after = job_snapshot(job)
+    ctx.audit(
+        action,
+        object_type="service_job",
+        object_id=job.id,
+        before={k: v for k, v in before.items() if v != after[k]},
+        after={k: v for k, v in after.items() if v != before[k]},
+    )
+    _bump(job.operation)
+
+
+def assign(ctx: CommandContext, job: ServiceJob, executor_id: UUID | None) -> ServiceJob:
+    """One main executor per work, appointed or changed later (§ 16.4.1)."""
+    if job.state not in (Job.PLANNED, Job.IN_PROGRESS):
+        raise errors.business_rule("SERVICE_JOB_FINISHED", state=job.state)
+    if job.executor_id == executor_id:
+        raise errors.business_rule("NOTHING_CHANGED")
+    before = job_snapshot(job)
+    job.executor_id = _employee(job.company_id, executor_id)
+    _save_job(ctx, job, "service_job.assigned", before)
+    return job
+
+
+def take(ctx: CommandContext, job: ServiceJob) -> ServiceJob:
+    """A mechanic takes a free work and becomes its executor (§ 23.2.4; decision С-7); a work of
+    another executor is not taken without reassignment."""
+    if job.state != Job.PLANNED:
+        raise errors.business_rule("SERVICE_JOB_FINISHED", state=job.state)
+    if job.executor_id is not None:
+        raise errors.business_rule("SERVICE_JOB_ASSIGNED")
+    if ctx.actor.employment_id is None:
+        raise errors.permission_denied("service.work")
+    before = job_snapshot(job)
+    job.executor_id = ctx.actor.employment_id
+    _save_job(ctx, job, "service_job.taken", before)
+    return job
+
+
+def start(ctx: CommandContext, job: ServiceJob, at: datetime) -> ServiceJob:
+    """A work starts when the vehicle is accepted (§ 16.2.8); without an executor the one who
+    starts it becomes the executor. The start may be entered afterwards (§ 16.4.6)."""
+    op = job.operation
+    if job.state != Job.PLANNED:
+        raise errors.business_rule("SERVICE_JOB_ALREADY_STARTED", state=job.state)
+    if op.state not in HOLDING:
+        raise errors.business_rule("SERVICE_VEHICLE_NOT_ACCEPTED", state=op.state)
+    orders.ensure_open(op.company_id, op.order_id)
+    _not_future(at, "actual_start")
+    if op.accepted_at is not None and at < op.accepted_at:
+        raise errors.validation_error("actual_start", code="START_BEFORE_ACCEPTANCE")
+    before = job_snapshot(job)
+    if job.executor_id is None:
+        job.executor_id = ctx.actor.employment_id
+    job.state = Job.IN_PROGRESS
+    job.actual_start = at
+    _save_job(ctx, job, "service_job.started", before)
+    if op.state == Op.ACCEPTED:
+        op.state = Op.IN_PROGRESS
+        op.save(update_fields=["state", "updated_at"])
+    return job
+
+
+def _record_result(ctx: CommandContext, job: ServiceJob, at: datetime, comment: str) -> None:
+    if job.state != Job.IN_PROGRESS:
+        raise errors.business_rule("SERVICE_JOB_NOT_STARTED", state=job.state)
+    orders.ensure_open(job.company_id, job.order_id)
+    _not_future(at, "actual_end")
+    if job.actual_start is not None and at < job.actual_start:
+        raise errors.validation_error("actual_end", code="PERIOD_INVALID")
+    job.actual_end = at
+    job.comment = comment
+    job.result_by_user_id = ctx.actor.user_id
+    job.result_at = timezone.now()
+
+
+def complete(
+    ctx: CommandContext, job: ServiceJob, at: datetime, odometer: Decimal, comment: str
+) -> ServiceJob:
+    """«Done» with the actual time and odometer; the author is kept apart from the executor
+    (§ 16.4.2–16.4.3). The odometer reading goes to the vehicle (§ 8.2.12)."""
+    before = job_snapshot(job)
+    _record_result(ctx, job, at, comment)
+    card = VehicleCard.objects.get(pk=job.operation.vehicle_card_id)
+    fleet.record_reading(
+        ctx, card, measured_at=at, value=odometer, source_type="service_job", source_id=job.id
+    )
+    job.odometer = odometer
+    job.state = Job.DONE
+    _save_job(ctx, job, "service_job.completed", before)
+    _charge(ctx, job, "service_job_done")
+    return job
+
+
+def terminate(
+    ctx: CommandContext,
+    job: ServiceJob,
+    at: datetime,
+    reason: str,
+    price: Decimal | None,
+    comment: str = "",
+) -> ServiceJob:
+    """«Terminated» after the start with a reason; the facts are kept; the price is the one the
+    employee gives, maybe zero (§ 16.4.4; decision С-4)."""
+    if not reason.strip():
+        raise errors.validation_error("reason", code="FIELD_REQUIRED")
+    before = job_snapshot(job)
+    _record_result(ctx, job, at, comment)
+    job.state = Job.TERMINATED
+    job.end_reason = reason
+    job.price = price
+    _save_job(ctx, job, "service_job.terminated", before)
+    _charge(ctx, job, "service_job_terminated")
+    return job
+
+
+def cancel(ctx: CommandContext, job: ServiceJob, reason: str) -> ServiceJob:
+    """«Cancelled» — not started (§ 16.4.4); it is not charged."""
+    if job.state != Job.PLANNED:
+        raise errors.business_rule("SERVICE_JOB_ALREADY_STARTED", state=job.state)
+    orders.ensure_editable(job.company_id, job.order_id)
+    before = job_snapshot(job)
+    job.state = Job.CANCELLED
+    job.end_reason = reason
+    _save_job(ctx, job, "service_job.cancelled", before)
+    _charge(ctx, job, "service_job_cancelled")
+    return job
+
+
+def set_price(ctx: CommandContext, job: ServiceJob, price: Decimal) -> ServiceJob:
+    """The price of a work in the order is changed by an employee with the right (§ 16.1.3,
+    § 16.1.7); an explicit zero differs from no price (§ 16.1.4). A done work is recharged."""
+    if job.state == Job.CANCELLED:
+        raise errors.business_rule("SERVICE_JOB_FINISHED", state=job.state)
+    orders.ensure_editable(job.company_id, job.order_id)
+    if job.price == price:
+        raise errors.business_rule("NOTHING_CHANGED")
+    before = job_snapshot(job)
+    job.price = price
+    _save_job(ctx, job, "service_job.price_changed", before)
+    _charge(ctx, job, "service_job_price_changed")
+    return job
+
+
+# --- Ending the operation (§ 16.4.8, § 16.7.2) ---------------------------------------------------
+
+
+def finish(ctx: CommandContext, op: ServiceOperation) -> ServiceOperation:
+    """«Works done»: every work has a final result, cancelled and terminated included (§ 16.7.2).
+    The post and the general zone are freed (§ 16.1.4); the vehicle's location is not changed
+    (§ 16.6.7)."""
+    if op.state not in HOLDING:
+        raise errors.business_rule("SERVICE_VEHICLE_NOT_ACCEPTED", state=op.state)
+    orders.ensure_open(op.company_id, op.order_id)
+    jobs = jobs_of(op)
+    if not jobs:
+        raise errors.business_rule("SERVICE_WITHOUT_JOBS")
+    open_jobs = [str(j.id) for j in jobs if j.state not in FINAL_JOB]
+    if open_jobs:
+        raise errors.business_rule("SERVICE_JOBS_NOT_FINISHED", jobs=open_jobs)
+    before = op.state
+    op.state = Op.WORKS_DONE
+    op.finished_at = timezone.now()
+    _bump(op, "state", "finished_at")
+    ctx.audit(
+        "service_operation.works_done",
+        object_type="service_operation",
+        object_id=op.id,
+        before={"state": before},
+        after={"state": op.state, "finished_at": op.finished_at},
+    )
+    return op
+
+
+def _cancel(ctx: CommandContext, op: ServiceOperation, reason: str) -> None:
+    for job in ServiceJob.objects.select_for_update().filter(operation=op, state=Job.PLANNED):
+        before = job_snapshot(job)
+        job.state = Job.CANCELLED
+        job.end_reason = reason
+        job.version += 1
+        job.save()
+        ctx.audit(
+            "service_job.cancelled",
+            object_type="service_job",
+            object_id=job.id,
+            before={"state": before["state"]},
+            after={"state": job.state},
+        )
+        _charge(ctx, job, "service_job_cancelled")
+    previous = op.state
+    op.state = Op.CANCELLED
+    op.end_reason = reason
+    op.finished_at = timezone.now()
+    _bump(op, "state", "end_reason", "finished_at")
+    ctx.audit(
+        "service_operation.cancelled",
+        object_type="service_operation",
+        object_id=op.id,
+        before={"state": previous},
+        after={"state": op.state},
+        reason=reason,
+    )
+
+
+def cancel_operation(ctx: CommandContext, op: ServiceOperation, reason: str) -> ServiceOperation:
+    """«Cancelled» — no work was started (§ 16.4.8)."""
+    if not reason.strip():
+        raise errors.validation_error("reason", code="FIELD_REQUIRED")
+    if op.state not in (Op.PLANNED, Op.ACCEPTED):
+        raise errors.business_rule("SERVICE_OPERATION_STARTED", state=op.state)
+    if (
+        ServiceJob.objects.filter(operation=op)
+        .exclude(state__in=(Job.PLANNED, Job.CANCELLED))
+        .exists()
+    ):
+        raise errors.business_rule("SERVICE_OPERATION_STARTED", state=op.state)
+    orders.ensure_editable(op.company_id, op.order_id)
+    _cancel(ctx, op, reason)
+    return op
+
+
+def terminate_operation(ctx: CommandContext, op: ServiceOperation, reason: str) -> ServiceOperation:
+    """«Terminated» by a separate action after the start without doing all the plan (§ 16.4.8):
+    works not started are cancelled, works in progress are terminated now and get their price by
+    hand before the order closes (decision С-4)."""
+    if not reason.strip():
+        raise errors.validation_error("reason", code="FIELD_REQUIRED")
+    if op.state != Op.IN_PROGRESS:
+        raise errors.business_rule("SERVICE_OPERATION_NOT_STARTED", state=op.state)
+    orders.ensure_open(op.company_id, op.order_id)
+    now = timezone.now()
+    for job in ServiceJob.objects.select_for_update().filter(
+        operation=op, state__in=(Job.PLANNED, Job.IN_PROGRESS)
+    ):
+        before = job_snapshot(job)
+        if job.state == Job.PLANNED:
+            job.state = Job.CANCELLED
+        else:
+            job.state = Job.TERMINATED
+            job.actual_end = max(now, job.actual_start or now)
+            job.price = None
+            job.result_by_user_id = ctx.actor.user_id
+            job.result_at = now
+        job.end_reason = reason
+        job.version += 1
+        job.save()
+        after = job_snapshot(job)
+        ctx.audit(
+            "service_job.cancelled" if job.state == Job.CANCELLED else "service_job.terminated",
+            object_type="service_job",
+            object_id=job.id,
+            before={k: v for k, v in before.items() if v != after[k]},
+            after={k: v for k, v in after.items() if v != before[k]},
+        )
+        _charge(ctx, job, "service_operation_terminated")
+    op.state = Op.TERMINATED
+    op.end_reason = reason
+    op.finished_at = now
+    _bump(op, "state", "end_reason", "finished_at")
+    ctx.audit(
+        "service_operation.terminated",
+        object_type="service_operation",
+        object_id=op.id,
+        before={"state": Op.IN_PROGRESS},
+        after={"state": op.state},
+        reason=reason,
+    )
+    return op
+
+
+def unassigned_jobs(company_id: UUID, location_ids: set[UUID] | None) -> QuerySet[ServiceJob]:
+    """The queue of free works for a mechanic (§ 23.2.4; decision С-7)."""
+    query = ServiceJob.objects.filter(
+        company_id=company_id, state=Job.PLANNED, executor__isnull=True
+    ).filter(~Q(operation__state__in=FINAL_OPERATION))
+    if location_ids is not None:
+        query = query.filter(operation__location_id__in=location_ids)
+    return query

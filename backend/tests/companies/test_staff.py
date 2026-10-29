@@ -98,7 +98,15 @@ SET_ADMIN = {"type": "set", "set": "company_admin"}
 def test_system_sets_of_stage_one() -> None:
     # § 23.1.14, § 23.2: system sets so far; Driver has no permission of the stage.
     sets = {s.code: s for s in PermissionSet.objects.filter(is_system=True)}
-    assert set(sets) == {"company_admin", "rental_manager", "driver", "accountant", "storekeeper"}
+    assert set(sets) == {
+        "company_admin",
+        "rental_manager",
+        "driver",
+        "accountant",
+        "storekeeper",
+        "service_manager",
+        "mechanic",
+    }
     admin = set(sets["company_admin"].permissions.values_list("code", flat=True))
     assert admin == set(PERMISSIONS)
     assert not sets["driver"].permissions.exists()
@@ -445,5 +453,7 @@ def test_permission_catalog_for_the_rights_editor(owner: Client, cmp: str) -> No
         "driver",
         "accountant",
         "storekeeper",
+        "service_manager",
+        "mechanic",
     ]
     assert "order.close_with_debt" in body["permissions"]

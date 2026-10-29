@@ -296,6 +296,20 @@ def enabled_context_types(company_id: UUID, location_id: UUID) -> set[str]:
     )
 
 
+def enabled_context_id(company_id: UUID, location_id: UUID, context_type: str) -> UUID | None:
+    """The enabled context of the type in the location, for the scope of a right (§ 23.1.10)."""
+    return (
+        ActivityContext.objects.filter(
+            company_id=company_id,
+            location_id=location_id,
+            type=context_type,
+            state=ActivityContext.State.ENABLED,
+        )
+        .values_list("id", flat=True)
+        .first()
+    )
+
+
 def storage_context(company_id: UUID, context_id: UUID) -> ActivityContext | None:
     """An enabled warehouse context of an active location of the company — the place an own
     vehicle is transferred to (§ 8.1.5, § 8.1.7)."""

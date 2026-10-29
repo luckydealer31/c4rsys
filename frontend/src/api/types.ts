@@ -956,3 +956,81 @@ export type ItemPrices = {
   assets: { id: string; public_id: string; sale_price: string | null }[];
   minimums: { context_id: string; location_name: string; quantity: string | null }[];
 };
+
+/** Service works (ТЗ гл. 16; decisions С-1…С-7). */
+export type SystemWork = { code: string; names: Record<string, string> };
+
+export type ServiceWork = {
+  id: string;
+  version: number;
+  name: string;
+  system_work: string | null;
+  system_names: Record<string, string> | null;
+  pricing: "fixed" | "hours";
+  price: string | null;
+  hours: string | null;
+  rate: string | null;
+  currency: string;
+  state: "active" | "archived";
+};
+
+export type ServiceRate = { location_id: string | null; rate: string; currency: string };
+
+export type ServicePost = {
+  id: string;
+  version: number;
+  location_id: string;
+  name: string;
+  state: "active" | "archived";
+};
+
+export type ServiceJob = {
+  id: string;
+  version: number;
+  operation_id: string;
+  work_id: string;
+  name: string;
+  system_work: string | null;
+  pricing: "fixed" | "hours";
+  hours: string | null;
+  rate: string | null;
+  rate_source: "work" | "location" | "company" | null;
+  price: string | null;
+  currency: string;
+  executor_id: string | null;
+  executor_name: string | null;
+  state: "planned" | "in_progress" | "done" | "cancelled" | "terminated";
+  actual_start: string | null;
+  actual_end: string | null;
+  odometer: string | null;
+  comment: string;
+  end_reason: string;
+};
+
+export type ServiceOperation = {
+  id: string;
+  version: number;
+  number: number;
+  state: "planned" | "accepted" | "in_progress" | "works_done" | "cancelled" | "terminated";
+  order_id: string;
+  order_number: number;
+  order_state: string;
+  is_internal: boolean;
+  client_id: string | null;
+  vehicle_card_id: string;
+  vehicle_name: string | null;
+  location_id: string;
+  reason: string;
+  planned_start: string | null;
+  planned_end: string | null;
+  post_id: string | null;
+  post_name: string | null;
+  accepted_at: string | null;
+  finished_at: string | null;
+  end_reason: string;
+  created_at: string;
+  jobs: ServiceJob[];
+  blockers?: string[];
+};
+
+export type QueueJob = ServiceJob & { operation_number: number; location_id: string; vehicle_name: string | null };

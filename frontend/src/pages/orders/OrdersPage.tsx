@@ -16,7 +16,7 @@ import { CashReceipt, usePayments } from "../finance/CashReceipt";
 import { OrderServices } from "../rentals/Services";
 import { useCashAccounts } from "../finance/FinancePage";
 import { JournalTable } from "../settings/EmployeesPage";
-import { CancelOrder, FormOrder, NewOrder, RentalProposals, ResponsibleField } from "./OrderActions";
+import { CancelOrder, editable, FormOrder, NewOrder, RentalProposals, ResponsibleField } from "./OrderActions";
 
 export function useOrders() {
   const company = useCompany();
@@ -226,11 +226,19 @@ export function OrderPage() {
                 <td>
                   {op.type === "rental" ? (
                     <Link to={companyPath(company, `/rentals/${op.id}`)}>{t("orders.line_rental")}</Link>
+                  ) : op.type === "service_work" ? (
+                    <Link to={companyPath(company, `/service/operations/${op.id}`)}>{t("orders.line_service_work")}</Link>
                   ) : (
                     t(`orders.line_${op.type}`)
                   )}
                 </td>
-                <td>{op.type === "rental" ? t(`rentals.state_${op.state}`) : t(`orders.op_state_${op.state}`)}</td>
+                <td>
+                  {op.type === "rental"
+                    ? t(`rentals.state_${op.state}`)
+                    : op.type === "service_work"
+                      ? t(`service.state_${op.state}`)
+                      : t(`orders.op_state_${op.state}`)}
+                </td>
                 <td>{op.finished ? t("orders.finished") : t("orders.not_finished")}</td>
               </tr>
             ))}
@@ -242,6 +250,13 @@ export function OrderPage() {
       <FormOrder order={current} onDone={refresh} />
       <RentalProposals order={current} onDone={refresh} />
       <OrderServices order={current} onChange={refresh} />
+      {editable(current) && can("service.create") && can("order.edit") ? (
+        <div className="actions" style={{ marginBottom: 16 }}>
+          <Link className="button secondary" to={companyPath(company, `/service/operations/new?order=${current.id}`)}>
+            {t("service.new_operation")}
+          </Link>
+        </div>
+      ) : null}
       <SaleGoods order={current} onChange={refresh} />
       <ReopenOrder order={current} onDone={refresh} />
 
@@ -279,8 +294,8 @@ export function OrderPage() {
             <ul>
               {current.closing_conditions.map((c) => (
                 <li key={`${c.id}-${c.condition}`}>
-                  {c.operation === "service"
-                    ? t(`orders.condition_${c.condition}_service`)
+                  {c.operation === "service" || c.operation === "service_work"
+                    ? t(`orders.condition_${c.condition}_${c.operation}`)
                     : t(`orders.condition_${c.condition}`, { operation: t(`orders.operation_${c.operation}`) })}
                 </li>
               ))}

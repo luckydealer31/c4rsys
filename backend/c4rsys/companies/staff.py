@@ -382,3 +382,18 @@ def invitation_payload(invitation: Invitation, now: datetime) -> dict[str, Any]:
         "created_at": invitation.created_at.isoformat(),
         "expires_at": invitation.expires_at.isoformat(),
     }
+
+
+def employee_names(company_id: UUID, ids: set[UUID] | None = None) -> dict[UUID, str]:
+    """First and last name of employees for other modules (§ 5.1.7); a card without a profile
+    is named by its position. `ids` empty — every active employee."""
+    query = Employment.objects.select_related("user", "position").filter(company_id=company_id)
+    query = (
+        query.filter(pk__in=ids) if ids is not None else query.filter(state=Employment.State.ACTIVE)
+    )
+    result = {}
+    for e in query:
+        user = e.user
+        name = f"{user.first_name} {user.last_name}".strip() if user is not None else ""
+        result[e.id] = name or e.position.name
+    return result
