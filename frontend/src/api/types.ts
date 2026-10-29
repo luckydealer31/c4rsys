@@ -1282,6 +1282,7 @@ export type WorkTask = {
   tags: { id: string; name: string }[];
   repeating: boolean;
   // Detail only.
+  reminders: number[];
   checklist_required: boolean;
   checklist: { id: string; text: string; done: boolean; done_at: string | null }[];
   predecessors: { id: string; number: number; title: string; state: string }[];
@@ -1305,5 +1306,5 @@ export type WorkTask = {
   comments: { id: string; text: string; file_id: string | null; file_name: string; author: string; created_at: string }[];
   history: { id: string; occurred_at: string; actor: { name: string }; action: string; reason: string }[];
   can: { manage: boolean; own: boolean; queue: boolean };
-  policy: { executor_may_release: boolean; executor_may_change_due: boolean; version: number };
+  policy: { executor_may_release: boolean; executor_may_change_due: boolean; overdue_repeat_hours: number; version: number };
 };

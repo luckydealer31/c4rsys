@@ -198,7 +198,8 @@
     "task_group_removed": "ลบกลุ่มงาน",
     "task_tag_created": "สร้างแท็ก",
     "task_tag_renamed": "เปลี่ยนชื่อแท็ก",
-    "task_tag_removed": "ลบแท็ก"
+    "task_tag_removed": "ลบแท็ก",
+    "notification_read": "อ่านการแจ้งเตือน"
   },
   "finance_articles": {
     "archive": "เก็บเข้าคลัง",
@@ -849,7 +850,8 @@
     "task_tag_exists": "มีแท็กนี้แล้ว",
     "task_repeat_needs_date": "งานที่ทำซ้ำต้องมีวันที่กำหนด",
     "task_repeat_state_invalid": "ทำไม่ได้ในสถานะการทำซ้ำนี้",
-    "task_not_repeating": "งานนี้ไม่ทำซ้ำ"
+    "task_not_repeating": "งานนี้ไม่ทำซ้ำ",
+    "task_reminders_need_due": "การเตือนต้องมีกำหนด"
   },
   "history": {
     "action": "Action",
@@ -3131,6 +3133,40 @@
     "weekday_4": "พฤ.",
     "weekday_5": "ศ.",
     "weekday_6": "ส.",
-    "weekday_7": "อา."
+    "weekday_7": "อา.",
+    "reminders": "การเตือน",
+    "add_reminder": "เพิ่มการเตือน",
+    "unit_minutes": "นาทีก่อน",
+    "unit_hours": "ชั่วโมงก่อน",
+    "unit_days": "วันก่อน",
+    "before_minutes": "{{count}} นาทีก่อน",
+    "before_hours": "{{count}} ชม. ก่อน",
+    "before_days": "{{count}} วันก่อน",
+    "policy_overdue_repeat": "แจ้งเตือนเลยกำหนดซ้ำทุก (ชั่วโมง)",
+    "policy_overdue_repeat_hint": "0 — ไม่ซ้ำ"
+  },
+  "notifications": {
+    "title": "การแจ้งเตือน",
+    "kind": "ประเภท",
+    "kind_action": "ต้องดำเนินการ",
+    "kind_warning": "คำเตือน",
+    "kind_reminder": "การเตือนความจำ",
+    "kind_info": "ข้อมูล",
+    "state": "สถานะ",
+    "state_active": "ที่ยังดำเนินอยู่",
+    "state_done": "เสร็จสิ้น",
+    "company": "บริษัท",
+    "all": "ทั้งหมด",
+    "from": "ตั้งแต่",
+    "to": "ถึง",
+    "only_unread": "เฉพาะที่ยังไม่อ่าน",
+    "read_all": "ทำเครื่องหมายว่าอ่านทั้งหมด",
+    "mark_read": "อ่านแล้ว",
+    "none": "ไม่มีการแจ้งเตือน",
+    "repeats": "ซ้ำ: {{count}}",
+    "event_task_assigned": "คุณได้รับมอบหมายงาน № {{number}} «{{title}}»",
+    "event_task_reminder": "ใกล้กำหนดงาน № {{number}} «{{title}}»",
+    "event_task_overdue": "งาน № {{number}} «{{title}}» เลยกำหนด",
+    "event_document_term": "เอกสาร № {{number}} «{{title}}» หมดอายุ {{valid_until}}"
   }
 }

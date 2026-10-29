@@ -72,6 +72,16 @@ def _due(data: dict[str, Any]) -> services.Due | None:
     return services.Due(on=on, at=at)
 
 
+def _minutes(value: Any) -> list[int]:
+    if value in (None, ""):
+        return []
+    if not isinstance(value, list) or not all(
+        isinstance(x, int) and not isinstance(x, bool) for x in value
+    ):
+        raise errors.validation_error("reminders")
+    return value
+
+
 def _texts(value: Any) -> list[str]:
     if value in (None, ""):
         return []
@@ -144,6 +154,7 @@ def _payload(
     if detail:
         result.update(
             {
+                "reminders": t.reminders,
                 "checklist_required": t.checklist_required,
                 "checklist": [
                     {
@@ -213,6 +224,7 @@ def _policy_payload(p: Any) -> dict[str, Any]:
     return {
         "executor_may_release": p.executor_may_release,
         "executor_may_change_due": p.executor_may_change_due,
+        "overdue_repeat_hours": p.overdue_repeat_hours,
         "version": p.version,
     }
 
@@ -285,6 +297,7 @@ def task_list(request: HttpRequest, cmp: str) -> JsonResponse:
         group_id=_uuid(data.get("group_id"), "group_id"),
         tag_ids=_ids(data.get("tag_ids"), "tag_ids"),
         repeat=_repeat(data.get("repeat")),
+        reminders=services.check_reminders(_minutes(data.get("reminders"))),
     )
 
     def handler(ctx: CommandContext) -> CommandResult:
@@ -310,6 +323,7 @@ def task_list(request: HttpRequest, cmp: str) -> JsonResponse:
             "group_id",
             "tag_ids",
             "repeat",
+            "reminders",
         )
     }
     return run_and_respond(request, "task.create", actor, payload, handler)
@@ -332,6 +346,7 @@ def task_detail(request: HttpRequest, cmp: str, task_id: UUID) -> JsonResponse:
         priority=get_str(data, "priority", max_length=10) if "priority" in data else None,
         due=_due(data),
         due_set="due_date" in data,
+        reminders=_minutes(data.get("reminders")) if "reminders" in data else None,
     )
 
     def handler(ctx: CommandContext) -> CommandResult:
@@ -344,7 +359,10 @@ def task_detail(request: HttpRequest, cmp: str, task_id: UUID) -> JsonResponse:
     payload = {
         "task_id": str(task_id),
         "expected_version": expected,
-        **{k: data.get(k) for k in ("title", "description", "priority", "due_date", "due_time")},
+        **{
+            k: data.get(k)
+            for k in ("title", "description", "priority", "due_date", "due_time", "reminders")
+        },
     }
     return run_and_respond(request, "task.change", actor, payload, handler)
 
@@ -492,12 +510,15 @@ def policy(request: HttpRequest, cmp: str) -> JsonResponse:
     if not isinstance(release, bool) or not isinstance(change_due, bool):
         raise errors.validation_error("executor_may_release")
     expected = get_int(data, "expected_version")
+    hours = data.get("overdue_repeat_hours")
+    if hours is not None and (isinstance(hours, bool) or not isinstance(hours, int) or hours < 0):
+        raise errors.validation_error("overdue_repeat_hours")
 
     def handler(ctx: CommandContext) -> CommandResult:
-        found = services.set_policy(ctx, context.company, release, change_due, expected)
+        found = services.set_policy(ctx, context.company, release, change_due, expected, hours)
         return CommandResult(200, {"policy": _policy_payload(found)})
 
-    payload = {"release": release, "change_due": change_due, "expected": expected}
+    payload = {"release": release, "change_due": change_due, "hours": hours, "expected": expected}
     return run_and_respond(request, "task.policy", actor, payload, handler)
 
 

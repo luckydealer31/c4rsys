@@ -110,6 +110,12 @@ th { font-size: 0.85rem; color: var(--muted); font-weight: 600; }
 }
 .topbar .brand { font-weight: 700; color: var(--text); text-decoration: none; }
 .topbar .spacer { flex: 1; }
+.topbar .bell { position: relative; display: inline-flex; color: var(--text); margin-right: 12px; }
+.topbar .bell-count {
+  position: absolute; top: -6px; right: -8px; min-width: 18px; height: 18px; padding: 0 4px;
+  border-radius: 9px; background: var(--danger); color: #fff; font-size: 11px; line-height: 18px;
+  text-align: center;
+}
 
 /* Frame: a rail of icons on the left, top to bottom (decisions of 24.10.2026). */
 .shell-body { display: flex; align-items: stretch; min-height: calc(100vh - 56px); }

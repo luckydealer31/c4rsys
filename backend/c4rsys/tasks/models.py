@@ -63,6 +63,9 @@ class Task(models.Model):
     object_id = models.UUIDField(null=True, blank=True)
     due_at = models.DateTimeField(null=True, blank=True)
     due_has_time = models.BooleanField(default=False)
+    # Reminders before the deadline, minutes before it, up to 5 (decision З-4); the sent ones.
+    reminders = models.JSONField(default=list, blank=True)
+    reminders_sent = models.JSONField(default=list, blank=True)
     created_by_user_id = models.UUIDField(null=True, blank=True)
     created_by_employment = models.ForeignKey(
         Employment, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
@@ -183,6 +186,8 @@ class TaskPolicy(models.Model):
     company = models.OneToOneField(Company, on_delete=models.PROTECT, related_name="+")
     executor_may_release = models.BooleanField(default=True)
     executor_may_change_due = models.BooleanField(default=False)
+    # Decision З-4: after the deadline the overdue notification repeats every N hours; 0 — no.
+    overdue_repeat_hours = models.PositiveIntegerField(default=24)
     updated_by_user_id = models.UUIDField()
     updated_at = models.DateTimeField(default=now)
     version = models.PositiveIntegerField(default=1)

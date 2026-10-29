@@ -4,6 +4,7 @@ import { Link, NavLink } from "react-router";
 
 import type { User } from "../api/types";
 import { Icon, type IconName } from "../components/icons";
+import { NotificationBell } from "../pages/notifications/NotificationsPage";
 import { UserMenu } from "./UserMenu";
 
 /** An item of the left menu: an icon with its name shown on hover (decisions of 24.10.2026). */
@@ -35,6 +36,7 @@ export function AppShell({
           c4rsys
         </Link>
         <span className="spacer" />
+        <NotificationBell />
         <UserMenu user={user} />
       </header>
       <div className="shell-body">

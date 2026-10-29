@@ -184,6 +184,9 @@ def _instance(series: TaskSeries, company: Company, on: date) -> Task:
     )
     for tag_id in series.tag_ids:
         TaskTagLink.objects.get_or_create(company=company, task=t, tag_id=tag_id)
+    from c4rsys.tasks import notices
+
+    notices.sync(t, series.created_by_employment_id)
     return t
 
 

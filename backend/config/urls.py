@@ -16,5 +16,6 @@ urlpatterns = [
     path("api/", include("c4rsys.service.urls")),
     path("api/", include("c4rsys.delivery.urls")),
     path("api/", include("c4rsys.tasks.urls")),
+    path("api/", include("c4rsys.notifications.urls")),
     path("api/", include("c4rsys.documents.urls")),
 ]

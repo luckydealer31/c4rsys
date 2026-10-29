@@ -186,6 +186,7 @@ export function NewTask({ target, onDone }: { target?: TaskTarget; onDone?: () =
   const [group, setGroup] = useState("");
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [frequency, setFrequency] = useState("");
+  const [reminders, setReminders] = useState<number[]>([]);
   const [weekdays, setWeekdays] = useState<number[]>([]);
   const [endsOn, setEndsOn] = useState("");
   const groups = useGroups();
@@ -216,6 +217,7 @@ export function NewTask({ target, onDone }: { target?: TaskTarget; onDone?: () =
       group_id: group || null,
       tag_ids: tagIds,
       repeat: frequency ? { frequency, weekdays, ends_on: endsOn || null } : null,
+      reminders: dueDate ? reminders : [],
     };
     // With an object the scope follows it (§ 19.1.7); without one the employee chooses.
     if (target) body.object = { object_type: target.objectType, object_id: target.objectId };
@@ -281,6 +283,7 @@ export function NewTask({ target, onDone }: { target?: TaskTarget; onDone?: () =
             <input type="time" value={dueTime} disabled={!dueDate} onChange={(e) => setDueTime(e.target.value)} />
           </Field>
         </div>
+        {dueDate ? <RemindersField value={reminders} onChange={setReminders} /> : null}
         <Field label={t("tasks.checklist")} hint={t("tasks.checklist_hint")}>
           <textarea rows={3} value={checklist} onChange={(e) => setChecklist(e.target.value)} />
         </Field>
@@ -447,7 +450,10 @@ export function TaskPage() {
           <dt>{t("tasks.executor")}</dt>
           <dd>{x.assignee_name ?? t("tasks.queue")}</dd>
           <dt>{t("tasks.due")}</dt>
-          <dd>{x.due_at ? when(x.due_at) : "—"}</dd>
+          <dd>
+            {x.due_at ? when(x.due_at) : "—"}
+            {x.reminders.length ? ` · ${t("tasks.reminders")}: ${x.reminders.map((m) => reminderText(t, m)).join(", ")}` : ""}
+          </dd>
           <dt>{t("tasks.created_by")}</dt>
           <dd>
             {x.created_by_name ?? (x.source === "system" ? t("tasks.source_system") : "—")} · {when(x.created_at)}
@@ -606,7 +612,7 @@ export function TaskPage() {
   );
 }
 
-type Policy = { executor_may_release: boolean; executor_may_change_due: boolean; version: number };
+type Policy = { executor_may_release: boolean; executor_may_change_due: boolean; overdue_repeat_hours: number; version: number };
 
 /** The company's rules for executors (decision З-2). */
 function TaskPolicyCard() {
@@ -622,6 +628,7 @@ function TaskPolicyFields({ policy }: { policy: Policy }) {
   const queryClient = useQueryClient();
   const [release, setRelease] = useState(policy.executor_may_release);
   const [due, setDue] = useState(policy.executor_may_change_due);
+  const [hours, setHours] = useState(String(policy.overdue_repeat_hours));
   const save = useCommand<Record<string, unknown>, { policy: Policy }>(`/c/${company.public_id}/tasks/policy`, "PUT");
   return (
     <Card title={t("tasks.policy_title")}>
@@ -631,13 +638,21 @@ function TaskPolicyFields({ policy }: { policy: Policy }) {
       <label className="small" style={{ display: "block" }}>
         <input type="checkbox" checked={due} onChange={() => setDue(!due)} /> {t("tasks.policy_change_due")}
       </label>
+      <Field label={t("tasks.policy_overdue_repeat")} hint={t("tasks.policy_overdue_repeat_hint")}>
+        <input value={hours} inputMode="numeric" onChange={(e) => setHours(e.target.value.replace(/\D/g, ""))} />
+      </Field>
       <div className="actions">
         <button
           type="button"
           disabled={save.pending}
           onClick={() =>
             void save
-              .run({ executor_may_release: release, executor_may_change_due: due, expected_version: policy.version })
+              .run({
+                executor_may_release: release,
+                executor_may_change_due: due,
+                overdue_repeat_hours: Number(hours || "0"),
+                expected_version: policy.version,
+              })
               .then((r) => (r ? queryClient.invalidateQueries({ queryKey: ["task-policy"] }) : undefined))
           }
         >
@@ -646,5 +661,52 @@ function TaskPolicyFields({ policy }: { policy: Policy }) {
       </div>
       <ErrorMessage error={save.error} />
     </Card>
+  );
+}
+
+const UNITS = [
+  ["minutes", 1],
+  ["hours", 60],
+  ["days", 1440],
+] as const;
+
+function reminderText(t: (key: string, options?: Record<string, unknown>) => string, minutes: number): string {
+  const [unit, size] = [...UNITS].reverse().find(([, n]) => minutes % n === 0) ?? UNITS[0];
+  return t(`tasks.before_${unit}`, { count: minutes / size });
+}
+
+/** Up to 5 reminders «N minutes / hours / days before» the deadline (decision З-4). */
+function RemindersField({ value, onChange }: { value: number[]; onChange: (next: number[]) => void }) {
+  const { t } = useTranslation();
+  const [amount, setAmount] = useState("1");
+  const [unit, setUnit] = useState<(typeof UNITS)[number][0]>("hours");
+  const minutes = Number(amount || "0") * (UNITS.find(([u]) => u === unit)?.[1] ?? 1);
+  return (
+    <div className="small">
+      <strong>{t("tasks.reminders")}:</strong>{" "}
+      {value.map((m) => (
+        <span key={m} style={{ marginRight: 8 }}>
+          {reminderText(t, m)}{" "}
+          <button type="button" className="link" onClick={() => onChange(value.filter((x) => x !== m))}>
+            ×
+          </button>
+        </span>
+      ))}
+      {value.length < 5 ? (
+        <span>
+          <input style={{ width: 60 }} value={amount} inputMode="numeric" onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))} />{" "}
+          <select value={unit} onChange={(e) => setUnit(e.target.value as typeof unit)}>
+            {UNITS.map(([u]) => (
+              <option key={u} value={u}>
+                {t(`tasks.unit_${u}`)}
+              </option>
+            ))}
+          </select>{" "}
+          <button type="button" className="link" disabled={!minutes || value.includes(minutes)} onClick={() => onChange([...value, minutes])}>
+            {t("tasks.add_reminder")}
+          </button>
+        </span>
+      ) : null}
+    </div>
   );
 }

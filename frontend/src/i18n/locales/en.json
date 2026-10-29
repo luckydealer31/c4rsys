@@ -198,7 +198,8 @@
     "task_group_removed": "Task group removed",
     "task_tag_created": "Tag created",
     "task_tag_renamed": "Tag renamed",
-    "task_tag_removed": "Tag removed"
+    "task_tag_removed": "Tag removed",
+    "notification_read": "Notifications read"
   },
   "finance_articles": {
     "archive": "Archive",
@@ -849,7 +850,8 @@
     "task_tag_exists": "Such a tag already exists.",
     "task_repeat_needs_date": "A repeating task needs a deadline date.",
     "task_repeat_state_invalid": "Not possible in this state of the repetition.",
-    "task_not_repeating": "The task does not repeat."
+    "task_not_repeating": "The task does not repeat.",
+    "task_reminders_need_due": "Reminders need a deadline."
   },
   "history": {
     "action": "Action",
@@ -3131,6 +3133,40 @@
     "weekday_4": "Thu",
     "weekday_5": "Fri",
     "weekday_6": "Sat",
-    "weekday_7": "Sun"
+    "weekday_7": "Sun",
+    "reminders": "Reminders",
+    "add_reminder": "Add a reminder",
+    "unit_minutes": "minutes before",
+    "unit_hours": "hours before",
+    "unit_days": "days before",
+    "before_minutes": "{{count}} min before",
+    "before_hours": "{{count}} h before",
+    "before_days": "{{count}} d before",
+    "policy_overdue_repeat": "Repeat the overdue notice, hours",
+    "policy_overdue_repeat_hint": "0 — do not repeat"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "kind": "Kind",
+    "kind_action": "Action required",
+    "kind_warning": "Warning",
+    "kind_reminder": "Reminder",
+    "kind_info": "Information",
+    "state": "State",
+    "state_active": "Active",
+    "state_done": "Done",
+    "company": "Company",
+    "all": "All",
+    "from": "From",
+    "to": "To",
+    "only_unread": "Only unread",
+    "read_all": "Mark all as read",
+    "mark_read": "Mark as read",
+    "none": "No notifications",
+    "repeats": "repetitions: {{count}}",
+    "event_task_assigned": "You are assigned the task № {{number}} «{{title}}»",
+    "event_task_reminder": "The deadline of the task № {{number}} «{{title}}» is near",
+    "event_task_overdue": "The task № {{number}} «{{title}}» is overdue",
+    "event_document_term": "The term of the document № {{number}} «{{title}}» ends on {{valid_until}}"
   }
 }

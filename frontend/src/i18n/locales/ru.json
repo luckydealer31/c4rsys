@@ -198,7 +198,8 @@
     "task_group_removed": "Удалена группа задач",
     "task_tag_created": "Создан тег",
     "task_tag_renamed": "Переименован тег",
-    "task_tag_removed": "Удалён тег"
+    "task_tag_removed": "Удалён тег",
+    "notification_read": "Уведомления прочитаны"
   },
   "finance_articles": {
     "archive": "В архив",
@@ -849,7 +850,8 @@
     "task_tag_exists": "Такой тег уже есть.",
     "task_repeat_needs_date": "Для повторяющейся задачи нужна дата срока.",
     "task_repeat_state_invalid": "В этом состоянии повторения так нельзя.",
-    "task_not_repeating": "Задача не повторяется."
+    "task_not_repeating": "Задача не повторяется.",
+    "task_reminders_need_due": "Для напоминаний нужен срок."
   },
   "history": {
     "action": "Действие",
@@ -3131,6 +3133,40 @@
     "weekday_4": "Чт",
     "weekday_5": "Пт",
     "weekday_6": "Сб",
-    "weekday_7": "Вс"
+    "weekday_7": "Вс",
+    "reminders": "Напоминания",
+    "add_reminder": "Добавить напоминание",
+    "unit_minutes": "минут до срока",
+    "unit_hours": "часов до срока",
+    "unit_days": "дней до срока",
+    "before_minutes": "за {{count}} мин",
+    "before_hours": "за {{count}} ч",
+    "before_days": "за {{count}} дн",
+    "policy_overdue_repeat": "Повторять уведомление о просрочке, часов",
+    "policy_overdue_repeat_hint": "0 — не повторять"
+  },
+  "notifications": {
+    "title": "Уведомления",
+    "kind": "Вид",
+    "kind_action": "Требуется действие",
+    "kind_warning": "Предупреждение",
+    "kind_reminder": "Напоминание",
+    "kind_info": "Информация",
+    "state": "Состояние",
+    "state_active": "Активные",
+    "state_done": "Завершённые",
+    "company": "Компания",
+    "all": "Все",
+    "from": "С",
+    "to": "По",
+    "only_unread": "Только непрочитанные",
+    "read_all": "Отметить все прочитанными",
+    "mark_read": "Прочитано",
+    "none": "Уведомлений нет",
+    "repeats": "повторов: {{count}}",
+    "event_task_assigned": "Вам назначена задача № {{number}} «{{title}}»",
+    "event_task_reminder": "Приближается срок задачи № {{number}} «{{title}}»",
+    "event_task_overdue": "Задача № {{number}} «{{title}}» просрочена",
+    "event_document_term": "Срок документа № {{number}} «{{title}}» — до {{valid_until}}"
   }
 }

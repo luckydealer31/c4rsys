@@ -25,7 +25,7 @@ from c4rsys.files import services as files
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext
 from c4rsys.platform.counters import next_number
-from c4rsys.tasks import extensions, objects, series
+from c4rsys.tasks import extensions, notices, objects, series
 from c4rsys.tasks.models import ACTIVE_STATES, Task, TaskComment, TaskLink, TaskPolicy
 
 State = Task.State
@@ -68,7 +68,12 @@ def policy_of(company_id: UUID) -> TaskPolicy:
 
 
 def set_policy(
-    ctx: CommandContext, company: Company, may_release: bool, may_change_due: bool, expected: int
+    ctx: CommandContext,
+    company: Company,
+    may_release: bool,
+    may_change_due: bool,
+    expected: int,
+    repeat_hours: int | None = None,
 ) -> TaskPolicy:
     found = TaskPolicy.objects.select_for_update().filter(company=company).first()
     if (found.version if found else 0) != expected:
@@ -81,6 +86,10 @@ def set_policy(
     found = found or TaskPolicy(company=company, version=0)
     found.executor_may_release = may_release
     found.executor_may_change_due = may_change_due
+    if repeat_hours is not None:
+        if repeat_hours > 24 * 30:
+            raise errors.validation_error("overdue_repeat_hours")
+        found.overdue_repeat_hours = repeat_hours
     found.updated_by_user_id = ctx.actor.user_id
     found.updated_at = timezone.now()
     found.version += 1
@@ -90,7 +99,11 @@ def set_policy(
         object_type="task_policy",
         object_id=company.id,
         before=before,
-        after={"release": may_release, "change_due": may_change_due},
+        after={
+            "release": may_release,
+            "change_due": may_change_due,
+            "overdue_repeat_hours": found.overdue_repeat_hours,
+        },
     )
     return found
 
@@ -185,6 +198,8 @@ class NewTask:
     group_id: UUID | None = None
     tag_ids: list[UUID] = field(default_factory=list)
     repeat: Any = None
+    # Minutes before the deadline (decision З-4).
+    reminders: list[int] = field(default_factory=list)
 
 
 def snapshot(t: Task) -> dict[str, Any]:
@@ -266,6 +281,11 @@ def create(ctx: CommandContext, company: Company, data: NewTask) -> Task:
             object_id=link.object_id,
             defaults={"created_by_user_id": actor.user_id},
         )
+    if data.reminders:
+        if data.due is None:
+            raise errors.validation_error("reminders", code="TASK_REMINDERS_NEED_DUE")
+        t.reminders = data.reminders
+        t.save(update_fields=["reminders"])
     extensions.fill_checklist(ctx, t, data.checklist)
     extensions.set_tags(ctx, t, data.tag_ids, audit=False)
     ctx.audit("task.created", object_type="task", object_id=t.id, after=snapshot(t))
@@ -282,6 +302,7 @@ def create(ctx: CommandContext, company: Company, data: NewTask) -> Task:
             checklist=[x.strip() for x in data.checklist],
             tag_ids=data.tag_ids,
         )
+    notices.sync(t, actor.employment_id)
     return t
 
 
@@ -331,6 +352,7 @@ def _save(
 ) -> Task:
     t.version += 1
     t.save()
+    notices.sync(t, ctx.actor.employment_id)
     after = snapshot(t)
     ctx.audit(
         action,
@@ -479,6 +501,14 @@ class Changes:
     priority: str | None = None
     due: Due | None = None
     due_set: bool = False
+    reminders: list[int] | None = None
+
+
+def check_reminders(values: list[int]) -> list[int]:
+    """Up to 5 reminders, from a minute to 30 days before the deadline (decision З-4)."""
+    if len(values) > notices.MAX_REMINDERS or any(v < 1 or v > 43200 for v in values):
+        raise errors.validation_error("reminders")
+    return sorted(set(values), reverse=True)
 
 
 def change(ctx: CommandContext, company: Company, t: Task, changes: Changes) -> Task:
@@ -512,7 +542,18 @@ def change(ctx: CommandContext, company: Company, t: Task, changes: Changes) -> 
     if changes.due_set:
         t.due_at = due_moment(company, t.location_id, changes.due)
         t.due_has_time = bool(changes.due and changes.due.at)
-    if snapshot(t) == before and t.description == description_before:
+        t.reminders_sent = []
+    reminders_before = list(t.reminders)
+    if changes.reminders is not None:
+        if not (_mine(actor, t) or manager or t.created_by_employment_id == actor.employment_id):
+            raise errors.permission_denied("tasks.manage")
+        t.reminders = check_reminders(changes.reminders)
+        t.reminders_sent = []
+    if (
+        snapshot(t) == before
+        and t.description == description_before
+        and t.reminders == reminders_before
+    ):
         raise errors.business_rule("NOTHING_CHANGED")
     return _save(ctx, t, "task.changed", before)
 

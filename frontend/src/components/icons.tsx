@@ -76,6 +76,13 @@ const PATHS: Record<string, ReactNode> = {
       <path d="M14 3v4h4M9 12h6M9 16h6" />
     </>
   ),
+  bell: (
+    <>
+      {/* A bell of the notification centre. */}
+      <path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z" />
+      <path d="M10 20a2 2 0 0 0 4 0" />
+    </>
+  ),
   tasks: (
     <>
       {/* A checklist: a tick and two lines. */}
