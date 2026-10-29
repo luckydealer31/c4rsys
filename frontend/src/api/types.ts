@@ -1071,3 +1071,30 @@ export type ServiceHandover = {
   handed_at: string;
   returned_at: string | null;
 };
+
+/** A periodic maintenance rule of a vehicle with its computed status (ТЗ гл. 9). */
+export type MaintenanceRule = {
+  id: string;
+  version: number;
+  vehicle_card_id: string;
+  name: string;
+  system_work: string | null;
+  work_id: string | null;
+  interval_distance: number | null;
+  interval_days: number | null;
+  remind_distance: number | null;
+  remind_days: number | null;
+  last_done_on: string | null;
+  last_done_odometer: string | null;
+  next_due_on: string | null;
+  next_due_odometer: string | null;
+  state: "active" | "archived";
+  status: {
+    state: "ok" | "soon" | "required" | "unknown";
+    base: "work" | "manual_last" | "manual_next" | "none";
+    base_on: string | null;
+    base_odometer: string | null;
+    due_on: string | null;
+    due_odometer: string | null;
+  };
+};

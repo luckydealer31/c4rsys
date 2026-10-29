@@ -40,6 +40,11 @@ urlpatterns = [
         views.operation_hand_over,
     ),
     path("c/<str:cmp>/service/handovers/<uuid:handover_id>/return", views.handover_return),
+    path("c/<str:cmp>/service/vehicles/<uuid:card_id>/maintenance", views.vehicle_rules),
+    path("c/<str:cmp>/service/vehicles/<uuid:card_id>/maintenance/copy", views.vehicle_rules_copy),
+    path("c/<str:cmp>/service/vehicles/<uuid:card_id>/history", views.vehicle_history),
+    path("c/<str:cmp>/service/maintenance/<uuid:rule_id>", views.rule_detail),
+    path("c/<str:cmp>/service/maintenance-due", views.maintenance_due),
     path("c/<str:cmp>/service/queue", views.queue),
     path("c/<str:cmp>/service/executors", views.executors),
 ]

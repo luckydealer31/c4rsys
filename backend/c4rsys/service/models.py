@@ -425,3 +425,63 @@ class ServiceHandover(models.Model):
 
     def __str__(self) -> str:
         return f"handover {self.kind}"
+
+
+class MaintenanceRule(models.Model):
+    """A periodic maintenance rule of a vehicle (ТЗ гл. 9). The work is a system one, or the
+    company's own linked to its catalog for the automatic count, or only a name and a
+    periodicity (§ 9.1.5). By distance and/or time; required at the first of the two (§ 9.1.9).
+    Without done works the count starts from the last execution or the first coming service given
+    by hand, or nothing (§ 9.1.7–9.1.8); a done work of the rule restarts it (§ 9.1.11).
+    Distances are in the odometer unit of the vehicle (§ 9.1.10)."""
+
+    class State(models.TextChoices):
+        ACTIVE = "active"
+        ARCHIVED = "archived"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    vehicle_card = models.ForeignKey(
+        "fleet.VehicleCard", on_delete=models.PROTECT, related_name="+"
+    )
+    name = models.CharField(max_length=200)
+    system_work = models.ForeignKey(
+        SystemWork, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    work = models.ForeignKey(
+        ServiceWork, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    interval_distance = models.PositiveIntegerField(null=True, blank=True)
+    interval_days = models.PositiveIntegerField(null=True, blank=True)
+    remind_distance = models.PositiveIntegerField(null=True, blank=True)
+    remind_days = models.PositiveIntegerField(null=True, blank=True)
+    last_done_on = models.DateField(null=True, blank=True)
+    last_done_odometer = models.DecimalField(max_digits=12, decimal_places=1, null=True, blank=True)
+    next_due_on = models.DateField(null=True, blank=True)
+    next_due_odometer = models.DecimalField(max_digits=12, decimal_places=1, null=True, blank=True)
+    state = models.CharField(max_length=10, choices=State.choices, default=State.ACTIVE)
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+    updated_at = models.DateTimeField(auto_now=True)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "service_maintenance_rule"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "id"], name="service_maintenance_rule_company_id_uniq"
+            ),
+            models.CheckConstraint(
+                condition=~Q(name=""), name="service_maintenance_rule_name_not_empty"
+            ),
+            models.CheckConstraint(
+                condition=Q(interval_distance__gt=0) | Q(interval_days__gt=0),
+                name="service_maintenance_rule_has_interval",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["vehicle_card", "state"], name="service_rule_vehicle_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return self.name

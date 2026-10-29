@@ -11,6 +11,7 @@ import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { formatMoment } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
+import { VehicleService } from "../service/VehicleService";
 import { VehicleMoves } from "./VehicleMoves";
 
 // Only operational contexts are switched for a vehicle — rental now (decision of 24.10.2026):
@@ -328,6 +329,7 @@ export function VehiclePage() {
         <TransferToWarehouse vehicle={data} />
       ) : null}
       {stored && data.state === "active" ? <ReturnToGarage vehicle={data} /> : null}
+      {stored ? null : <VehicleService vehicle={data} />}
       {isClient ? null : <VehicleTariffs vehicleId={data.id} />}
       {isClient ? null : <VehicleMoves vehicle={data} />}
       {!isClient && can("rental.view") ? (

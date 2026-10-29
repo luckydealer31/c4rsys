@@ -3,12 +3,14 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 
-import type { QueueJob, ServiceOperation } from "../../api/types";
+import { useApi } from "../../api/queries";
+import type { MaintenanceRule, QueueJob, ServiceOperation } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { formatMoment } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
+import { dueText } from "./VehicleService";
 import {
   FINAL_STATES,
   HOLDING_STATES,
@@ -47,6 +49,7 @@ export function ServicePage() {
       </div>
       {locations.isLoading || operations.isLoading ? <Loading /> : null}
       {places.length === 0 && locations.data ? <p className="muted">{t("service.no_locations")}</p> : null}
+      {can("vehicle.view") ? <MaintenanceDue /> : null}
       {can("service.work") ? <Queue /> : null}
       {places.map((l) => (
         <Board key={l.id} locationId={l.id} name={l.name} operations={operations.data?.operations ?? []} />
@@ -201,5 +204,37 @@ function QueueRow({ job, path }: { job: QueueJob; path: string }) {
         <ErrorMessage error={take.error} />
       </td>
     </tr>
+  );
+}
+
+/** Vehicles whose maintenance is required or soon; it does not block a rental (§ 9.1.13). */
+function MaintenanceDue() {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const due = useApi<{ due: (MaintenanceRule & { vehicle_name: string; unit: string })[] }>(
+    ["maintenance-due", company.public_id],
+    `/c/${company.public_id}/service/maintenance-due`,
+  );
+  const items = due.data?.due ?? [];
+  if (items.length === 0) return null;
+  return (
+    <Card title={t("service.maintenance_due")}>
+      <table>
+        <tbody>
+          {items.map((r) => (
+            <tr key={r.id}>
+              <td>
+                <Link to={companyPath(company, `/vehicles/${r.vehicle_card_id}`)}>{r.vehicle_name}</Link>
+              </td>
+              <td>{r.name}</td>
+              <td>
+                <span className="badge warn">{t(`service.rule_${r.status.state}`)}</span>
+              </td>
+              <td className="small">{dueText(r, r.unit, t)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Card>
   );
 }

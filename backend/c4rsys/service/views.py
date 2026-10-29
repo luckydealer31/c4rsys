@@ -6,7 +6,7 @@ the location). A new order made by a service operation needs no «Create orders�
 existing one needs «Change orders».
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 from uuid import UUID
@@ -24,8 +24,9 @@ from c4rsys.parties import counterparties
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
-from c4rsys.service import catalog, materials, operations
+from c4rsys.service import catalog, maintenance, materials, operations
 from c4rsys.service.models import (
+    MaintenanceRule,
     ServiceHandover,
     ServiceJob,
     ServiceMaterial,
@@ -1119,3 +1120,214 @@ def handover_return(request: HttpRequest, cmp: str, handover_id: UUID) -> JsonRe
         "returned_at": data.get("returned_at"),
     }
     return run_and_respond(request, "service_handover.return", actor, payload, handler)
+
+
+# --- Maintenance of vehicles (ch. 9) --------------------------------------------------------------
+
+
+def _iso_date(value: Any) -> str | None:
+    return value.isoformat() if value is not None else None
+
+
+def _rule_payload(rule: MaintenanceRule, status: maintenance.Status) -> dict[str, Any]:
+    return {
+        "id": str(rule.id),
+        "version": rule.version,
+        "vehicle_card_id": str(rule.vehicle_card_id),
+        "name": rule.name,
+        "system_work": rule.system_work_id,
+        "work_id": str(rule.work_id) if rule.work_id else None,
+        "interval_distance": rule.interval_distance,
+        "interval_days": rule.interval_days,
+        "remind_distance": rule.remind_distance,
+        "remind_days": rule.remind_days,
+        "last_done_on": _iso_date(rule.last_done_on),
+        "last_done_odometer": catalog.amount_text(rule.last_done_odometer),
+        "next_due_on": _iso_date(rule.next_due_on),
+        "next_due_odometer": catalog.amount_text(rule.next_due_odometer),
+        "state": rule.state,
+        "status": {
+            "state": status.state,
+            "base": status.base,
+            "base_on": _iso_date(status.base_on),
+            "base_odometer": catalog.amount_text(status.base_odometer),
+            "due_on": _iso_date(status.due_on),
+            "due_odometer": catalog.amount_text(status.due_odometer),
+        },
+    }
+
+
+def _whole(data: dict[str, Any], key: str) -> int | None:
+    value = data.get(key)
+    if value in (None, ""):
+        return None
+    if isinstance(value, bool) or not isinstance(value, int | str):
+        raise errors.validation_error(key)
+    try:
+        number = int(str(value))
+    except ValueError as exc:
+        raise errors.validation_error(key) from exc
+    if number <= 0 or number > 10**7:
+        raise errors.validation_error(key)
+    return number
+
+
+def _day(data: dict[str, Any], key: str) -> date | None:
+    value = data.get(key)
+    if value in (None, ""):
+        return None
+    try:
+        return date.fromisoformat(str(value))
+    except ValueError as exc:
+        raise errors.validation_error(key, code="DATE_INVALID") from exc
+
+
+def _rule_data(data: dict[str, Any]) -> maintenance.RuleData:
+    return maintenance.RuleData(
+        name=get_str(data, "name", max_length=NAME_MAX).strip(),
+        system_work=get_str(data, "system_work", max_length=60, required=False) or None,
+        work_id=_uuid(data, "work_id", required=False),
+        interval_distance=_whole(data, "interval_distance"),
+        interval_days=_whole(data, "interval_days"),
+        remind_distance=_whole(data, "remind_distance"),
+        remind_days=_whole(data, "remind_days"),
+        last_done_on=_day(data, "last_done_on"),
+        last_done_odometer=_amount(data, "last_done_odometer", places=1),
+        next_due_on=_day(data, "next_due_on"),
+        next_due_odometer=_amount(data, "next_due_odometer", places=1),
+    )
+
+
+RULE_KEYS = (
+    "name",
+    "system_work",
+    "work_id",
+    "interval_distance",
+    "interval_days",
+    "remind_distance",
+    "remind_days",
+    "last_done_on",
+    "last_done_odometer",
+    "next_due_on",
+    "next_due_odometer",
+)
+
+
+def _rules_response(company_id: UUID, card_id: UUID) -> dict[str, Any]:
+    card = fleet.get_card(company_id, card_id)
+    return {
+        "unit": card.odometer_unit,
+        "odometer": catalog.amount_text(maintenance.odometer_of(card.id)),
+        "rules": [_rule_payload(r, st) for r, st in maintenance.statuses(company_id, card)],
+    }
+
+
+@require_http_methods(["GET", "POST"])
+def vehicle_rules(request: HttpRequest, cmp: str, card_id: UUID) -> JsonResponse:
+    """Reminders belong to the vehicle and are seen with the right to view vehicles, without the
+    internal data of the service (9.1.13); rules are kept with the right to change vehicles
+    (PROPOSAL)."""
+    context, actor = _actor(request, cmp)
+    if request.method == "GET":
+        _require(actor, "vehicle.view")
+        return JsonResponse(_rules_response(context.company.id, card_id))
+    _require(actor, "vehicle.edit")
+    data = parse_json(request)
+    rule_data = _rule_data(data)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        maintenance.create_rule(ctx, context.company.id, card_id, rule_data)
+        return CommandResult(201, _rules_response(context.company.id, card_id))
+
+    payload = {"vehicle_card_id": str(card_id), **_payload(data, *RULE_KEYS)}
+    return run_and_respond(request, "maintenance_rule.create", actor, payload, handler)
+
+
+@require_http_methods(["PATCH"])
+def rule_detail(request: HttpRequest, cmp: str, rule_id: UUID) -> JsonResponse:
+    context, actor = _actor(request, cmp)
+    _require(actor, "vehicle.edit")
+    data = parse_json(request)
+    expected_version = get_int(data, "expected_version")
+    archived = data.get("archived")
+    if archived is not None and not isinstance(archived, bool):
+        raise errors.validation_error("archived")
+    rule_data = None if archived is not None else _rule_data(data)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        rule = maintenance.locked_rule(context.company.id, rule_id, expected_version)
+        if rule_data is not None:
+            maintenance.change_rule(ctx, rule, rule_data)
+        else:
+            maintenance.set_archived(ctx, rule, bool(archived))
+        return CommandResult(200, _rules_response(context.company.id, rule.vehicle_card_id))
+
+    payload = {
+        "rule_id": str(rule_id),
+        "archived": archived,
+        "expected_version": expected_version,
+        **_payload(data, *RULE_KEYS),
+    }
+    return run_and_respond(request, "maintenance_rule.change", actor, payload, handler)
+
+
+@require_POST
+def vehicle_rules_copy(request: HttpRequest, cmp: str, card_id: UUID) -> JsonResponse:
+    """9.1.12: `choices` maps a matching source rule to "keep" or "replace"."""
+    context, actor = _actor(request, cmp)
+    _require(actor, "vehicle.edit")
+    data = parse_json(request)
+    source = _required_uuid(data, "from_vehicle_id")
+    raw = data.get("choices") or {}
+    if not isinstance(raw, dict):
+        raise errors.validation_error("choices")
+    choices = {_required_uuid({"r": k}, "r"): str(v) for k, v in raw.items()}
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        maintenance.copy_rules(ctx, context.company.id, source, card_id, choices)
+        return CommandResult(200, _rules_response(context.company.id, card_id))
+
+    payload = {
+        "vehicle_card_id": str(card_id),
+        "from_vehicle_id": str(source),
+        "choices": {str(k): v for k, v in choices.items()},
+    }
+    return run_and_respond(request, "maintenance_rule.copy", actor, payload, handler)
+
+
+@require_GET
+def vehicle_history(request: HttpRequest, cmp: str, card_id: UUID) -> JsonResponse:
+    """What was done, when, at which odometer and by whom (9.1.2), with the right to view the
+    service."""
+    context, actor = _actor(request, cmp)
+    _require(actor, "service.view")
+    fleet.get_card(context.company.id, card_id)
+    jobs = maintenance.done_jobs(context.company.id, card_id)
+    names = staff.employee_names(context.company.id, {j.executor_id for j in jobs if j.executor_id})
+    parties = counterparties.names(
+        context.company.id, {j.contractor_id for j in jobs if j.contractor_id}
+    )
+    return JsonResponse(
+        {
+            "jobs": [
+                {**_job_payload(j, names, parties), "operation_number": j.operation.number}
+                for j in jobs
+            ]
+        }
+    )
+
+
+@require_GET
+def maintenance_due(request: HttpRequest, cmp: str) -> JsonResponse:
+    """Vehicles whose service is required or soon (9.1.10, 9.1.13)."""
+    context, actor = _actor(request, cmp)
+    _require(actor, "vehicle.view")
+    items = [
+        {
+            **_rule_payload(rule, status),
+            "vehicle_name": card.name,
+            "unit": card.odometer_unit,
+        }
+        for card, rule, status in maintenance.due(context.company.id)
+    ]
+    return JsonResponse({"due": items})
