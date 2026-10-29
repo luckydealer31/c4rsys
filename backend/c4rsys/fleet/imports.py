@@ -342,6 +342,7 @@ class VehiclesTemplate:
         *,
         duplicate: bool,
         operation_id: UUID,
+        session: dict[str, Any],
     ) -> UUID:
         relation = values["relation"].strip().lower()
         scope = Scope(company.id, ctx.actor)

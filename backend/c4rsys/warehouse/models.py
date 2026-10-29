@@ -268,6 +268,7 @@ class ImportOperation(models.Model):
         VEHICLES = "vehicles"
         CLIENTS = "clients"
         COUNTERPARTIES = "counterparties"
+        STOCK = "stock"
 
     class State(models.TextChoices):
         CHECKED = "checked"
@@ -415,6 +416,10 @@ class Receipt(models.Model):
     )
     currency = models.CharField(max_length=3)
     comment = models.TextField(blank=True, default="")
+    # The import of initial stock that posted this receipt (§ 22.4.2).
+    import_operation = models.ForeignKey(
+        ImportOperation, on_delete=models.PROTECT, null=True, blank=True, related_name="receipts"
+    )
     state = models.CharField(max_length=10, choices=State.choices, default=State.DRAFT)
     received_at = models.DateTimeField(default=now)
     created_by_user_id = models.UUIDField()
@@ -750,6 +755,10 @@ class OpenedPackage(models.Model):
     packaging = models.ForeignKey(Packaging, on_delete=models.PROTECT, related_name="+")
     remaining = models.DecimalField(max_digits=12, decimal_places=2)
     label = models.CharField(max_length=50, blank=True, default="")
+    # An opened package brought by an import of initial stock with its actual rest (§ 22.4.2).
+    receipt_line = models.ForeignKey(
+        ReceiptLine, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
     opened_at = models.DateTimeField(default=now)
 
     class Meta:

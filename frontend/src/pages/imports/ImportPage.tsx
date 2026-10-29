@@ -11,22 +11,35 @@ import { Card, ErrorMessage, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { formatMoment } from "../../time";
 
-const KINDS: ImportKind[] = ["items", "vehicles", "clients", "counterparties"];
+const KINDS: ImportKind[] = ["items", "vehicles", "clients", "counterparties", "stock"];
 /** The usual right to the section of the data, needed besides the right to import (§ 22.5.1). */
 const SECTION: Record<ImportKind, string> = {
   items: "warehouse.catalog.manage",
   vehicles: "vehicle.create",
   clients: "client.create",
   counterparties: "counterparty.create",
+  stock: "warehouse.receive",
 };
 const RECORD: Record<ImportKind, string> = {
   items: "/warehouse/items/",
   vehicles: "/vehicles/",
   clients: "/clients/",
   counterparties: "/clients/counterparties/",
+  stock: "/warehouse/items/",
 };
 
-function rowName(kind: ImportKind, values: Record<string, string>): string {
+/** Initial stock links to its item: a row is a line of a receipt, a match is a lot. */
+function recordPath(kind: ImportKind, row: ImportRow, id: string): string {
+  return `${RECORD[kind]}${kind === "stock" ? row.values.item_id : id}`;
+}
+
+function rowName(kind: ImportKind, values: Record<string, string>, row?: ImportRow): string {
+  if (kind === "stock") {
+    const form = values.packs
+      ? `${values.packs} × ${values.packaging_quantity}`
+      : values.quantity || (values.lot_code || values.lot_id ? "" : "1");
+    return [row?.extra?.item_name, values.lot_code || values.lot_id, form].filter(Boolean).join(" · ");
+  }
   if (kind === "vehicles") {
     return values.name || [values.make, values.model, values.plate, values.vin].filter(Boolean).join(" ");
   }
@@ -36,7 +49,8 @@ function rowName(kind: ImportKind, values: Record<string, string>): string {
   return values.name ?? "";
 }
 
-/** XLSX import (§ 22.2–22.5): templates of the catalog, vehicles, clients and counterparties;
+/** XLSX import (§ 22.2–22.5): templates of the catalog, vehicles, clients, counterparties and
+ * initial stock (§ 22.4.2);
  * check with errors and matches, the choice for each row, posting after confirmation, a file
  * for correction and its upload by row codes, history and cancel of the whole import. */
 export function ImportPage({ defaultKind = "items" }: { defaultKind?: ImportKind }) {
@@ -252,7 +266,12 @@ function ImportResult({
                 <td>
                   {row.number} <span className="muted small">{row.code}</span>
                 </td>
-                <td>{rowName(kind, row.values) || "—"}</td>
+                <td>
+                  {rowName(kind, row.values, row) || "—"}
+                  {row.group ? (
+                    <div className="muted small">{t("imports.lot_group", { code: row.group })}</div>
+                  ) : null}
+                </td>
                 <td>
                   {row.errors.length ? (
                     <span className="badge warn">
@@ -263,11 +282,20 @@ function ImportResult({
                   {row.matches.map((m) => (
                     <div key={m.id} className="small">
                       {t("warehouse.import_match")}:{" "}
-                      <Link to={companyPath(company, `${RECORD[kind]}${m.id}`)}>{m.name}</Link> —{" "}
+                      <Link to={companyPath(company, recordPath(kind, row, m.id))}>{m.name}</Link> —{" "}
                       {t(`imports.by_${m.by}`)}
                     </div>
                   ))}
-                  {!row.errors.length && !row.matches.length ? (
+                  {row.extra?.packaging_missing && !posted ? (
+                    <div className="badge warn">
+                      {t("imports.packaging_missing", {
+                        quantity: row.extra.packaging_missing.quantity,
+                        unit: t(`warehouse.unit_short_${row.extra.packaging_missing.unit}`),
+                        name: row.extra.packaging_missing.name || "—",
+                      })}
+                    </div>
+                  ) : null}
+                  {!row.errors.length && !row.matches.length && (!row.extra?.packaging_missing || posted) ? (
                     <span className="badge ok">{t("warehouse.import_ok")}</span>
                   ) : null}
                 </td>
@@ -279,15 +307,23 @@ function ImportResult({
                       onChange={(e) => void choose(row, e.target.value)}
                     >
                       {row.errors.length ? <option value="error">{t("warehouse.action_error")}</option> : null}
-                      {!row.errors.length && !row.matches.length && !row.conflict ? (
+                      {!row.errors.length &&
+                      !row.matches.length &&
+                      !row.conflict &&
+                      !row.extra?.packaging_missing ? (
                         <option value="create">{t("warehouse.action_create")}</option>
                       ) : null}
+                      {!row.errors.length && row.extra?.packaging_missing && can("warehouse.catalog.manage") ? (
+                        <option value="create_packaging">{t("imports.action_create_packaging")}</option>
+                      ) : null}
                       <option value="skip">{t("warehouse.action_skip")}</option>
-                      {row.matches.map((m) => (
-                        <option key={m.id} value={`link:${m.id}`}>
-                          {t("warehouse.action_link")}: {m.name}
-                        </option>
-                      ))}
+                      {kind !== "stock"
+                        ? row.matches.map((m) => (
+                            <option key={m.id} value={`link:${m.id}`}>
+                              {t("warehouse.action_link")}: {m.name}
+                            </option>
+                          ))
+                        : null}
                       {!row.errors.length && row.matches.length && !row.conflict ? (
                         <option value="create_duplicate">{t("warehouse.action_create_duplicate")}</option>
                       ) : null}
@@ -296,7 +332,7 @@ function ImportResult({
                     <>
                       {t(`warehouse.result_${row.result}`)}{" "}
                       {row.record_id ? (
-                        <Link to={companyPath(company, `${RECORD[kind]}${row.record_id}`)}>→</Link>
+                        <Link to={companyPath(company, recordPath(kind, row, row.record_id))}>→</Link>
                       ) : null}
                     </>
                   ) : null}

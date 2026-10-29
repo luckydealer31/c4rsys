@@ -262,6 +262,7 @@ class ClientsTemplate(PartiesTemplate):
         *,
         duplicate: bool,
         operation_id: UUID,
+        session: dict[str, Any],
     ) -> UUID:
         birth = values.get("birth_date", "")
         data = services.ClientData(
@@ -319,6 +320,7 @@ class CounterpartiesTemplate(PartiesTemplate):
         *,
         duplicate: bool,
         operation_id: UUID,
+        session: dict[str, Any],
     ) -> UUID:
         data = counterparties.CounterpartyData(
             kind=values["kind"].strip().lower(),

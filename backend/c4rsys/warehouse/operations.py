@@ -1222,6 +1222,10 @@ def correct_receipt_line(
     )
     if line is None:
         raise errors.not_found()
+    if OpenedPackage.objects.filter(receipt_line=line).exists():
+        # An opened package of an initial stock is not loose material; its rest changes by the
+        # usual operations (§ 22.4.2).
+        raise errors.business_rule("CORRECTION_OPENED_PACKAGE")
     before_quantity = effective_quantity(line)
     before_cost = line.unit_cost
     target = before_quantity if quantity is None else quantity

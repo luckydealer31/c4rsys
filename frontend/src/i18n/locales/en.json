@@ -883,7 +883,21 @@
     "import_row_posted": "The row is already loaded.",
     "file_removed": "The file was removed by its retention period.",
     "messenger_invalid": "A messenger is chosen for a phone only, from the list.",
-    "messenger_without_phone": "A messenger needs a phone number."
+    "messenger_without_phone": "A messenger needs a phone number.",
+    "import_group_mismatch": "The rows of one lot differ in this field; an empty value against a filled one is a difference too.",
+    "import_group_incomplete": "Another row of this lot was not loaded, so the whole lot is not loaded.",
+    "import_packaging_confirm": "The packaging does not exist yet: confirm its creation or skip the row.",
+    "import_one_unit_per_row": "An individual item is imported by one row per unit.",
+    "lot_code_and_lot_id": "Give either the code of a new lot or the LOT ID of an existing one, not both.",
+    "lot_required": "A material needs the code of a new lot or the LOT ID of an existing one.",
+    "opened_one_package": "An opened package is one row with its actual rest; the number of packages is not given.",
+    "opened_rest_exceeds_packaging": "The rest of an opened package is more than its packaging holds.",
+    "context_not_allowed": "You have no right to receive goods in this warehouse.",
+    "price_not_allowed": "You have no right to set selling prices.",
+    "sale_price_differs": "Rows of one lot and form have different selling prices.",
+    "lot_price_exists": "The lot already has another selling price; an import does not change it.",
+    "tags_invalid": "Up to 20 marks, each up to 50 characters.",
+    "correction_opened_package": "An opened package from an initial stock is changed by the usual operations, not by a correction of the receipt."
   },
   "history": {
     "action": "Action",
@@ -3479,6 +3493,13 @@
     "category": "Category",
     "by_body_number": "by body number",
     "by_chassis_number": "by chassis number",
-    "by_frame_number": "by frame number"
+    "by_frame_number": "by frame number",
+    "kind_stock": "Initial stock",
+    "lot_group": "New lot «{{code}}»: its rows are loaded only together",
+    "packaging_missing": "New packaging {{quantity}} {{unit}} ({{name}}): it is created only after your confirmation",
+    "action_create_packaging": "Create the packaging and load",
+    "by_lot_external_number": "by the external lot number — possibly an existing lot",
+    "blocker_corrected": "Corrected receipt",
+    "hint_stock": "Initial stock: one row per unit of an individual item; a material by lots — a new lot by its code in the file, an existing one by its LOT ID; closed packages, an opened package with its rest, or loose material. The IDs of items, warehouses and lots are on the sheets of the template."
   }
 }

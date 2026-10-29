@@ -647,6 +647,352 @@ def propagate_line_cost(line: ReceiptLine, unit_cost: Decimal | None) -> None:
         layers = list(LotLayer.objects.filter(source_layer_id__in=ids))
 
 
+# --- Initial stock from an import (§ 22.4.2) ---------------------------------------------------
+
+
+@dataclass(frozen=True)
+class InitialLine:
+    """One row of an import of initial stock: one unit of an individual item, or one form of a
+    material in a lot — closed packages, one opened package with its actual rest, or loose
+    material in the base unit."""
+
+    item_id: UUID
+    context_id: UUID
+    quantity: Decimal | None = None
+    packaging_id: UUID | None = None
+    packs: int | None = None
+    opened: bool = False
+    lot_id: UUID | None = None  # an existing lot
+    new_lot: str = ""  # the code of a new lot in the file; one lot per code within one import
+    lot_external_number: str = ""
+    lot_production_date: date | None = None
+    lot_expiry_date: date | None = None
+    unit_cost: Decimal | None = None
+    sale_price: Decimal | None = None
+    serial_number: str = ""
+    tags: tuple[str, ...] = ()
+
+
+def _initial_receipt(
+    ctx: CommandContext,
+    company: Company,
+    context: ActivityContext,
+    import_id: UUID,
+    session: dict[str, Any],
+) -> Receipt:
+    """One posted receipt of initial stock per warehouse and import, without a supplier
+    (§ 11.2.8)."""
+    known = session.get(f"receipt:{context.id}")
+    if known is not None:
+        found = Receipt.objects.select_for_update().filter(pk=known).first()
+        if found is not None:
+            return found
+    now = timezone.now()
+    receipt = Receipt.objects.create(
+        company=company,
+        number=next_number(company.id, "warehouse_receipt"),
+        context=context,
+        source=Receipt.Source.INITIAL,
+        currency=company_currency(company).code,
+        import_operation_id=import_id,
+        state=Receipt.State.POSTED,
+        received_at=now,
+        created_by_user_id=ctx.actor.user_id,
+        posted_by_user_id=ctx.actor.user_id,
+        posted_at=now,
+    )
+    session[f"receipt:{context.id}"] = receipt.id
+    return receipt
+
+
+def post_initial_line(
+    ctx: CommandContext,
+    company: Company,
+    data: InitialLine,
+    *,
+    import_id: UUID,
+    session: dict[str, Any],
+) -> ReceiptLine:
+    """Initial stock is fixed as it is, without restoring earlier openings and uses (§ 22.4.2): a
+    unit gets its own AST ID, a new lot of the file gets its LOT ID once, an opened package keeps
+    its actual rest. The data is checked again on fresh rows."""
+    context = locations.storage_context(company.id, data.context_id)
+    if context is None:
+        raise errors.business_rule("WAREHOUSE_NOT_USABLE", field="context_id")
+    item = Item.objects.select_for_update().filter(company=company, pk=data.item_id).first()
+    if item is None or item.state != Item.State.ACTIVE:
+        raise errors.business_rule("ITEM_UNKNOWN", field="item_id")
+    packaging = None
+    if data.packaging_id is not None:
+        packaging = Packaging.objects.filter(
+            item=item, pk=data.packaging_id, state=Packaging.State.ACTIVE
+        ).first()
+        if packaging is None:
+            raise errors.business_rule("PACKAGING_UNKNOWN", field="packaging_quantity")
+    if item.accounting == Item.Accounting.INDIVIDUAL:
+        amount = Decimal(1)
+    elif packaging is not None and not data.opened:
+        amount = packaging.quantity * (data.packs or 0)
+    else:
+        amount = data.quantity or ZERO
+    if amount <= 0:
+        raise errors.business_rule("QUANTITY_NOT_POSITIVE", field="quantity")
+    receipt = _initial_receipt(ctx, company, context, import_id, session)
+    lot = None
+    opened = None
+    if item.accounting == Item.Accounting.BATCH:
+        key = f"lot:{data.new_lot}"
+        known = session.get(key) if data.new_lot else data.lot_id
+        lot = (
+            Lot.objects.select_for_update()
+            .filter(company=company, pk=known, item=item, context=context)
+            .first()
+            if known
+            else None
+        )
+        if lot is None and not data.new_lot:
+            raise errors.business_rule("LOT_UNKNOWN", field="lot_id")
+    line = ReceiptLine.objects.create(
+        company=company,
+        receipt=receipt,
+        item=item,
+        quantity=amount,
+        packaging=packaging if packaging is not None and not data.opened else None,
+        packs=data.packs if packaging is not None and not data.opened else None,
+        unit_cost=data.unit_cost,
+        tags=list(data.tags),
+        serial_numbers=[data.serial_number] if data.serial_number else [],
+        lot=lot,
+        new_lot=item.accounting == Item.Accounting.BATCH and lot is None,
+        lot_external_number=data.lot_external_number,
+        lot_production_date=data.lot_production_date,
+        lot_expiry_date=data.lot_expiry_date,
+        position=receipt.lines.count(),
+    )
+    now = timezone.now()
+    from c4rsys.warehouse import prices  # prices use the values of this module
+
+    if item.accounting == Item.Accounting.INDIVIDUAL:
+        asset = Asset(
+            company=company,
+            item=item,
+            context=context,
+            serial_number=data.serial_number,
+            tags=list(data.tags),
+            purchase_cost=data.unit_cost,
+            currency=receipt.currency,
+            receipt_line=line,
+            created_at=now,
+        )
+        asset.public_id = allocate_public_id(
+            "AST", entity_type="warehouse_asset", entity_id=asset.id
+        )
+        asset.save(force_insert=True)
+        StockMovement.objects.create(
+            company=company,
+            kind=StockMovement.Kind.RECEIPT,
+            context=context,
+            item=item,
+            asset=asset,
+            quantity=Decimal(1),
+            receipt_line=line,
+            actor_user_id=ctx.actor.user_id,
+            created_at=now,
+        )
+        if data.sale_price is not None:
+            prices.set_asset_price(ctx, company, asset.id, data.sale_price)
+        created = {"asset": asset.public_id}
+    else:
+        if lot is None:
+            lot = Lot(
+                company=company,
+                item=item,
+                context=context,
+                external_number=data.lot_external_number,
+                production_date=data.lot_production_date,
+                expiry_date=data.lot_expiry_date,
+                tags=list(data.tags),
+                currency=receipt.currency,
+                created_at=now,
+            )
+            lot.public_id = allocate_public_id("LOT", entity_type="warehouse_lot", entity_id=lot.id)
+            lot.save(force_insert=True)
+            session[f"lot:{data.new_lot}"] = lot.id
+            line.lot = lot
+            line.save(update_fields=["lot"])
+        elif data.tags:
+            lot.tags = list(dict.fromkeys([*lot.tags, *data.tags]))
+            lot.save(update_fields=["tags"])
+        LotLayer.objects.create(
+            company=company,
+            lot=lot,
+            receipt_line=line,
+            received_quantity=amount,
+            remaining=amount,
+            unit_cost=data.unit_cost,
+            received_at=receipt.received_at,
+        )
+        if data.opened and packaging is not None:
+            if amount > packaging.quantity:
+                raise errors.business_rule("OPENED_REST_EXCEEDS_PACKAGING", field="quantity")
+            opened = OpenedPackage.objects.create(
+                company=company,
+                lot=lot,
+                packaging=packaging,
+                remaining=amount,
+                receipt_line=line,
+                opened_at=now,
+            )
+        else:
+            _add_lot_stock(lot, line.packaging, amount)
+        StockMovement.objects.create(
+            company=company,
+            kind=StockMovement.Kind.RECEIPT,
+            context=context,
+            item=item,
+            lot=lot,
+            packaging=packaging,
+            opened_package=opened,
+            quantity=amount,
+            receipt_line=line,
+            actor_user_id=ctx.actor.user_id,
+            created_at=now,
+        )
+        if data.sale_price is not None:
+            # Loose material and the rest of an opened package sell by the base unit.
+            form = line.packaging_id
+            prices.set_price(ctx, company, item.id, lot.id, form, data.sale_price)
+        created = {"lot": lot.public_id}
+    ctx.audit(
+        "warehouse.initial_stock_imported",
+        object_type="warehouse_receipt",
+        object_id=receipt.id,
+        after={
+            "line": str(line.id),
+            "item": str(item.id),
+            "quantity": str(amount),
+            "packaging": str(packaging.id) if packaging else None,
+            "packs": line.packs,
+            "opened": opened is not None,
+            "unit_cost": str(data.unit_cost) if data.unit_cost is not None else None,
+            "import": str(import_id),
+            **created,
+        },
+    )
+    return line
+
+
+def cancel_initial_lines(ctx: CommandContext, company_id: UUID, line_ids: list[UUID]) -> None:
+    """A cancelled import takes away only what it added, while nothing of it was used, moved or
+    reserved (§ 22.2.5); an earlier lot and its earlier stock stay. The units are cancelled, the
+    lots stay with their history; the obstacles are shown and nothing is removed in part."""
+    from c4rsys.warehouse import reserves  # reserves read the sales of this module
+
+    lines = list(
+        ReceiptLine.objects.select_for_update(of=("self",))
+        .select_related("item", "packaging", "lot", "receipt")
+        .filter(company_id=company_id, pk__in=line_ids, receipt__source=Receipt.Source.INITIAL)
+        .order_by("position")
+    )
+    blockers: list[dict[str, str]] = []
+    plan: list[tuple[ReceiptLine, list[Asset], LotLayer | None, Any]] = []
+    for line in lines:
+        if line.corrected_quantity is not None:
+            blockers.append(
+                {"reason": "corrected", "type": "warehouse_receipt", "id": str(line.receipt.number)}
+            )
+            continue
+        if line.item.accounting == Item.Accounting.INDIVIDUAL:
+            assets = list(Asset.objects.select_for_update().filter(receipt_line=line))
+            for asset in assets:
+                moved = (
+                    StockMovement.objects.filter(asset=asset).exclude(receipt_line=line).exists()
+                )
+                if (
+                    asset.state != Asset.State.IN_STOCK
+                    or moved
+                    or reserves.asset_reserved(asset.id)
+                ):
+                    blockers.append(
+                        {"reason": "in_use", "type": "warehouse_asset", "id": asset.public_id}
+                    )
+            plan.append((line, assets, None, None))
+            continue
+        layer = LotLayer.objects.select_for_update().filter(receipt_line=line).first()
+        lot = line.lot
+        if layer is None or lot is None:
+            continue
+        opened = OpenedPackage.objects.select_for_update().filter(receipt_line=line).first()
+        if opened is not None:
+            free = opened.remaining - reserves.reserved_in_form(
+                lot.id, opened.packaging_id, opened.id
+            )
+            form: Any = opened
+        else:
+            row = (
+                LotStock.objects.select_for_update()
+                .filter(lot=lot, packaging=line.packaging)
+                .first()
+            )
+            free = (
+                row.quantity - reserves.reserved_in_form(lot.id, line.packaging_id, None)
+                if row is not None
+                else ZERO
+            )
+            form = row
+        if layer.remaining < line.quantity or free < line.quantity:
+            blockers.append({"reason": "in_use", "type": "warehouse_lot", "id": lot.public_id})
+            continue
+        plan.append((line, [], layer, form))
+    if blockers:
+        raise errors.business_rule("IMPORT_CANCEL_BLOCKED", blockers=blockers[:20])
+    for line, assets, layer, form in plan:
+        for asset in assets:
+            asset.state = Asset.State.CANCELLED
+            asset.save(update_fields=["state"])
+            StockMovement.objects.create(
+                company_id=company_id,
+                kind=StockMovement.Kind.CORRECTION,
+                context=asset.context,
+                item=line.item,
+                asset=asset,
+                quantity=Decimal(-1),
+                receipt_line=line,
+                actor_user_id=ctx.actor.user_id,
+            )
+        if layer is not None and line.lot is not None:
+            if isinstance(form, OpenedPackage):
+                form.remaining -= line.quantity
+                form.save(update_fields=["remaining"])
+            else:
+                form.quantity -= line.quantity
+                form.save(update_fields=["quantity"])
+            layer.remaining -= line.quantity
+            layer.received_quantity -= line.quantity
+            layer.save(update_fields=["received_quantity", "remaining"])
+            StockMovement.objects.create(
+                company_id=company_id,
+                kind=StockMovement.Kind.CORRECTION,
+                context=line.receipt.context,
+                item=line.item,
+                lot=line.lot,
+                packaging=form.packaging if form is not None else None,
+                opened_package=form if isinstance(form, OpenedPackage) else None,
+                quantity=-line.quantity,
+                receipt_line=line,
+                actor_user_id=ctx.actor.user_id,
+            )
+        line.corrected_quantity = ZERO
+        line.save(update_fields=["corrected_quantity"])
+        ctx.audit(
+            "warehouse.initial_stock_cancelled",
+            object_type="warehouse_receipt",
+            object_id=line.receipt_id,
+            before={"line": str(line.id), "quantity": str(line.quantity)},
+            after={"line": str(line.id), "quantity": "0"},
+        )
+
+
 # --- Reading receipts --------------------------------------------------------------------------
 
 

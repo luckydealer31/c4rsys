@@ -161,6 +161,7 @@ class ItemsTemplate:
         *,
         duplicate: bool,
         operation_id: UUID,
+        session: dict[str, Any],
     ) -> UUID:
         maker = _manufacturer(values["manufacturer"]) if values.get("manufacturer") else None
         # К5: a category given in the file wins; otherwise it is chosen by the name.

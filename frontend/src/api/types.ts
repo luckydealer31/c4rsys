@@ -703,15 +703,22 @@ export type ImportRow = {
   values: Record<string, string>;
   errors: { field: string; code: string }[];
   matches: { id: string; name: string; by: string }[];
-  action: "create" | "skip" | "link" | "create_duplicate" | "error";
+  action: "create" | "skip" | "link" | "create_duplicate" | "create_packaging" | "error";
   target: string | null;
+  /** Values the module derived; for initial stock a packaging that does not exist yet. */
+  extra?: {
+    item_name?: string;
+    packaging_missing?: { quantity: string; name: string; unit: string };
+  };
+  /** The group of rows loaded only together: the code of a new lot in the file (§ 22.2.2). */
+  group?: string | null;
   result: "created" | "linked" | "skipped" | "conflict" | null;
   /** The ID points to one record, other identifiers to another (§ 22.2.3). */
   conflict?: boolean;
   record_id: string | null;
 };
 
-export type ImportKind = "items" | "vehicles" | "clients" | "counterparties";
+export type ImportKind = "items" | "vehicles" | "clients" | "counterparties" | "stock";
 
 export type ImportOperation = {
   id: string;

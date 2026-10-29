@@ -1,5 +1,5 @@
 """XLSX import (ТЗ § 22.2–22.5): one mechanism for the templates of the catalog, vehicles,
-clients and counterparties.
+clients, counterparties and initial stock.
 
 Two steps: the file is checked and its errors and matches are shown; the user chooses what to do
 with each row and confirms. Correct rows are loaded, wrong ones skipped with their reasons. A
@@ -11,6 +11,9 @@ whole while its records are unused and have no history of their own (§ 22.2.5).
 A corrected file is uploaded from the history of the import: the file for correction carries the
 codes of the rows not loaded, rows are matched by «import + row code», loaded rows are never
 posted again (§ 22.2.7). Source files are removed six months after the first upload (§ 22.2.4).
+
+Rows of one group (the rows of one new lot of initial stock) are posted only together: an error,
+a skip or a conflict of one of them keeps the whole group back (§ 22.2.2).
 
 The kinds of data are adapters of their modules: each checks its rows and creates or removes its
 own records through its own services. The operation itself is kept by the warehouse module,
@@ -32,6 +35,7 @@ from django.utils import timezone
 from openpyxl import Workbook, load_workbook
 from openpyxl.utils.exceptions import InvalidFileException
 
+from c4rsys.companies import access
 from c4rsys.companies.models import Company
 from c4rsys.files import services as files
 from c4rsys.files.models import StoredFile
@@ -49,7 +53,12 @@ MAX_ROWS = 5000
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 KEEP_FILES_MONTHS = 6
 LOADED = ("created", "linked")
-ACTIONS = {"create", "skip", "link", "create_duplicate"}
+# create_packaging: the row is created after the explicit confirmation of a new packaging of its
+# item (§ 22.4.2).
+ACTIONS = {"create", "skip", "link", "create_duplicate", "create_packaging"}
+PACKAGING_RIGHT = "warehouse.catalog.manage"
+# Choices that go to every row of a group (§ 22.2.2).
+GROUP_ACTIONS = {"create", "skip", "create_duplicate"}
 
 
 @dataclass
@@ -118,7 +127,11 @@ class Adapter(Protocol):
         *,
         duplicate: bool,
         operation_id: UUID,
-    ) -> UUID: ...
+        session: dict[str, Any],
+    ) -> UUID:
+        """`session` is shared by the rows of one posting, such as a lot created by the first
+        row of its group; what a failed row put there is forgotten."""
+        ...
 
     def remove(self, ctx: CommandContext, company_id: UUID, record_ids: list[UUID]) -> None:
         """Deletes the records created by the import; a reference of another record raises
@@ -126,7 +139,7 @@ class Adapter(Protocol):
         ...
 
 
-KINDS = ("items", "vehicles", "clients", "counterparties")
+KINDS = ("items", "vehicles", "clients", "counterparties", "stock")
 
 
 def adapter(kind: str) -> Adapter:
@@ -146,7 +159,40 @@ def adapter(kind: str) -> Adapter:
         from c4rsys.parties.imports import COUNTERPARTIES
 
         return COUNTERPARTIES
+    if kind == "stock":
+        from c4rsys.warehouse.import_stock import ADAPTER as stock
+
+        return stock
     raise errors.validation_error("kind")
+
+
+def _group_of(kind: Adapter, values: dict[str, str]) -> str | None:
+    """The group of a row, for kinds that have groups; a row without one stands alone."""
+    group = getattr(kind, "group", None)
+    return group(values) if group is not None else None
+
+
+def _check_groups(kind: Adapter, rows: list[dict[str, Any]]) -> None:
+    """The common fields of a group must agree; an empty value against a filled one is a
+    difference too. Every row of such a group gets the error (§ 22.4.2)."""
+    common: tuple[str, ...] = getattr(kind, "group_fields", ())
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        if row.get("result") in LOADED:
+            continue
+        key = _group_of(kind, row["values"])
+        row["group"] = key
+        if key is not None:
+            groups.setdefault(key, []).append(row)
+    for members in groups.values():
+        for code in common:
+            if len({m["values"].get(code, "") for m in members}) > 1:
+                for member in members:
+                    member["errors"] = [
+                        *member["errors"],
+                        {"field": code, "code": "IMPORT_GROUP_MISMATCH"},
+                    ]
+                    member["action"] = "error"
 
 
 # --- Template and reading of files (§ 22.2.6) --------------------------------------------------
@@ -275,6 +321,8 @@ def _checked(kind: Adapter, scope: Scope, values: dict[str, str]) -> Checked:
 def _default_action(row: dict[str, Any]) -> str:
     if row["errors"]:
         return "error"
+    if row["extra"].get("packaging_missing"):
+        return "skip"  # not loaded without an explicit confirmation (§ 22.4.2)
     return "skip" if row["matches"] or row["conflict"] else "create"
 
 
@@ -340,6 +388,7 @@ def check(
         }
         _apply_check(entry, _checked(found, scope, row["values"]))
         rows.append(entry)
+    _check_groups(found, rows)
     operation = ImportOperation.objects.create(
         company=company,
         kind=kind,
@@ -394,12 +443,13 @@ def decide(
     operation = _lock(company_id, operation_id, expected_version)
     if operation.state != ImportOperation.State.CHECKED:
         raise errors.business_rule("IMPORT_NOT_CHECKED")
+    found = adapter(operation.kind)
     by_code = {r["code"]: r for r in operation.rows}
     for code, action, target in decisions:
         row = by_code.get(code)
         if row is None:
             raise errors.validation_error("decisions", code="IMPORT_ROW_UNKNOWN", row=code)
-        if action not in ACTIONS:
+        if action not in ACTIONS or (action == "link" and not getattr(found, "links", True)):
             raise errors.validation_error("decisions", code="IMPORT_ACTION_UNKNOWN", row=code)
         if row.get("result") in LOADED:
             raise errors.business_rule("IMPORT_ROW_POSTED", row=code)
@@ -411,8 +461,18 @@ def decide(
             raise errors.business_rule("IMPORT_ROW_HAS_MATCH", row=code)
         if action in ("create", "create_duplicate") and row.get("conflict"):
             raise errors.business_rule("IMPORT_ROW_ID_CONFLICT", row=code)
+        missing = row["extra"].get("packaging_missing")
+        if action == "create" and missing:
+            raise errors.business_rule("IMPORT_PACKAGING_CONFIRM", row=code)
+        if action == "create_packaging":
+            if not missing:
+                raise errors.validation_error("decisions", code="IMPORT_ACTION_UNKNOWN", row=code)
+            if not access.RightsResolver().has_permission(ctx.actor, PACKAGING_RIGHT):
+                raise errors.permission_denied(PACKAGING_RIGHT)
         row["action"] = action
         row["target"] = target if action == "link" else None
+        if row.get("group") is not None and action in GROUP_ACTIONS:
+            _decide_group(operation.rows, row, action)
     operation.version += 1
     operation.save(update_fields=["rows", "version"])
     ctx.audit(
@@ -422,6 +482,24 @@ def decide(
         after={"decisions": [{"row": c, "action": a, "target": t} for c, a, t in decisions]},
     )
     return operation
+
+
+def _decide_group(rows: list[dict[str, Any]], row: dict[str, Any], action: str) -> None:
+    """A group is loaded or excluded as a whole (§ 22.2.2): the choice goes to the other rows of
+    the group where it is allowed; a row with errors stays excluded, a row waiting for the
+    confirmation of its packaging keeps it."""
+    for other in rows:
+        if other is row or other.get("group") != row["group"] or other.get("result") in LOADED:
+            continue
+        if other["errors"] or action == "skip":
+            other["action"] = "skip" if action == "skip" else other["action"]
+            continue
+        if other["extra"].get("packaging_missing") and other["action"] == "create_packaging":
+            continue
+        if action == "create" and (other["matches"] or other["extra"].get("packaging_missing")):
+            continue
+        other["action"] = action
+        other["target"] = None
 
 
 def _problem(exc: errors.ApiError) -> dict[str, str]:
@@ -439,53 +517,28 @@ def post(
         raise errors.business_rule("IMPORT_NOT_CHECKED")
     found = adapter(operation.kind)
     scope = Scope(company.id, ctx.actor)
-    rows = []
+    rows: list[dict[str, Any]] = []
+    pending: list[dict[str, Any]] = []
     for row in operation.rows:
         if row.get("result") in LOADED:
             rows.append(row)
             continue
-        current = _checked(found, scope, row["values"])
-        action = row["action"]
-        result: dict[str, Any] = {**row, "errors": current.errors, "extra": current.extra}
-        known = {m["id"] for m in row["matches"]}
-        fresh = {m["id"] for m in current.matches}
-        if action in ("skip", "error"):
-            result["result"] = "skipped"
-        elif current.errors or (
-            action in ("create", "create_duplicate") and (fresh - known or current.conflict)
-        ):
-            result["result"] = "conflict"
-            result["matches"] = current.matches
-            result["conflict"] = current.conflict
-        elif action == "link":
-            if row["target"] not in fresh:
-                result["result"] = "conflict"
-                result["matches"] = current.matches
-            else:
-                result["result"] = "linked"
-                result["record_id"] = row["target"]
-                result["request"] = ctx.request_id
-        else:
-            mark = ctx.audit_mark()
-            try:
-                with transaction.atomic():
-                    record_id = found.create(
-                        ctx,
-                        company,
-                        row["values"],
-                        current.extra,
-                        duplicate=action == "create_duplicate",
-                        operation_id=operation.id,
-                    )
-            except errors.ApiError as exc:
-                ctx.discard_audit(mark)
-                result["result"] = "conflict"
-                result["errors"] = [*current.errors, _problem(exc)]
-            else:
-                result["result"] = "created"
-                result["record_id"] = str(record_id)
-                result["request"] = ctx.request_id
-        rows.append(result)
+        fresh = _recheck(ctx, found, scope, row)
+        rows.append(fresh)
+        pending.append(fresh)
+    _check_groups(found, pending)
+    for row in pending:
+        if row["result"] is None and row["errors"]:
+            row["result"] = "conflict"
+    session: dict[str, Any] = {}
+    done: set[str] = set()
+    for row in pending:
+        if row["code"] in done:
+            continue
+        key = row.get("group")
+        members = [r for r in pending if r.get("group") == key] if key is not None else [row]
+        done.update(m["code"] for m in members)
+        _post_members(ctx, company, operation, found, members, session)
     operation.rows = rows
     operation.state = ImportOperation.State.POSTED
     operation.posted_at = timezone.now()
@@ -503,6 +556,102 @@ def post(
 
 
 # --- Corrected file (§ 22.2.7) -----------------------------------------------------------------
+
+
+def _recheck(
+    ctx: CommandContext, found: Adapter, scope: Scope, row: dict[str, Any]
+) -> dict[str, Any]:
+    """The row against current data: a decided result (skipped, conflict, linked) or none yet
+    when it is to be created."""
+    current = _checked(found, scope, row["values"])
+    action = row["action"]
+    result: dict[str, Any] = {
+        **row,
+        "errors": current.errors,
+        "extra": current.extra,
+        "result": None,
+    }
+    known = {m["id"] for m in row["matches"]}
+    fresh = {m["id"] for m in current.matches}
+    missing = current.extra.get("packaging_missing")
+    if action in ("skip", "error"):
+        result["result"] = "skipped"
+    elif (
+        current.errors
+        or (action in ("create", "create_duplicate") and (fresh - known or current.conflict))
+        or (missing and action != "create_packaging")
+    ):
+        result["result"] = "conflict"
+        result["matches"] = current.matches
+        result["conflict"] = current.conflict
+    elif action == "link":
+        if row["target"] not in fresh:
+            result["result"] = "conflict"
+            result["matches"] = current.matches
+        else:
+            result["result"] = "linked"
+            result["record_id"] = row["target"]
+            result["request"] = ctx.request_id
+    elif missing and not access.RightsResolver().has_permission(ctx.actor, PACKAGING_RIGHT):
+        result["result"] = "conflict"
+        result["errors"] = [{"field": "packaging_quantity", "code": "PERMISSION_DENIED"}]
+    return result
+
+
+def _post_members(
+    ctx: CommandContext,
+    company: Company,
+    operation: ImportOperation,
+    found: Adapter,
+    members: list[dict[str, Any]],
+    session: dict[str, Any],
+) -> None:
+    """One row, or all rows of a group together: if one of them is skipped or cannot be loaded,
+    the correct part of the group is not loaded either (§ 22.2.2)."""
+    ready = [m for m in members if m["result"] is None]
+    if not ready:
+        return
+    if len(ready) < len(members):
+        for member in ready:
+            member["result"] = "conflict"
+            member["errors"] = [{"field": "lot_code", "code": "IMPORT_GROUP_INCOMPLETE"}]
+        return
+    mark = ctx.audit_mark()
+    before = dict(session)
+    created: dict[str, UUID] = {}
+    failed: tuple[str, errors.ApiError] | None = None
+    try:
+        with transaction.atomic():
+            for member in ready:
+                extra = {**member["extra"], "confirmed": member["action"] == "create_packaging"}
+                try:
+                    created[member["code"]] = found.create(
+                        ctx,
+                        company,
+                        member["values"],
+                        extra,
+                        duplicate=member["action"] == "create_duplicate",
+                        operation_id=operation.id,
+                        session=session,
+                    )
+                except errors.ApiError as exc:
+                    failed = (member["code"], exc)
+                    raise
+    except errors.ApiError:
+        ctx.discard_audit(mark)
+        session.clear()
+        session.update(before)
+        for member in members:
+            member["result"] = "conflict"
+            if failed is not None and member["code"] == failed[0]:
+                member["errors"] = [*member["errors"], _problem(failed[1])]
+            else:
+                member["errors"] = [{"field": "lot_code", "code": "IMPORT_GROUP_INCOMPLETE"}]
+        return
+    for member in members:
+        member["result"] = "created"
+        member["record_id"] = str(created[member["code"]])
+        member["request"] = ctx.request_id
 
 
 def correction(operation: ImportOperation) -> bytes:
@@ -582,6 +731,7 @@ def reupload(
     for row in operation.rows:
         if row["code"] not in corrected and row.get("result") not in LOADED:
             row["action"] = "skip"
+    _check_groups(found, operation.rows)
     warnings.append({"code": "CORRECTED_FILE", "rows": len(corrected)})
     operation.uploads = [
         *operation.uploads,
