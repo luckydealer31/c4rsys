@@ -114,9 +114,15 @@ def _rental_blocks(
             time_in_rental += span.end - span.start
     ids = list(rentals.values_list("id", flat=True))
     charges: dict[str, Decimal] = defaultdict(Decimal)
+    # Positions count net of their discounts (customer's decision of 30.10.2026).
     for c in ChargeEntry.objects.filter(
         company=company,
-        source_type__in=("rental_base", "rental_mileage"),
+        source_type__in=(
+            "rental_base",
+            "rental_mileage",
+            "discount_rental_base",
+            "discount_rental_mileage",
+        ),
         source_id__in=ids,
         created_at__gte=filters.start_at,
         created_at__lt=filters.end_at,
@@ -125,7 +131,7 @@ def _rental_blocks(
     manual_ids = _manual_ids(ids)
     for c in ChargeEntry.objects.filter(
         company=company,
-        source_type="rental_manual",
+        source_type__in=("rental_manual", "discount_rental_manual"),
         source_id__in=manual_ids,
         created_at__gte=filters.start_at,
         created_at__lt=filters.end_at,
@@ -199,7 +205,8 @@ def _daily(rentals: Any, filters: Filters, now: datetime) -> list[dict[str, Any]
     used = rentals.filter(actual_start__lt=end).exclude(actual_end__lte=start)
     base: dict[UUID, tuple[Decimal, str]] = {}
     for c in ChargeEntry.objects.filter(
-        source_type="rental_base", source_id__in=list(used.values_list("id", flat=True))
+        source_type__in=("rental_base", "discount_rental_base"),
+        source_id__in=list(used.values_list("id", flat=True)),
     ):
         amount, _currency = base.get(c.source_id, (Decimal(0), c.currency_id))
         base[c.source_id] = (amount + c.amount, c.currency_id)
@@ -418,7 +425,9 @@ def _payback(actor: Actor, company: Company, where: Area, filters: Filters) -> l
         lambda: defaultdict(lambda: defaultdict(Decimal))
     )
     for c in ChargeEntry.objects.filter(company=company):
-        vid = owner.get((c.source_type, c.source_id))
+        # The discount of a position belongs to the position's vehicle.
+        kind = c.source_type.removeprefix("discount_")
+        vid = owner.get((kind, c.source_id))
         by_order[c.order_id][vid][c.currency_id] += c.amount  # type: ignore[index]
     received: dict[UUID, dict[str, Decimal]] = defaultdict(lambda: defaultdict(Decimal))
     for a in PaymentAllocation.objects.filter(

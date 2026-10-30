@@ -3714,7 +3714,15 @@
     "approve": "ตกลง",
     "decline_position": "ปฏิเสธ",
     "source_discount": "ส่วนลด",
-    "source_sale_line": "สินค้า"
+    "source_sale_line": "สินค้า",
+    "source_discount_rental_base": "ส่วนลด",
+    "source_discount_rental_mileage": "ส่วนลด",
+    "source_discount_rental_manual": "ส่วนลด",
+    "source_discount_rental_service": "ส่วนลด",
+    "source_discount_service_job": "ส่วนลด",
+    "source_discount_service_material": "ส่วนลด",
+    "source_discount_sale_line": "ส่วนลด",
+    "source_discount_delivery": "ส่วนลด"
   },
   "exports": {
     "title": "ส่งออกข้อมูลทั้งหมด",

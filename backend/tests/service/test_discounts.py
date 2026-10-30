@@ -1,11 +1,15 @@
 """Discounts of an order and client groups (ТЗ § 12.5, § 6.2.14; decisions З11–З14; part А6.3)."""
 
 from typing import Any
+from unittest import mock
+from zoneinfo import ZoneInfo
 
 import pytest
 from django.test import Client
+from django.utils import timezone
 
 from c4rsys.finance.models import ChargeEntry
+from c4rsys.reports import service as service_report
 from tests.accounts.helpers import post
 from tests.companies.helpers import hire, key
 from tests.rentals.scenario import Scenario
@@ -98,8 +102,16 @@ def test_recalculated_position_recalculates_its_discount(owner: Client, s: Scena
     assert changed.status_code == 200, changed.content
     # З14: a percent counts from the new amount.
     assert _order(owner, s, order_id)["amounts"]["THB"]["charged"] == "900.00"
-    discount = ChargeEntry.objects.filter(source_type="discount", source_id=job["id"])
+    discount = ChargeEntry.objects.filter(source_type="discount_service_job", source_id=job["id"])
     assert sum(e.amount for e in discount) == -100
+
+    # Customer's decision of 30.10.2026: the service report counts the work net of its discount.
+    today = timezone.localdate(timezone.now(), ZoneInfo("Asia/Bangkok")).isoformat()
+    with mock.patch.object(service_report, "timezone", timezone):
+        report = owner.get(f"/api/c/{s.cmp}/reports/service?start={today}&end={today}")
+    assert report.status_code == 200, report.content
+    blocks = {b["code"]: b for b in report.json()["blocks"]}
+    assert "900" in str(blocks["service.charges"]["rows"])
 
 
 def test_limit_groups_and_rights(owner: Client, s: Scenario) -> None:

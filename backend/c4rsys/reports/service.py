@@ -140,10 +140,16 @@ def build(actor: Actor, company: Company, filters: Filters) -> list[Block]:
         company=company,
         created_at__gte=filters.start_at,
         created_at__lt=filters.end_at,
-        source_type__in=("service_job", "service_material"),
+        source_type__in=(
+            "service_job",
+            "service_material",
+            "discount_service_job",
+            "discount_service_material",
+        ),
     ).filter(source_id__in=job_ids + material_ids):
+        # Positions count net of their discounts (customer's decision of 30.10.2026).
         charges[c.currency_id] += c.amount
-        if c.source_type == "service_material":
+        if c.source_type.endswith("service_material"):
             materials[c.currency_id] += c.amount
     order_ids = set(ops.exclude(order__is_internal=True).values_list("order_id", flat=True))
     paid: dict[str, Decimal] = defaultdict(Decimal)

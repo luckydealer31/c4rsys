@@ -119,10 +119,14 @@ def _order_payload(order: Any, actor: Actor, top: bool) -> dict[str, Any]:
             "currency": p.currency,
             "base": str(discounts.rounded(p.base, p.currency)),
             "discount": str(
-                discounts.rounded(applied[p.id][0] if p.id in applied else 0, p.currency)
+                discounts.rounded(
+                    applied[(p.type, p.id)][0] if (p.type, p.id) in applied else 0, p.currency
+                )
             ),
-            "applied_id": str(applied[p.id][1].id) if p.id in applied else None,
-            "applied_target": applied[p.id][1].target if p.id in applied else None,
+            "applied_id": str(applied[(p.type, p.id)][1].id) if (p.type, p.id) in applied else None,
+            "applied_target": applied[(p.type, p.id)][1].target
+            if (p.type, p.id) in applied
+            else None,
         }
         for p in discounts.positions_of(order)
     ]

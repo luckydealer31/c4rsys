@@ -3714,7 +3714,15 @@
     "approve": "Согласовать",
     "decline_position": "Отказаться",
     "source_discount": "Скидка",
-    "source_sale_line": "Товар"
+    "source_sale_line": "Товар",
+    "source_discount_rental_base": "Скидка",
+    "source_discount_rental_mileage": "Скидка",
+    "source_discount_rental_manual": "Скидка",
+    "source_discount_rental_service": "Скидка",
+    "source_discount_service_job": "Скидка",
+    "source_discount_service_material": "Скидка",
+    "source_discount_sale_line": "Скидка",
+    "source_discount_delivery": "Скидка"
   },
   "exports": {
     "title": "Полная выгрузка данных",

@@ -21,11 +21,11 @@ def register_after_change(handler: AfterChange) -> None:
     _after_change.append(handler)
 
 
-def sources_of(order_id: UUID, source_type: str) -> list[tuple[UUID, str]]:
-    """Sources of one type charged in the order, with their currency."""
+def discount_sources_of(order_id: UUID, prefix: str) -> list[tuple[str, UUID]]:
+    """Sources of the order whose kind starts with the prefix: the discounts of positions."""
     return list(
-        ChargeEntry.objects.filter(order_id=order_id, source_type=source_type)
-        .values_list("source_id", "currency_id")
+        ChargeEntry.objects.filter(order_id=order_id, source_type__startswith=prefix)
+        .values_list("source_type", "source_id")
         .distinct()
     )
 

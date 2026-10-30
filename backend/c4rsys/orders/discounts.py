@@ -13,9 +13,11 @@
 * A discount never exceeds 100 % of what it applies to (§ 12.5.5). An employee applies it with
   the right «Apply discounts» within the limit set for him; a fixed amount is compared as a
   percent of what it applies to (З12). The top-authority director has no limit (PROPOSAL).
-* A discount is a charge of its own, «discount», per position: payments stay as they are; the
-  balance of the order changes (§ 12.5.6). A recalculation of a position recalculates its
-  discount: a percent from the new amount, a fixed amount capped by it (З14).
+* A discount is a charge of its own per position, «discount_<kind of the position>» with the
+  position's id, so the reports count each position net of its discount (customer's decision of
+  30.10.2026): payments stay as they are; the balance of the order changes (§ 12.5.6).
+  A recalculation of a position recalculates its discount: a percent from the new amount, a
+  fixed amount capped by it (З14).
 """
 
 from collections.abc import Callable
@@ -33,7 +35,19 @@ from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext
 from c4rsys.platform.models import Currency
 
-SOURCE = "discount"
+SOURCE = "discount"  # the prefix of the charges of discounts
+
+
+def source_of(position_type: str) -> str:
+    """The charge of the discount of a position: a rental's base cost and its mileage share the
+    id of the rental, so the kind of the position is part of it."""
+    return f"{SOURCE}_{position_type}"
+
+
+def is_discount(source_type: str) -> bool:
+    return source_type.startswith(f"{SOURCE}_")
+
+
 HUNDRED = Decimal(100)
 # The scope a charge source belongs to; a delivery is covered only by a discount of the order.
 SCOPE_OF: dict[str, str] = {
@@ -70,7 +84,7 @@ def positions_of(order: Order) -> list[Position]:
         line
         for p in registry.charge_lines
         for line in p(order.company_id, order.id)
-        if line[0] != SOURCE
+        if not is_discount(line[0])
     ]
     goods = [source_id for source_type, source_id, _, _ in rows if source_type == "sale_line"]
     categories: dict[UUID, str] = {}
@@ -111,29 +125,36 @@ def _active(order_id: UUID) -> list[AppliedDiscount]:
     return list(AppliedDiscount.objects.filter(order_id=order_id, removed_at__isnull=True))
 
 
-def amounts(order: Order) -> dict[UUID, tuple[Decimal, AppliedDiscount]]:
+Key = tuple[str, UUID]
+
+
+def amounts(order: Order) -> dict[Key, tuple[Decimal, AppliedDiscount]]:
     """The discount of each position and where it comes from."""
     applied = _active(order.id)
-    own = {a.position_id: a for a in applied if a.target == AppliedDiscount.Target.POSITION}
+    own = {
+        (a.position_type, a.position_id): a
+        for a in applied
+        if a.target == AppliedDiscount.Target.POSITION
+    }
     whole = next((a for a in applied if a.target == AppliedDiscount.Target.ORDER), None)
-    result: dict[UUID, tuple[Decimal, AppliedDiscount]] = {}
+    result: dict[Key, tuple[Decimal, AppliedDiscount]] = {}
     covered: list[Position] = []
     for position in positions_of(order):
-        a = own.get(position.id)
+        a = own.get((position.type, position.id))
         if a is not None:
             value = (
                 _round(position.base * a.value / HUNDRED, position.currency)
                 if a.kind == Discount.Kind.PERCENT
                 else min(a.value, position.base)
             )
-            result[position.id] = (value, a)
+            result[(position.type, position.id)] = (value, a)
         elif whole is not None and _covers(whole.scope, whole.goods_categories, position):
             covered.append(position)
     if whole is None or not covered:
         return result
     if whole.kind == Discount.Kind.PERCENT:
         for position in covered:
-            result[position.id] = (
+            result[(position.type, position.id)] = (
                 _round(position.base * whole.value / HUNDRED, position.currency),
                 whole,
             )
@@ -150,7 +171,7 @@ def amounts(order: Order) -> dict[UUID, tuple[Decimal, AppliedDiscount]]:
             share = min(_round(whole.value * position.base / total, position.currency), left)
         share = min(share, position.base)
         left -= share
-        result[position.id] = (share, whole)
+        result[(position.type, position.id)] = (share, whole)
     return result
 
 
@@ -162,11 +183,16 @@ def recalculate(ctx: CommandContext, order_id: UUID) -> None:
     if order is None or order.client_id is None:
         return
     wanted = amounts(order)
-    known = {source_id for source_id, _ in charges.sources_of(order.id, SOURCE)}
-    currencies = {p.id: p.currency for p in positions_of(order)}
-    for position_id in set(wanted) | known:
-        value, applied = wanted.get(position_id, (Decimal(0), None))
-        currency = currencies.get(position_id) or charges.charged_currency(SOURCE, position_id)
+    known: set[Key] = {
+        (source_type[len(SOURCE) + 1 :], source_id)
+        for source_type, source_id in charges.discount_sources_of(order.id, f"{SOURCE}_")
+    }
+    currencies = {(p.type, p.id): p.currency for p in positions_of(order)}
+    for key in set(wanted) | known:
+        position_type, position_id = key
+        value, applied = wanted.get(key, (Decimal(0), None))
+        source = source_of(position_type)
+        currency = currencies.get(key) or charges.charged_currency(source, position_id)
         if currency is None:
             continue
         charges.set_charge(
@@ -174,7 +200,7 @@ def recalculate(ctx: CommandContext, order_id: UUID) -> None:
             company_id=order.company_id,
             order_id=order.id,
             client_id=order.client_id,
-            source_type=SOURCE,
+            source_type=source,
             source_id=position_id,
             amount=-value,
             currency=currency,
@@ -319,7 +345,11 @@ def apply(
             raise errors.business_rule("DISCOUNT_CURRENCY_MISMATCH", field="discount_id")
         _check_limit(limit, discount, position.base)
         for a in active:
-            if a.target == AppliedDiscount.Target.POSITION and a.position_id == position.id:
+            if (
+                a.target == AppliedDiscount.Target.POSITION
+                and a.position_id == position.id
+                and a.position_type == position.type
+            ):
                 _remove(ctx, a, "replaced")
         applied = _record(ctx, order, discount, AppliedDiscount.Target.POSITION, position)
     else:
@@ -328,19 +358,24 @@ def apply(
             covered = [p for p in covered if p.currency == discount.currency]
         if not covered:
             raise errors.business_rule("DISCOUNT_NOTHING_TO_APPLY")
+        covered_keys = {(p.type, p.id) for p in covered}
         own = [
             a
             for a in active
             if a.target == AppliedDiscount.Target.POSITION
-            and a.position_id in {p.id for p in covered}
+            and (a.position_type, a.position_id) in covered_keys
         ]
         if own and conflict not in ("keep_positions", "remove_positions"):
             # § 12.5.3–12.5.4: never resolved automatically.
             raise errors.business_rule(
                 "DISCOUNT_CONFLICT", positions=[str(a.position_id) for a in own]
             )
-        kept = {a.position_id for a in own} if conflict == "keep_positions" else set()
-        base = sum((p.base for p in covered if p.id not in kept), Decimal(0))
+        kept = (
+            {(a.position_type, a.position_id) for a in own}
+            if conflict == "keep_positions"
+            else set()
+        )
+        base = sum((p.base for p in covered if (p.type, p.id) not in kept), Decimal(0))
         _check_limit(limit, discount, base)
         if conflict == "remove_positions":
             for a in own:

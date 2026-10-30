@@ -3714,7 +3714,15 @@
     "approve": "Agree",
     "decline_position": "Refuse",
     "source_discount": "Discount",
-    "source_sale_line": "Goods"
+    "source_sale_line": "Goods",
+    "source_discount_rental_base": "Discount",
+    "source_discount_rental_mileage": "Discount",
+    "source_discount_rental_manual": "Discount",
+    "source_discount_rental_service": "Discount",
+    "source_discount_service_job": "Discount",
+    "source_discount_service_material": "Discount",
+    "source_discount_sale_line": "Discount",
+    "source_discount_delivery": "Discount"
   },
   "exports": {
     "title": "Full data export",
