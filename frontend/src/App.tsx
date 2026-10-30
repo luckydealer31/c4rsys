@@ -46,6 +46,7 @@ import { NotificationRulesPage } from "./pages/notifications/RulesPage";
 import { LocationPage } from "./pages/settings/LocationsPage";
 import { EmployeePage } from "./pages/settings/EmployeesPage";
 import { ExportPage } from "./pages/settings/ExportPage";
+import { DiscountCatalogPage } from "./pages/orders/Discounts";
 import { SettingsPage } from "./pages/settings/SettingsPage";
 import { SetupPage } from "./pages/setup/SetupPage";
 import { TariffPage, TariffsPage } from "./pages/tariffs/TariffsPage";
@@ -168,6 +169,7 @@ export function App() {
         <Route path="settings/rental" element={<RentalPolicyPage />} />
         <Route path="settings/notifications" element={<NotificationRulesPage />} />
         <Route path="settings/export" element={<ExportPage />} />
+        <Route path="settings/discounts" element={<DiscountCatalogPage />} />
         <Route path="settings/locations" element={<Navigate to="../company" replace />} />
         <Route path="rentals/tariffs" element={<TariffsPage />} />
         <Route path="rentals/services" element={<ExtraServicesPage />} />

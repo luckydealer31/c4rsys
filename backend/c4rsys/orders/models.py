@@ -135,3 +135,131 @@ class OrderApproval(models.Model):
 
     def __str__(self) -> str:
         return f"approval {self.item_type}:{self.item_id}"
+
+
+class Discount(models.Model):
+    """A discount of the company's catalog (§ 12.5.2; decision З11): a name, a percent or a fixed
+    amount with its currency, the scope it applies to; optionally only for some client groups
+    and, for goods, some categories of the catalog of parts (decision В-2)."""
+
+    class Kind(models.TextChoices):
+        PERCENT = "percent"
+        AMOUNT = "amount"
+
+    class Scope(models.TextChoices):
+        ORDER = "order"  # every position of the order
+        RENTAL = "rental"
+        EXTRA_SERVICE = "extra_service"
+        SERVICE = "service"  # works and parts of the service
+        GOODS = "goods"
+
+    class State(models.TextChoices):
+        ACTIVE = "active"
+        ARCHIVED = "archived"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    name = models.CharField(max_length=150)
+    kind = models.CharField(max_length=10, choices=Kind.choices)
+    value = models.DecimalField(max_digits=14, decimal_places=4)
+    currency = models.CharField(max_length=3, blank=True, default="")
+    scope = models.CharField(max_length=20, choices=Scope.choices)
+    client_group_ids = models.JSONField(default=list, blank=True)
+    goods_categories = models.JSONField(default=list, blank=True)
+    state = models.CharField(max_length=10, choices=State.choices, default=State.ACTIVE)
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "discount"
+        constraints = [
+            models.CheckConstraint(condition=~Q(name=""), name="discount_name_not_empty"),
+            models.CheckConstraint(
+                condition=(Q(kind="percent") & Q(value__gt=0) & Q(value__lte=100) & Q(currency=""))
+                | (Q(kind="amount") & Q(value__gt=0) & ~Q(currency="")),
+                name="discount_value_by_kind",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class AppliedDiscount(models.Model):
+    """A discount applied to one position or to the order (§ 12.5.1–12.5.4). A position has
+    either its own discount or the order's; never both. The value, the kind, the target, the
+    author and the removal stay in the history."""
+
+    class Target(models.TextChoices):
+        POSITION = "position"
+        ORDER = "order"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    order = models.ForeignKey(Order, on_delete=models.PROTECT, related_name="discounts")
+    discount = models.ForeignKey(Discount, on_delete=models.PROTECT, related_name="+")
+    target = models.CharField(max_length=10, choices=Target.choices)
+    position_type = models.CharField(max_length=30, blank=True, default="")
+    position_id = models.UUIDField(null=True, blank=True)
+    # The terms at the moment of applying: a later change of the catalog does not change them.
+    name = models.CharField(max_length=150)
+    kind = models.CharField(max_length=10, choices=Discount.Kind.choices)
+    value = models.DecimalField(max_digits=14, decimal_places=4)
+    currency = models.CharField(max_length=3, blank=True, default="")
+    scope = models.CharField(max_length=20, choices=Discount.Scope.choices)
+    goods_categories = models.JSONField(default=list, blank=True)
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+    removed_at = models.DateTimeField(null=True, blank=True)
+    removed_by_user_id = models.UUIDField(null=True, blank=True)
+
+    class Meta:
+        db_table = "applied_discount"
+        constraints = [
+            models.CheckConstraint(
+                condition=(Q(target="position") & Q(position_id__isnull=False))
+                | (Q(target="order") & Q(position_id__isnull=True)),
+                name="applied_discount_target",
+            ),
+            models.UniqueConstraint(
+                fields=["position_type", "position_id"],
+                condition=Q(removed_at__isnull=True, target="position"),
+                name="applied_discount_one_per_position",
+            ),
+            models.UniqueConstraint(
+                fields=["order"],
+                condition=Q(removed_at__isnull=True, target="order"),
+                name="applied_discount_one_per_order",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.target})"
+
+
+class DiscountLimit(models.Model):
+    """The largest discount an employee may apply, in percent (§ 12.5.5; decision З12): set
+    together with the right «Apply discounts». Without it no discount is applied; it is never
+    taken for 100 %."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    employment_id = models.UUIDField()
+    percent = models.DecimalField(max_digits=6, decimal_places=2)
+    updated_by_user_id = models.UUIDField()
+    updated_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "discount_limit"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["employment_id"], name="discount_limit_employment_uniq"
+            ),
+            models.CheckConstraint(
+                condition=Q(percent__gte=0) & Q(percent__lte=100), name="discount_limit_range"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.employment_id}: {self.percent} %"

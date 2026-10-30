@@ -22,6 +22,9 @@ class WarehouseConfig(AppConfig):
         # needs the right of sale.
         orders.register_operations(sales.operations_for_order)
         orders.register_client_view(sales.client_view_for_order)
+        from c4rsys.orders import discounts
+
+        discounts.register_goods_categories(sales.goods_categories)
         orders.register_on_close(sales.on_order_close)
         orders.register_on_cancel(sales.on_order_cancel)
 

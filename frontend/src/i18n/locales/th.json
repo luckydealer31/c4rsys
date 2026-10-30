@@ -924,7 +924,17 @@
     "service_job_already_open": "งานเปิดเพื่อแก้ไขอยู่แล้ว",
     "approval_pending": "รายการรอคำตอบลูกค้า",
     "approval_declined": "ลูกค้าปฏิเสธรายการนี้",
-    "approval_answered": "บันทึกคำตอบแล้ว"
+    "approval_answered": "บันทึกคำตอบแล้ว",
+    "discount_conflict": "บางรายการมีส่วนลดแล้ว",
+    "discount_limit_not_set": "ยังไม่ได้กำหนดขีดจำกัด",
+    "discount_over_limit": "ส่วนลดเกินขีดจำกัด {{limit}} %",
+    "discount_not_offered": "ไม่มีส่วนลดนี้สำหรับลูกค้านี้",
+    "discount_scope_mismatch": "ส่วนลดใช้กับรายการนี้ไม่ได้",
+    "discount_currency_mismatch": "ส่วนลดเป็นสกุลเงินอื่น",
+    "discount_nothing_to_apply": "ไม่มีรายการในขอบเขต",
+    "discount_over_100": "ไม่เกิน 100 %",
+    "client_group_exists": "มีกลุ่มนี้แล้ว",
+    "client_group_unknown": "ไม่รู้จักกลุ่ม"
   },
   "history": {
     "action": "Action",
@@ -1302,7 +1312,8 @@
     "reports_export": "ส่งออกรายงาน",
     "company_link_answer": "ตอบคำขอเชื่อมกับบริษัท",
     "data_export": "ส่งออกข้อมูลทั้งหมด",
-    "service_reopen": "เปิดบริการอีกครั้งและแก้ไขงานที่เสร็จแล้ว"
+    "service_reopen": "เปิดบริการอีกครั้งและแก้ไขงานที่เสร็จแล้ว",
+    "order_discount": "ใช้ส่วนลด"
   },
   "positions": {
     "director": "Director"
@@ -1496,7 +1507,9 @@
     "notifications": "การแจ้งเตือนและงาน",
     "notifications_hint": "แจ้งเหตุการณ์ใด ให้ใคร เมื่อไร และทำซ้ำอย่างไร",
     "export": "ส่งออกข้อมูลทั้งหมด",
-    "export_hint": "ตารางและเอกสารทั้งหมดในไฟล์เดียว"
+    "export_hint": "ตารางและเอกสารทั้งหมดในไฟล์เดียว",
+    "discounts": "ส่วนลด",
+    "discounts_hint": "แคตตาล็อกส่วนลด"
   },
   "setup": {
     "back": "Back",
@@ -3699,7 +3712,9 @@
     "cost_changed": "ราคาคำสั่งซื้อเปลี่ยน:",
     "added_position": "เพิ่มในคำสั่งซื้อ",
     "approve": "ตกลง",
-    "decline_position": "ปฏิเสธ"
+    "decline_position": "ปฏิเสธ",
+    "source_discount": "ส่วนลด",
+    "source_sale_line": "สินค้า"
   },
   "exports": {
     "title": "ส่งออกข้อมูลทั้งหมด",
@@ -3744,5 +3759,53 @@
     "policy_title": "คำสั่งซื้อ: การยืนยันกับลูกค้า",
     "policy_label": "ยืนยันรายการเพิ่มกับลูกค้า",
     "policy_hint": "รายการที่เพิ่มในคำสั่งซื้อที่ดำเนินการแล้วจะรอคำตอบลูกค้า"
+  },
+  "discounts": {
+    "title": "ส่วนลด",
+    "from_position": "ส่วนลดรายการ",
+    "from_order": "ส่วนลดคำสั่งซื้อ",
+    "from_null": "",
+    "target_position": "ต่อรายการ",
+    "target_order": "ต่อคำสั่งซื้อ",
+    "remove": "ลบ",
+    "discount": "ส่วนลด",
+    "apply_to": "ใช้กับ",
+    "whole_order": "คำสั่งซื้อทั้งหมด",
+    "apply": "ใช้",
+    "limit": "ขีดจำกัดของคุณ: {{percent}} %",
+    "no_limit": "ยังไม่ได้กำหนดขีดจำกัดส่วนลด",
+    "conflict": "บางรายการมีส่วนลดของตัวเอง เลือก:",
+    "keep_positions": "เก็บส่วนลดรายการ ใช้ส่วนลดรวมกับที่เหลือ",
+    "remove_positions": "ลบส่วนลดรายการ ใช้ส่วนลดรวมกับทั้งหมด",
+    "cancel_order_discount": "ไม่ใช้ส่วนลดรวม",
+    "catalog": "ส่วนลด",
+    "none": "ยังไม่มีส่วนลด",
+    "new": "ส่วนลดใหม่",
+    "name": "ชื่อ",
+    "kind": "ประเภท",
+    "kind_percent": "เปอร์เซ็นต์",
+    "kind_amount": "จำนวนคงที่",
+    "value": "มูลค่า",
+    "currency": "สกุลเงิน",
+    "scope": "ขอบเขต",
+    "scope_order": "ทั้งคำสั่งซื้อ",
+    "scope_rental": "การเช่า",
+    "scope_extra_service": "บริการเสริม",
+    "scope_service": "บริการ: งานและอะไหล่",
+    "scope_goods": "สินค้า",
+    "categories": "หมวดสินค้า",
+    "categories_hint": "รหัสหมวดคั่นด้วยจุลภาค",
+    "groups": "เฉพาะกลุ่มลูกค้า",
+    "groups_hint": "ไม่เลือก — สำหรับทุกคน",
+    "create": "เพิ่มส่วนลด",
+    "limit_title": "ขีดจำกัดส่วนลด",
+    "limit_percent": "ส่วนลดสูงสุด %",
+    "limit_hint": "กำหนดพร้อมสิทธิ์ใช้ส่วนลด"
+  },
+  "client_groups": {
+    "title": "กลุ่มลูกค้า",
+    "none": "ยังไม่มีกลุ่ม",
+    "new": "กลุ่มใหม่",
+    "create": "สร้าง"
   }
 }

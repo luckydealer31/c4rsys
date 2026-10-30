@@ -115,6 +115,9 @@ PERMISSIONS: dict[str, str] = {
     "order.reopen": "order",
     # § 12.2.1 (customer's decision З4): cancelling a whole order.
     "order.cancel": "order",
+    # § 12.5.2, § 12.5.5 (decision З12): applying discounts within the employee's limit; the
+    # catalog of discounts is kept with the company settings (PROPOSAL).
+    "order.discount": "order",
     # Service (§ 23.6.4; customer's decisions С-6, С-7 of 29.10.2026). `service.work` covers
     # starting and finishing one's own work and taking a free one; `service.complete` marks the
     # works of an operation done (the order then closes by «Close orders»); `service.price`

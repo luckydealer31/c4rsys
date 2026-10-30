@@ -302,3 +302,46 @@ class ProfileLink(models.Model):
 
     def __str__(self) -> str:
         return f"profile link {self.id}"
+
+
+class ClientGroup(models.Model):
+    """A group of the client base named by the company (§ 6.2.14); a client may be in several.
+    Groups limit which discounts are offered (§ 12.5.2)."""
+
+    class State(models.TextChoices):
+        ACTIVE = "active"
+        ARCHIVED = "archived"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    name = models.CharField(max_length=100)
+    state = models.CharField(max_length=10, choices=State.choices, default=State.ACTIVE)
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "client_group"
+        constraints = [
+            models.CheckConstraint(condition=~Q(name=""), name="client_group_name_not_empty"),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class ClientGroupMember(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    group = models.ForeignKey(ClientGroup, on_delete=models.PROTECT, related_name="members")
+    client = models.ForeignKey(ClientCard, on_delete=models.PROTECT, related_name="group_links")
+    added_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "client_group_member"
+        constraints = [
+            models.UniqueConstraint(fields=["group", "client"], name="client_group_member_uniq"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.group_id}:{self.client_id}"

@@ -1,6 +1,6 @@
 from django.urls import path
 
-from c4rsys.parties import link_views, views
+from c4rsys.parties import group_views, link_views, views
 
 urlpatterns = [
     path("c/<str:cmp>/clients", views.client_list),
@@ -10,6 +10,9 @@ urlpatterns = [
     path("c/<str:cmp>/counterparties/<uuid:counterparty_id>", views.counterparty_detail),
     path("c/<str:cmp>/counterparties/<uuid:counterparty_id>/archive", views.counterparty_archive),
     path("c/<str:cmp>/counterparties/<uuid:counterparty_id>/restore", views.counterparty_restore),
+    path("c/<str:cmp>/client-groups", group_views.group_list),
+    path("c/<str:cmp>/client-groups/<uuid:group_id>", group_views.group_detail),
+    path("c/<str:cmp>/clients/<uuid:client_id>/groups", group_views.client_groups),
     path("c/<str:cmp>/profile-links", link_views.card_links),
     path("c/<str:cmp>/profile-links/<uuid:link_id>/cancel", link_views.link_cancel),
     path("c/<str:cmp>/profile-links/<uuid:link_id>/break", link_views.link_break),

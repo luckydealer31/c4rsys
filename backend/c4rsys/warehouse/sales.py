@@ -495,3 +495,13 @@ def client_view_for_order(company_id: UUID, order_id: UUID) -> list[dict[str, An
             }
         )
     return result
+
+
+def goods_categories(line_ids: list[UUID]) -> dict[UUID, str]:
+    """The category of the catalog of parts of each sold item, for discounts on groups of goods
+    (§ 12.5.2; decision В-2)."""
+    return {
+        line.id: line.item.part_category.code
+        for line in SaleLine.objects.select_related("item__part_category").filter(pk__in=line_ids)
+        if line.item is not None and line.item.part_category is not None
+    }

@@ -1,4 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { DiscountLimitCard } from "../orders/Discounts";
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router";
@@ -184,6 +185,9 @@ export function EmployeePage() {
         <Card>{t("employees.top_authority_note")}</Card>
       ) : can("employee.rights.manage") && data.state !== "invited" ? (
         <RightsCard employee={data} />
+      ) : null}
+      {!data.position.is_top_authority && can("employee.rights.manage") && data.state !== "invited" ? (
+        <DiscountLimitCard employmentId={data.id} />
       ) : null}
       {can("employee.journal.view") ? <JournalCard employmentId={data.id} /> : null}
     </div>

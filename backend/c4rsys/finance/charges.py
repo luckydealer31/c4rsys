@@ -1,5 +1,6 @@
 """Accruals (ТЗ § 12.2.4, § 13.6.3, § 17.2.6). Money movements are separate (T15)."""
 
+from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -9,6 +10,24 @@ from django.utils import timezone
 
 from c4rsys.finance.models import ChargeEntry
 from c4rsys.platform.commands import CommandContext
+
+# Called after the charge of a source changed: (ctx, order_id, source_type). Orders recalculate
+# the discounts of the order (§ 12.5.6; decision З14).
+AfterChange = Callable[[CommandContext, UUID, str], None]
+_after_change: list[AfterChange] = []
+
+
+def register_after_change(handler: AfterChange) -> None:
+    _after_change.append(handler)
+
+
+def sources_of(order_id: UUID, source_type: str) -> list[tuple[UUID, str]]:
+    """Sources of one type charged in the order, with their currency."""
+    return list(
+        ChargeEntry.objects.filter(order_id=order_id, source_type=source_type)
+        .values_list("source_id", "currency_id")
+        .distinct()
+    )
 
 
 def current_charge(source_type: str, source_id: UUID) -> Decimal:
@@ -58,7 +77,7 @@ def set_charge(
     delta = amount - totals.get(currency, Decimal(0))
     if delta == 0:
         return None
-    return _append(
+    entry = _append(
         ctx,
         company_id,
         order_id,
@@ -71,6 +90,9 @@ def set_charge(
         reason,
         calculation,
     )
+    for handler in _after_change:
+        handler(ctx, order_id, source_type)
+    return entry
 
 
 def _append(

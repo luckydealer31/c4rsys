@@ -924,7 +924,17 @@
     "service_job_already_open": "The work is already open for editing.",
     "approval_pending": "The position awaits the client's answer: record the answer or choose «Do without the client's confirmation».",
     "approval_declined": "The client refused this position.",
-    "approval_answered": "The answer is already recorded."
+    "approval_answered": "The answer is already recorded.",
+    "discount_conflict": "Some positions have their own discounts: choose what to do.",
+    "discount_limit_not_set": "No discount limit is set for you.",
+    "discount_over_limit": "The discount is over your limit of {{limit}} %.",
+    "discount_not_offered": "This discount is not offered for this client.",
+    "discount_scope_mismatch": "The discount does not apply to this position.",
+    "discount_currency_mismatch": "The fixed discount is in another currency.",
+    "discount_nothing_to_apply": "No position of the order is in the discount's scope.",
+    "discount_over_100": "Not more than 100 %.",
+    "client_group_exists": "Such a group exists.",
+    "client_group_unknown": "Unknown group."
   },
   "history": {
     "action": "Action",
@@ -1302,7 +1312,8 @@
     "reports_export": "Export reports",
     "company_link_answer": "Answer requests to link with the company",
     "data_export": "Full data export",
-    "service_reopen": "Open a finished service again and correct finished works"
+    "service_reopen": "Open a finished service again and correct finished works",
+    "order_discount": "Apply discounts"
   },
   "positions": {
     "director": "Director"
@@ -1496,7 +1507,9 @@
     "notifications": "Notifications and tasks",
     "notifications_hint": "Which working events notify whom, when and with which repetition",
     "export": "Full data export",
-    "export_hint": "All the company's tables and documents in one archive"
+    "export_hint": "All the company's tables and documents in one archive",
+    "discounts": "Discounts",
+    "discounts_hint": "The catalog of discounts for orders"
   },
   "setup": {
     "back": "Back",
@@ -3699,7 +3712,9 @@
     "cost_changed": "The cost of the order changed:",
     "added_position": "Added to the order",
     "approve": "Agree",
-    "decline_position": "Refuse"
+    "decline_position": "Refuse",
+    "source_discount": "Discount",
+    "source_sale_line": "Goods"
   },
   "exports": {
     "title": "Full data export",
@@ -3744,5 +3759,53 @@
     "policy_title": "Orders: agreement with the client",
     "policy_label": "Agree additions with the client",
     "policy_hint": "A position added to an order already in work waits for the client's answer; it starts only after the answer or with «Do without the client's confirmation». A change of the cost is not agreed: the client sees a notice in the order."
+  },
+  "discounts": {
+    "title": "Discounts",
+    "from_position": "own discount",
+    "from_order": "order discount",
+    "from_null": "",
+    "target_position": "on a position",
+    "target_order": "on the order",
+    "remove": "Remove",
+    "discount": "Discount",
+    "apply_to": "Apply to",
+    "whole_order": "The order (positions in the discount's scope)",
+    "apply": "Apply",
+    "limit": "Your limit: {{percent}} %",
+    "no_limit": "No discount limit is set for you: discounts are not applied.",
+    "conflict": "Some positions have their own discounts. Discounts do not add up — choose:",
+    "keep_positions": "Keep the positions' discounts, apply the order's to the rest",
+    "remove_positions": "Remove the positions' discounts, apply the order's to all",
+    "cancel_order_discount": "Do not apply the order's discount",
+    "catalog": "Discounts",
+    "none": "No discounts yet.",
+    "new": "New discount",
+    "name": "Name",
+    "kind": "Kind",
+    "kind_percent": "Percent",
+    "kind_amount": "Fixed amount",
+    "value": "Value",
+    "currency": "Currency",
+    "scope": "Scope",
+    "scope_order": "whole order",
+    "scope_rental": "rental",
+    "scope_extra_service": "additional services",
+    "scope_service": "service: works and parts",
+    "scope_goods": "goods",
+    "categories": "Categories of goods",
+    "categories_hint": "Codes of the catalog categories separated by commas; empty — all goods",
+    "groups": "Only for client groups",
+    "groups_hint": "None chosen — for every client.",
+    "create": "Add the discount",
+    "limit_title": "Discount limit",
+    "limit_percent": "Largest discount, %",
+    "limit_hint": "Set with the right «Apply discounts». Empty — the employee does not apply discounts; a fixed amount counts as a percent of what it applies to."
+  },
+  "client_groups": {
+    "title": "Client groups",
+    "none": "No groups yet.",
+    "new": "New group",
+    "create": "Create"
   }
 }

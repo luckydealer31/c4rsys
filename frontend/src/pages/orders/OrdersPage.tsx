@@ -1,5 +1,6 @@
 import { ReopenOrder, SaleGoods } from "../warehouse/Sales";
 import { OrderApprovals } from "./Approvals";
+import { OrderDiscountsCard } from "./Discounts";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -255,6 +256,7 @@ export function OrderPage() {
       ) : null}
 
       <OrderApprovals orderId={current.id} onChange={refresh} />
+      <OrderDiscountsCard orderId={current.id} editable={current.state === "open" || current.state === "ready_to_close"} onChange={refresh} />
       <FormOrder order={current} onDone={refresh} />
       <RentalProposals order={current} onDone={refresh} />
       <OrderServices order={current} onChange={refresh} />

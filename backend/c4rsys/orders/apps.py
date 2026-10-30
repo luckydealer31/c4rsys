@@ -24,3 +24,8 @@ class OrdersConfig(AppConfig):
         from c4rsys.orders import cancellers
 
         cancellers.register()
+        # § 12.5.6, З14: a recalculated position recalculates its discount.
+        from c4rsys.finance import charges
+        from c4rsys.orders import discounts
+
+        charges.register_after_change(discounts.on_charge_changed)
