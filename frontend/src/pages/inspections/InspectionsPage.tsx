@@ -9,12 +9,15 @@ import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { formatMoment } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
 import { useVehicles } from "../vehicles/VehiclesPage";
+import { useScope } from "../../offline/hooks";
 import { KINDS, STATES, stateBadge, useInspections } from "./data";
+import { DraftsPanel } from "./OfflineDrafts";
 
 export function InspectionsPage() {
   const { t } = useTranslation();
   const company = useCompany();
   const can = useCan();
+  const scope = useScope();
   const [params, setParams] = useSearchParams();
   const vehicles = useVehicles();
   const vehicle = params.get("vehicle") ?? "";
@@ -43,6 +46,14 @@ export function InspectionsPage() {
           </Link>
         ) : null}
       </div>
+      {/* Local drafts of this account in this company (§ 10.4.2–10.4.4). */}
+      <DraftsPanel
+        scope={scope}
+        base={companyPath(company)}
+        zone={company.timezone ?? "UTC"}
+        canCreate={can("inspection.create")}
+        always={can("inspection.create")}
+      />
       <div className="row filters">
         <Field label={t("inspections.vehicle")}>
           <select value={vehicle} onChange={(e) => set("vehicle", e.target.value)}>

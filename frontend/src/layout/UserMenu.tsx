@@ -13,6 +13,8 @@ import { TimeZoneSelect, useZoneCities } from "../components/TimeZoneSelect";
 import { useDismiss } from "../components/useDismiss";
 import { ErrorMessage } from "../components/ui";
 import { UI_LANGUAGES } from "../i18n";
+import { clearDatasets } from "../offline/drafts";
+import { forgetProfile } from "../offline/profile";
 import { deviceTimeZone, formatOffset, zoneOffsetMinutes } from "../time";
 
 /** «Last First» when the name is filled, otherwise the login email (decision of 24.10.2026). */
@@ -75,6 +77,10 @@ export function UserMenu({ user }: { user: User }) {
 
   async function logout() {
     await api("/auth/logout", { method: "POST" }).catch(() => undefined);
+    // Local working data become unavailable (§ 10.4.2): the offline sign-in is forgotten and the
+    // saved lists are deleted; unsent drafts stay for the same account's next sign-in (§ 10.4.4).
+    forgetProfile();
+    await clearDatasets(user.public_id).catch(() => undefined);
     // Data of the session is dropped; the user query stays subscribed and becomes empty.
     client.removeQueries({ predicate: (query) => query.queryKey[0] !== ME_KEY[0] });
     client.setQueryData(ME_KEY, null);

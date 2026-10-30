@@ -28,6 +28,20 @@ import {
 import { DamageList, DamagesEditor } from "./DamagesEditor";
 import { DetailsFields, detailsBody, detailsOf, employeeName, type Details } from "./Fields";
 import { PhotoInput, PhotoThumb, VideoInput, VideoItem } from "./Media";
+import { LocalThumb, SyncBadge } from "./OfflineDrafts";
+import {
+  addFile as addLocalFile,
+  deleteDraft,
+  editDraftOf,
+  makeEditDraft,
+  removeFile as removeLocalFile,
+  saveDraft,
+  transition,
+  updateDraft,
+  type EditDraft,
+} from "../../offline/drafts";
+import { useDraft, useScope } from "../../offline/hooks";
+import { claim, syncDraft } from "../../offline/sync";
 import { VehicleScheme, type SchemeId } from "./schemes";
 import { useEmployees } from "../settings/EmployeesPage";
 import { useServiceOperation } from "../service/hooks";
@@ -247,6 +261,14 @@ function FillForm({ inspection, vehicle, zone }: { inspection: Inspection; vehic
   const chain = useRef<Promise<unknown>>(Promise.resolve());
   const formRef = useRef(form);
   formRef.current = form;
+  // § 10.4.2: with an unstable connection the changes and the chosen files are kept on the
+  // device as a local draft and sent when the connection returns.
+  const scope = useScope();
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const draftIdRef = useRef<string | null>(null);
+  const release = useRef<(() => void) | null>(null);
+  const persistTimer = useRef<number | null>(null);
+  const local = useDraft(scope, draftId ?? "") as EditDraft | null | undefined;
   const clientId = useLinkedClient(inspection, vehicle);
   const planned = inspection.state === "planned";
   const editable = can("inspection.create") || can("inspection.conduct");
@@ -261,20 +283,83 @@ function FillForm({ inspection, vehicle, zone }: { inspection: Inspection; vehic
     queryClient.setQueryData(["inspection", company.public_id, inspection.id], { inspection: next });
   }
 
+  function bindDraft(id: string | null) {
+    draftIdRef.current = id;
+    setDraftId(id);
+    release.current?.();
+    release.current = id ? claim(id) : null;
+  }
+
+  /** The local draft gets the form as it is now; returns its id. */
+  async function persistLocal(next: Form, bind = true): Promise<string> {
+    if (persistTimer.current !== null) {
+      window.clearTimeout(persistTimer.current);
+      persistTimer.current = null;
+    }
+    const data = { form: next, body: bodyOf(next, zone, planned) };
+    const id = draftIdRef.current;
+    if (id) {
+      const updated = await updateDraft<EditDraft>(scope, id, (current) => {
+        const changed = transition({ ...current, data }, { type: "changed" });
+        // A conflict keeps the version it was found over until the employee resolves it.
+        return current.state === "conflict" ? changed : { ...changed, baseVersion: version.current };
+      });
+      if (updated) return id;
+    }
+    const created = await saveDraft(makeEditDraft(scope, inspection.id, version.current, data));
+    if (bind) bindDraft(created.id);
+    return created.id;
+  }
+
+  /** The files of the form after a sync: the server's, with the changes made meanwhile. */
+  function merged(sent: Form, server: Inspection): Form {
+    const current = formRef.current;
+    const before = new Set(sent.files.map((f) => f.file_id));
+    const now = new Set(current.files.map((f) => f.file_id));
+    const added = current.files.filter((f) => !before.has(f.file_id));
+    const files = [...server.files.filter((f) => !before.has(f.file_id) || now.has(f.file_id)), ...added];
+    return { ...current, files };
+  }
+
+  /** Without the local storage the change goes straight to the server, as it always did. */
+  async function saveDirect(next: Form): Promise<Inspection | null> {
+    const result = await api<{ inspection: Inspection }>(path, {
+      method: "PATCH",
+      body: { ...bodyOf(next, zone, planned), expected_version: version.current },
+      idempotencyKey: crypto.randomUUID(),
+    });
+    apply(result.inspection);
+    if (formRef.current === next) setDirty(false);
+    return result.inspection;
+  }
+
   /** Changes are sent one after another, each with the version of the previous answer. */
   function save(next: Form = formRef.current): Promise<Inspection | null> {
     const run = chain.current.then(async () => {
       setSaving(true);
       setError(null);
       try {
-        const result = await api<{ inspection: Inspection }>(path, {
-          method: "PATCH",
-          body: { ...bodyOf(next, zone, planned), expected_version: version.current },
-          idempotencyKey: crypto.randomUUID(),
-        });
-        apply(result.inspection);
-        if (formRef.current === next) setDirty(false);
-        return result.inspection;
+        let id: string;
+        try {
+          id = await persistLocal(next);
+        } catch {
+          return await saveDirect(next);
+        }
+        const result = await syncDraft(scope, id);
+        if (result.status === "synced" && result.inspection) {
+          apply(result.inspection);
+          if (!result.kept) bindDraft(null);
+          const unchanged = formRef.current === next && !result.kept;
+          const after = merged(next, result.inspection);
+          formRef.current = after;
+          setForm(after);
+          if (unchanged) setDirty(false);
+          return result.inspection;
+        }
+        if (result.status === "error") {
+          setError(new ApiError(400, { code: result.code, message_key: "", params: {}, field: null, request_id: "" }));
+        }
+        return null;
       } catch (caught) {
         setError(caught instanceof ApiError ? caught : new ApiError(0, null));
         return null;
@@ -286,12 +371,96 @@ function FillForm({ inspection, vehicle, zone }: { inspection: Inspection; vehic
     return run;
   }
 
+  // A local draft left from an earlier visit is restored; a newer server version is a conflict
+  // the employee resolves (§ 10.4.2). The connection coming back sends it.
+  useEffect(() => {
+    let alive = true;
+    void editDraftOf(scope, inspection.id)
+      .then(async (found) => {
+        if (!alive || !found) return;
+        bindDraft(found.id);
+        const restored = found.data.form as Form;
+        formRef.current = restored;
+        setForm(restored);
+        setDirty(true);
+        if (found.state !== "conflict" && found.baseVersion !== inspection.version) {
+          await updateDraft<EditDraft>(scope, found.id, (d) => transition(d, { type: "conflict", conflict: { type: "version" } }));
+        } else if (found.state === "waiting" && navigator.onLine) {
+          void save(restored);
+        }
+      })
+      .catch(() => undefined);
+    const online = () => {
+      if (draftIdRef.current) void save();
+    };
+    window.addEventListener("online", online);
+    return () => {
+      alive = false;
+      window.removeEventListener("online", online);
+      if (persistTimer.current !== null) {
+        window.clearTimeout(persistTimer.current);
+        if (draftIdRef.current || !navigator.onLine) void persistLocal(formRef.current, false).catch(() => undefined);
+      }
+      release.current?.();
+    };
+    // Once per opened inspection.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inspection.id]);
+
+  /** The server version replaces the local draft (§ 10.4.2). */
+  async function takeServerVersion() {
+    const id = draftIdRef.current;
+    if (id) await deleteDraft(scope, id);
+    bindDraft(null);
+    try {
+      const fresh = await api<{ inspection: Inspection }>(path);
+      apply(fresh.inspection);
+      const next = formOf(fresh.inspection);
+      formRef.current = next;
+      setForm(next);
+      setDirty(false);
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught : new ApiError(0, null));
+    }
+  }
+
+  /** The employee keeps working with the draft over the newer server version; it is sent when
+   * they save it. */
+  async function keepDraft() {
+    const id = draftIdRef.current;
+    if (!id) return;
+    try {
+      const fresh = await api<{ inspection: Inspection }>(path);
+      apply(fresh.inspection);
+      await updateDraft<EditDraft>(scope, id, (d) => transition(d, { type: "rebase", version: fresh.inspection.version }));
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught : new ApiError(0, null));
+    }
+  }
+
   function change(patch: Partial<Form>, persist = false) {
     const next = { ...formRef.current, ...patch };
     formRef.current = next;
     setForm(next);
     setDirty(true);
     if (persist) void save(next);
+    // Without connection, or while a local draft exists, typing is kept on the device too.
+    else if (!navigator.onLine || draftIdRef.current) {
+      if (persistTimer.current !== null) window.clearTimeout(persistTimer.current);
+      persistTimer.current = window.setTimeout(() => void persistLocal(formRef.current).catch(() => undefined), 500);
+    }
+  }
+
+  /** A file chosen without connection is kept on the device and sent with the draft. */
+  async function keepFile(file: File, kind: "photo" | "video", position: string | null) {
+    try {
+      const id = await persistLocal(formRef.current);
+      await addLocalFile(scope, id, file, { kind, position, name: file.name });
+      setDirty(true);
+      void save();
+    } catch {
+      setError(new ApiError(0, { code: "OFFLINE_STORAGE_UNAVAILABLE", message_key: "", params: {}, field: null, request_id: "" }));
+    }
   }
 
   function addFile(file: UploadedFile, kind: "photo" | "video", position: string | null) {
@@ -315,7 +484,7 @@ function FillForm({ inspection, vehicle, zone }: { inspection: Inspection; vehic
   }
 
   async function act(action: string, body: Record<string, unknown> = {}) {
-    if (dirty && !(await save())) return;
+    if ((dirty || draftIdRef.current) && !(await save())) return;
     await chain.current;
     setError(null);
     try {
@@ -337,6 +506,13 @@ function FillForm({ inspection, vehicle, zone }: { inspection: Inspection; vehic
   const videos = form.files.filter((f) => f.kind === "video");
   const earlier = (previous.data?.inspections ?? []).filter((i) => i.id !== inspection.id && i.state === "saved");
   const previousOf = (code: string) => earlier.find((i) => i.files.some((f) => f.position === code));
+  // Files kept on the device until they are sent (§ 10.4.2).
+  const localFiles = local?.files ?? [];
+  const localOf = (position: string | null) =>
+    localFiles.filter((f) => f.kind === "photo" && (position === null ? !f.position || !positions.some((p) => p.code === f.position) : f.position === position));
+  const removeLocal = (fileId: string) => {
+    if (draftIdRef.current) void removeLocalFile(scope, draftIdRef.current, fileId);
+  };
 
   if (!editable) {
     return <SavedContent inspection={inspection} vehicle={vehicle} />;
@@ -389,13 +565,14 @@ function FillForm({ inspection, vehicle, zone }: { inspection: Inspection; vehic
             {positions.length === 0 ? <p className="muted">{t("inspections.no_positions")}</p> : null}
             {positions.map((p) => {
               const taken = photos.filter((f) => f.position === p.code);
+              const kept = localOf(p.code);
               const before = previousOf(p.code);
               return (
                 <div key={p.code} className="position">
                   <div className="position-head">
                     <strong>{positionName(p)}</strong>
-                    <span className={`badge ${taken.length >= p.count ? "ok" : p.required ? "warn" : ""}`}>
-                      {taken.length} / {p.count}
+                    <span className={`badge ${taken.length + kept.length >= p.count ? "ok" : p.required ? "warn" : ""}`}>
+                      {taken.length + kept.length} / {p.count}
                     </span>
                     {p.required ? <span className="muted small">{t("inspections.position_required")}</span> : null}
                   </div>
@@ -403,8 +580,15 @@ function FillForm({ inspection, vehicle, zone }: { inspection: Inspection; vehic
                     {taken.map((f) => (
                       <PhotoThumb key={f.file_id} fileId={f.file_id} onRemove={() => removeFile(f.file_id)} />
                     ))}
+                    {kept.map((f) => (
+                      <LocalThumb key={f.id} scope={scope} file={f} onRemove={() => removeLocal(f.id)} />
+                    ))}
                   </div>
-                  <PhotoInput compact onUploaded={(file) => addFile(file, "photo", p.code)} />
+                  <PhotoInput
+                    compact
+                    onUploaded={(file) => addFile(file, "photo", p.code)}
+                    onLocal={(file) => keepFile(file, "photo", p.code)}
+                  />
                   {before ? (
                     <details className="previous-angle">
                       <summary className="muted small">
@@ -432,8 +616,15 @@ function FillForm({ inspection, vehicle, zone }: { inspection: Inspection; vehic
                 {extra.map((f) => (
                   <PhotoThumb key={f.file_id} fileId={f.file_id} onRemove={() => removeFile(f.file_id)} />
                 ))}
+                {localOf(null).map((f) => (
+                  <LocalThumb key={f.id} scope={scope} file={f} onRemove={() => removeLocal(f.id)} />
+                ))}
               </div>
-              <PhotoInput compact onUploaded={(file) => addFile(file, "photo", null)} />
+              <PhotoInput
+                compact
+                onUploaded={(file) => addFile(file, "photo", null)}
+                onLocal={(file) => keepFile(file, "photo", null)}
+              />
             </div>
           </Card>
 
@@ -447,7 +638,14 @@ function FillForm({ inspection, vehicle, zone }: { inspection: Inspection; vehic
                 onRemove={() => removeFile(f.file_id)}
               />
             ))}
-            <VideoInput onUploaded={(file) => addFile(file, "video", null)} />
+            <div className="media-row">
+              {localFiles
+                .filter((f) => f.kind === "video")
+                .map((f) => (
+                  <LocalThumb key={f.id} scope={scope} file={f} size={140} onRemove={() => removeLocal(f.id)} />
+                ))}
+            </div>
+            <VideoInput onUploaded={(file) => addFile(file, "video", null)} onLocal={(file) => keepFile(file, "video", null)} />
           </Card>
 
           <Card title={t("inspections.damages")}>
@@ -464,9 +662,38 @@ function FillForm({ inspection, vehicle, zone }: { inspection: Inspection; vehic
       )}
 
       <div className="sticky-actions">
+        {local ? (
+          <div className="stack">
+            <p className="small">
+              <SyncBadge state={local.state} /> {t(`offline.edit_${local.state}`)}
+            </p>
+            {local.state === "conflict" ? (
+              <>
+                <p className="alert warn">
+                  {local.conflict?.type === "not_editable" ? t("offline.conflict_saved") : t("offline.conflict_version")}
+                </p>
+                <div className="actions" style={{ marginTop: 0 }}>
+                  <button type="button" onClick={() => void takeServerVersion()}>
+                    {t("offline.use_server")}
+                  </button>
+                  {local.conflict?.type === "version" ? (
+                    <button type="button" className="secondary" onClick={() => void keepDraft()}>
+                      {t("offline.keep_draft")}
+                    </button>
+                  ) : null}
+                </div>
+              </>
+            ) : null}
+          </div>
+        ) : null}
         <ErrorMessage error={error} />
         <div className="actions" style={{ marginTop: 0 }}>
-          <button type="button" className="secondary" disabled={saving || !dirty} onClick={() => void save()}>
+          <button
+            type="button"
+            className="secondary"
+            disabled={saving || (!dirty && !local) || local?.state === "conflict"}
+            onClick={() => void save()}
+          >
             {saving ? t("inspections.saving") : dirty ? t("inspections.save_draft") : t("inspections.draft_saved")}
           </button>
         </div>

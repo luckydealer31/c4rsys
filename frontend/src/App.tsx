@@ -1,6 +1,13 @@
 import { Navigate, Route, Routes } from "react-router";
 
+import { useEffect } from "react";
+
+import { ApiError } from "./api/client";
 import { useMe, useProfilePreferences } from "./auth";
+import { OfflineApp } from "./offline/OfflineApp";
+import { purgeExpired } from "./offline/drafts";
+import { offlineProfile, rememberUser } from "./offline/profile";
+import { OnlineDraftPage } from "./pages/inspections/OfflineDrafts";
 import { CabinetApp, useSite } from "./cabinet/CabinetApp";
 import { Loading } from "./components/ui";
 import { AppShell } from "./layout/AppShell";
@@ -64,6 +71,20 @@ export function App() {
   const site = useSite();
   useProfilePreferences(me.data);
 
+  // Local drafts kept longer than 7 days after their last change are deleted (§ 10.4.4).
+  useEffect(() => {
+    void purgeExpired().catch(() => undefined);
+  }, []);
+  useEffect(() => {
+    if (me.data) rememberUser(me.data);
+  }, [me.data]);
+  const { refetch } = me;
+  useEffect(() => {
+    const online = () => void refetch();
+    window.addEventListener("online", online);
+    return () => window.removeEventListener("online", online);
+  }, [refetch]);
+
   if (me.isLoading || site.isLoading) {
     return (
       <div className="narrow">
@@ -72,6 +93,13 @@ export function App() {
     );
   }
   const user = me.data ?? null;
+
+  // No connection: an employee who signed in on this device earlier works with local drafts
+  // of inspections only (§ 10.4.3).
+  if (!user && me.error instanceof ApiError && me.error.status === 0) {
+    const profile = offlineProfile();
+    if (profile) return <OfflineApp profile={profile} onRetry={() => void refetch()} retrying={me.isFetching} />;
+  }
 
   if (!user) {
     return (
@@ -140,6 +168,7 @@ export function App() {
         <Route path="vehicles/:id/edit" element={<EditVehiclePage />} />
         <Route path="inspections" element={<InspectionsPage />} />
         <Route path="inspections/new" element={<NewInspectionPage />} />
+        <Route path="inspections/drafts/:draftId" element={<OnlineDraftPage />} />
         <Route path="inspections/:id" element={<InspectionPage />} />
         <Route path="damages/:id" element={<DamagePage />} />
         <Route path="settings/inspection-templates" element={<InspectionTemplatesPage />} />

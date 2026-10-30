@@ -23,6 +23,7 @@ export function useSite() {
     queryFn: () => api<{ cabinet: boolean }>("/site"),
     staleTime: Infinity,
     retry: false,
+    networkMode: "always",
   });
 }
 

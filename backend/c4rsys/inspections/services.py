@@ -15,11 +15,12 @@
 """
 
 from dataclasses import dataclass, field, replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
+from django.db.models import Q
 from django.utils import timezone
 
 from c4rsys.companies.models import Employment
@@ -262,6 +263,66 @@ class NewInspection:
     service_operation_id: UUID | None = None
     template_id: UUID | None = None
     planned_at: datetime | None = None  # a planned inspection (§ 10.6.3)
+    # A local draft made without connection (§ 10.4.3) and the employee's answer to its
+    # possible duplicates: they are resolved manually, never by the system.
+    client_draft_id: UUID | None = None
+    duplicates_confirmed: bool = False
+
+
+# PROPOSAL (agent, not confirmed; § 10.4.3 does not define a duplicate): a possible duplicate of
+# an offline draft is an inspection of the same vehicle and kind, not cancelled, terminated or
+# invalid, made within this time of the draft's moment or linked with the same operation.
+DUPLICATE_WINDOW = timedelta(hours=3)
+NOT_DUPLICATES = (State.CANCELLED, State.TERMINATED, State.INVALID)
+
+
+def possible_duplicates(
+    company_id: UUID, card_id: UUID, data: NewInspection, moment: datetime
+) -> list[Inspection]:
+    near = Q(
+        performed_at__gte=moment - DUPLICATE_WINDOW, performed_at__lte=moment + DUPLICATE_WINDOW
+    )
+    if data.rental_id is not None:
+        near |= Q(rental_id=data.rental_id)
+    if data.service_operation_id is not None:
+        near |= Q(service_operation_id=data.service_operation_id)
+    return list(
+        Inspection.objects.filter(company_id=company_id, vehicle_card_id=card_id, kind=data.kind)
+        .exclude(state__in=NOT_DUPLICATES)
+        .filter(near)
+        .order_by("performed_at")[:20]
+    )
+
+
+def _offline_draft(company_id: UUID, card: VehicleCard, data: NewInspection) -> None:
+    """The checks of sending a local draft (§ 10.4.3): it is sent once, and possible
+    duplicates are shown to the employee, who decides."""
+    if data.client_draft_id is None:
+        return
+    if data.planned_at is not None:
+        raise errors.validation_error("planned_at", code="FIELD_NOT_APPLICABLE")
+    found = Inspection.objects.filter(
+        company_id=company_id, client_draft_id=data.client_draft_id
+    ).first()
+    if found is not None:
+        raise errors.ApiError(
+            "OFFLINE_DRAFT_ALREADY_SENT", status=409, params={"inspection_id": str(found.id)}
+        )
+    if data.duplicates_confirmed:
+        return
+    moment = data.content.performed_at or timezone.now()
+    duplicates = possible_duplicates(company_id, card.id, data, moment)
+    if duplicates:
+        raise errors.ApiError(
+            "INSPECTION_POSSIBLE_DUPLICATE",
+            status=409,
+            params={
+                "inspections": [
+                    {"id": str(i.id), "state": i.state, "performed_at": _utc(i.performed_at)}
+                    for i in duplicates
+                ]
+            },
+        )
 
 
 def _not_future(moment: datetime, name: str) -> None:
@@ -479,6 +540,7 @@ def create(ctx: CommandContext, company_id: UUID, data: NewInspection) -> Inspec
     """A draft, or a planned inspection when its planned moment is given (§ 10.6.3)."""
     card = fleet.lock_card(company_id, data.vehicle_card_id)
     _link(company_id, card, data)
+    _offline_draft(company_id, card, data)
     version = templates.version_for(company_id, card, data.template_id)
     now = timezone.now()
     planned = data.planned_at is not None
@@ -498,6 +560,7 @@ def create(ctx: CommandContext, company_id: UUID, data: NewInspection) -> Inspec
         entered_at=now,
         odometer_unit=card.odometer_unit,
         template_version=version,
+        client_draft_id=data.client_draft_id,
     )
     content = data.content
     if planned and (content.files or content.damages):
@@ -516,6 +579,14 @@ def create(ctx: CommandContext, company_id: UUID, data: NewInspection) -> Inspec
             **snapshot(inspection),
             "planned_at": data.planned_at,
             "template_version": str(version.id) if version else None,
+            **(
+                {
+                    "offline_draft": str(data.client_draft_id),
+                    "duplicates_confirmed": data.duplicates_confirmed,
+                }
+                if data.client_draft_id
+                else {}
+            ),
         },
     )
     return inspection
@@ -911,6 +982,7 @@ def payload(inspection: Inspection, *, detail: bool = True) -> dict[str, Any]:
         "invalidated_reason": inspection.invalidated_reason,
         "invalidated_at": _utc(inspection.invalidated_at),
         "version": inspection.version,
+        "client_draft_id": str(inspection.client_draft_id) if inspection.client_draft_id else None,
     }
     data["files"] = [
         {

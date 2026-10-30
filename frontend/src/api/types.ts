@@ -1518,6 +1518,8 @@ export type Damage = {
 
 export type Inspection = {
   id: string;
+  /** The local draft it was sent from without connection (§ 10.4.3); null — made online. */
+  client_draft_id?: string | null;
   vehicle_card_id: string;
   kind: InspectionKind;
   application: InspectionApplication;

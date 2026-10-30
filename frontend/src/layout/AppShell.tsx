@@ -4,6 +4,7 @@ import { Link, NavLink } from "react-router";
 
 import type { User } from "../api/types";
 import { Icon, type IconName } from "../components/icons";
+import { useOnline } from "../offline/hooks";
 import { NotificationBell } from "../pages/notifications/NotificationsPage";
 import { UserMenu } from "./UserMenu";
 
@@ -28,6 +29,7 @@ export function AppShell({
   children: ReactNode;
 }) {
   const { t } = useTranslation();
+  const online = useOnline();
   return (
     <div className="shell">
       <header className="topbar">
@@ -45,7 +47,11 @@ export function AppShell({
             {sidebar ?? <RailLink to="/companies" icon="companies" label={t("nav.my_companies")} />}
           </nav>
         </aside>
-        <main className="shell-main">{children}</main>
+        <main className="shell-main">
+          {/* § 10.4.3: without connection only local drafts of inspections are kept. */}
+          {online ? null : <div className="alert warn offline-banner">{t("offline.banner")}</div>}
+          {children}
+        </main>
       </div>
     </div>
   );

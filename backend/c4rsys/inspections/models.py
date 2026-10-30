@@ -135,11 +135,19 @@ class Inspection(models.Model):
     invalidated_at = models.DateTimeField(null=True, blank=True)
     invalidated_by_user_id = models.UUIDField(null=True, blank=True)
     version = models.PositiveIntegerField(default=1)
+    # A local draft made on a device without connection (§ 10.4.3): the id the device gave it.
+    # It is sent once; a repeated sending of the same draft is refused, never a second record.
+    client_draft_id = models.UUIDField(null=True, blank=True)
 
     class Meta:
         db_table = "inspection"
         constraints = [
             models.UniqueConstraint(fields=["company", "id"], name="inspection_company_id_uniq"),
+            models.UniqueConstraint(
+                fields=["company", "client_draft_id"],
+                condition=Q(client_draft_id__isnull=False),
+                name="inspection_offline_draft_once",
+            ),
             models.CheckConstraint(
                 condition=~Q(state__in=["saved", "invalid"]) | Q(saved_at__isnull=False),
                 name="inspection_saved_has_time_v2",

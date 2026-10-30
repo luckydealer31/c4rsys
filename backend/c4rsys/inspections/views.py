@@ -249,6 +249,8 @@ def inspection_list(request: HttpRequest, cmp: str) -> JsonResponse:
         template_id=_uuid(data, "template_id"),
         planned_at=_moment(data, "planned_at"),
         content=_content(data, application),
+        client_draft_id=_uuid(data, "client_draft_id"),
+        duplicates_confirmed=data.get("duplicates_confirmed") is True,
     )
 
     def handler(ctx: CommandContext) -> CommandResult:

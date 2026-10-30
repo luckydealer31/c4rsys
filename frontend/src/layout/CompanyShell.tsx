@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { createContext, useContext } from "react";
+import { createContext, useContext, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { NavLink, Outlet, useParams } from "react-router";
 
@@ -9,6 +9,8 @@ import type { IconName } from "../components/icons";
 import { Avatar } from "../components/images";
 import { ErrorMessage, Loading } from "../components/ui";
 import { contextAvailable } from "../contexts";
+import { ScopeContext, useAutoSync, useOfflineDatasets } from "../offline/hooks";
+import { rememberCompany } from "../offline/profile";
 import { AppShell, RailLink } from "./AppShell";
 
 type ActiveCompany = { company: Company; permissions: Set<string> };
@@ -102,6 +104,16 @@ export function CompanyShell({ user }: { user: User }) {
     retry: false,
   });
 
+  // Local drafts and the lists for an offline start belong to this account and company
+  // (§ 10.4.3–10.4.4); waiting drafts go when the connection returns (§ 10.4.2).
+  const scope = useMemo(() => ({ userId: user.public_id, companyId: cmp }), [user.public_id, cmp]);
+  const canInspect = company.data?.permissions.has("inspection.create") ?? false;
+  useOfflineDatasets(scope, canInspect);
+  useAutoSync(scope);
+  useEffect(() => {
+    if (company.data) rememberCompany(user.public_id, company.data.company, canInspect);
+  }, [company.data, user.public_id, canInspect]);
+
   const data = company.data?.company;
   const sidebar = data ? (
     <>
@@ -127,7 +139,9 @@ export function CompanyShell({ user }: { user: User }) {
         </div>
       ) : company.data ? (
         <CompanyContext.Provider value={company.data}>
-          <Outlet />
+          <ScopeContext.Provider value={scope}>
+            <Outlet />
+          </ScopeContext.Provider>
         </CompanyContext.Provider>
       ) : null}
     </AppShell>

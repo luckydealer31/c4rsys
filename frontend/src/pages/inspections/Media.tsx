@@ -60,13 +60,58 @@ export function VideoItem({
   );
 }
 
+type Targets = {
+  onUploaded?: (file: UploadedFile) => void | Promise<void>;
+  onLocal?: (file: File) => void | Promise<void>;
+  local?: boolean;
+};
+
+/** Uploads the file, or keeps it in the local draft without connection (§ 10.4.2). */
+async function send(
+  file: File,
+  purpose: "inspection_photo" | "inspection_video",
+  { onUploaded, onLocal, local }: Targets,
+  setProgress: (value: number | null) => void,
+  setError: (error: ApiError | null) => void,
+): Promise<void> {
+  try {
+    if (onLocal && (local || !navigator.onLine || !onUploaded)) {
+      await onLocal(file);
+      return;
+    }
+    if (!onUploaded) return;
+    setProgress(0);
+    let uploaded: UploadedFile;
+    try {
+      uploaded = await uploadWithProgress(purpose, file, setProgress);
+    } catch (caught) {
+      if (onLocal && caught instanceof ApiError && caught.status === 0) {
+        await onLocal(file);
+        return;
+      }
+      throw caught;
+    }
+    await onUploaded(uploaded);
+  } catch (caught) {
+    setError(caught instanceof ApiError ? caught : new ApiError(0, null));
+  } finally {
+    setProgress(null);
+  }
+}
+
 /** Two ways for a photo: the camera of the phone or a file of the device (§ 10.4.2). */
 export function PhotoInput({
   onUploaded,
+  onLocal,
+  local,
   disabled,
   compact,
 }: {
-  onUploaded: (file: UploadedFile) => void | Promise<void>;
+  onUploaded?: (file: UploadedFile) => void | Promise<void>;
+  /** Without connection the chosen file is kept in the local draft (§ 10.4.2). */
+  onLocal?: (file: File) => void | Promise<void>;
+  /** Always into the local draft (an inspection started offline, § 10.4.3). */
+  local?: boolean;
   disabled?: boolean;
   compact?: boolean;
 }) {
@@ -88,15 +133,7 @@ export function PhotoInput({
         setError(localError("FILE_TOO_LARGE", { max_mb: 5 }));
         continue;
       }
-      try {
-        setProgress(0);
-        const uploaded = await uploadWithProgress("inspection_photo", file, setProgress);
-        await onUploaded(uploaded);
-      } catch (caught) {
-        setError(caught instanceof ApiError ? caught : new ApiError(0, null));
-      } finally {
-        setProgress(null);
-      }
+      await send(file, "inspection_photo", { onUploaded, onLocal, local }, setProgress, setError);
     }
     if (camera.current) camera.current.value = "";
     if (chooser.current) chooser.current.value = "";
@@ -139,9 +176,13 @@ export function PhotoInput({
  * refused, never trimmed. */
 export function VideoInput({
   onUploaded,
+  onLocal,
+  local,
   disabled,
 }: {
-  onUploaded: (file: UploadedFile) => void | Promise<void>;
+  onUploaded?: (file: UploadedFile) => void | Promise<void>;
+  onLocal?: (file: File) => void | Promise<void>;
+  local?: boolean;
   disabled?: boolean;
 }) {
   const { t } = useTranslation();
@@ -162,14 +203,7 @@ export function VideoInput({
         setError(localError("VIDEO_TOO_LONG", { max_seconds: MAX_VIDEO_SECONDS, seconds: Math.floor(seconds) }));
         continue;
       }
-      try {
-        setProgress(0);
-        await onUploaded(await uploadWithProgress("inspection_video", file, setProgress));
-      } catch (caught) {
-        setError(caught instanceof ApiError ? caught : new ApiError(0, null));
-      } finally {
-        setProgress(null);
-      }
+      await send(file, "inspection_video", { onUploaded, onLocal, local }, setProgress, setError);
     }
     if (input.current) input.current.value = "";
   }

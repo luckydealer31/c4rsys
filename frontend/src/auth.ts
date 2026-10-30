@@ -21,6 +21,9 @@ export function useMe() {
       }
     },
     staleTime: 60_000,
+    // Without connection the request fails at once, so the offline interface can open
+    // (§ 10.4.3) instead of waiting for the network.
+    networkMode: "always",
   });
 }
 
