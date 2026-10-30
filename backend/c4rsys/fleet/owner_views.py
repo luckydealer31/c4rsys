@@ -77,8 +77,9 @@ def cancel(request: HttpRequest, cmp: str, card_id: UUID) -> JsonResponse:
 
 def _answerer(request: HttpRequest, cmp: str) -> tuple[companies.CompanyContext, Actor]:
     context, actor = _actor(request, cmp)
+    # The same holders as those notified of the request (companies.link_answerers).
     if not context.is_top_authority and not access.RightsResolver().has_permission(
-        actor, "company.link.answer"
+        actor, "company.link.answer", whole_company=True
     ):
         raise errors.permission_denied("company.link.answer")
     return context, actor

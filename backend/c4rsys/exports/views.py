@@ -33,7 +33,7 @@ def _actor(request: HttpRequest, cmp: str) -> tuple[companies.CompanyContext, Ac
 def export_list(request: HttpRequest, cmp: str) -> JsonResponse:
     context, actor = _actor(request, cmp)
     if request.method == "GET":
-        services.purge_expired()
+        # Expired files are removed by the periodic check (`services.purge_expired`).
         now = timezone.now()
         items = [
             services.payload(e, now)

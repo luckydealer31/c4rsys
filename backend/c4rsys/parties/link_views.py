@@ -156,7 +156,11 @@ def link_apply(request: HttpRequest, cmp: str, link_id: UUID) -> JsonResponse:
 
 def _answerer(request: HttpRequest, cmp: str) -> tuple[companies.CompanyContext, Actor]:
     context, actor = _actor(request, cmp)
-    if not context.is_top_authority and not _has(actor, "company.link.answer"):
+    # The same holders as those notified of the request (companies.link_answerers): a right
+    # limited to locations or contexts does not answer for the whole company.
+    if not context.is_top_authority and not access.RightsResolver().has_permission(
+        actor, "company.link.answer", whole_company=True
+    ):
         raise errors.permission_denied("company.link.answer")
     return context, actor
 

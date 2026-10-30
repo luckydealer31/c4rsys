@@ -417,7 +417,7 @@ def start(ctx: CommandContext, d: Delivery, at: datetime) -> Delivery:
     orders.ensure_open(d.company_id, d.order_id)
     from c4rsys.orders import approvals
 
-    approvals.ensure_startable("delivery", d.id)
+    approvals.ensure_startable(d.company_id, "delivery", d.id)
     _not_future(at, "actual_start")
     card = VehicleCard.objects.get(pk=d.vehicle_card_id)
     _check_vehicle(card)
@@ -493,6 +493,10 @@ def _cancel(ctx: CommandContext, d: Delivery, reason: str) -> None:
     d.end_reason = reason
     _save(ctx, d, "delivery.cancelled", before)
     money.recharge(ctx, d, "delivery_cancelled")
+    from c4rsys.orders import approvals
+
+    # A delivery cancelled before the client's answer takes its request with it (§ 12.3).
+    approvals.withdraw(ctx, d.company_id, "delivery", d.id, reason)
 
 
 def cancel(ctx: CommandContext, d: Delivery, reason: str) -> Delivery:
@@ -539,6 +543,10 @@ def record(ctx: CommandContext, company: Company, data: Record) -> Delivery:
         ),
     )
     d.order = _order(ctx, company.id, data.order_id)
+    from c4rsys.orders import approvals
+
+    # Asked before the delivery exists: the move entered afterwards itself is a started one.
+    required = approvals.needs_approval(d.order_id)
     d.number = next_number(company.id, "delivery")
     d.driver_id = _employee(company.id, data.driver_id)
     d.created_at = timezone.now()
@@ -555,7 +563,11 @@ def record(ctx: CommandContext, company: Company, data: Record) -> Delivery:
     except IntegrityError as exc:
         raise errors.business_rule("VEHICLE_IN_TRANSIT", field="vehicle_card_id") from exc
     ctx.audit("delivery.created", object_type="delivery", object_id=d.id, after=snapshot(d))
-    return finish(ctx, d, data.actual_end, data.result, data.comment)
+    finished = finish(ctx, d, data.actual_end, data.result, data.comment)
+    # § 12.3.5: added to an order in work, it waits for the client's answer like the other
+    # positions; it has already happened, so a refusal keeps it (§ 12.3.1).
+    approvals.on_added(ctx, d.order_id, "delivery", d.id, f"№ {d.number}", required=required)
+    return finished
 
 
 def attach(ctx: CommandContext, d: Delivery, order_id: UUID) -> Delivery:
@@ -576,6 +588,10 @@ def attach(ctx: CommandContext, d: Delivery, order_id: UUID) -> Delivery:
         object_id=target.id,
         after={"delivery": str(d.id), "from_order": str(current.id)},
     )
+    from c4rsys.orders import approvals
+
+    # Added to a client order in work, it waits for the client's answer (§ 12.3.5).
+    approvals.on_added(ctx, target.id, "delivery", d.id, f"№ {d.number}")
     return d
 
 
@@ -624,6 +640,13 @@ def start_pickup_on_return(
         )
     )
     if d is None:
+        return None
+    from c4rsys.orders import approvals
+
+    # A pickup waiting for the client or refused by them is not started automatically, and the
+    # return of the rental is not refused because of it: the employee starts it by hand
+    # (§ 15.3.3 — with a doubt the automatic transition is not made; § 12.3.2).
+    if not approvals.startable(company_id, "delivery", d.id):
         return None
     return start(ctx, d, at)
 
@@ -797,10 +820,14 @@ def schedule(
     plan, a started one over its actual period (to now while in transit)."""
     now = timezone.now()
     result: list[dict[str, Any]] = []
+    # Annulled moves are recognized invalid (§ 15.3.4); finished ones of the past are cut off in
+    # the query.
     for d in (
         deliveries_of(company_id)
         .filter(vehicle_card_id__in=card_ids)
-        .exclude(state=State.CANCELLED)
+        .exclude(state__in=(State.CANCELLED, State.ANNULLED))
+        .exclude(actual_end__lte=start)
+        .exclude(state=State.PLANNED, planned_end__lte=start)
     ):
         if d.state == State.PLANNED:
             begin, finish = d.planned_start, d.planned_end

@@ -551,12 +551,18 @@ function JobForm({ mode, job, zone, onDone }: { mode: Exclude<Mode, "">; job: Se
   const company = useCompany();
   const refresh = useRefresh();
   const executors = useExecutors(mode === "assign");
-  const [at, setAt] = useState(
-    toLocalInput(mode === "correct" && job.actual_end ? new Date(job.actual_end) : new Date(), zone),
-  );
-  const [startAt, setStartAt] = useState(job.actual_start ? toLocalInput(new Date(job.actual_start), zone) : "");
-  const [odometer, setOdometer] = useState(mode === "correct" && job.odometer ? String(Number(job.odometer)) : "");
-  const [comment, setComment] = useState(mode === "correct" ? job.comment : "");
+  // The values shown at the opening of the form: a correction sends only what was changed, so
+  // that the seconds the form does not show and the odometer reading stay (§ 16.8.2).
+  const [initial] = useState(() => ({
+    at: toLocalInput(mode === "correct" && job.actual_end ? new Date(job.actual_end) : new Date(), zone),
+    startAt: job.actual_start ? toLocalInput(new Date(job.actual_start), zone) : "",
+    odometer: mode === "correct" && job.odometer ? String(Number(job.odometer)) : "",
+    comment: mode === "correct" ? job.comment : "",
+  }));
+  const [at, setAt] = useState(initial.at);
+  const [startAt, setStartAt] = useState(initial.startAt);
+  const [odometer, setOdometer] = useState(initial.odometer);
+  const [comment, setComment] = useState(initial.comment);
   const [reason, setReason] = useState("");
   const [amount, setAmount] = useState(job.price !== null ? String(Number(job.price)) : "");
   const [executor, setExecutor] = useState(job.executor_id ?? "");
@@ -583,10 +589,10 @@ function JobForm({ mode, job, zone, onDone }: { mode: Exclude<Mode, "">; job: Se
     if (mode === "assign") body.executor_id = executor || null;
     if (mode === "open") body.reason = reason;
     if (mode === "correct") {
-      if (startAt) body.actual_start = fromLocalInput(startAt, zone);
-      body.actual_end = fromLocalInput(at, zone);
-      if (job.state === "done" && odometer.trim()) body.odometer = number(odometer);
-      body.comment = comment;
+      if (startAt && startAt !== initial.startAt) body.actual_start = fromLocalInput(startAt, zone);
+      if (job.actual_end && at !== initial.at) body.actual_end = fromLocalInput(at, zone);
+      if (job.state === "done" && odometer.trim() && odometer !== initial.odometer) body.odometer = number(odometer);
+      if (comment !== initial.comment) body.comment = comment;
       body.reason = reason;
     }
     const result = await command.run(body);

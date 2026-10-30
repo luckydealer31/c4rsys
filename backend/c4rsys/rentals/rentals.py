@@ -383,10 +383,18 @@ def schedule(
 
     now = timezone.now()
     result: list[dict[str, Any]] = []
-    rentals = Rental.objects.select_related("client").filter(
-        company_id=company_id,
-        vehicle_card_id__in=card_ids,
-        state__in=(Rental.State.BOOKED, Rental.State.ACTIVE, Rental.State.RETURNED),
+    # Returned rentals of the past are cut off in the query, not loaded with the whole history.
+    rentals = (
+        Rental.objects.select_related("client")
+        .filter(
+            company_id=company_id,
+            vehicle_card_id__in=card_ids,
+            state__in=(Rental.State.BOOKED, Rental.State.ACTIVE, Rental.State.RETURNED),
+        )
+        .exclude(state=Rental.State.RETURNED, actual_end__lte=start)
+        .exclude(state=Rental.State.BOOKED, planned_end__lte=start)
+        .exclude(planned_start__gte=end, actual_start__isnull=True)
+        .exclude(actual_start__gte=end)
     )
     for r in rentals:
         if r.state == Rental.State.BOOKED:

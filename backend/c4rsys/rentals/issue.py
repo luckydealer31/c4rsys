@@ -182,11 +182,16 @@ def issue(ctx: CommandContext, request: IssueRequest) -> Issued:
     if request.booking_id is not None:
         return _issue_booking(ctx, request, card, location, client, tariff, terms, now)
 
+    from c4rsys.orders import approvals
+
     created_order = request.order_id is None
+    # Asked before the rental exists: the issued rental itself takes the order into work.
+    required = False
     if request.order_id is not None:
         order = orders.lock_open_order(company_id, request.order_id)
         if order.client_id != client.id:
             raise errors.business_rule("ORDER_CLIENT_MISMATCH", field="order_id")
+        required = approvals.needs_approval(order.id)
     else:
         order = orders.create_order(
             ctx,
@@ -233,6 +238,11 @@ def issue(ctx: CommandContext, request: IssueRequest) -> Issued:
         after=_issued(rental, order, card, client, tariff, location, request, inspection),
     )
     issue_policies.resolve(ctx, rental, assessment, request.exception)
+    # § 12.3.5: a rental added to an order in work waits for the client's answer like the other
+    # positions; it is issued at once, so a refusal keeps it (§ 12.3.1).
+    # TODO(spec): may a direct issue into an order in work be made before the client's answer
+    # or «Do without the client's confirmation» (§ 12.3.2–12.3.3)?
+    approvals.on_added(ctx, order.id, "rental", rental.id, card.name, required=required)
     return Issued(rental, inspection, created_order, _warnings(assessment, request))
 
 
@@ -291,7 +301,7 @@ def _issue_booking(
         raise errors.business_rule("BOOKING_VEHICLE_MISMATCH", field="vehicle_card_id")
     from c4rsys.orders import approvals
 
-    approvals.ensure_startable("rental", booking.id)
+    approvals.ensure_startable(card.company_id, "rental", booking.id)
     order = orders.lock_open_order(card.company_id, booking.order_id)
     if booking.tariff_id != tariff.id or not booking.tariff_snapshot:
         booking.tariff_snapshot = tariffs.rental_snapshot(tariff, terms)

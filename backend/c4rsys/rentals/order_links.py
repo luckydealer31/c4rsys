@@ -319,6 +319,9 @@ def transfer(
             reason="transferred",
         )
     extra_lines.move_linked(ctx, rental, target.id)
+    from c4rsys.orders import approvals
+
+    approvals.move(ctx, company_id, "rental", rental.id, target.id)  # § 12.3.7
     moved: dict[str, Any] = {"rental": str(rental.id)}
     ctx.audit(
         "rental.transferred",

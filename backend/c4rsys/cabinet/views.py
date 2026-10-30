@@ -10,7 +10,8 @@ from typing import Any
 from uuid import UUID
 
 from django.conf import settings
-from django.http import HttpRequest, JsonResponse
+from django.http import HttpRequest, HttpResponse, JsonResponse
+from django.http.request import split_domain_port
 from django.views.decorators.http import require_GET, require_POST
 
 from c4rsys.accounts.middleware import require_user
@@ -29,8 +30,10 @@ HISTORY_LIMIT = 100
 
 
 def is_cabinet_host(request: HttpRequest) -> bool:
-    host = request.META.get("HTTP_HOST", "").split(":")[0].lower()
-    return host in settings.C4R_CABINET_HOSTS
+    """The host as Django validates it (ALLOWED_HOSTS), lowercase, without the port and the
+    trailing dot."""
+    domain, _port = split_domain_port(request.get_host())
+    return domain in settings.C4R_CABINET_HOSTS
 
 
 @require_GET
@@ -92,7 +95,8 @@ def _order(order: Any, places: dict[str, int]) -> dict[str, Any]:
 @require_GET
 def history(request: HttpRequest, link_id: UUID) -> JsonResponse:
     """The allowed history of a linked company: its orders with rentals, service, purchases and
-    the amounts (decision Б-1). After a break only the orders from before it (§ 6.6.3)."""
+    the amounts (decision Б-1). After a break only the orders from before it (§ 6.6.3), in their
+    current state: no snapshot is made at the break (customer's decision of 30.10.2026)."""
     user, _session = require_user(request)
     link = links.links_of_user(user.id).filter(pk=link_id).first()
     if link is None:
@@ -140,14 +144,26 @@ def document_detail(request: HttpRequest, document_id: UUID) -> JsonResponse:
     return JsonResponse({"document": documents.payload(d, user.id, detail=True)})
 
 
+@require_GET
+def document_file(request: HttpRequest, document_id: UUID) -> HttpResponse:
+    """The file of the version shown to the client; other versions are not reachable (Б-2)."""
+    from c4rsys.files import services as files
+
+    user, _session = require_user(request)
+    item, _name = documents.file_of(user.id, document_id)
+    response = HttpResponse(files.content(item), content_type=item.content_type)
+    response["Cache-Control"] = "private, no-store"
+    response["Content-Disposition"] = "inline"
+    return response
+
+
 @require_POST
 def document_code(request: HttpRequest, document_id: UUID) -> JsonResponse:
     """A one-time code to the email of the profile (§ 18.3.9)."""
     user, session = require_user(request)
-    d = documents.get(user.id, document_id)
 
     def handler(ctx: CommandContext) -> CommandResult:
-        return CommandResult(200, {"sent_to": documents.request_code(ctx, d)})
+        return CommandResult(200, {"sent_to": documents.request_code(ctx, document_id)})
 
     actor = Actor(user_id=user.id, session_id=session.id)
     return run_and_respond(
@@ -158,7 +174,6 @@ def document_code(request: HttpRequest, document_id: UUID) -> JsonResponse:
 @require_POST
 def document_decide(request: HttpRequest, document_id: UUID) -> JsonResponse:
     user, session = require_user(request)
-    d = documents.get(user.id, document_id)
     data = parse_json(request)
     code = get_str(data, "code", max_length=10)
     decision = get_str(data, "decision", max_length=10)
@@ -167,7 +182,7 @@ def document_decide(request: HttpRequest, document_id: UUID) -> JsonResponse:
     comment = get_str(data, "comment", max_length=2000, required=False)
 
     def handler(ctx: CommandContext) -> CommandResult:
-        failed = documents.decide(ctx, d, code, decision, comment)
+        d, failed = documents.decide(ctx, document_id, code, decision, comment)
         if failed is not None:
             # The counted attempt is kept: the answer is the error, the transaction commits.
             return CommandResult(failed.status, failed.payload(ctx.request_id))

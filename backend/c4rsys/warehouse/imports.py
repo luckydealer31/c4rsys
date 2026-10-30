@@ -30,7 +30,7 @@ from uuid import UUID
 from zipfile import BadZipFile
 
 from django.db import transaction
-from django.db.models import ProtectedError
+from django.db.models import ProtectedError, Q
 from django.utils import timezone
 from openpyxl import Workbook, load_workbook
 from openpyxl.utils.exceptions import InvalidFileException
@@ -332,6 +332,7 @@ def _apply_check(row: dict[str, Any], checked: Checked) -> None:
     row["conflict"] = checked.conflict
     row["extra"] = checked.extra
     row["action"] = _default_action(row)
+    row["packaging_confirmed"] = False  # a checked row is confirmed anew (§ 22.4.2)
     row["target"] = None
     row["result"] = None
     row["record_id"] = None
@@ -457,18 +458,24 @@ def decide(
             raise errors.business_rule("IMPORT_ROW_HAS_ERRORS", row=code)
         if action == "link" and target not in {m["id"] for m in row["matches"]}:
             raise errors.validation_error("decisions", code="IMPORT_LINK_TARGET", row=code)
-        if action == "create" and row["matches"]:
-            raise errors.business_rule("IMPORT_ROW_HAS_MATCH", row=code)
-        if action in ("create", "create_duplicate") and row.get("conflict"):
-            raise errors.business_rule("IMPORT_ROW_ID_CONFLICT", row=code)
         missing = row["extra"].get("packaging_missing")
-        if action == "create" and missing:
-            raise errors.business_rule("IMPORT_PACKAGING_CONFIRM", row=code)
         if action == "create_packaging":
+            # The explicit confirmation of the new packaging (§ 22.4.2). It is kept with the
+            # row; the row is created with it like «create» when it has no match, a row with a
+            # match still needs its own choice — a possible duplicate or skip (§ 22.2.3).
             if not missing:
                 raise errors.validation_error("decisions", code="IMPORT_ACTION_UNKNOWN", row=code)
             if not access.RightsResolver().has_permission(ctx.actor, PACKAGING_RIGHT):
                 raise errors.permission_denied(PACKAGING_RIGHT)
+            row["packaging_confirmed"] = True
+            if row["matches"] or row.get("conflict"):
+                continue
+        if action == "create" and row["matches"]:
+            raise errors.business_rule("IMPORT_ROW_HAS_MATCH", row=code)
+        if action in ("create", "create_duplicate") and row.get("conflict"):
+            raise errors.business_rule("IMPORT_ROW_ID_CONFLICT", row=code)
+        if action in ("create", "create_duplicate") and missing and not _confirmed(row):
+            raise errors.business_rule("IMPORT_PACKAGING_CONFIRM", row=code)
         row["action"] = action
         row["target"] = target if action == "link" else None
         if row.get("group") is not None and action in GROUP_ACTIONS:
@@ -484,6 +491,11 @@ def decide(
     return operation
 
 
+def _confirmed(row: dict[str, Any]) -> bool:
+    """The new packaging of the row was explicitly confirmed (§ 22.4.2)."""
+    return bool(row.get("packaging_confirmed")) or row.get("action") == "create_packaging"
+
+
 def _decide_group(rows: list[dict[str, Any]], row: dict[str, Any], action: str) -> None:
     """A group is loaded or excluded as a whole (§ 22.2.2): the choice goes to the other rows of
     the group where it is allowed; a row with errors stays excluded, a row waiting for the
@@ -494,10 +506,13 @@ def _decide_group(rows: list[dict[str, Any]], row: dict[str, Any], action: str) 
         if other["errors"] or action == "skip":
             other["action"] = "skip" if action == "skip" else other["action"]
             continue
-        if other["extra"].get("packaging_missing") and other["action"] == "create_packaging":
+        missing = other["extra"].get("packaging_missing")
+        if missing and not _confirmed(other):
+            continue  # waits for the confirmation of its packaging
+        if action == "create" and (other["matches"] or other["action"] == "create_packaging"):
             continue
-        if action == "create" and (other["matches"] or other["extra"].get("packaging_missing")):
-            continue
+        if missing:
+            other["packaging_confirmed"] = True  # the confirmation stays with the new choice
         other["action"] = action
         other["target"] = None
 
@@ -578,8 +593,11 @@ def _recheck(
         result["result"] = "skipped"
     elif (
         current.errors
-        or (action in ("create", "create_duplicate") and (fresh - known or current.conflict))
-        or (missing and action != "create_packaging")
+        or (
+            action in ("create", "create_duplicate", "create_packaging")
+            and (fresh - known or current.conflict)
+        )
+        or (missing and not _confirmed(row))
     ):
         result["result"] = "conflict"
         result["matches"] = current.matches
@@ -623,7 +641,7 @@ def _post_members(
     try:
         with transaction.atomic():
             for member in ready:
-                extra = {**member["extra"], "confirmed": member["action"] == "create_packaging"}
+                extra = {**member["extra"], "confirmed": _confirmed(member)}
                 try:
                     created[member["code"]] = found.create(
                         ctx,
@@ -703,7 +721,10 @@ def reupload(
         raise errors.validation_error("file", code="FILE_TOO_LARGE", max_bytes=MAX_FILE_BYTES)
     found = adapter(operation.kind)
     parsed = parse(content, operation.kind, correction=True)
-    stored = _store(ctx, company, content)
+    # The files are kept six months from the first upload and a corrected file does not extend
+    # it (§ 22.2.4): once they were removed, a later corrected file is not kept at all; before
+    # that it is removed with the others.
+    stored = _store(ctx, company, content) if operation.files_removed_at is None else None
     by_code = {r["code"]: r for r in operation.rows}
     counts = Counter(r["row_code"] for r in parsed.rows if r["row_code"])
     warnings: list[dict[str, Any]] = list(parsed.warnings)
@@ -736,7 +757,7 @@ def reupload(
     operation.uploads = [
         *operation.uploads,
         {
-            "file": str(stored.id),
+            "file": str(stored.id) if stored is not None else None,
             "file_name": file_name[:255],
             "sha256": hashlib.sha256(content).hexdigest(),
             "at": timezone.now().isoformat(),
@@ -777,12 +798,25 @@ def cancel(
     ids = [UUID(str(r.get("record_id") or r.get("item_id"))) for r in created]
     requests = {r["request"] for r in created if r.get("request")}
     checked_ids = [str(r["record_id"]) for r in created if r.get("request")]
+    # A kind whose rows are not themselves the journaled records names the objects they made.
+    objects = getattr(found, "history_objects", None)
+    pairs: list[tuple[str, str]] = (
+        objects(company_id, [UUID(i) for i in checked_ids])
+        if objects is not None
+        else [(found.object_type, i) for i in checked_ids]
+    )
+    by_type: dict[str, list[str]] = {}
+    for object_type, object_id in pairs:
+        by_type.setdefault(object_type, []).append(object_id)
+    condition = Q()
+    for object_type, object_ids in by_type.items():
+        condition |= Q(object_type=object_type, object_id__in=object_ids)
     history = (
-        AuditEvent.objects.filter(
-            company_id=company_id, object_type=found.object_type, object_id__in=checked_ids
-        )
+        AuditEvent.objects.filter(condition, company_id=company_id)
         .exclude(request_id__in=requests)
         .order_by("occurred_at")[:20]
+        if by_type
+        else AuditEvent.objects.none()
     )
     blockers = [{"reason": "history", "id": e.object_id, "action": e.action} for e in history]
     if blockers:
@@ -831,12 +865,20 @@ def remove_old_files(now: datetime | None = None) -> int:
     moment = now or timezone.now()
     border = shift_months(moment, -KEEP_FILES_MONTHS)
     removed = 0
-    for operation in ImportOperation.objects.filter(
+    for candidate in ImportOperation.objects.filter(
         created_at__lte=border, files_removed_at__isnull=True
-    ):
+    ).values_list("pk", flat=True):
         with transaction.atomic():
+            # Locked and read again: a corrected file uploaded meanwhile is removed too.
+            operation = (
+                ImportOperation.objects.select_for_update()
+                .filter(pk=candidate, files_removed_at__isnull=True)
+                .first()
+            )
+            if operation is None:
+                continue
             ids = [operation.file_id] if operation.file_id else []
-            ids += [UUID(u["file"]) for u in operation.uploads]
+            ids += [UUID(u["file"]) for u in operation.uploads if u.get("file")]
             for file_id in ids:
                 files.remove(file_id)
             operation.files_removed_at = moment

@@ -376,7 +376,7 @@ function DocumentView() {
       </p>
       {d.has_file && d.file_id ? (
         <p>
-          <a href={`/api/files/${d.file_id}`} target="_blank" rel="noreferrer">
+          <a href={`/api/cabinet/documents/${d.id}/file`} target="_blank" rel="noreferrer">
             {d.file_name || t("cabinet.open_file")}
           </a>
         </p>

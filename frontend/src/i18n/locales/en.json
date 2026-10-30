@@ -934,7 +934,10 @@
     "discount_nothing_to_apply": "No position of the order is in the discount's scope.",
     "discount_over_100": "Not more than 100 %.",
     "client_group_exists": "Such a group exists.",
-    "client_group_unknown": "Unknown group."
+    "client_group_unknown": "Unknown group.",
+    "cabinet_not_signer": "This document is not waiting for your signature: you are not a signer of its current version, or the link with the company is broken.",
+    "approval_withdrawn": "The position was cancelled; no answer is needed.",
+    "service_reopen_post_taken": "The service cannot be reopened: its post is now planned for another service (No. {{operation}})."
   },
   "history": {
     "action": "Action",
@@ -1953,7 +1956,8 @@
     "import_warning_row_code_repeated": "Row {{number}}: code {{row}} repeats — not loaded.",
     "import_warning_row_code_unknown": "Row {{number}}: code {{row}} is not of this import.",
     "import_warning_row_already_posted": "Row {{number}} ({{row}}) is already loaded and stays as it was.",
-    "import_warning_corrected_file": "Corrected file: {{rows}} rows checked again. Choose actions and post."
+    "import_warning_corrected_file": "Corrected file: {{rows}} rows checked again. Choose actions and post.",
+    "archived": "archived"
   },
   "warnings": {
     "client_has_debt": "The client has a debt: {{amounts}}.",
@@ -3569,7 +3573,8 @@
     "blocker_corrected": "Corrected receipt",
     "hint_stock": "Initial stock: one row per unit of an individual item; a material by lots — a new lot by its code in the file, an existing one by its LOT ID; closed packages, an opened package with its rest, or loose material. The IDs of items, warehouses and lots are on the sheets of the template.",
     "blocker_owner_confirmed": "Ownership confirmed by the owner",
-    "blocker_owner_request": "A request was sent to the owner"
+    "blocker_owner_request": "A request was sent to the owner",
+    "packaging_confirmed": "Packaging confirmed — choose what to do with the row"
   },
   "links": {
     "title": "Link with a c4rsys profile",
@@ -3651,7 +3656,8 @@
     "ask_ownership": "Is this vehicle yours? «Yes» adds it to your personal garage.",
     "ask_management": "Do you agree that this company manages the vehicle?",
     "final": "An answer cannot be changed later: a new decision needs a new request of the company. You may answer some questions now and the rest later.",
-    "answer": "Answer"
+    "answer": "Answer",
+    "closed_owner_changed": "Closed: another owner of the vehicle was given."
   },
   "cabinet": {
     "title": "Personal cabinet",
@@ -3722,7 +3728,12 @@
     "source_discount_service_job": "Discount",
     "source_discount_service_material": "Discount",
     "source_discount_sale_line": "Discount",
-    "source_discount_delivery": "Discount"
+    "source_discount_delivery": "Discount",
+    "state_proposed": "proposed",
+    "state_started": "started",
+    "state_accepted": "accepted for service",
+    "state_works_done": "works done",
+    "state_terminated": "terminated"
   },
   "exports": {
     "title": "Full data export",
@@ -3766,7 +3777,8 @@
     "decline_hint": "A refused position that has not started is cancelled; a started one keeps what was done, the payment is settled separately.",
     "policy_title": "Orders: agreement with the client",
     "policy_label": "Agree additions with the client",
-    "policy_hint": "A position added to an order already in work waits for the client's answer; it starts only after the answer or with «Do without the client's confirmation». A change of the cost is not agreed: the client sees a notice in the order."
+    "policy_hint": "A position added to an order already in work waits for the client's answer; it starts only after the answer or with «Do without the client's confirmation». A change of the cost is not agreed: the client sees a notice in the order.",
+    "state_withdrawn": "Withdrawn: the position was cancelled"
   },
   "discounts": {
     "title": "Discounts",

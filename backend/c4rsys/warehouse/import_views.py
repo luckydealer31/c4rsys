@@ -92,7 +92,9 @@ def import_list(request: HttpRequest, cmp: str, default_kind: str | None = None)
     if request.method == "GET":
         context, actor = _actor(request, cmp)
         _require(actor, "import.history.view")
-        found = ImportOperation.objects.filter(company=context.company)
+        # The history shows only the kinds whose section the user may see (§ 22.2.4, § 22.5.1).
+        allowed = [k for k in imports.KINDS if _has(actor, imports.adapter(k).permission)]
+        found = ImportOperation.objects.filter(company=context.company, kind__in=allowed)
         kind = request.GET.get("kind") or default_kind
         if kind:
             found = found.filter(kind=_kind(kind))
@@ -117,15 +119,17 @@ def import_detail(request: HttpRequest, cmp: str, operation_id: UUID) -> JsonRes
     context, actor = _actor(request, cmp)
     if not (_has(actor, "import.history.view") or _has(actor, "import.run")):
         raise errors.permission_denied("import.history.view")
-    return JsonResponse({"import": imports.payload(_operation(context.company.id, operation_id))})
+    operation = _operation(context.company.id, operation_id)
+    _require(actor, imports.adapter(operation.kind).permission)
+    return JsonResponse({"import": imports.payload(operation)})
 
 
 @require_http_methods(["GET"])
 def import_file(request: HttpRequest, cmp: str, operation_id: UUID) -> HttpResponse:
     """The source file, for those who may see the history, while it is kept (§ 22.2.4)."""
     context, actor = _actor(request, cmp)
-    _require(actor, "import.history.view")
     operation = _operation(context.company.id, operation_id)
+    _require(actor, "import.history.view", imports.adapter(operation.kind).permission)
     if operation.file is None:
         raise errors.not_found()
     return _xlsx(files.content(operation.file), operation.file_name or "import.xlsx")
@@ -152,7 +156,10 @@ def _operation_for(
 @require_POST
 def import_reupload(request: HttpRequest, cmp: str, operation_id: UUID) -> JsonResponse:
     context, actor = _operation_for(request, cmp, operation_id, "import.run")
-    expected_version = int(request.POST.get("expected_version") or 0)
+    raw_version = request.POST.get("expected_version") or "0"
+    if not (raw_version.isascii() and raw_version.isdigit()):
+        raise errors.validation_error("expected_version")
+    expected_version = int(raw_version)
     content, name = _uploaded(request)
     operation = _operation(context.company.id, operation_id)
     imports.parse(content, operation.kind, correction=True)

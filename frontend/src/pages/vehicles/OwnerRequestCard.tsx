@@ -8,6 +8,8 @@ import { Card, ErrorMessage } from "../../components/ui";
 import { useCan, useCompany } from "../../layout/CompanyShell";
 import { deviceTimeZone, formatMoment } from "../../time";
 
+/** Why a request was closed without a cancel: another owner was declared. */
+
 /** The request to the owner of a managed vehicle with its three separate answers (§ 8.3.1,
  * § 8.3.13–8.3.14): who answered and when, the conflict after a refusal (§ 8.3.3), a new request
  * after a refusal or an incomplete answer. */
@@ -74,6 +76,9 @@ export function OwnerRequestCard({ vehicle }: { vehicle: Vehicle }) {
                 ))}
               </tbody>
             </table>
+          ) : null}
+          {r.closed_reason === "owner_changed" ? (
+            <p className="muted small">{t("owner_requests.closed_owner_changed")}</p>
           ) : null}
           {r.ownership_dispute ? <p className="alert warn">{t("owner_requests.dispute")}</p> : null}
           {r.by_phone && r.state === "open" ? <p className="muted small">{t("links.no_sms")}</p> : null}

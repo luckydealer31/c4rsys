@@ -160,9 +160,10 @@ def order_discounts(request: HttpRequest, cmp: str, order_id: UUID) -> JsonRespo
         position_uuid = UUID(raw_position) if raw_position else None
     except ValueError as exc:
         raise errors.validation_error("discount_id") from exc
-    limit = discounts.limit_of(actor, context.is_top_authority)
 
     def handler(ctx: CommandContext) -> CommandResult:
+        # The limit is read in the command, on fresh data.
+        limit = discounts.limit_of(actor, context.is_top_authority)
         discounts.apply(
             ctx,
             context.company.id,

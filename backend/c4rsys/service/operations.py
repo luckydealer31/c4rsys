@@ -61,6 +61,10 @@ SOURCE = ChargeEntry.SourceType.SERVICE_JOB
 FINAL_OPERATION = (Op.WORKS_DONE, Op.CANCELLED, Op.TERMINATED)
 FINAL_JOB = (Job.DONE, Job.CANCELLED, Job.TERMINATED)
 HOLDING = (Op.ACCEPTED, Op.IN_PROGRESS)  # the vehicle is in the service
+# A service opened again after «works done» keeps its moment of finishing: its occupancy of the
+# vehicle and the post stays the historical interval up to that moment, and the opening creates
+# no new occupancy (§ 16.8.2).
+REOPENED = Q(state__in=HOLDING, finished_at__isnull=False)
 
 
 def _not_future(moment: datetime, field: str) -> None:
@@ -103,7 +107,7 @@ def post_in_use(post_id: UUID) -> bool:
 
 def post_taken_by(post_id: UUID, exclude: UUID | None = None) -> ServiceOperation | None:
     """The operation whose vehicle stands on the post now."""
-    query = ServiceOperation.objects.filter(post_id=post_id, state__in=HOLDING)
+    query = ServiceOperation.objects.filter(post_id=post_id, state__in=HOLDING).exclude(REOPENED)
     if exclude is not None:
         query = query.exclude(pk=exclude)
     return query.first()
@@ -244,15 +248,16 @@ def occupancy(
     company_id: UUID, card_id: UUID, start: datetime, end: datetime | None
 ) -> list[dict[str, Any]]:
     """Operations holding the vehicle in [start, end): the planned interval of a planned one; from
-    the acceptance up to the final state of an accepted one."""
+    the acceptance up to the final state of an accepted one. A reopened one holds only its
+    historical interval up to its first finish (§ 16.8.2)."""
     result = []
     query = ServiceOperation.objects.filter(company_id=company_id, vehicle_card_id=card_id)
     planned = query.filter(state=Op.PLANNED, planned_end__gt=start)
     if end is not None:
         planned = planned.filter(planned_start__lt=end)
-    held = query.filter(state__in=HOLDING, accepted_at__isnull=False)
+    held = query.filter(state__in=HOLDING, accepted_at__isnull=False).exclude(REOPENED)
     finished = query.filter(
-        state__in=FINAL_OPERATION, accepted_at__isnull=False, finished_at__gt=start
+        Q(state__in=FINAL_OPERATION) | REOPENED, accepted_at__isnull=False, finished_at__gt=start
     )
     if end is not None:
         held = held.filter(accepted_at__lt=end)
@@ -271,7 +276,9 @@ def vehicle_busy(company_id: UUID, card_id: UUID) -> list[str]:
             vehicle_card_id=card_id,
             state__in=HOLDING,
             accepted_at__isnull=False,
-        ).exists()
+        )
+        .exclude(REOPENED)
+        .exists()
         else []
     )
 
@@ -758,7 +765,9 @@ def start(ctx: CommandContext, job: ServiceJob, at: datetime) -> ServiceJob:
     orders.ensure_open(op.company_id, op.order_id)
     from c4rsys.orders import approvals
 
-    approvals.ensure_startable("service_job", job.id)
+    approvals.ensure_startable(job.company_id, "service_job", job.id)
+    # TODO(spec): a work started in a reopened service (§ 16.8.2) does not take the vehicle or
+    # the post again; whether its start must lie inside the historical interval is not defined.
     _not_future(at, "actual_start")
     if op.accepted_at is not None and at < op.accepted_at:
         raise errors.validation_error("actual_start", code="START_BEFORE_ACCEPTANCE")
@@ -852,7 +861,40 @@ def cancel(ctx: CommandContext, job: ServiceJob, reason: str) -> ServiceJob:
     job.end_reason = reason
     _save_job(ctx, job, "service_job.cancelled", before)
     _charge(ctx, job, "service_job_cancelled")
+    _withdraw(ctx, job, reason)
     return job
+
+
+def _withdraw(ctx: CommandContext, job: ServiceJob, reason: str) -> None:
+    """A work cancelled before the client's answer takes its request with it (§ 12.3)."""
+    from c4rsys.orders import approvals
+
+    approvals.withdraw(ctx, job.company_id, "service_job", job.id, reason)
+
+
+def cancel_refused(ctx: CommandContext, company_id: UUID, job_id: UUID, reason: str) -> bool:
+    """The client refused a work (§ 12.3.1): a work not started is cancelled. A work with issued
+    parts is not cancelled here — the parts go back to the warehouse first (§ 16.7.3) — and the
+    refusal stays recorded; the work cannot start after it."""
+    job = ServiceJob.objects.filter(company_id=company_id, pk=job_id).first()
+    if job is None:
+        return False
+    op = locked_operation(company_id, job.operation_id)  # vehicle → operation → work
+    job = ServiceJob.objects.select_for_update().get(pk=job_id)
+    job.operation = op
+    if job.state != Job.PLANNED:
+        return False
+    if materials.unsettled([job.id]):
+        ctx.audit(
+            "service_job.refusal_not_cancelled",
+            object_type="service_job",
+            object_id=job.id,
+            after={"code": "SERVICE_MATERIALS_ISSUED"},
+            reason=reason,
+        )
+        return False
+    cancel(ctx, job, reason)
+    return True
 
 
 def set_price(ctx: CommandContext, job: ServiceJob, price: Decimal) -> ServiceJob:
@@ -1023,7 +1065,9 @@ def finish(ctx: CommandContext, op: ServiceOperation) -> ServiceOperation:
         raise errors.business_rule("SERVICE_JOBS_NOT_FINISHED", jobs=open_jobs)
     before = op.state
     op.state = Op.WORKS_DONE
-    op.finished_at = timezone.now()
+    # A reopened service is finished again without a new occupancy: the moment of its first
+    # finish stays the end of the vehicle's and the post's interval (§ 16.8.2).
+    op.finished_at = op.finished_at or timezone.now()
     _bump(op, "state", "finished_at")
     ctx.audit(
         "service_operation.works_done",
@@ -1057,6 +1101,7 @@ def _cancel(ctx: CommandContext, op: ServiceOperation, reason: str) -> None:
             after={"state": job.state},
         )
         _charge(ctx, job, "service_job_cancelled")
+        _withdraw(ctx, job, reason)
     previous = op.state
     op.state = Op.CANCELLED
     op.end_reason = reason
@@ -1123,9 +1168,12 @@ def terminate_operation(ctx: CommandContext, op: ServiceOperation, reason: str) 
             after={k: v for k, v in after.items() if v != before[k]},
         )
         _charge(ctx, job, "service_operation_terminated")
+        if job.state == Job.CANCELLED:
+            _withdraw(ctx, job, reason)
     op.state = Op.TERMINATED
     op.end_reason = reason
-    op.finished_at = now
+    # A reopened service keeps its historical occupancy (§ 16.8.2).
+    op.finished_at = op.finished_at or now
     _bump(op, "state", "end_reason", "finished_at")
     ctx.audit(
         "service_operation.terminated",
@@ -1198,23 +1246,41 @@ def client_view_for_order(company_id: UUID, order_id: UUID) -> list[dict[str, An
 def reopen_operation(ctx: CommandContext, op: ServiceOperation, reason: str) -> ServiceOperation:
     """A service finished by mistake is opened again by a separate right (§ 16.8.2): works may be
     added or corrected and it is finished again. The works, their results and the past occupancy
-    of the vehicle and the post stay; no new occupancy is created. A closed order is reopened
-    first (§ 12.2.3)."""
+    of the vehicle and the post stay; no new occupancy is created: the moment of the finish is
+    kept as the end of that interval (see REOPENED). A closed order is reopened first
+    (§ 12.2.3)."""
     if not reason.strip():
         raise errors.validation_error("reason", code="FIELD_REQUIRED")
     if op.state != Op.WORKS_DONE:
         raise errors.business_rule("SERVICE_OPERATION_NOT_FINISHED", state=op.state)
     orders.ensure_open(op.company_id, op.order_id)
-    finished_at = op.finished_at
+    if op.post_id is not None and op.planned_period is not None:
+        # The record of the post is open again (§ 16.2.5): its plan must not overlap another
+        # open record of the post made after the finish.
+        taken = (
+            ServiceOperation.objects.filter(
+                post_id=op.post_id, state__in=OPEN_STATES, planned_period__overlap=op.planned_period
+            )
+            .exclude(pk=op.id)
+            .first()
+        )
+        if taken is not None:
+            raise errors.business_rule(
+                "SERVICE_REOPEN_POST_TAKEN", field="post_id", operation=taken.number
+            )
     op.state = Op.IN_PROGRESS
-    op.finished_at = None
-    _bump(op, "state", "finished_at")
+    op.version += 1
+    try:
+        with transaction.atomic():
+            op.save(update_fields=["state", "version", "updated_at"])
+    except IntegrityError as exc:
+        raise errors.business_rule("SERVICE_REOPEN_POST_TAKEN", field="post_id") from exc
     ctx.audit(
         "service_operation.reopened",
         object_type="service_operation",
         object_id=op.id,
-        before={"state": Op.WORKS_DONE, "finished_at": finished_at},
-        after={"state": op.state},
+        before={"state": Op.WORKS_DONE},
+        after={"state": op.state, "finished_at": op.finished_at},
         reason=reason,
     )
     return op
@@ -1286,8 +1352,8 @@ def correct_job(
         raise errors.business_rule("SERVICE_JOB_NOT_OPEN")
     op = job.operation
     orders.ensure_open(op.company_id, op.order_id)
-    start = actual_start or job.actual_start
-    end = actual_end or job.actual_end
+    start = _corrected(actual_start, job.actual_start)
+    end = _corrected(actual_end, job.actual_end)
     for moment, field in ((start, "actual_start"), (end, "actual_end")):
         if moment is not None:
             _not_future(moment, field)
@@ -1337,6 +1403,18 @@ def correct_job(
     return job
 
 
+def _corrected(given: datetime | None, stored: datetime | None) -> datetime | None:
+    """The form shows the time to the minute: the same minute keeps the stored moment, so that
+    a correction of the comment alone does not move the times or the odometer reading."""
+    if given is None:
+        return stored
+    if stored is not None and given.replace(second=0, microsecond=0) == stored.replace(
+        second=0, microsecond=0
+    ):
+        return stored
+    return given
+
+
 def schedule(
     company_id: UUID, card_ids: list[UUID], start: datetime, end: datetime
 ) -> list[dict[str, Any]]:
@@ -1345,9 +1423,12 @@ def schedule(
     lasts)."""
     now = timezone.now()
     result: list[dict[str, Any]] = []
-    for op in ServiceOperation.objects.filter(
-        company_id=company_id, vehicle_card_id__in=card_ids
-    ).exclude(state=Op.CANCELLED):
+    for op in (
+        ServiceOperation.objects.filter(company_id=company_id, vehicle_card_id__in=card_ids)
+        .exclude(state=Op.CANCELLED)
+        .exclude(finished_at__lte=start)
+        .exclude(state=Op.PLANNED, planned_end__lte=start)
+    ):
         if op.state == Op.PLANNED:
             begin, finish = op.planned_start, op.planned_end
         else:

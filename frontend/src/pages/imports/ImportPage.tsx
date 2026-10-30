@@ -300,6 +300,9 @@ function ImportResult({
                   ) : null}
                 </td>
                 <td>
+                  {row.packaging_confirmed && !posted ? (
+                    <span className="badge">{t("imports.packaging_confirmed")}</span>
+                  ) : null}
                   {checked && !posted ? (
                     <select
                       value={row.action === "link" ? `link:${row.target ?? ""}` : row.action}
@@ -313,7 +316,10 @@ function ImportResult({
                       !row.extra?.packaging_missing ? (
                         <option value="create">{t("warehouse.action_create")}</option>
                       ) : null}
-                      {!row.errors.length && row.extra?.packaging_missing && can("warehouse.catalog.manage") ? (
+                      {!row.errors.length &&
+                      row.extra?.packaging_missing &&
+                      !row.packaging_confirmed &&
+                      can("warehouse.catalog.manage") ? (
                         <option value="create_packaging">{t("imports.action_create_packaging")}</option>
                       ) : null}
                       <option value="skip">{t("warehouse.action_skip")}</option>

@@ -29,3 +29,4 @@ class OrdersConfig(AppConfig):
         from c4rsys.orders import discounts
 
         charges.register_after_change(discounts.on_charge_changed)
+        charges.register_companion(lambda source_type: [discounts.source_of(source_type)])

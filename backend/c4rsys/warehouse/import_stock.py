@@ -397,7 +397,10 @@ class StockTemplate:
         if given and price not in given:
             out.error("sale_price", "SALE_PRICE_DIFFERS")
         given.add(price)
-        if lot is not None:
+        # A packaging that does not exist yet has no price in the lot: the price of the loose
+        # material is another form and is not compared with it.
+        new_form = bool(out.extra.get("packaging_missing")) and not out.extra.get("opened")
+        if lot is not None and not new_form:
             prices = SalePrice.objects.filter(item=item, lot=lot)
             current = (
                 prices.filter(packaging__isnull=True)
@@ -463,6 +466,11 @@ class StockTemplate:
             session=session,
         )
         return line.id
+
+    def history_objects(self, company_id: UUID, record_ids: list[UUID]) -> list[tuple[str, str]]:
+        """The rows are receipt lines; their later history is journaled on the receipts, units
+        and new lots they made (§ 22.2.5)."""
+        return stock.initial_line_objects(company_id, record_ids)
 
     def remove(self, ctx: CommandContext, company_id: UUID, record_ids: list[UUID]) -> None:
         stock.cancel_initial_lines(ctx, company_id, record_ids)

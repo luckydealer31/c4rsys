@@ -11,7 +11,7 @@
   (decision Р-7).
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any
@@ -475,7 +475,8 @@ def with_warnings(company_id: UUID, today: date) -> list[Document]:
 
 
 def file_reader(user_id: UUID, item: Any) -> bool:
-    """A document file is read by whoever may view a document holding it (§ 18.5.3)."""
+    """A document file is read by whoever may view a document holding it (§ 18.5.3); the client
+    reads only the file of the version shown in the personal cabinet (Б-2)."""
     from c4rsys.companies import access
     from c4rsys.companies.models import Employment
     from c4rsys.documents.models import DocumentSigner
@@ -487,19 +488,19 @@ def file_reader(user_id: UUID, item: Any) -> bool:
     if holder is None:
         return False
     d = holder.document
-    if version is not None:
-        from c4rsys.documents import cabinet
-
-        # The client reads the file of a document shown in the personal cabinet (Б-2).
-        if cabinet.visible_to(user_id, d):
-            return True
+    # An employee is checked first: it is cheap, the cabinet reads the client's history.
     employment = Employment.objects.filter(
         company_id=d.company_id, user_id=user_id, state=Employment.State.ACTIVE
     ).first()
-    if employment is None:
+    if employment is not None:
+        actor = Actor(user_id=user_id, company_id=d.company_id, employment_id=employment.id)
+        if can(actor, "documents.view", d, access.RightsResolver()):
+            return True
+    if version is None:
         return False
-    actor = Actor(user_id=user_id, company_id=d.company_id, employment_id=employment.id)
-    return can(actor, "documents.view", d, access.RightsResolver())
+    from c4rsys.documents import cabinet
+
+    return cabinet.may_read_file(user_id, d, item.id)
 
 
 def can(actor: Any, permission: str, d: Document, resolver: Any = None) -> bool:
@@ -513,23 +514,32 @@ def can(actor: Any, permission: str, d: Document, resolver: Any = None) -> bool:
     return any(resolver.has_permission(actor, permission, location_id=x) for x in location_ids(d))
 
 
-def files_for_export(actor: Any, company_id: UUID) -> list[tuple[str, bytes]]:
+def safe_file_name(name: str, fallback: str) -> str:
+    """A file name for an archive: the last part of the path without separators, `..` and
+    control characters."""
+    base = name.replace("\\", "/").split("/")[-1]
+    base = "".join(ch for ch in base if ch.isprintable()).strip().lstrip(".")
+    return base or fallback
+
+
+def files_for_export(actor: Any, company_id: UUID) -> Iterator[tuple[str, bytes]]:
     """Files of the documents the employee may view, for the full export (§ 22.6.1, § 18.5.4):
-    every version and the scans of paper signatures, named by the document number."""
+    every version and the scans of paper signatures, named by the document number. The files
+    are read one by one, as the archive takes them."""
+    from c4rsys.companies import access
     from c4rsys.documents.models import DocumentSigner
     from c4rsys.files.models import StoredFile
 
-    result: list[tuple[str, bytes]] = []
-    for d in Document.objects.filter(company_id=company_id).order_by("number"):
-        if not can(actor, "documents.view", d):
+    resolver = access.RightsResolver()
+    for d in Document.objects.filter(company_id=company_id).order_by("number").iterator():
+        if not can(actor, "documents.view", d, resolver):
             continue
         for v in d.versions.filter(file__isnull=False).order_by("number"):
             item = StoredFile.objects.filter(pk=str(v.file_id)).first()
             if item is not None:
-                name = v.file_name or str(item.id)
-                result.append((f"{d.number}/v{v.number}_{name}", files.content(item)))
+                name = safe_file_name(v.file_name, str(item.id))
+                yield f"{d.number}/v{v.number}_{name}", files.content(item)
         for signer in DocumentSigner.objects.filter(document=d, paper_file__isnull=False):
             item = StoredFile.objects.filter(pk=str(signer.paper_file_id)).first()
             if item is not None:
-                result.append((f"{d.number}/paper_signature_{signer.id}", files.content(item)))
-    return result
+                yield f"{d.number}/paper_signature_{signer.id}", files.content(item)

@@ -135,6 +135,8 @@ def declare(ctx: CommandContext, company: Company, card: VehicleCard, owner: Own
         manual_contact=owner.contact,
         created_by_user_id=ctx.actor.user_id,
     )
+    # The request to the previous owner is not answered any more (§ 8.3.13).
+    owner_requests.close_for_new_owner(ctx, card)
     ctx.audit(
         "vehicle.owner_declared",
         object_type="vehicle_card",

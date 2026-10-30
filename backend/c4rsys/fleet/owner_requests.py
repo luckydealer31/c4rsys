@@ -29,6 +29,7 @@ from c4rsys.accounts.models import UserAccount
 from c4rsys.companies.models import Company
 from c4rsys.fleet import characteristics
 from c4rsys.fleet.models import (
+    Vehicle,
     VehicleCard,
     VehicleOwnerAnswer,
     VehicleOwnerClaim,
@@ -43,6 +44,7 @@ TTL = timedelta(days=30)
 State = VehicleOwnerRequest.State
 Question = VehicleOwnerAnswer.Question
 QUESTIONS = (Question.LINK, Question.OWNERSHIP, Question.MANAGEMENT)
+OWNER_CHANGED = "owner_changed"
 
 
 def effective_state(request: VehicleOwnerRequest, now: datetime) -> str:
@@ -100,6 +102,10 @@ def send(ctx: CommandContext, company: Company, card_id: UUID) -> VehicleOwnerRe
         raise errors.business_rule("LINK_SELF")
     now = timezone.now()
     previous = latest(card)
+    if previous is not None and previous.state == State.OPEN and previous.claim_id != claim.id:
+        # Left open by a change of the owner made before such requests were closed with it.
+        close_for_new_owner(ctx, card)
+        previous.refresh_from_db()
     if previous is not None:
         state = effective_state(previous, now)
         given = answers_of(previous)
@@ -164,6 +170,28 @@ def cancel(ctx: CommandContext, company_id: UUID, card_id: UUID) -> VehicleOwner
     return request
 
 
+def close_for_new_owner(ctx: CommandContext, card: VehicleCard) -> None:
+    """Another declared owner: the open request was addressed to the previous one and is no
+    longer answered (§ 8.3.13). It is cancelled with the reason and stays in the history with
+    its answers; a request to the new owner may be sent. The card is locked by the caller."""
+    now = timezone.now()
+    for request in VehicleOwnerRequest.objects.select_for_update().filter(
+        vehicle_card_id=card.id, state=State.OPEN
+    ):
+        expired = effective_state(request, now) == State.EXPIRED
+        request.state = State.EXPIRED if expired else State.CANCELLED
+        request.closed_at = now
+        request.closed_reason = "" if expired else OWNER_CHANGED
+        request.save(update_fields=["state", "closed_at", "closed_reason"])
+        if not expired:
+            ctx.audit(
+                "vehicle.owner_request_cancelled",
+                object_type="vehicle_card",
+                object_id=card.id,
+                after={"request": str(request.id), "reason": OWNER_CHANGED},
+            )
+
+
 def requests_of_card(company_id: UUID, card_id: UUID) -> QuerySet[VehicleOwnerRequest]:
     return (
         VehicleOwnerRequest.objects.filter(company_id=company_id, vehicle_card_id=card_id)
@@ -222,14 +250,27 @@ def _answer(
     company: Company | None,
 ) -> VehicleOwnerRequest:
     user_id = user.id if user is not None else None
-    request = query.select_for_update().filter(pk=request_id).first()
-    if request is None:
+    peek = query.filter(pk=request_id).first()
+    if peek is None:
         raise errors.not_found()
+    # The vehicle card first, then the request: the same order as a change of the declared
+    # owner, which closes the open request (close_for_new_owner).
+    card = VehicleCard.objects.select_for_update().get(pk=peek.vehicle_card_id)
+    request = query.select_for_update().get(pk=request_id)
     now = timezone.now()
     state = effective_state(request, now)
     if state == State.EXPIRED:
         raise errors.business_rule("OWNER_REQUEST_EXPIRED")
     if state != State.OPEN:
+        raise errors.business_rule("OWNER_REQUEST_NOT_OPEN")
+    # Checked again on fresh data: the request is to the current declaration of a managed card.
+    claim = _claim(card)
+    if (
+        claim is None
+        or claim.id != request.claim_id
+        or card.state != VehicleCard.State.ACTIVE
+        or card.relation != VehicleCard.Relation.MANAGED
+    ):
         raise errors.business_rule("OWNER_REQUEST_NOT_OPEN")
     before = answers_of(request)
     repeated = sorted(set(given) & set(before))
@@ -261,14 +302,14 @@ def _answer(
     if given.get(Question.LINK) is True:
         # «Yes» to the link makes the owner a client of the company: a client card linked to
         # the profile (customer's decision of 30.10.2026).
-        card = links.client_from_owner(
+        client = links.client_from_owner(
             ctx,
             request.company,
             owner_user=user,
             owner_company=company,
             requested_by=request.created_by_user_id,
         )
-        after["client"] = str(card.id)
+        after["client"] = str(client.id)
     # Journaled in the company that asked: its vehicle card is concerned (§ 20.3.4).
     ctx.audit(
         "vehicle.owner_answered",
@@ -292,7 +333,10 @@ def _own(
     request: VehicleOwnerRequest, user_id: UUID | None, company_id: UUID | None, now: datetime
 ) -> str:
     """Records the confirmed ownership of the global vehicle (§ 8.3.13, § 8.3.16). Another
-    confirmed owner is not replaced automatically: it is a dispute (§ 8.3.12)."""
+    confirmed owner is not replaced automatically: it is a dispute (§ 8.3.12). The global vehicle
+    is locked so that two first owners answering at once are serialized: the later one finds the
+    earlier and becomes a dispute."""
+    Vehicle.objects.select_for_update().filter(pk=request.vehicle_id).first()
     current = (
         VehicleOwnership.objects.select_for_update()
         .filter(vehicle_id=request.vehicle_id, ended_at__isnull=True)
@@ -361,10 +405,8 @@ def request_payload(request: VehicleOwnerRequest, now: datetime) -> dict[str, An
     state = effective_state(request, now)
     given = list(request.answers.all())
     names = _names(request)
-    ownership = VehicleOwnership.objects.filter(request=request).first()
-    dispute = (
-        any(a.question == Question.OWNERSHIP and a.answer for a in given) and ownership is None
-    )
+    mine = next((a for a in given if a.question == Question.OWNERSHIP and a.answer), None)
+    dispute = mine is not None and _disputed(request, mine.answered_at)
     return {
         "id": str(request.id),
         "state": "awaiting_rest" if state == State.OPEN and given else state,
@@ -383,7 +425,26 @@ def request_payload(request: VehicleOwnerRequest, now: datetime) -> dict[str, An
         ],
         # «The vehicle is mine» while another owner is confirmed: for the support (§ 8.3.12).
         "ownership_dispute": dispute,
+        "closed_reason": request.closed_reason,
     }
+
+
+def _disputed(request: VehicleOwnerRequest, answered_at: datetime) -> bool:
+    """«The vehicle is mine» recorded nothing because another owner was confirmed at that moment.
+    The same owner confirmed by an earlier request is no dispute."""
+    if VehicleOwnership.objects.filter(request=request).exists():
+        return False
+    owner = (
+        Q(owner_company_id=request.target_company_id)
+        if request.target_company_id is not None
+        else Q(owner_user_id=request.target_user_id)
+    )
+    return not VehicleOwnership.objects.filter(
+        owner,
+        Q(ended_at__isnull=True) | Q(ended_at__gt=answered_at),
+        vehicle_id=request.vehicle_id,
+        started_at__lte=answered_at,
+    ).exists()
 
 
 def owner_status(card: VehicleCard) -> dict[str, Any]:

@@ -4,11 +4,12 @@ from datetime import timedelta
 from typing import Any
 
 import pytest
+from django.db import IntegrityError, transaction
 from django.test import Client
 from django.utils import timezone
 
 from c4rsys.notifications.models import Notification
-from c4rsys.parties import notices
+from c4rsys.parties import links, notices
 from c4rsys.parties.models import ClientCard, Counterparty, ProfileLink
 from c4rsys.platform.models import AuditEvent
 from tests.accounts.helpers import post
@@ -239,3 +240,74 @@ def test_company_profile_answer_and_notifications(owner: Client, cmp: str) -> No
     assert answered.params["accepted"] is True and answered.object_type == "counterparty"
     # The answer is journaled in the answering company too.
     assert AuditEvent.objects.filter(action="profile_link.answered").count() == 1
+
+
+def accept(client: Client, link_id: str) -> Any:
+    return post(client, f"/api/profile-links/{link_id}/accept", {"fields": ["email"]}, key())
+
+
+def test_accept_rechecks_that_the_card_is_active(owner: Client, cmp: str) -> None:
+    card_id = person(owner, cmp)
+    somchai, usr = user_client("somchai@example.com")
+    link = ask(owner, cmp, card_id, usr).json()["link"]
+    ClientCard.objects.filter(pk=card_id).update(state=ClientCard.State.ARCHIVED)
+    refused = accept(somchai, link["id"])
+    assert refused.json()["error"]["code"] == "CARD_ARCHIVED"
+    assert ClientCard.objects.get(pk=card_id).linked_user_id is None
+    assert links_of(owner, cmp, card_id)[0]["state"] == "pending"
+
+
+def test_one_card_of_a_list_per_profile_in_the_database(
+    owner: Client, cmp: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = person(owner, cmp)
+    second = person(owner, cmp, phone="+66 81 234 5679")
+    somchai, usr = user_client("somchai@example.com")
+    one = ask(owner, cmp, first, usr).json()["link"]
+    two = ask(owner, cmp, second, usr).json()["link"]
+    assert accept(somchai, one["id"]).status_code == 200
+    # A concurrent accept passes the read check; the constraint stops it with the same error.
+    monkeypatch.setattr(links, "_taken", lambda *args: False)
+    refused = accept(somchai, two["id"])
+    assert refused.json()["error"]["code"] == "LINK_PROFILE_TAKEN"
+    assert ClientCard.objects.filter(linked_user_id__isnull=False).count() == 1
+    assert links_of(owner, cmp, second)[0]["state"] == "pending"
+
+    linked = ClientCard.objects.get(pk=first)
+    with pytest.raises(IntegrityError), transaction.atomic():
+        ClientCard.objects.filter(pk=second).update(linked_user_id=linked.linked_user_id)
+    # The other list of the company may be linked to the same profile.
+    Counterparty.objects.create(
+        company_id=linked.company_id,
+        kind="person",
+        first_name="Somchai",
+        last_name="K",
+        linked_user_id=linked.linked_user_id,
+        created_by_user_id=linked.created_by_user_id,
+    )
+
+
+def test_an_answer_for_a_company_needs_the_right_for_the_whole_company(
+    owner: Client, cmp: str
+) -> None:
+    supplier = Client()
+    named_user(supplier, "boss@example.com")
+    other = create_company(supplier, display_name="Parts Supplier").json()["company"]["public_id"]
+    created = post(supplier, f"/api/c/{other}/locations", {"name": "Krabi"}, key())
+    krabi = created.json()["location"]["id"]
+    limited = [
+        {
+            "type": "grant",
+            "permission": "company.link.answer",
+            "locations": [krabi],
+            "contexts": "all",
+            "cash_accounts": "all",
+        }
+    ]
+    local, _ = hire(supplier, other, "local@example.com", limited)
+    # Notified are only those with the right for the whole company; the answer is the same.
+    assert local.get(f"/api/c/{other}/incoming-links").status_code == 403
+    assert local.get(f"/api/c/{other}/incoming-owner-requests").status_code == 403
+    whole, _ = hire(supplier, other, "whole@example.com", grant("company.link.answer"))
+    assert whole.get(f"/api/c/{other}/incoming-links").status_code == 200
+    assert whole.get(f"/api/c/{other}/incoming-owner-requests").status_code == 200

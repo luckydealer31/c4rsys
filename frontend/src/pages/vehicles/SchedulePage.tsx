@@ -21,7 +21,6 @@ type Item = {
 
 const SPANS = { day: 1, week: 7, month: 30 } as const;
 type Span = keyof typeof SPANS;
-const DAY = 24 * 3600 * 1000;
 const COLORS: Record<Item["kind"], string> = {
   booking: "#6c8ef5",
   rental: "#2f6fed",
@@ -42,6 +41,13 @@ function dayStart(value: Date): Date {
   return result;
 }
 
+/** The same time of day `days` calendar days later: a day is not always 24 hours. */
+function addDays(value: Date, days: number): Date {
+  const result = new Date(value);
+  result.setDate(result.getDate() + days);
+  return result;
+}
+
 /** The schedule of vehicles (decisions Б3, В-4): a row per vehicle with its bookings, rentals,
  * service and moves over a day, a week or a month; a click opens the record. */
 export function SchedulePage() {
@@ -51,7 +57,7 @@ export function SchedulePage() {
   const [span, setSpan] = useState<Span>("week");
   const [from, setFrom] = useState(() => dayStart(new Date()));
   const [location, setLocation] = useState("");
-  const to = new Date(from.getTime() + SPANS[span] * DAY);
+  const to = addDays(from, SPANS[span]);
   const query = `from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}${location ? `&location=${location}` : ""}`;
   const schedule = useApi<{ vehicles: { id: string; name: string }[]; items: Item[] }>(
     ["schedule", company.public_id, query],
@@ -62,12 +68,12 @@ export function SchedulePage() {
   const total = to.getTime() - from.getTime();
   const ticks = span === "day" ? 24 : SPANS[span];
   const tickLabel = (index: number) => {
-    const moment = new Date(from.getTime() + (index * total) / ticks);
+    const moment = span === "day" ? new Date(from.getTime() + (index * total) / ticks) : addDays(from, index);
     return span === "day"
       ? `${moment.getHours()}:00`
       : new Intl.DateTimeFormat(i18n.language, { day: "2-digit", month: "2-digit" }).format(moment);
   };
-  const shift = (direction: number) => setFrom(new Date(from.getTime() + direction * SPANS[span] * DAY));
+  const shift = (direction: number) => setFrom(addDays(from, direction * SPANS[span]));
   const now = Date.now();
 
   return (

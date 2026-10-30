@@ -266,6 +266,9 @@ def remove(ctx: CommandContext, company_id: UUID, line_id: UUID) -> SaleLine:
     line.removed_at = timezone.now()
     line.save(update_fields=["state", "removed_at"])
     _charge(ctx, order, line, ZERO, "sale_removed")
+    from c4rsys.orders import approvals
+
+    approvals.withdraw(ctx, company_id, "sale", line.id, "removed")
     ctx.audit(
         "warehouse.sale_removed",
         object_type="order",

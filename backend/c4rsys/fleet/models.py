@@ -362,6 +362,8 @@ class VehicleOwnerRequest(models.Model):
     created_at = models.DateTimeField(default=now)
     expires_at = models.DateTimeField()
     closed_at = models.DateTimeField(null=True, blank=True)
+    # Why a request was closed without the company's cancel: another owner was declared.
+    closed_reason = models.CharField(max_length=20, blank=True, default="")
 
     class Meta:
         db_table = "vehicle_owner_request"

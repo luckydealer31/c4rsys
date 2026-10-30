@@ -882,6 +882,27 @@ def post_initial_line(
     return line
 
 
+def initial_line_objects(company_id: UUID, line_ids: list[UUID]) -> list[tuple[str, str]]:
+    """The journal objects made by lines of initial stock: their receipts, units and new lots,
+    for the check of later history before an import is cancelled (§ 22.2.5)."""
+    lines = ReceiptLine.objects.filter(
+        company_id=company_id, pk__in=line_ids, receipt__source=Receipt.Source.INITIAL
+    )
+    found: set[tuple[str, str]] = set()
+    for line_id, receipt_id, lot_id, new_lot in lines.values_list(
+        "id", "receipt_id", "lot_id", "new_lot"
+    ):
+        found.add(("warehouse_receipt_line", str(line_id)))
+        found.add(("warehouse_receipt", str(receipt_id)))
+        if new_lot and lot_id is not None:
+            found.add(("warehouse_lot", str(lot_id)))
+    for asset_id in Asset.objects.filter(
+        company_id=company_id, receipt_line_id__in=line_ids
+    ).values_list("id", flat=True):
+        found.add(("warehouse_asset", str(asset_id)))
+    return sorted(found)
+
+
 def cancel_initial_lines(ctx: CommandContext, company_id: UUID, line_ids: list[UUID]) -> None:
     """A cancelled import takes away only what it added, while nothing of it was used, moved or
     reserved (§ 22.2.5); an earlier lot and its earlier stock stay. The units are cancelled, the
@@ -896,6 +917,11 @@ def cancel_initial_lines(ctx: CommandContext, company_id: UUID, line_ids: list[U
     )
     blockers: list[dict[str, str]] = []
     plan: list[tuple[ReceiptLine, list[Asset], LotLayer | None, Any]] = []
+    # Several lines of an import may share one stock row of a lot and packaging: the row is
+    # locked once and checked against the sum of all of them, so the cancel neither loses an
+    # update nor takes the stock below its reservations.
+    rows: dict[tuple[UUID, UUID | None], LotStock | None] = {}
+    taken: dict[tuple[UUID, UUID | None], tuple[LotStock, Decimal]] = {}
     for line in lines:
         if line.corrected_quantity is not None:
             blockers.append(
@@ -928,24 +954,31 @@ def cancel_initial_lines(ctx: CommandContext, company_id: UUID, line_ids: list[U
                 lot.id, opened.packaging_id, opened.id
             )
             form: Any = opened
+            if layer.remaining < line.quantity or free < line.quantity:
+                blockers.append({"reason": "in_use", "type": "warehouse_lot", "id": lot.public_id})
+                continue
         else:
-            row = (
-                LotStock.objects.select_for_update()
-                .filter(lot=lot, packaging=line.packaging)
-                .first()
-            )
-            free = (
-                row.quantity - reserves.reserved_in_form(lot.id, line.packaging_id, None)
-                if row is not None
-                else ZERO
-            )
-            form = row
-        if layer.remaining < line.quantity or free < line.quantity:
-            blockers.append({"reason": "in_use", "type": "warehouse_lot", "id": lot.public_id})
-            continue
+            key = (lot.id, line.packaging_id)
+            if key not in rows:
+                rows[key] = (
+                    LotStock.objects.select_for_update()
+                    .filter(lot=lot, packaging=line.packaging)
+                    .first()
+                )
+            form = rows[key]
+            if layer.remaining < line.quantity or form is None:
+                blockers.append({"reason": "in_use", "type": "warehouse_lot", "id": lot.public_id})
+                continue
+            taken[key] = (form, taken[key][1] + line.quantity if key in taken else line.quantity)
         plan.append((line, [], layer, form))
+    for (lot_id, packaging_id), (row, total) in taken.items():
+        if row.quantity - reserves.reserved_in_form(lot_id, packaging_id, None) < total:
+            blockers.append({"reason": "in_use", "type": "warehouse_lot", "id": row.lot.public_id})
     if blockers:
         raise errors.business_rule("IMPORT_CANCEL_BLOCKED", blockers=blockers[:20])
+    for row, total in taken.values():
+        row.quantity -= total
+        row.save(update_fields=["quantity"])
     for line, assets, layer, form in plan:
         for asset in assets:
             asset.state = Asset.State.CANCELLED
@@ -964,9 +997,6 @@ def cancel_initial_lines(ctx: CommandContext, company_id: UUID, line_ids: list[U
             if isinstance(form, OpenedPackage):
                 form.remaining -= line.quantity
                 form.save(update_fields=["remaining"])
-            else:
-                form.quantity -= line.quantity
-                form.save(update_fields=["quantity"])
             layer.remaining -= line.quantity
             layer.received_quantity -= line.quantity
             layer.save(update_fields=["received_quantity", "remaining"])

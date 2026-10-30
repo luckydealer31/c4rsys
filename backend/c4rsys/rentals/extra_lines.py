@@ -630,7 +630,7 @@ def start(
     orders.ensure_open(company_id, line.order_id)
     from c4rsys.orders import approvals
 
-    approvals.ensure_startable("extra_service", line.id)
+    approvals.ensure_startable(company_id, "extra_service", line.id)
     if line.rental_id is not None:
         raise errors.business_rule("SERVICE_FOLLOWS_RENTAL")
     if line.state != State.PLANNED:
@@ -691,6 +691,10 @@ def cancel(
     _save(line, rental)
     _audit(ctx, line, "service_line.cancelled", before)
     charge_line(ctx, line, "cancelled")
+    from c4rsys.orders import approvals
+
+    # A service cancelled before the client's answer takes its request with it (§ 12.3).
+    approvals.withdraw(ctx, company_id, "extra_service", line.id, line.cancel_reason)
     return line
 
 
@@ -795,7 +799,10 @@ def annul_linked(ctx: CommandContext, rental: Rental, reason: str) -> None:
 
 
 def move_linked(ctx: CommandContext, rental: Rental, order_id: UUID) -> None:
-    """Linked services go with the rental to its new order with their charges (decision З6)."""
+    """Linked services go with the rental to its new order with their charges and their
+    requests to the client (decision З6, § 12.3.7)."""
+    from c4rsys.orders import approvals
+
     for line in ExtraServiceLine.objects.select_for_update().filter(rental_id=rental.id):
         before = _snapshot(line)
         line.order_id = order_id
@@ -805,6 +812,7 @@ def move_linked(ctx: CommandContext, rental: Rental, order_id: UUID) -> None:
         charges.move_source(
             ctx, source_type=SOURCE, source_id=line.id, order_id=order_id, reason="transferred"
         )
+        approvals.move(ctx, line.company_id, "extra_service", line.id, order_id)
 
 
 # --- Free time of a time service (§ 13.4.6; decision У9) -----------------------------------------

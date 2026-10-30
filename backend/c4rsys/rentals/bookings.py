@@ -469,6 +469,9 @@ def cancel(
     # § 13.4.15: linked services stay standalone in the same order, also at the auto-cancel.
     extra_lines.detach_on_cancel(ctx, rental)
     if ctx is not None:
+        from c4rsys.orders import approvals
+
+        approvals.withdraw(ctx, company_id, "rental", rental.id, reason)
         ctx.audit(
             "rental.booking_cancelled",
             object_type="rental",

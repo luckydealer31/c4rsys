@@ -10,7 +10,13 @@ from django.utils import timezone
 
 from c4rsys.fleet import owner_notices, owner_requests
 from c4rsys.fleet.imports import ADAPTER
-from c4rsys.fleet.models import VehicleOwnerRequest, VehicleOwnership
+from c4rsys.fleet.models import (
+    Vehicle,
+    VehicleCard,
+    VehicleOwnerClaim,
+    VehicleOwnerRequest,
+    VehicleOwnership,
+)
 from c4rsys.notifications.models import Notification
 from c4rsys.parties.models import ClientCard
 from c4rsys.platform.errors import ApiError
@@ -242,3 +248,169 @@ def test_ownership_dispute_is_not_resolved_automatically(
     assert owner.get(url).json()["requests"][0]["ownership_dispute"] is True
     assert VehicleOwnership.objects.get().owner_user_id == somchai_id(first_usr)
     assert list(owner_requests.garage_of_user(somchai_id(usr))) == []
+
+
+def put_owner(owner: Client, cmp: str, card: dict[str, Any], lookup: str) -> None:
+    current = owner.get(f"/api/c/{cmp}/vehicles/{card['id']}").json()["vehicle"]
+    body = {
+        "expected_version": current["version"],
+        "name": "Yaris",
+        "vin": "JTDBT923771234567",
+        "owner_kind": "profile",
+        "owner_lookup": lookup,
+    }
+    changed = owner.put(
+        f"/api/c/{cmp}/vehicles/{card['id']}/details",
+        data=body,
+        content_type="application/json",
+        headers=key(),
+    )
+    assert changed.status_code == 200, changed.content
+
+
+def test_a_new_owner_closes_the_open_request(owner: Client, cmp: str, location: str) -> None:
+    previous, usr = person("previous@example.com")
+    newcomer, new_usr = person("newcomer@example.com")
+    card = vehicle(owner, cmp, location, relation="managed", owner_kind="profile", owner_lookup=usr)
+    old = ask(owner, cmp, card["id"]).json()["request"]
+
+    put_owner(owner, cmp, card, new_usr)
+    # The request to the previous owner is cancelled with the reason and is not answered.
+    history = owner.get(f"/api/c/{cmp}/vehicles/{card['id']}/owner-requests").json()["requests"]
+    assert [(r["state"], r["closed_reason"]) for r in history] == [("cancelled", "owner_changed")]
+    entry = AuditEvent.objects.get(action="vehicle.owner_request_cancelled")
+    assert entry.after == {"request": old["id"], "reason": "owner_changed"}
+    late = answer(previous, old["id"], ownership=True, link=True)
+    assert late.json()["error"]["code"] == "OWNER_REQUEST_NOT_OPEN"
+    assert not VehicleOwnership.objects.exists() and not ClientCard.objects.exists()
+
+    # The new owner is asked at once.
+    sent = ask(owner, cmp, card["id"])
+    assert sent.status_code == 201, sent.content
+    assert answer(newcomer, sent.json()["request"]["id"], ownership=True).status_code == 200
+
+
+def test_an_answer_is_checked_against_the_current_card(
+    owner: Client, cmp: str, location: str
+) -> None:
+    previous, usr = person("previous@example.com")
+    card = vehicle(owner, cmp, location, relation="managed", owner_kind="profile", owner_lookup=usr)
+    request = ask(owner, cmp, card["id"]).json()["request"]
+    stored = VehicleOwnerRequest.objects.get(pk=request["id"])
+
+    # A declaration that did not close the request (data of before the fix): the answer is
+    # refused, and sending a new request closes the old one.
+    VehicleOwnerClaim.objects.create(
+        company_id=stored.company_id,
+        vehicle_card_id=stored.vehicle_card_id,
+        kind=VehicleOwnerClaim.Kind.PROFILE,
+        lookup="other@example.com",
+        created_by_user_id=stored.created_by_user_id,
+    )
+    refused = answer(previous, request["id"], ownership=True)
+    assert refused.json()["error"]["code"] == "OWNER_REQUEST_NOT_OPEN"
+    assert ask(owner, cmp, card["id"]).status_code == 201
+    stored.refresh_from_db()
+    assert (stored.state, stored.closed_reason) == ("cancelled", "owner_changed")
+
+    # A card archived after the request is not answered either.
+    archived = vehicle(
+        owner,
+        cmp,
+        location,
+        relation="managed",
+        owner_kind="profile",
+        owner_lookup=usr,
+        vin="JTDBT923771234570",
+    )
+    second = ask(owner, cmp, archived["id"]).json()["request"]
+    VehicleCard.objects.filter(pk=archived["id"]).update(state=VehicleCard.State.ARCHIVED)
+    late = answer(previous, second["id"], ownership=True)
+    assert late.json()["error"]["code"] == "OWNER_REQUEST_NOT_OPEN"
+    assert not VehicleOwnership.objects.exists()
+
+
+def test_ownership_confirmed_earlier_by_the_same_owner_is_no_dispute(
+    owner: Client, cmp: str, location: str
+) -> None:
+    somchai, usr = person("somchai@example.com")
+    card = vehicle(owner, cmp, location, relation="managed", owner_kind="profile", owner_lookup=usr)
+    url = f"/api/c/{cmp}/vehicles/{card['id']}/owner-requests"
+    first = ask(owner, cmp, card["id"]).json()["request"]
+    assert answer(somchai, first["id"], ownership=True).status_code == 200
+    # Incomplete: a new request; «mine» again finds the ownership of the same owner.
+    second = ask(owner, cmp, card["id"]).json()["request"]
+    assert answer(somchai, second["id"], ownership=True).status_code == 200
+    entry = AuditEvent.objects.filter(action="vehicle.owner_answered").latest("occurred_at")
+    assert (entry.after or {})["ownership"] == "already"
+    shown = owner.get(url).json()["requests"]
+    assert [r["ownership_dispute"] for r in shown] == [False, False]
+    assert VehicleOwnership.objects.count() == 1
+
+
+def test_owner_yes_links_the_card_of_a_broken_link_again(
+    owner: Client, cmp: str, location: str
+) -> None:
+    somchai, usr = person("somchai@example.com")
+    body = {
+        "kind": "person",
+        "first_name": "Somchai",
+        "last_name": "K",
+        "contacts": [{"kind": "phone", "value": "+66 81 234 5678"}],
+    }
+    client_id = post(owner, f"/api/c/{cmp}/clients", body, key()).json()["client"]["id"]
+    link_body = {"card_type": "client", "card_id": client_id, "target": usr}
+    link = post(owner, f"/api/c/{cmp}/profile-links", link_body, key()).json()["link"]
+    accepted = post(
+        somchai, f"/api/profile-links/{link['id']}/accept", {"fields": ["first_name"]}, key()
+    )
+    assert accepted.status_code == 200, accepted.content
+    broken = post(
+        owner, f"/api/c/{cmp}/profile-links/{link['id']}/break", {"initiator": "company"}, key()
+    )
+    assert broken.status_code == 200, broken.content
+
+    card = vehicle(owner, cmp, location, relation="managed", owner_kind="profile", owner_lookup=usr)
+    request = ask(owner, cmp, card["id"]).json()["request"]
+    assert answer(somchai, request["id"], link=True).status_code == 200
+    # § 6.6.6: after a new request is accepted the previous card is linked; no new card.
+    linked = ClientCard.objects.get()
+    assert str(linked.id) == client_id and linked.linked_user_id == somchai_id(usr)
+    url = f"/api/c/{cmp}/profile-links?card_type=client&card_id={client_id}"
+    assert [x["state"] for x in owner.get(url).json()["links"]] == ["accepted", "broken"]
+    relinked = AuditEvent.objects.filter(action="profile_link.accepted").latest("occurred_at")
+    assert (relinked.after or {})["source"] == "vehicle_owner"
+
+    # A second «yes» keeps the linked card.
+    other = vehicle(
+        owner,
+        cmp,
+        location,
+        relation="managed",
+        owner_kind="profile",
+        owner_lookup=usr,
+        vin="JTDBT923771234571",
+    )
+    again = ask(owner, cmp, other["id"]).json()["request"]
+    assert answer(somchai, again["id"], link=True).status_code == 200
+    assert ClientCard.objects.count() == 1
+
+
+def test_the_vehicle_is_locked_before_the_ownership_is_recorded(
+    owner: Client, cmp: str, location: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two first owners answering at once are serialized on the global vehicle: the later one
+    finds the earlier ownership and becomes a dispute instead of a unique violation."""
+    somchai, usr = person("somchai@example.com")
+    card = vehicle(owner, cmp, location, relation="managed", owner_kind="profile", owner_lookup=usr)
+    request = ask(owner, cmp, card["id"]).json()["request"]
+    locked: list[str] = []
+    original = Vehicle.objects.select_for_update
+
+    def spy(*args: Any, **kwargs: Any) -> Any:
+        locked.append("vehicle")
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(Vehicle.objects, "select_for_update", spy)
+    assert answer(somchai, request["id"], ownership=True).status_code == 200
+    assert locked == ["vehicle"]

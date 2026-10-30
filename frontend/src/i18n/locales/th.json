@@ -934,7 +934,10 @@
     "discount_nothing_to_apply": "ไม่มีรายการในขอบเขต",
     "discount_over_100": "ไม่เกิน 100 %",
     "client_group_exists": "มีกลุ่มนี้แล้ว",
-    "client_group_unknown": "ไม่รู้จักกลุ่ม"
+    "client_group_unknown": "ไม่รู้จักกลุ่ม",
+    "cabinet_not_signer": "เอกสารนี้ไม่ได้รอการลงนามของคุณ: คุณไม่ใช่ผู้ลงนามในฉบับปัจจุบัน หรือการเชื่อมโยงกับบริษัทถูกยกเลิกแล้ว",
+    "approval_withdrawn": "รายการถูกยกเลิกแล้ว ไม่ต้องตอบ",
+    "service_reopen_post_taken": "เปิดงานบริการอีกครั้งไม่ได้: ช่องซ่อมถูกวางแผนให้งานบริการอื่นแล้ว ({{operation}})"
   },
   "history": {
     "action": "Action",
@@ -1953,7 +1956,8 @@
     "import_warning_row_code_repeated": "แถว {{number}}: รหัส {{row}} ซ้ำ",
     "import_warning_row_code_unknown": "แถว {{number}}: รหัส {{row}} ไม่ใช่ของการนำเข้านี้",
     "import_warning_row_already_posted": "แถว {{number}} ({{row}}) โหลดแล้ว",
-    "import_warning_corrected_file": "ไฟล์ที่แก้ไข: ตรวจใหม่ {{rows}} แถว"
+    "import_warning_corrected_file": "ไฟล์ที่แก้ไข: ตรวจใหม่ {{rows}} แถว",
+    "archived": "เก็บถาวร"
   },
   "warnings": {
     "client_has_debt": "The client has a debt: {{amounts}}.",
@@ -3569,7 +3573,8 @@
     "blocker_corrected": "ใบรับที่แก้ไขแล้ว",
     "hint_stock": "สต็อกเริ่มต้น: สินค้ารายชิ้นหนึ่งแถวต่อหน่วย วัสดุตามล็อต — ล็อตใหม่ตามรหัสในไฟล์ หรือล็อตที่มีตาม LOT ID รหัสสินค้า คลัง และล็อตอยู่ในชีตของแม่แบบ",
     "blocker_owner_confirmed": "เจ้าของยืนยันแล้ว",
-    "blocker_owner_request": "ส่งคำขอถึงเจ้าของแล้ว"
+    "blocker_owner_request": "ส่งคำขอถึงเจ้าของแล้ว",
+    "packaging_confirmed": "ยืนยันบรรจุภัณฑ์แล้ว — เลือกการดำเนินการกับแถว"
   },
   "links": {
     "title": "การเชื่อมกับโปรไฟล์ c4rsys",
@@ -3651,7 +3656,8 @@
     "ask_ownership": "ยานพาหนะนี้เป็นของคุณหรือไม่ «ใช่» จะเพิ่มลงในโรงรถส่วนตัว",
     "ask_management": "ยินยอมให้บริษัทนี้จัดการยานพาหนะหรือไม่",
     "final": "คำตอบเปลี่ยนภายหลังไม่ได้ ตอบบางข้อก่อนได้",
-    "answer": "ตอบ"
+    "answer": "ตอบ",
+    "closed_owner_changed": "ปิดแล้ว: มีการระบุเจ้าของยานพาหนะรายอื่น"
   },
   "cabinet": {
     "title": "บัญชีส่วนตัว",
@@ -3722,7 +3728,12 @@
     "source_discount_service_job": "ส่วนลด",
     "source_discount_service_material": "ส่วนลด",
     "source_discount_sale_line": "ส่วนลด",
-    "source_discount_delivery": "ส่วนลด"
+    "source_discount_delivery": "ส่วนลด",
+    "state_proposed": "เสนอแล้ว",
+    "state_started": "เริ่มแล้ว",
+    "state_accepted": "รับเข้าซ่อมแล้ว",
+    "state_works_done": "งานเสร็จแล้ว",
+    "state_terminated": "ยุติแล้ว"
   },
   "exports": {
     "title": "ส่งออกข้อมูลทั้งหมด",
@@ -3766,7 +3777,8 @@
     "decline_hint": "รายการที่ยังไม่เริ่มจะถูกยกเลิก",
     "policy_title": "คำสั่งซื้อ: การยืนยันกับลูกค้า",
     "policy_label": "ยืนยันรายการเพิ่มกับลูกค้า",
-    "policy_hint": "รายการที่เพิ่มในคำสั่งซื้อที่ดำเนินการแล้วจะรอคำตอบลูกค้า"
+    "policy_hint": "รายการที่เพิ่มในคำสั่งซื้อที่ดำเนินการแล้วจะรอคำตอบลูกค้า",
+    "state_withdrawn": "ถอนแล้ว: รายการถูกยกเลิก"
   },
   "discounts": {
     "title": "ส่วนลด",

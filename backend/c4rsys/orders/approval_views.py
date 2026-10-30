@@ -64,7 +64,7 @@ def approval_proceed(
     order = _order_for(actor, context.company.id, order_id, "order.edit")
 
     def handler(ctx: CommandContext) -> CommandResult:
-        approvals.proceed(ctx, order.id, approval_id)
+        approvals.proceed(ctx, context.company.id, order.id, approval_id)
         return CommandResult(200, {"approvals": _list(order.id)})
 
     payload = {"order_id": str(order_id), "approval_id": str(approval_id)}
@@ -95,6 +95,7 @@ def approval_answer(
     def handler(ctx: CommandContext) -> CommandResult:
         approvals.answer_by_employee(
             ctx,
+            context.company.id,
             order.id,
             approval_id,
             decision == "approved",

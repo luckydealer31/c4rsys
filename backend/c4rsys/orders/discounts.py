@@ -145,7 +145,7 @@ def amounts(order: Order) -> dict[Key, tuple[Decimal, AppliedDiscount]]:
             value = (
                 _round(position.base * a.value / HUNDRED, position.currency)
                 if a.kind == Discount.Kind.PERCENT
-                else min(a.value, position.base)
+                else _round(min(a.value, position.base), position.currency)
             )
             result[(position.type, position.id)] = (value, a)
         elif whole is not None and _covers(whole.scope, whole.goods_categories, position):
@@ -166,7 +166,7 @@ def amounts(order: Order) -> dict[Key, tuple[Decimal, AppliedDiscount]]:
     left = min(whole.value, total)
     for index, position in enumerate(same):
         if index == len(same) - 1:
-            share = left
+            share = _round(left, position.currency)
         else:
             share = min(_round(whole.value * position.base / total, position.currency), left)
         share = min(share, position.base)
@@ -179,7 +179,9 @@ def recalculate(ctx: CommandContext, order_id: UUID) -> None:
     """Brings the discount charges of the order to the applied discounts (§ 12.5.6)."""
     from c4rsys.finance import charges
 
-    order = Order.objects.filter(pk=order_id).first()
+    # The order is locked: two positions changed at once must not post their deltas from the
+    # same old totals.
+    order = Order.objects.select_for_update().filter(pk=order_id).first()
     if order is None or order.client_id is None:
         return
     wanted = amounts(order)
@@ -220,7 +222,7 @@ def recalculate(ctx: CommandContext, order_id: UUID) -> None:
 def on_charge_changed(ctx: CommandContext, order_id: UUID, source_type: str) -> None:
     """A position was recalculated: its discount follows (З14)."""
     if (
-        source_type != SOURCE
+        not is_discount(source_type)
         and AppliedDiscount.objects.filter(order_id=order_id, removed_at__isnull=True).exists()
     ):
         recalculate(ctx, order_id)
@@ -234,7 +236,9 @@ def limit_of(actor: Actor, top_authority: bool) -> Decimal | None:
         return HUNDRED
     if actor.employment_id is None:
         return None
-    found = DiscountLimit.objects.filter(employment_id=actor.employment_id).first()
+    found = (
+        DiscountLimit.objects.select_for_update().filter(employment_id=actor.employment_id).first()
+    )
     return found.percent if found else None
 
 

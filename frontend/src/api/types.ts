@@ -127,6 +127,8 @@ export type OwnerRequest = {
   expires_at: string;
   answers: { question: "link" | "ownership" | "management"; answer: boolean; at: string; by: string }[];
   ownership_dispute: boolean;
+  /** Why the request was closed by the company, e.g. the declared owner changed. */
+  closed_reason?: string;
 };
 
 /** The same request seen by the owner. */
@@ -773,6 +775,8 @@ export type ImportRow = {
   result: "created" | "linked" | "skipped" | "conflict" | null;
   /** The ID points to one record, other identifiers to another (§ 22.2.3). */
   conflict?: boolean;
+  /** The new packaging was confirmed; a row with matches still needs its own choice (§ 22.4.2). */
+  packaging_confirmed?: boolean;
   record_id: string | null;
 };
 

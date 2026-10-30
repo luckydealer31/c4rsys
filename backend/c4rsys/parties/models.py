@@ -66,6 +66,17 @@ class ClientCard(models.Model):
                 ),
                 name="client_card_minimum_by_kind",
             ),
+            # One card of the list per profile in a company (§ 6.2.4, § 6.6.6).
+            models.UniqueConstraint(
+                fields=["company", "linked_user_id"],
+                condition=Q(linked_user_id__isnull=False),
+                name="client_card_one_per_user",
+            ),
+            models.UniqueConstraint(
+                fields=["company", "linked_company_id"],
+                condition=Q(linked_company_id__isnull=False),
+                name="client_card_one_per_company",
+            ),
         ]
         indexes = [
             models.Index(fields=["company", "last_name"], name="client_card_last_name_idx"),
@@ -168,6 +179,17 @@ class Counterparty(models.Model):
                     & Q(middle_name="")
                 ),
                 name="counterparty_minimum_by_kind",
+            ),
+            # One card of the list per profile in a company (§ 6.2.4, § 6.6.6).
+            models.UniqueConstraint(
+                fields=["company", "linked_user_id"],
+                condition=Q(linked_user_id__isnull=False),
+                name="counterparty_one_per_user",
+            ),
+            models.UniqueConstraint(
+                fields=["company", "linked_company_id"],
+                condition=Q(linked_company_id__isnull=False),
+                name="counterparty_one_per_company",
             ),
         ]
 

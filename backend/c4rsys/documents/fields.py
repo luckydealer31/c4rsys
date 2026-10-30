@@ -90,6 +90,15 @@ LABELS = {
     "service_material": {"en": "Part", "ru": "Запчасть", "th": "อะไหล่"},
     "delivery": {"en": "Delivery", "ru": "Доставка", "th": "การส่งรถ"},
 }
+DISCOUNT = {"en": "Discount", "ru": "Скидка", "th": "ส่วนลด"}
+
+
+def _label(source_type: str, language: str) -> str:
+    """The discount of a position is named «Discount: <position>»."""
+    if source_type.startswith("discount_"):
+        position = _label(source_type.removeprefix("discount_"), language)
+        return f"{DISCOUNT.get(language, DISCOUNT['en'])}: {position}"
+    return LABELS.get(source_type, {}).get(language) or source_type
 
 
 @dataclass
@@ -210,7 +219,7 @@ def _order(values: Values, company_id: UUID, order_id: UUID, language: str) -> N
     for (source_type, source_id), amount in rows.items():
         if amount == 0:
             continue
-        label = LABELS.get(source_type, {}).get(language) or source_type
+        label = _label(source_type, language)
         lines.append(
             {"name": label, "amount": _money(amount, currencies[(source_type, source_id)])}
         )
@@ -262,9 +271,18 @@ def _rental(values: Values, company_id: UUID, rental_id: UUID, language: str) ->
     for entry in ChargeEntry.objects.filter(
         company_id=company_id,
         order_id=rental.order_id,
-        source_type__in=("rental_base", "rental_mileage", "rental_manual"),
+        source_type__in=(
+            "rental_base",
+            "rental_mileage",
+            "rental_manual",
+            "discount_rental_base",
+            "discount_rental_mileage",
+            "discount_rental_manual",
+        ),
     ):
-        charges[entry.source_type] = charges.get(entry.source_type, Decimal(0)) + entry.amount
+        # Positions are net of their discounts, like the order's totals.
+        kind = entry.source_type.removeprefix("discount_")
+        charges[kind] = charges.get(kind, Decimal(0)) + entry.amount
         currency = entry.currency_id
     values.tables["rental.charges"] = [
         {"name": LABELS[k].get(language, k), "amount": _money(v, currency)}

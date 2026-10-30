@@ -12,6 +12,8 @@
   way of contact and a comment (§ 12.3.4). A refusal cancels the position if it has not started;
   a started one stays with what was done, and the payment is settled apart (§ 12.3.1).
 * A waiting position without the permission to proceed keeps the order from closing.
+* A position cancelled or removed by an employee before the answer takes its request with it
+  («withdrawn»); a position moved to another order takes its request there (§ 12.3.7).
 """
 
 from collections.abc import Callable
@@ -23,7 +25,7 @@ from django.db.models import QuerySet
 from django.utils import timezone
 
 from c4rsys.orders.models import Order, OrderApproval, OrderPolicy
-from c4rsys.orders.services import OperationSummary, operations_of
+from c4rsys.orders.services import OperationSummary, ensure_open, operations_of
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
 
@@ -78,21 +80,40 @@ def in_work(order: Order) -> bool:
     return any(op.type != "approval" and op.state not in NOT_STARTED for op in operations_of(order))
 
 
-def on_added(
-    ctx: CommandContext, order_id: UUID | None, item_type: str, item_id: UUID, title: str
-) -> OrderApproval | None:
-    """Called by a module when it adds a position to an order."""
+def needs_approval(order_id: UUID | None) -> bool:
+    """Whether a position added to the order now waits for the client. A module that creates a
+    position already started (a direct issue, a move entered afterwards) asks this before the
+    position exists, so that the position itself does not take the order into work."""
     if order_id is None:
-        return None
+        return False
     order = Order.objects.filter(pk=order_id).first()
-    if (
+    return not (
         order is None
         or order.is_internal
         or order.client_id is None
         or order.state != Order.State.OPEN
         or not policy_of(order.company_id)
         or not in_work(order)
-    ):
+    )
+
+
+def on_added(
+    ctx: CommandContext,
+    order_id: UUID | None,
+    item_type: str,
+    item_id: UUID,
+    title: str,
+    *,
+    required: bool | None = None,
+) -> OrderApproval | None:
+    """Called by a module when it adds a position to an order; `required` is the answer of
+    `needs_approval` taken before the position was created."""
+    if order_id is None:
+        return None
+    if required is None:
+        required = needs_approval(order_id)
+    order = Order.objects.filter(pk=order_id).first()
+    if not required or order is None:
         return None
     approval = OrderApproval.objects.create(
         company_id=order.company_id,
@@ -111,34 +132,125 @@ def on_added(
     return approval
 
 
-def ensure_startable(item_type: str, item_id: UUID) -> None:
+def _blocking(company_id: UUID, item_type: str, item_id: UUID) -> OrderApproval | None:
+    """The request that keeps the position from starting, read locked so that an answer or
+    «Do without the confirmation» given at the same time is seen."""
+    approval = (
+        OrderApproval.objects.select_for_update()
+        .filter(company_id=company_id, item_type=item_type, item_id=item_id)
+        .first()
+    )
+    if approval is None:
+        return None
+    if approval.state == State.DECLINED:
+        return approval
+    if approval.state == State.PENDING and approval.proceed_at is None:
+        return approval
+    return None
+
+
+def ensure_startable(company_id: UUID, item_type: str, item_id: UUID) -> None:
     """A position waiting for the client starts only with «Do without the confirmation»."""
-    approval = OrderApproval.objects.filter(item_type=item_type, item_id=item_id).first()
+    approval = _blocking(company_id, item_type, item_id)
     if approval is None:
         return
     if approval.state == State.DECLINED:
         raise errors.business_rule("APPROVAL_DECLINED")
-    if approval.state == State.PENDING and approval.proceed_at is None:
-        raise errors.business_rule("APPROVAL_PENDING", approval=str(approval.id))
+    raise errors.business_rule("APPROVAL_PENDING", approval=str(approval.id))
+
+
+def startable(company_id: UUID, item_type: str, item_id: UUID) -> bool:
+    """For an automatic transition: a waiting or refused position is left to the employee
+    (§ 15.3.3 — with a doubt the automatic transition is not made)."""
+    return _blocking(company_id, item_type, item_id) is None
+
+
+# --- The position goes away or moves ------------------------------------------------------------
+
+
+def withdraw(
+    ctx: CommandContext, company_id: UUID, item_type: str, item_id: UUID, reason: str
+) -> OrderApproval | None:
+    """The position waiting for the answer is cancelled or removed by an employee: the request
+    has nothing to agree any more and no longer keeps the order from closing. It stays in the
+    history. An answered request is not changed."""
+    approval = (
+        OrderApproval.objects.select_for_update()
+        .filter(company_id=company_id, item_type=item_type, item_id=item_id, state=State.PENDING)
+        .first()
+    )
+    if approval is None:
+        return None
+    approval.state = State.WITHDRAWN
+    approval.save(update_fields=["state"])
+    ctx.audit(
+        "order.approval_withdrawn",
+        object_type="order",
+        object_id=approval.order_id,
+        after={"approval": str(approval.id), "item_type": item_type, "item_id": str(item_id)},
+        reason=reason,
+    )
+    return approval
+
+
+def move(
+    ctx: CommandContext, company_id: UUID, item_type: str, item_id: UUID, order_id: UUID
+) -> OrderApproval | None:
+    """The position goes to another order with its request and answer (§ 12.3.7)."""
+    approval = (
+        OrderApproval.objects.select_for_update()
+        .filter(company_id=company_id, item_type=item_type, item_id=item_id)
+        .first()
+    )
+    if approval is None or approval.order_id == order_id:
+        return None
+    source = approval.order_id
+    approval.order_id = order_id
+    approval.save(update_fields=["order"])
+    moved = {"approval": str(approval.id), "item_type": item_type, "item_id": str(item_id)}
+    ctx.audit(
+        "order.approval_moved_out",
+        object_type="order",
+        object_id=source,
+        after={**moved, "to_order": str(order_id)},
+    )
+    ctx.audit(
+        "order.approval_moved_in",
+        object_type="order",
+        object_id=order_id,
+        after={**moved, "from_order": str(source)},
+    )
+    return approval
 
 
 # --- Answers ------------------------------------------------------------------------------------
 
 
-def _locked(order_id: UUID, approval_id: UUID) -> OrderApproval:
-    approval = (
-        OrderApproval.objects.select_for_update().filter(order_id=order_id, pk=approval_id).first()
-    )
+def _checked(approval: OrderApproval | None) -> OrderApproval:
+    """A request is answered while it waits and its order is open (§ 12.2.3)."""
     if approval is None:
         raise errors.not_found()
+    if approval.state == State.WITHDRAWN:
+        raise errors.business_rule("APPROVAL_WITHDRAWN")
     if approval.state != State.PENDING:
         raise errors.business_rule("APPROVAL_ANSWERED")
+    ensure_open(approval.company_id, approval.order_id)
     return approval
 
 
-def proceed(ctx: CommandContext, order_id: UUID, approval_id: UUID) -> OrderApproval:
+def _locked(company_id: UUID, order_id: UUID, approval_id: UUID) -> OrderApproval:
+    return _checked(
+        OrderApproval.objects.select_for_update()
+        .filter(company_id=company_id, order_id=order_id, pk=approval_id)
+        .first()
+    )
+
+
+def proceed(
+    ctx: CommandContext, company_id: UUID, order_id: UUID, approval_id: UUID
+) -> OrderApproval:
     """«Do without the client's confirmation» (§ 12.3.2): the company takes it on itself."""
-    approval = _locked(order_id, approval_id)
+    approval = _locked(company_id, order_id, approval_id)
     if approval.proceed_at is not None:
         raise errors.business_rule("NOTHING_CHANGED")
     approval.proceed_at = timezone.now()
@@ -196,6 +308,7 @@ def _answer(
 
 def answer_by_employee(
     ctx: CommandContext,
+    company_id: UUID,
     order_id: UUID,
     approval_id: UUID,
     approved: bool,
@@ -209,7 +322,7 @@ def answer_by_employee(
         raise errors.validation_error("method")
     if at > timezone.now():
         raise errors.validation_error("answered_at", code="FUTURE_TIME_NOT_ALLOWED")
-    approval = _locked(order_id, approval_id)
+    approval = _locked(company_id, order_id, approval_id)
     return _answer(
         ctx, approval, approved, source="employee", at=at, method=method, comment=comment
     )
@@ -219,16 +332,11 @@ def answer_by_client(
     ctx: CommandContext, client_ids: list[UUID], approval_id: UUID, approved: bool
 ) -> OrderApproval:
     """The client's own answer in the personal cabinet (§ 12.3.4)."""
-    approval = (
-        OrderApproval.objects.select_for_update()
-        .select_related("order")
+    approval = _checked(
+        OrderApproval.objects.select_for_update(of=("self",))
         .filter(pk=approval_id, order__client_id__in=client_ids)
         .first()
     )
-    if approval is None:
-        raise errors.not_found()
-    if approval.state != State.PENDING:
-        raise errors.business_rule("APPROVAL_ANSWERED")
     return _answer(
         ctx,
         approval,

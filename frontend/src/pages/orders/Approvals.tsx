@@ -13,7 +13,7 @@ export type Approval = {
   item_type: string;
   item_id: string;
   title: string;
-  state: "pending" | "approved" | "declined";
+  state: "pending" | "approved" | "declined" | "withdrawn";
   requested_at: string;
   proceed_at: string | null;
   answered_at: string | null;

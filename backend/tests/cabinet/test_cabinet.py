@@ -5,6 +5,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client
 from django.utils import timezone
 
@@ -13,8 +14,9 @@ from c4rsys.fleet.models import VehicleCard, VehicleOwnership
 from c4rsys.parties.models import ClientCard
 from tests.accounts.helpers import CODE, post
 from tests.companies.helpers import key, named_user
-from tests.documents.test_registry import _create, _do, _ok
+from tests.documents.test_registry import PDF, _create, _do, _file, _ok
 from tests.documents.test_signing import _send
+from tests.files.helpers import PNG
 from tests.rentals.scenario import Scenario, issue
 
 pytestmark = pytest.mark.django_db
@@ -96,6 +98,7 @@ def test_documents_shown_and_signed_in_the_cabinet(owner: Client, s: Scenario) -
     assert detail["has_file"]
     # The file of a shown document is read by the client.
     assert ivan.get(f"/api/files/{detail['file_id']}").status_code == 200
+    assert ivan.get(f"/api/cabinet/documents/{signed_doc['id']}/file").content == PDF
 
     url = f"/api/cabinet/documents/{signed_doc['id']}"
     assert post(ivan, f"{url}/code", {}, key()).json()["sent_to"] == "i***@example.com"
@@ -131,3 +134,114 @@ def test_garage_and_the_cabinet_domain(owner: Client, s: Scenario) -> None:
     blocked: Any = owner.get(f"/api/c/{s.cmp}/orders", HTTP_HOST=CABINET)
     assert blocked.status_code == 404 and blocked.json()["error"]["code"] == "CABINET_HOST"
     assert owner.get("/api/cabinet/companies", HTTP_HOST=CABINET).status_code == 200
+
+
+def _break(owner: Client, s: Scenario) -> None:
+    query = f"card_type=client&card_id={s.client}"
+    link_id = owner.get(f"/api/c/{s.cmp}/profile-links?{query}").json()["links"][0]["id"]
+    broken = post(
+        owner, f"/api/c/{s.cmp}/profile-links/{link_id}/break", {"initiator": "client"}, key()
+    )
+    assert broken.status_code == 200, broken.content
+
+
+def _titles(client: Client) -> set[str]:
+    return {d["title"] for d in client.get("/api/cabinet/documents").json()["documents"]}
+
+
+def test_after_a_break_only_documents_from_before(owner: Client, s: Scenario) -> None:
+    ivan = linked_person(owner, s)
+    client_link = [{"object_type": "client", "object_id": s.client}]
+    shown = _ok(_create(owner, s, title="Shown", links=client_link), 201)
+    _ok(_do(owner, s, shown, "client-visibility", visible=True))
+    signed = _ok(_create(owner, s, title="Signed"), 201)
+    assert _send(owner, s, signed, ("client", s.client)).status_code == 200
+    later_signer = _ok(_create(owner, s, title="Signer later"), 201)
+    assert _titles(ivan) == {"Shown", "Signed"}
+
+    _break(owner, s)
+    # § 6.6.3: what was shared stays; nothing new comes through the broken link.
+    after = _ok(_create(owner, s, title="After", links=client_link), 201)
+    _ok(_do(owner, s, after, "client-visibility", visible=True))
+    assert _send(owner, s, later_signer, ("client", s.client)).status_code == 200
+    assert _titles(ivan) == {"Shown", "Signed"}
+    assert ivan.get(f"/api/cabinet/documents/{after['id']}").status_code == 404
+    assert ivan.get(f"/api/cabinet/documents/{later_signer['id']}").status_code == 404
+    # Signing in the cabinet needs a confirmed link.
+    code = post(ivan, f"/api/cabinet/documents/{signed['id']}/code", {}, key())
+    assert code.json()["error"]["code"] == "CABINET_NOT_SIGNER"
+
+
+def test_the_client_sees_only_the_version_addressed_to_him(owner: Client, s: Scenario) -> None:
+    ivan = linked_person(owner, s)
+    signed = _ok(_create(owner, s, title="Contract"), 201)
+    assert _send(owner, s, signed, ("client", s.client)).status_code == 200
+    first = ivan.get(f"/api/cabinet/documents/{signed['id']}").json()["document"]
+    # A new version prepared by the company is not sent to the client (§ 18.3.5).
+    fresh = owner.get(f"/api/c/{s.cmp}/documents/{signed['id']}").json()["document"]
+    draft_file = _file(owner)
+    _ok(_do(owner, s, fresh, "versions", file_id=draft_file, file_name="draft.pdf", note="New"))
+
+    detail = ivan.get(f"/api/cabinet/documents/{signed['id']}").json()["document"]
+    assert detail["version_number"] == 1 and detail["file_id"] == first["file_id"]
+    assert ivan.get(f"/api/files/{first['file_id']}").status_code == 200
+    assert ivan.get(f"/api/files/{draft_file}").status_code == 404
+    opened = ivan.get(f"/api/cabinet/documents/{signed['id']}/file")
+    assert opened.status_code == 200 and opened["Cache-Control"] == "private, no-store"
+    # The employee still reads every version.
+    assert owner.get(f"/api/files/{draft_file}").status_code == 200
+
+    # A shown document without the client as a signer: the client is not asked to sign.
+    shown = _ok(
+        _create(owner, s, title="Shown", links=[{"object_type": "client", "object_id": s.client}]),
+        201,
+    )
+    _ok(_do(owner, s, shown, "client-visibility", visible=True))
+    code = post(ivan, f"/api/cabinet/documents/{shown['id']}/code", {}, key())
+    assert code.json()["error"]["code"] == "CABINET_NOT_SIGNER"
+
+    # An archived document is read again inside the command: it is no longer there.
+    fresh = owner.get(f"/api/c/{s.cmp}/documents/{signed['id']}").json()["document"]
+    _ok(_do(owner, s, fresh, "archive", reason="Replaced"))
+    assert post(ivan, f"/api/cabinet/documents/{signed['id']}/code", {}, key()).status_code == 404
+
+
+def _blocked(response: Any) -> bool:
+    return bool(response.status_code == 404 and response.json()["error"]["code"] == "CABINET_HOST")
+
+
+def test_the_cabinet_domain_serves_only_the_cabinet(owner: Client, s: Scenario) -> None:
+    ivan = linked_person(owner, s)
+    signed = _ok(_create(owner, s, title="Contract"), 201)
+    assert _send(owner, s, signed, ("client", s.client)).status_code == 200
+    file_id = ivan.get(f"/api/cabinet/documents/{signed['id']}").json()["document"]["file_id"]
+
+    for path in ("/api/me", "/api/profile-links", "/api/owner-requests", "/api/cabinet/documents"):
+        assert ivan.get(path, HTTP_HOST=CABINET).status_code == 200, path
+    opened = ivan.get(f"/api/cabinet/documents/{signed['id']}/file", HTTP_HOST=CABINET)
+    assert opened.status_code == 200
+    # The host is compared without the port, the case and the trailing dot.
+    assert ivan.get("/api/site", HTTP_HOST="Cabinet.Localhost.:8000").json() == {"cabinet": True}
+
+    # Employees' notifications, company files and the B2B API are not served there.
+    assert _blocked(owner.get("/api/notifications", HTTP_HOST=CABINET))
+    assert _blocked(owner.get("/api/companies", HTTP_HOST=CABINET))
+    assert _blocked(owner.get(f"/api/files/{file_id}", HTTP_HOST=CABINET))
+    assert owner.get(f"/api/files/{file_id}").status_code == 200
+    document = owner.post(
+        "/api/files?purpose=company_document",
+        data={"file": SimpleUploadedFile("a.pdf", PDF)},
+        headers={"Idempotency-Key": "cab-1"},
+        HTTP_HOST=CABINET,
+    )
+    assert _blocked(document)
+    # The profile photo is uploaded and read on the cabinet domain.
+    photo = ivan.post(
+        "/api/files?purpose=avatar",
+        data={"file": SimpleUploadedFile("me.png", PNG)},
+        headers={"Idempotency-Key": "cab-2"},
+        HTTP_HOST=CABINET,
+    )
+    assert photo.status_code == 201, photo.content
+    photo_id = photo.json()["file"]["id"]
+    assert ivan.get(f"/api/files/{photo_id}", HTTP_HOST=CABINET).status_code == 200

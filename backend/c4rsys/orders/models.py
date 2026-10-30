@@ -98,6 +98,8 @@ class OrderApproval(models.Model):
         PENDING = "pending"
         APPROVED = "approved"
         DECLINED = "declined"
+        # The position was cancelled or removed by an employee before the answer.
+        WITHDRAWN = "withdrawn"
 
     class Source(models.TextChoices):
         CLIENT = "client"
@@ -128,7 +130,7 @@ class OrderApproval(models.Model):
                 fields=["item_type", "item_id"], name="order_approval_item_uniq"
             ),
             models.CheckConstraint(
-                condition=Q(state="pending") | Q(answered_at__isnull=False),
+                condition=Q(state__in=("pending", "withdrawn")) | Q(answered_at__isnull=False),
                 name="order_approval_answer_has_time",
             ),
         ]

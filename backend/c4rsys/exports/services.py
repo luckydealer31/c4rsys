@@ -14,15 +14,18 @@
 import csv
 import io
 import json
+import os
 import zipfile
+from collections.abc import Iterable
 from datetime import datetime, timedelta
+from functools import partial
 from pathlib import Path
 from typing import Any
 from uuid import UUID
 
 from django.apps import apps
 from django.conf import settings
-from django.db import models
+from django.db import models, transaction
 from django.utils import timezone
 
 from c4rsys.companies.models import Company
@@ -35,6 +38,9 @@ TTL = timedelta(hours=24)
 SECRET_PARTS = ("hash", "token", "password", "secret")
 # Technical tables without company data of their own.
 SKIPPED = {"data_export", "idempotency_record", "notification_journal_cursor"}
+PROCESS = "data_export_retention"
+# Rows read from the database at a time: the archive is written as they come.
+CHUNK = 2000
 
 
 def _root() -> Path:
@@ -43,6 +49,11 @@ def _root() -> Path:
 
 def path_of(export: DataExport) -> Path:
     return _root() / f"{export.id}.zip"
+
+
+def _partial_of(export: DataExport) -> Path:
+    """The archive being written: it becomes `path_of` only when the transaction commits."""
+    return _root() / f"{export.id}.zip.part"
 
 
 def _value(value: Any) -> str:
@@ -63,16 +74,45 @@ def _columns(model: type[models.Model]) -> list[str]:
     ]
 
 
-def _csv(model: type[models.Model], rows: models.QuerySet[Any]) -> tuple[bytes, int]:
-    columns = _columns(model)
-    out = io.StringIO()
-    writer = csv.writer(out)
-    writer.writerow(columns)
+def _write_rows(package: zipfile.ZipFile, name: str, header: list[str], rows: Iterable[Any]) -> int:
+    """One CSV entry written straight into the archive, row by row."""
     count = 0
-    for row in rows.order_by("pk").values_list(*columns):
-        writer.writerow([_value(v) for v in row])
-        count += 1
-    return out.getvalue().encode("utf-8"), count
+    with (
+        package.open(name, "w", force_zip64=True) as raw,
+        io.TextIOWrapper(raw, encoding="utf-8", newline="") as out,
+    ):
+        writer = csv.writer(out)
+        writer.writerow(header)
+        for row in rows:
+            writer.writerow(row)
+            count += 1
+    return count
+
+
+def _csv(package: zipfile.ZipFile, name: str, model: type[models.Model], rows: Any) -> int:
+    columns = _columns(model)
+    values = rows.order_by("pk").values_list(*columns).iterator(chunk_size=CHUNK)
+    return _write_rows(package, name, columns, ([_value(v) for v in row] for row in values))
+
+
+def _entry(path: str, used: set[str]) -> str:
+    """An entry name inside `documents/`: every part of the path is a plain name (no
+    separators, `..` or a leading slash), and a repeated name gets a number."""
+    from c4rsys.documents import services as documents
+
+    parts = [documents.safe_file_name(p, "file") for p in path.split("/") if p.strip(". ")]
+    name = "documents/" + "/".join(parts or ["file"])
+    if name not in used:
+        used.add(name)
+        return name
+    stem, dot, ext = name.rpartition(".")
+    if not dot or "/" in ext:
+        stem, ext = name, ""
+    number = 2
+    while (candidate := f"{stem}_{number}{'.' + ext if ext else ''}") in used:
+        number += 1
+    used.add(candidate)
+    return candidate
 
 
 def _company_tables(company: Company) -> list[tuple[str, type[models.Model], Any]]:
@@ -106,28 +146,24 @@ def _company_tables(company: Company) -> list[tuple[str, type[models.Model], Any
     return sorted(found, key=lambda item: item[0])
 
 
-def _employees(company: Company) -> bytes:
+def _employees(package: zipfile.ZipFile, company: Company) -> None:
     """The names the company sees of its employees (§ 5.1.7): first and last name always,
     middle name and email only when the employee gave them."""
     from c4rsys.accounts import services as accounts
     from c4rsys.companies.models import Employment
 
-    out = io.StringIO()
-    writer = csv.writer(out)
-    writer.writerow(
-        ["employment_id", "user_public_id", "first_name", "last_name", "middle_name", "email"]
-    )
-    for e in (
-        Employment.objects.select_related("user")
-        .filter(company_id=company.id, user__isnull=False)
-        .order_by("pk")
-    ):
-        user = e.user
-        if user is None:
-            continue
-        emails = accounts.confirmed_emails(user) if e.shares_email else []
-        writer.writerow(
-            [
+    def rows() -> Iterable[list[str]]:
+        for e in (
+            Employment.objects.select_related("user")
+            .filter(company_id=company.id, user__isnull=False)
+            .order_by("pk")
+            .iterator(chunk_size=CHUNK)
+        ):
+            user = e.user
+            if user is None:
+                continue
+            emails = accounts.confirmed_emails(user) if e.shares_email else []
+            yield [
                 str(e.id),
                 user.public_id,
                 user.first_name,
@@ -135,52 +171,96 @@ def _employees(company: Company) -> bytes:
                 user.middle_name if e.shares_middle_name else "",
                 emails[0] if emails else "",
             ]
-        )
-    return out.getvalue().encode("utf-8")
+
+    header = ["employment_id", "user_public_id", "first_name", "last_name", "middle_name", "email"]
+    _write_rows(package, "tables/employee_names.csv", header, rows())
 
 
 def purge_expired(now: datetime | None = None) -> int:
-    """Files of expired exports are removed; the record stays in the list."""
+    """Files of expired exports are removed; the record stays in the list. A periodic check of
+    the schedule (every 5 minutes, З-5); each removal is journaled, the file is deleted after
+    the commit. Archives left by a rolled back export are removed too."""
     moment = now or timezone.now()
     removed = 0
-    for export in DataExport.objects.filter(expires_at__lte=moment, removed_at__isnull=True):
-        path_of(export).unlink(missing_ok=True)
-        export.removed_at = moment
-        export.save(update_fields=["removed_at"])
+    for candidate in DataExport.objects.filter(
+        expires_at__lte=moment, removed_at__isnull=True
+    ).values_list("pk", flat=True):
+        with transaction.atomic():
+            export = (
+                DataExport.objects.select_for_update()
+                .filter(pk=candidate, removed_at__isnull=True)
+                .first()
+            )
+            if export is None:
+                continue
+            export.removed_at = moment
+            export.save(update_fields=["removed_at"])
+            AuditEvent.objects.create(
+                company_id=export.company_id,
+                system_process=PROCESS,
+                action="data.export_removed",
+                object_type="data_export",
+                object_id=str(export.id),
+                after={"expires_at": export.expires_at, "removed_at": moment},
+            )
+            path = path_of(export)
+            transaction.on_commit(partial(path.unlink, missing_ok=True))
         removed += 1
+    _remove_abandoned(moment)
     return removed
 
 
+def _remove_abandoned(moment: datetime) -> None:
+    """A `.part` file older than the life of a link belongs to an export that never committed."""
+    root = _root()
+    if not root.is_dir():
+        return
+    border = (moment - TTL).timestamp()
+    for path in root.glob("*.zip.part"):
+        try:
+            if path.stat().st_mtime < border:
+                path.unlink(missing_ok=True)
+        except FileNotFoundError:
+            continue
+
+
 def create(ctx: CommandContext, company: Company, actor: Actor) -> DataExport:
+    """The archive is written to a partial file and takes its name only after the commit: a
+    rolled back export leaves no archive under its name, and the partial file is removed."""
     from c4rsys.documents import services as documents
 
-    purge_expired()
     now = timezone.now()
     export = DataExport(
         company=company, created_by_user_id=ctx.actor.user_id, created_at=now, expires_at=now + TTL
     )
     _root().mkdir(parents=True, exist_ok=True)
+    writing = _partial_of(export)
     counts: dict[str, int] = {}
     files = 0
-    with zipfile.ZipFile(path_of(export), "w", compression=zipfile.ZIP_DEFLATED) as package:
-        for name, model, rows in _company_tables(company):
-            content, count = _csv(model, rows)
-            package.writestr(f"tables/{name}.csv", content)
-            counts[name] = count
-        package.writestr("tables/employee_names.csv", _employees(company))
-        for path, content in documents.files_for_export(actor, company.id):
-            package.writestr(f"documents/{path}", content)
-            files += 1
-    export.size = path_of(export).stat().st_size
-    export.tables = counts
-    export.documents = files
-    export.save()
-    ctx.audit(
-        "data.exported",
-        object_type="data_export",
-        object_id=export.id,
-        after={"tables": len(counts), "documents": files, "expires_at": export.expires_at},
-    )
+    try:
+        with zipfile.ZipFile(writing, "w", compression=zipfile.ZIP_DEFLATED) as package:
+            for name, model, rows in _company_tables(company):
+                counts[name] = _csv(package, f"tables/{name}.csv", model, rows)
+            _employees(package, company)
+            used: set[str] = set()
+            for path, content in documents.files_for_export(actor, company.id):
+                package.writestr(_entry(path, used), content)
+                files += 1
+        export.size = writing.stat().st_size
+        export.tables = counts
+        export.documents = files
+        export.save()
+        ctx.audit(
+            "data.exported",
+            object_type="data_export",
+            object_id=export.id,
+            after={"tables": len(counts), "documents": files, "expires_at": export.expires_at},
+        )
+    except BaseException:
+        writing.unlink(missing_ok=True)
+        raise
+    final = path_of(export)
+    transaction.on_commit(lambda: os.replace(writing, final))
     return export
 
 

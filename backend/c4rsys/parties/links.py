@@ -19,7 +19,7 @@ from datetime import date, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Q, QuerySet
 from django.utils import timezone
 
@@ -147,6 +147,16 @@ def _card_filter(card_type: str, card_id: UUID) -> Q:
     return Q(client_id=card_id) if card_type == "client" else Q(counterparty_id=card_id)
 
 
+def _one_per_profile(exc: IntegrityError) -> bool:
+    """The constraint of one card of the list per profile in a company (migration 0009)."""
+    text = str(exc)
+    return any(
+        f"{table}_one_per_{profile}" in text
+        for table in ("client_card", "counterparty")
+        for profile in ("user", "company")
+    )
+
+
 def _taken(
     company_id: UUID, card_type: str, card_id: UUID, user_id: UUID | None, company: UUID | None
 ) -> bool:
@@ -251,13 +261,16 @@ def break_link(ctx: CommandContext, company_id: UUID, link_id: UUID, initiator: 
     are recorded (§ 6.6.6). Data and history of the card stay (§ 6.6.1)."""
     if initiator not in ProfileLink.Initiator.values:
         raise errors.validation_error("initiator")
-    link = ProfileLink.objects.select_for_update().filter(company_id=company_id, pk=link_id).first()
-    if link is None:
+    query = ProfileLink.objects.filter(company_id=company_id)
+    peek = query.filter(pk=link_id).first()
+    if peek is None:
         raise errors.not_found()
+    # The card is locked before its link, as in request_link and the answer.
+    card = _lock_card(company_id, card_type_of(peek), card_id_of(peek))
+    link = query.select_for_update().get(pk=link_id)
     if link.state != State.ACCEPTED:
         raise errors.business_rule("LINK_NOT_ACCEPTED")
     now = timezone.now()
-    card = _lock_card(company_id, card_type_of(link), card_id_of(link))
     card.linked_user_id = None
     card.linked_company_id = None
     card.version += 1
@@ -337,41 +350,63 @@ def _chosen(
     return {f: available[f] for f in allowed if f in fields and available.get(f) not in ("", None)}
 
 
+def _locked_with_card(query: QuerySet[ProfileLink], link_id: UUID) -> tuple[ProfileLink, Card]:
+    """The card first, then its link: the same order as request_link and break_link, so that
+    concurrent commands on one card do not deadlock."""
+    peek = query.filter(pk=link_id).first()
+    if peek is None:
+        raise errors.not_found()
+    card = _lock_card(peek.company_id, card_type_of(peek), card_id_of(peek))
+    return _locked(query, link_id), card
+
+
 def accept_as_user(
     ctx: CommandContext, user: UserAccount, link_id: UUID, fields: list[str]
 ) -> ProfileLink:
-    link = _locked(for_user(user), link_id)
+    link, card = _locked_with_card(for_user(user), link_id)
     data = _chosen(accounts.shareable_profile(user), fields, PERSON_FIELDS)
-    return _accept(ctx, link, data, user_id=user.id, company_id=None)
+    return _accept(ctx, link, card, data, user_id=user.id, company_id=None)
 
 
 def accept_as_company(
     ctx: CommandContext, company: Company, link_id: UUID, fields: list[str]
 ) -> ProfileLink:
-    link = _locked(for_company(company.id), link_id)
+    link, card = _locked_with_card(for_company(company.id), link_id)
     data = _chosen(companies.shareable_profile(company), fields, COMPANY_FIELDS)
     _answered(ctx, link, company.id, accepted=True)
-    return _accept(ctx, link, data, user_id=None, company_id=company.id)
+    return _accept(ctx, link, card, data, user_id=None, company_id=company.id)
 
 
 def _accept(
     ctx: CommandContext,
     link: ProfileLink,
+    card: Card,
     data: dict[str, Any],
     *,
     user_id: UUID | None,
     company_id: UUID | None,
 ) -> ProfileLink:
-    """The same card is linked and the given data are kept as its snapshot (§ 6.2.11)."""
+    """The same card is linked and the given data are kept as its snapshot (§ 6.2.11). The card
+    is checked again on fresh data: it may have been archived after the request was sent."""
     card_type = card_type_of(link)
-    card = _lock_card(link.company_id, card_type, card_id_of(link))
+    if card.state != ClientCard.State.ACTIVE:
+        raise errors.business_rule("CARD_ARCHIVED")
     if _taken(link.company_id, card_type, card.id, user_id, company_id):
         raise errors.business_rule("LINK_PROFILE_TAKEN")
     now = timezone.now()
     card.linked_user_id = user_id
     card.linked_company_id = company_id
     card.version += 1
-    card.save(update_fields=["linked_user_id", "linked_company_id", "version", "updated_at"])
+    try:
+        with transaction.atomic():
+            card.save(
+                update_fields=["linked_user_id", "linked_company_id", "version", "updated_at"]
+            )
+    except IntegrityError as exc:
+        # Another card was linked to the profile at the same moment.
+        if _one_per_profile(exc):
+            raise errors.business_rule("LINK_PROFILE_TAKEN") from exc
+        raise
     link.state = State.ACCEPTED
     link.target_user_id = user_id or link.target_user_id
     link.decided_at = now
@@ -451,25 +486,26 @@ def client_from_owner(
     requested_by: UUID,
 ) -> ClientCard:
     """«Yes» to the link of § 8.3.1 makes the owner a client of the company (customer's decision
-    of 30.10.2026). A client card already linked to the profile is kept; otherwise a new card is
-    created and linked at once. It holds the minimum of § 6.2.7–6.2.8 taken from the profile:
-    names (or the company name) and the confirmed email (PROPOSAL). A card with the same contact
-    is not merged; the new card is marked as a possible duplicate (§ 6.5.1)."""
+    of 30.10.2026). A client card already linked to the profile is kept. A card whose link to the
+    profile was broken is linked again: after a new request is accepted the previous card is
+    linked (§ 6.6.6). Otherwise a new card is created and linked at once. It holds the minimum of
+    § 6.2.7–6.2.8 taken from the profile: names (or the company name) and the confirmed email
+    (PROPOSAL). A card with the same contact is not merged; the new card is marked as a possible
+    duplicate (§ 6.5.1)."""
     user_id = owner_user.id if owner_user is not None else None
     company_id = owner_company.id if owner_company is not None else None
-    linked = ClientCard.objects.select_for_update().filter(company=requester)
-    existing = (
-        linked.filter(linked_user_id=user_id).first()
-        if user_id is not None
-        else linked.filter(linked_company_id=company_id).first()
+    by_profile = (
+        Q(linked_user_id=user_id) if user_id is not None else Q(linked_company_id=company_id)
     )
+    linked = ClientCard.objects.select_for_update().filter(by_profile, company=requester)
+    existing = linked.first()
     if existing is not None:
+        # TODO(spec): an archived card stays linked (§ 6.6.5) and is returned as it is; whether
+        # the owner's «yes» restores it from the archive is not decided («можно восстановить»).
         return existing
     now = timezone.now()
     if owner_user is not None:
         data = accounts.shareable_profile(owner_user)
-        if not data["first_name"] or not data["last_name"]:
-            raise errors.business_rule("NAME_REQUIRED")
         shared = {
             k: data[k] for k in ("first_name", "last_name", "middle_name", "email") if data[k]
         }
@@ -489,6 +525,52 @@ def client_from_owner(
         profile, label = Profile.COMPANY, owner_company.public_id
     else:
         raise RuntimeError("An owner is a person or a company")
+
+    def accepted_link(card: ClientCard) -> ProfileLink:
+        return ProfileLink.objects.create(
+            company=requester,
+            client=card,
+            profile=profile,
+            target_label=label,
+            target_user_id=user_id,
+            target_company_id=company_id,
+            state=State.ACCEPTED,
+            created_by_user_id=requested_by,
+            created_at=now,
+            expires_at=now,
+            decided_at=now,
+            decided_by_user_id=ctx.actor.user_id,
+            shared={"data": shared, "at": now.isoformat(), "source": "vehicle_owner"},
+        )
+
+    previous = _previous_card(requester.id, user_id, company_id, now)
+    if previous is not None:
+        previous.linked_user_id = user_id
+        previous.linked_company_id = company_id
+        previous.version += 1
+        try:
+            with transaction.atomic():
+                previous.save(
+                    update_fields=["linked_user_id", "linked_company_id", "version", "updated_at"]
+                )
+                link = accepted_link(previous)
+        except IntegrityError as exc:
+            return _linked_meanwhile(linked, exc)
+        ctx.audit(
+            "profile_link.accepted",
+            object_type="profile_link",
+            object_id=link.id,
+            after={
+                "card_type": "client",
+                "card_id": str(previous.id),
+                "fields": sorted(shared),
+                "source": "vehicle_owner",
+            },
+            company_id=requester.id,
+        )
+        return previous
+    if owner_user is not None and (not fields["first_name"] or not fields["last_name"]):
+        raise errors.business_rule("NAME_REQUIRED")
     duplicates = any(
         services.matches(
             requester.id,
@@ -501,31 +583,21 @@ def client_from_owner(
             ),
         )
     )
-    card = ClientCard.objects.create(
-        company=requester,
-        **fields,
-        possible_duplicate=duplicates,
-        linked_user_id=user_id,
-        linked_company_id=company_id,
-        created_by_user_id=ctx.actor.user_id,
-        created_at=now,
-    )
-    services.write_contacts(card, contacts)
-    link = ProfileLink.objects.create(
-        company=requester,
-        client=card,
-        profile=profile,
-        target_label=label,
-        target_user_id=user_id,
-        target_company_id=company_id,
-        state=State.ACCEPTED,
-        created_by_user_id=requested_by,
-        created_at=now,
-        expires_at=now,
-        decided_at=now,
-        decided_by_user_id=ctx.actor.user_id,
-        shared={"data": shared, "at": now.isoformat(), "source": "vehicle_owner"},
-    )
+    try:
+        with transaction.atomic():
+            card = ClientCard.objects.create(
+                company=requester,
+                **fields,
+                possible_duplicate=duplicates,
+                linked_user_id=user_id,
+                linked_company_id=company_id,
+                created_by_user_id=ctx.actor.user_id,
+                created_at=now,
+            )
+            services.write_contacts(card, contacts)
+            link = accepted_link(card)
+    except IntegrityError as exc:
+        return _linked_meanwhile(linked, exc)
     ctx.audit(
         "client.created",
         object_type="client_card",
@@ -533,6 +605,57 @@ def client_from_owner(
         after={**services.snapshot(card), "source": "vehicle_owner", "link": str(link.id)},
         company_id=requester.id,
     )
+    return card
+
+
+def _previous_card(
+    company_id: UUID, user_id: UUID | None, profile_company_id: UUID | None, now: datetime
+) -> ClientCard | None:
+    """The client card of the latest broken link to the profile that is free to be linked again
+    (§ 6.6.6). An expired request of that card is closed, as request_link does."""
+    broken = ProfileLink.objects.filter(
+        company_id=company_id, client__isnull=False, state=State.BROKEN
+    )
+    broken = (
+        broken.filter(profile=Profile.PERSON, target_user_id=user_id)
+        if user_id is not None
+        else broken.filter(profile=Profile.COMPANY, target_company_id=profile_company_id)
+    )
+    seen: set[UUID] = set()
+    for link in broken.order_by("-broken_at"):
+        if link.client_id is None or link.client_id in seen:
+            continue
+        seen.add(link.client_id)
+        card = _lock_card(company_id, "client", link.client_id)
+        if not isinstance(card, ClientCard):  # the client list only
+            continue
+        if card.linked_user_id is not None or card.linked_company_id is not None:
+            continue  # linked to another profile since
+        pending = (
+            ProfileLink.objects.select_for_update()
+            .filter(client_id=card.id, company_id=company_id, state=State.PENDING)
+            .first()
+        )
+        if pending is not None:
+            if effective_state(pending, now) != State.EXPIRED:
+                # TODO(spec): the previous card waits for an answer to another request; whether
+                # the owner's «yes» links it anyway or a new card is created is not decided.
+                continue
+            pending.state = State.EXPIRED
+            pending.save(update_fields=["state"])
+        # TODO(spec): an archived previous card is linked again in the archive (§ 6.6.5–6.6.6);
+        # whether it is restored is not decided.
+        return card
+    return None
+
+
+def _linked_meanwhile(linked: QuerySet[ClientCard], exc: IntegrityError) -> ClientCard:
+    """Another answer of the same owner linked a card at the same moment: that card is kept."""
+    if not _one_per_profile(exc):
+        raise exc
+    card = linked.first()
+    if card is None:
+        raise exc
     return card
 
 

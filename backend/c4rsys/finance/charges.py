@@ -21,6 +21,14 @@ def register_after_change(handler: AfterChange) -> None:
     _after_change.append(handler)
 
 
+# Sources that go to another order together with a source (the discount of a position).
+_companions: list[Callable[[str], list[str]]] = []
+
+
+def register_companion(provider: Callable[[str], list[str]]) -> None:
+    _companions.append(provider)
+
+
 def discount_sources_of(order_id: UUID, prefix: str) -> list[tuple[str, UUID]]:
     """Sources of the order whose kind starts with the prefix: the discounts of positions."""
     return list(
@@ -143,16 +151,30 @@ def move_source(
 ) -> None:
     """The charges of a source go to another order with it (§ 12.3.7): a reversing entry in the
     order where they are and the same amount in the new one; nothing is changed or deleted."""
+    kinds = [source_type] + [c for p in _companions for c in p(source_type)]
+    touched: set[UUID] = set()
+    for kind in kinds:
+        touched |= _move(ctx, kind, source_id, order_id, reason)
+    for touched_order in sorted(touched | {order_id}):
+        for handler in _after_change:
+            handler(ctx, touched_order, source_type)
+
+
+def _move(
+    ctx: CommandContext, source_type: str, source_id: UUID, order_id: UUID, reason: str
+) -> set[UUID]:
     rows = (
         ChargeEntry.objects.filter(source_type=source_type, source_id=source_id)
         .exclude(order_id=order_id)
         .values("company_id", "order_id", "client_id", "currency_id")
         .annotate(total=Sum("amount"))
     )
+    touched: set[UUID] = set()
     for row in rows:
         total = row["total"]
         if total == 0:
             continue
+        touched.add(row["order_id"])
         calculation = {"moved_to": str(order_id), "from": str(row["order_id"])}
         for target, delta in ((row["order_id"], -total), (order_id, total)):
             _append(
@@ -168,6 +190,7 @@ def move_source(
                 reason,
                 calculation,
             )
+    return touched
 
 
 def charged_currency(source_type: str, source_id: UUID) -> str | None:
@@ -224,6 +247,8 @@ CHANGE_REASONS = {
     "corrected",
     "service_job_price_changed",
     "service_material_price_changed",
+    "changed",
+    "free_time",
 }
 
 
