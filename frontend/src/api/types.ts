@@ -1331,13 +1331,16 @@ export type DocumentSigner = {
   counterparty_id: string | null;
   is_me: boolean;
   state: "pending" | "signed" | "declined";
-  method: "in_app" | "link" | "paper" | null;
+  method: "in_app" | "link" | "paper" | "on_screen" | null;
   decided_at: string | null;
   confirmed_contact: string | null;
   comment: string;
   paper_file_id: string | null;
   paper_signed_on: string | null;
   entered_at: string | null;
+  /** The image of a signature drawn on the screen (§ 10.2.2). */
+  signature_file_id: string | null;
+  presented_by_me: boolean;
   emails: string[];
   link: { email: string; expires_at: string } | null;
 };
@@ -1346,6 +1349,8 @@ export type DocumentSigning = {
   document_version: number;
   status: CompanyDocument["signing"];
   methods: "both" | "in_app" | "paper";
+  /** The client may sign on the screen of the employee's device: an act of inspection (§ 18.4.2). */
+  on_screen: boolean;
   current_version: number | null;
   sent_version: number | null;
   template_signers: string[];
@@ -1375,7 +1380,7 @@ export type DocumentTemplate = {
   code: string | null;
   title: string;
   kind_id: string;
-  source: "rental" | "order" | "service_operation" | "delivery" | "client" | "vehicle" | "none";
+  source: "rental" | "order" | "service_operation" | "delivery" | "client" | "vehicle" | "inspection" | "none";
   language: string;
   content: string;
   required_fields: string[];

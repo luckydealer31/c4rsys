@@ -994,7 +994,11 @@
     "offline_draft_already_sent": "This draft was already sent; the inspection is on the server.",
     "inspection_possible_duplicate": "The server has inspections that may be the same one. Check them before sending.",
     "offline_file_missing": "A file of the local draft is no longer on this device.",
-    "offline_storage_unavailable": "The local storage of the browser is not available: the file cannot be kept on this device."
+    "offline_storage_unavailable": "The local storage of the browser is not available: the file cannot be kept on this device.",
+    "inspection_act_not_saved": "สร้างบันทึกได้จากการตรวจสภาพที่บันทึกแล้วเท่านั้น",
+    "inspection_act_exists": "การตรวจสภาพนี้มีบันทึกแล้ว",
+    "signing_consent_required": "โปรดทำเครื่องหมายยินยอมก่อนลงนาม",
+    "template_source_mismatch": "เทมเพลตนี้ใช้ไม่ได้: บันทึกการตรวจสภาพสร้างจากหน้าการตรวจสภาพ"
   },
   "history": {
     "action": "Action",
@@ -3196,7 +3200,29 @@
     "service_act_required": "คำสั่งซื้อของลูกค้าที่มีงานบริการปิดไม่ได้หากไม่มีใบรับรอง",
     "service_act_signed": "ลูกค้าต้องลงนามในใบรับรอง",
     "show_to_client": "บัญชีลูกค้า",
-    "show_to_client_hint": "แสดงให้ลูกค้าเห็น"
+    "show_to_client_hint": "แสดงให้ลูกค้าเห็น",
+    "kind_inspection_act": "บันทึกการตรวจสภาพ",
+    "object_inspection": "การตรวจสภาพ",
+    "source_inspection": "การตรวจสภาพ",
+    "method_on_screen": "บนหน้าจอ",
+    "methods_on_screen": "บนหน้าจออุปกรณ์ของพนักงานด้วย",
+    "on_screen_start": "ลงนามบนหน้าจอ",
+    "on_screen_title": "การลงนามบนหน้าจอ",
+    "on_screen_close": "ปิด",
+    "on_screen_read": "โปรดอ่านเอกสาร จากนั้นทำเครื่องหมายยินยอมและลงนามด้วยนิ้วด้านล่าง หรือปฏิเสธ",
+    "on_screen_consent": "ข้าพเจ้าได้อ่านเอกสารและยินยอม",
+    "on_screen_draw": "ลงนามในช่องด้วยนิ้วหรือปากกา",
+    "on_screen_undo": "ย้อนกลับ",
+    "on_screen_clear": "ล้าง",
+    "on_screen_sign": "ลงนาม",
+    "on_screen_refuse": "ปฏิเสธการลงนาม",
+    "on_screen_refuse_reason": "เหตุผลที่ปฏิเสธ",
+    "on_screen_refuse_confirm": "ปฏิเสธ",
+    "on_screen_back": "กลับไปลงนาม",
+    "presented_by_me": "แสดงบนอุปกรณ์ของฉัน",
+    "presented_by_employee": "แสดงบนอุปกรณ์ของพนักงาน",
+    "signature_image": "ลายมือชื่อ",
+    "signatures": "ลายมือชื่อ"
   },
   "document_fields": {
     "company__name": "ชื่อบริษัท",
@@ -3248,7 +3274,22 @@
     "order__lines": "ตาราง: รายการคำสั่งซื้อ",
     "rental__charges": "ตาราง: ค่าใช้จ่ายการเช่า",
     "service__works": "ตาราง: งาน",
-    "service__materials": "ตาราง: อะไหล่"
+    "service__materials": "ตาราง: อะไหล่",
+    "inspection__kind": "การตรวจสภาพ: ประเภท",
+    "inspection__application": "การตรวจสภาพ: ใช้กับ",
+    "inspection__operation": "การตรวจสภาพ: เลขที่การเช่าหรืองานบริการ",
+    "inspection__performed_at": "การตรวจสภาพ: เวลา",
+    "inspection__place": "การตรวจสภาพ: สถานที่",
+    "inspection__performer": "การตรวจสภาพ: ผู้ตรวจ",
+    "inspection__participant": "การตรวจสภาพ: ผู้เข้าร่วมอีกฝ่าย",
+    "inspection__check_status": "การตรวจสภาพ: การตรวจสภาพรถ",
+    "inspection__odometer": "การตรวจสภาพ: เลขไมล์",
+    "inspection__fuel": "การตรวจสภาพ: น้ำมันหรือแบตเตอรี่",
+    "inspection__cleanliness": "การตรวจสภาพ: ความสะอาด",
+    "inspection__photo_count": "การตรวจสภาพ: จำนวนรูป",
+    "inspection__video_count": "การตรวจสภาพ: จำนวนวิดีโอ",
+    "inspection__damages": "ตาราง: ความเสียหาย",
+    "inspection__photos": "ตาราง: รูปตามมุมถ่าย"
   },
   "tasks": {
     "none": "ไม่มีงาน",
@@ -4143,7 +4184,13 @@
     "event_erroneous": "ทำเครื่องหมายผิดพลาด",
     "fixed_by_work": "ความเสียหายที่งานนี้ซ่อมแล้ว",
     "fixed_by_work_hint": "ระบุความเสียหายที่ซ่อมแล้วและเพิ่มรูปผลลัพธ์ การเสร็จงานไม่ปิดความเสียหายเอง",
-    "position_required_column": "จำเป็น"
+    "position_required_column": "จำเป็น",
+    "act_title": "บันทึกการตรวจสภาพ",
+    "act_none": "ยังไม่มีบันทึก",
+    "act_hint": "บันทึกจะยึดผลการตรวจสภาพที่บันทึกไว้นี้และส่งให้ลูกค้าหรือผู้เข้าร่วมลงนาม",
+    "act_create": "สร้างบันทึก",
+    "act_no_signer": "ไม่มีผู้ลงนาม: ส่งจากหน้าเอกสาร",
+    "act_of_invalid": "การตรวจสภาพนี้ไม่ถูกต้อง บันทึกและลายมือชื่อยังคงเก็บไว้"
   },
   "offline": {
     "app_hint": "No connection to the server. Only local drafts of inspections are available on this device; rentals, service and other operations need the connection.",

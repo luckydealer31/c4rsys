@@ -225,6 +225,7 @@ const OBJECT_PATHS: Record<string, string> = {
   rental: "/rentals/",
   service_operation: "/service/operations/",
   delivery: "/trips/",
+  inspection: "/inspections/",
 };
 
 /** A document: details, versions, links, term and archive (§ 18.1.9–18.1.14). */

@@ -25,7 +25,7 @@ class InspectionsConfig(AppConfig):
 def file_reader(user_id: UUID, item: Any) -> bool:
     """A photo or video is read by whoever may see its inspection or its damage (§ 10.3.7)."""
     from c4rsys.companies.models import Employment
-    from c4rsys.inspections import views
+    from c4rsys.inspections import access
     from c4rsys.inspections.models import DamageFile, Inspection, InspectionFile
     from c4rsys.platform.commands import Actor
 
@@ -43,6 +43,6 @@ def file_reader(user_id: UUID, item: Any) -> bool:
     for damage_file in DamageFile.objects.select_related("damage").filter(file_id=item.id):
         owners.append(damage_file.damage.inspection_id)
     for inspection in Inspection.objects.select_related("vehicle_card").filter(pk__in=owners):
-        if views.can_view(actor, inspection):
+        if access.can_view(actor, inspection):
             return True
     return False

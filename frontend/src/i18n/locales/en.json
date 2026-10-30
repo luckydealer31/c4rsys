@@ -994,7 +994,11 @@
     "offline_draft_already_sent": "This draft was already sent; the inspection is on the server.",
     "inspection_possible_duplicate": "The server has inspections that may be the same one. Check them before sending.",
     "offline_file_missing": "A file of the local draft is no longer on this device.",
-    "offline_storage_unavailable": "The local storage of the browser is not available: the file cannot be kept on this device."
+    "offline_storage_unavailable": "The local storage of the browser is not available: the file cannot be kept on this device.",
+    "inspection_act_not_saved": "An act is made of a saved inspection only.",
+    "inspection_act_exists": "This inspection already has an act.",
+    "signing_consent_required": "Mark the consent before signing.",
+    "template_source_mismatch": "This template is not for this kind of document: an act of inspection is made on the inspection page."
   },
   "history": {
     "action": "Action",
@@ -3196,7 +3200,29 @@
     "service_act_required": "A client's order with service is not closed without the act",
     "service_act_signed": "The act is signed by the client",
     "show_to_client": "Client cabinet",
-    "show_to_client_hint": "Show to the client (in the personal cabinet of the linked client)"
+    "show_to_client_hint": "Show to the client (in the personal cabinet of the linked client)",
+    "kind_inspection_act": "Act of inspection",
+    "object_inspection": "Inspection",
+    "source_inspection": "Inspection",
+    "method_on_screen": "on the screen",
+    "methods_on_screen": "Also on the screen of the employee's device",
+    "on_screen_start": "Sign on the screen",
+    "on_screen_title": "Signing on the screen",
+    "on_screen_close": "Close",
+    "on_screen_read": "Read the document. Then mark the consent and sign with your finger below, or refuse.",
+    "on_screen_consent": "I have read the document and agree with it",
+    "on_screen_draw": "Sign in the field with your finger or a stylus.",
+    "on_screen_undo": "Undo",
+    "on_screen_clear": "Clear",
+    "on_screen_sign": "Sign",
+    "on_screen_refuse": "Refuse to sign",
+    "on_screen_refuse_reason": "Reason of the refusal",
+    "on_screen_refuse_confirm": "Refuse",
+    "on_screen_back": "Back to signing",
+    "presented_by_me": "presented on my device",
+    "presented_by_employee": "presented on an employee's device",
+    "signature_image": "Signature",
+    "signatures": "Signatures"
   },
   "document_fields": {
     "company__name": "Company name",
@@ -3248,7 +3274,22 @@
     "order__lines": "Table: lines of the order",
     "rental__charges": "Table: charges of the rental",
     "service__works": "Table: works",
-    "service__materials": "Table: parts"
+    "service__materials": "Table: parts",
+    "inspection__kind": "Inspection: kind",
+    "inspection__application": "Inspection: applies to",
+    "inspection__operation": "Inspection: number of the rental or service",
+    "inspection__performed_at": "Inspection: time",
+    "inspection__place": "Inspection: place",
+    "inspection__performer": "Inspection: performed by",
+    "inspection__participant": "Inspection: second participant",
+    "inspection__check_status": "Inspection: condition check",
+    "inspection__odometer": "Inspection: odometer",
+    "inspection__fuel": "Inspection: fuel or charge",
+    "inspection__cleanliness": "Inspection: cleanliness",
+    "inspection__photo_count": "Inspection: number of photos",
+    "inspection__video_count": "Inspection: number of videos",
+    "inspection__damages": "Table: damages",
+    "inspection__photos": "Table: photos by positions"
   },
   "tasks": {
     "none": "No tasks",
@@ -4143,7 +4184,13 @@
     "event_erroneous": "Recognised erroneous",
     "fixed_by_work": "Damages fixed by this work",
     "fixed_by_work_hint": "Mark explicitly which damages are fixed and add photos of the result; the completion alone fixes nothing.",
-    "position_required_column": "Required"
+    "position_required_column": "Required",
+    "act_title": "Act of inspection",
+    "act_none": "No act yet.",
+    "act_hint": "The act fixes this saved inspection and is sent for signing to the client or the participant.",
+    "act_create": "Create act",
+    "act_no_signer": "no signer: send it from the document card",
+    "act_of_invalid": "The inspection is recognised invalid; its act and signatures are kept."
   },
   "offline": {
     "app_hint": "No connection to the server. Only local drafts of inspections are available on this device; rentals, service and other operations need the connection.",

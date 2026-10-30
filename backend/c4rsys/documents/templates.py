@@ -39,6 +39,7 @@ SOURCES_OF = {
     "delivery": {"delivery", "order", "client", "vehicle", "location"},
     "client": {"client"},
     "vehicle": {"vehicle"},
+    "inspection": {"inspection", "client", "vehicle", "location"},
     "none": set(),
 }
 TABLE_SOURCES = {
@@ -46,6 +47,8 @@ TABLE_SOURCES = {
     "rental.charges": "rental",
     "service.works": "service",
     "service.materials": "service",
+    "inspection.damages": "inspection",
+    "inspection.photos": "inspection",
 }
 COLUMN_LABELS = {
     "name": {"en": "Item", "ru": "Наименование", "th": "รายการ"},
@@ -53,6 +56,11 @@ COLUMN_LABELS = {
     "executor": {"en": "Performed by", "ru": "Исполнитель", "th": "ผู้ดำเนินการ"},
     "price": {"en": "Price", "ru": "Цена", "th": "ราคา"},
     "quantity": {"en": "Quantity", "ru": "Количество", "th": "จำนวน"},
+    "zone": {"en": "Zone", "ru": "Зона", "th": "ตำแหน่ง"},
+    "description": {"en": "Description", "ru": "Описание", "th": "รายละเอียด"},
+    "state": {"en": "State", "ru": "Состояние", "th": "สถานะ"},
+    "position": {"en": "Position", "ru": "Позиция", "th": "มุมถ่าย"},
+    "count": {"en": "Photos", "ru": "Снимков", "th": "จำนวนรูป"},
 }
 
 
@@ -350,11 +358,15 @@ def make(
     *,
     title: str,
     on: date,
+    act: bool = False,
 ) -> Document:
     """The document with the values fixed; it is linked to the objects its data came from and
-    scoped by them (decision Р-11)."""
+    scoped by them (decision Р-11). An act of inspection is made by `inspection_act.make` only:
+    it is checked there to be the only one and sent to its signer."""
     if t.state != DocumentTemplate.State.ACTIVE:
         raise errors.business_rule("TEMPLATE_ARCHIVED")
+    if (t.source == DocumentTemplate.Source.INSPECTION) != act:
+        raise errors.business_rule("TEMPLATE_SOURCE_MISMATCH")
     checked = preview(company, t, source_id, employment_id=ctx.actor.employment_id, on=on)
     if checked.missing_required:
         raise errors.business_rule(

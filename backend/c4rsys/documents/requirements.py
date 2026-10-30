@@ -5,6 +5,10 @@
   the rental and made by that template (a starting template in any of its languages) or of that
   kind. At the issue an unmet one goes through the issue policy «Documents»; at the return it
   keeps the formalization from completing.
+* An act of inspection (decision В-8.3) counts for the stage of its inspection only: an act of
+  the inspection at the issue for «before the issue» and «at the issue», of the inspection at the
+  acceptance for «at the return»; the act of an inspection recognised invalid does not count.
+  TODO(spec): this matching is a PROPOSAL of the agent, not confirmed.
 * Service: «act required» and «act signed by the client». The act is an active document of the
   kind «act» linked to the service operation; signed — all signers of its last sent version have
   signed and a client is among them (§ 18.3.6). An internal order needs no act (§ 16.6.4).
@@ -131,7 +135,33 @@ def _templates_like(template: DocumentTemplate) -> list[UUID]:
     return [template.id]
 
 
+STAGE_INSPECTION: dict[str, str] = {
+    Stage.BEFORE_ISSUE: "issue",
+    Stage.AT_ISSUE: "issue",
+    Stage.AT_RETURN: "return",
+}
+
+
+def _of_stage(stage: str, documents: list[Document]) -> list[Document]:
+    """Acts of inspection of another stage or of an invalid inspection are left out."""
+    from c4rsys.inspections import services as inspections
+
+    ids = {d.source_id for d in documents if d.source_type == "inspection" and d.source_id}
+    if not ids:
+        return documents
+    found = inspections.kinds_and_states(ids)
+
+    def counts(d: Document) -> bool:
+        if d.source_type != "inspection" or d.source_id is None:
+            return True
+        kind, state = found.get(d.source_id, ("", ""))
+        return kind == STAGE_INSPECTION.get(stage) and state == "saved"
+
+    return [d for d in documents if counts(d)]
+
+
 def _met(r: DocumentRequirement, documents: list[Document]) -> bool:
+    documents = _of_stage(r.stage, documents)
     if r.template is not None:
         ids = set(_templates_like(r.template))
         matching = [d for d in documents if d.template_id in ids]

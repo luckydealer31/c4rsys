@@ -17,6 +17,8 @@ class DocumentsConfig(AppConfig):
 
         # § 18.5.3: a file of a document is read by the rights on the document, not by links.
         files.register_reader(StoredFile.Purpose.COMPANY_DOCUMENT, services.file_reader)
+        # A signature drawn on the screen is read like the document it signs (§ 10.2.2).
+        files.register_reader(StoredFile.Purpose.DOCUMENT_SIGNATURE, services.file_reader)
         # Decision Р-7: the warnings of terms go to the notification centre (part З3).
         notifications.register_check(notices.run)
         # § 20.3.4: the request and the result of signing are mandatory notifications.

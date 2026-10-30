@@ -157,6 +157,17 @@ def inspection_video_type(head: bytes) -> str:
     return "video/quicktime" if head[8:10] == b"qt" else "video/mp4"
 
 
+DOCUMENT_SIGNATURE = "document_signature"
+
+
+def signature_type(content: bytes) -> str:
+    """A signature drawn on the screen is a PNG image (§ 10.2.2)."""
+    found = image_type(content)
+    if found != "image/png":
+        raise errors.validation_error("file", code="FILE_TYPE_NOT_ALLOWED")
+    return found
+
+
 def store(*, purpose: str, uploaded_by: UUID, content: bytes, content_type: str) -> StoredFile:
     """Writes the content, then the details. Call inside the command's transaction: if it is
     rolled back, an unreferenced file may remain on disk, but no record points to it."""

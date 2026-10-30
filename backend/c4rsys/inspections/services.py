@@ -817,7 +817,8 @@ def invalidate(ctx: CommandContext, inspection: Inspection, reason: str) -> Insp
 
 def delete_draft(ctx: CommandContext, inspection: Inspection) -> None:
     """An unused draft is deleted (§ 10.6.3). The draft of the rental card is used by its rental.
-    TODO(О6): a draft sent to the participant for signing is not deleted."""
+    A draft is never sent to the participant: the act of inspection is made of a saved one only
+    (decision В-8.3, part О6)."""
     if inspection.state != State.DRAFT:
         raise errors.business_rule("INSPECTION_NOT_DRAFT", state=inspection.state)
     if inspection.origin == Inspection.Origin.RENTAL:
@@ -832,6 +833,78 @@ def delete_draft(ctx: CommandContext, inspection: Inspection) -> None:
         object_id=inspection_id,
         before=before,
     )
+
+
+# --- The act of inspection (decision В-8.3, § 10.2.2, § 18.1.8) ----------------------------------
+
+
+def get(company_id: UUID, inspection_id: UUID, *, lock: bool = False) -> Inspection:
+    """An inspection of the company for another module (the documents), which checks the access
+    by `access.can_view` itself."""
+    query = Inspection.objects.select_related("vehicle_card", "template_version")
+    if lock:
+        query = query.select_for_update(of=("self",))
+    found = query.filter(company_id=company_id, pk=inspection_id).first()
+    if found is None:
+        raise errors.not_found()
+    return found
+
+
+@dataclass(frozen=True)
+class ActDamage:
+    zone_text: str
+    on_scheme: bool
+    description: str
+    state: str
+
+
+@dataclass(frozen=True)
+class ActPhotos:
+    position: str  # the code of the position; empty — additional photos
+    name: str  # the own name of a company's position; empty for the base ones
+    count: int
+
+
+@dataclass(frozen=True)
+class ActContent:
+    """What an act of inspection shows of a saved inspection: it is fixed in the act (§ 18.2.4)."""
+
+    damages: list[ActDamage]
+    photos: list[ActPhotos]
+    videos: int
+
+
+def act_content(inspection: Inspection) -> ActContent:
+    from c4rsys.inspections.models import Damage
+
+    recorded = [
+        ActDamage(d.zone_text, bool(d.zone_scheme), d.description, d.state)
+        for d in Damage.objects.filter(inspection=inspection).order_by("created_at", "id")
+    ]
+    positions = _positions(inspection.template_version)
+    counts: dict[str, int] = {}
+    videos = 0
+    for f in InspectionFile.objects.filter(inspection=inspection).order_by("added_at", "id"):
+        if f.kind == InspectionFile.Kind.VIDEO:
+            videos += 1
+        else:
+            counts[f.position] = counts.get(f.position, 0) + 1
+    order = [*positions, ""]
+    photos = [
+        ActPhotos(code, str(positions.get(code, {}).get("name") or ""), counts[code])
+        for code in sorted(counts, key=lambda c: order.index(c) if c in order else len(order))
+    ]
+    return ActContent(recorded, photos, videos)
+
+
+def kinds_and_states(ids: set[UUID]) -> dict[UUID, tuple[str, str]]:
+    """The kind and the state of inspections, for the required acts of a rental's stage."""
+    return {
+        i: (kind, state)
+        for i, kind, state in Inspection.objects.filter(pk__in=ids).values_list(
+            "id", "kind", "state"
+        )
+    }
 
 
 # --- A required check of a rental (§ 10.3.3, § 10.6.3) -------------------------------------------

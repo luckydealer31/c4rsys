@@ -171,6 +171,7 @@ class DocumentLink(models.Model):
         RENTAL = "rental"
         SERVICE_OPERATION = "service_operation"
         DELIVERY = "delivery"
+        INSPECTION = "inspection"  # an act of inspection (decision В-8.3)
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
@@ -216,6 +217,7 @@ class DocumentTemplate(models.Model):
         DELIVERY = "delivery"
         CLIENT = "client"
         VEHICLE = "vehicle"
+        INSPECTION = "inspection"  # a saved inspection: the act of inspection (decision В-8.3)
         NONE = "none"
 
     class State(models.TextChoices):
@@ -282,6 +284,9 @@ class DocumentSigner(models.Model):
         IN_APP = "in_app"  # a signer with an account inside c4rsys, confirmed by a code
         LINK = "link"  # a personal link, confirmed by a code to the same contact (§ 18.3.9)
         PAPER = "paper"  # a scan of the paper signature entered by an employee (§ 18.3.7)
+        # The client signs by a finger on the screen of the employee's device: an act of
+        # inspection only (§ 10.2.2, § 18.4.2; decision В-8.3).
+        ON_SCREEN = "on_screen"
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
@@ -310,8 +315,15 @@ class DocumentSigner(models.Model):
         "files.StoredFile", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
     paper_signed_on = models.DateField(null=True, blank=True)
+    # A paper signature: who entered it and when. On the screen: who presented the device and
+    # when the answer was given there, with the session of that device (§ 10.2.2).
     entered_by_user_id = models.UUIDField(null=True, blank=True)
     entered_at = models.DateTimeField(null=True, blank=True)
+    presented_session_id = models.UUIDField(null=True, blank=True)
+    # The image of a signature drawn on the screen (PNG).
+    signature_file = models.ForeignKey(
+        "files.StoredFile", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
     code_hash = models.CharField(max_length=128, blank=True, default="")
     code_expires_at = models.DateTimeField(null=True, blank=True)
     code_attempts = models.PositiveSmallIntegerField(default=0)
@@ -354,6 +366,12 @@ class DocumentSigner(models.Model):
                 condition=~Q(method="paper")
                 | Q(paper_file__isnull=False, paper_signed_on__isnull=False),
                 name="document_signer_paper_has_scan",
+            ),
+            models.CheckConstraint(
+                condition=~Q(method="on_screen")
+                | Q(entered_by_user_id__isnull=False, entered_at__isnull=False)
+                & (Q(state="declined") | Q(signature_file__isnull=False)),
+                name="document_signer_on_screen_has_image",
             ),
         ]
 
@@ -402,7 +420,10 @@ class SigningInvitation(models.Model):
 
 
 class KindSigning(models.Model):
-    """Allowed ways of signing of a kind of document in a company (§ 18.4.2); none — both."""
+    """Allowed ways of signing of a kind of document in a company (§ 18.4.2); none — both.
+    `on_screen`: the signing by the client on the screen of the employee's device, which applies
+    to an act of inspection only (§ 18.4.2, decision В-8.3).
+    TODO(spec): whether it is allowed when nothing is set is not stated. PROPOSAL: allowed."""
 
     class Methods(models.TextChoices):
         IN_APP = "in_app"
@@ -412,6 +433,7 @@ class KindSigning(models.Model):
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
     kind = models.ForeignKey(DocumentKind, on_delete=models.PROTECT, related_name="+")
     methods = models.CharField(max_length=10, choices=Methods.choices, default=Methods.BOTH)
+    on_screen = models.BooleanField(default=True)
 
     class Meta:
         db_table = "document_kind_signing"

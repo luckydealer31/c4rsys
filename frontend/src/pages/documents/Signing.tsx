@@ -11,6 +11,7 @@ import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { useCan, useCompany } from "../../layout/CompanyShell";
 import { deviceTimeZone, formatMoment } from "../../time";
 import { useDocumentKinds, useKindName } from "./DocumentsPage";
+import { OnScreenSigning } from "./OnScreen";
 
 type SigningResult = { signing: DocumentSigning };
 
@@ -67,7 +68,7 @@ export function SigningCard({ d }: { d: CompanyDocument }) {
         {t(`documents.methods_${signing.methods}`)}
       </p>
       {sent.map((x) => (
-        <SignerRow key={x.id} d={d} signer={x} methods={signing.methods} open={active} onDone={refresh} />
+        <SignerRow key={x.id} d={d} signer={x} methods={signing.methods} onScreen={signing.on_screen} open={active} onDone={refresh} />
       ))}
       {canSend ? (
         <div style={{ marginTop: 12 }}>
@@ -101,7 +102,7 @@ export function SigningCard({ d }: { d: CompanyDocument }) {
         <details style={{ marginTop: 12 }}>
           <summary className="small">{t("documents.former_signers")}</summary>
           {former.map((x) => (
-            <SignerRow key={x.id} d={d} signer={x} methods={signing.methods} open={false} onDone={refresh} />
+            <SignerRow key={x.id} d={d} signer={x} methods={signing.methods} onScreen={false} open={false} onDone={refresh} />
           ))}
         </details>
       ) : null}
@@ -113,12 +114,14 @@ function SignerRow({
   d,
   signer,
   methods,
+  onScreen,
   open,
   onDone,
 }: {
   d: CompanyDocument;
   signer: DocumentSigner;
   methods: DocumentSigning["methods"];
+  onScreen: boolean;
   open: boolean;
   onDone: () => Promise<void>;
 }) {
@@ -140,7 +143,9 @@ function SignerRow({
   const [scan, setScan] = useState<File | null>(null);
   const [signedOn, setSignedOn] = useState("");
   const [uploadError, setUploadError] = useState<ApiError | null>(null);
+  const [presenting, setPresenting] = useState(false);
   const pending = open && signer.state === "pending";
+  const content = (d.versions ?? []).find((v) => v.number === signer.version_number)?.content ?? "";
   const inApp = methods !== "paper";
   const onPaper = methods !== "in_app";
   const done = (result: unknown) => (result ? onDone() : undefined);
@@ -177,9 +182,33 @@ function SignerRow({
             </a>
           </>
         ) : null}
-        {signer.entered_at ? ` · ${t("documents.entered_at", { at: formatMoment(signer.entered_at, zone, i18n.language) })}` : ""}
+        {signer.entered_at && signer.method !== "on_screen"
+          ? ` · ${t("documents.entered_at", { at: formatMoment(signer.entered_at, zone, i18n.language) })}`
+          : ""}
+        {signer.method === "on_screen" ? ` · ${t(signer.presented_by_me ? "documents.presented_by_me" : "documents.presented_by_employee")}` : ""}
       </div>
+      {signer.signature_file_id ? <SignatureImage fileId={signer.signature_file_id} /> : null}
       {signer.comment ? <div className="muted">{t("documents.signer_comment")}: {signer.comment}</div> : null}
+      {pending && signer.role !== "company" && onScreen && content && can("documents.upload") ? (
+        <div className="actions">
+          <button type="button" onClick={() => setPresenting(true)}>
+            {t("documents.on_screen_start")}
+          </button>
+        </div>
+      ) : null}
+      {presenting ? (
+        <OnScreenSigning
+          documentId={d.id}
+          title={d.title}
+          content={content}
+          signer={signer}
+          onClose={() => setPresenting(false)}
+          onDone={async () => {
+            setPresenting(false);
+            await onDone();
+          }}
+        />
+      ) : null}
       {pending && signer.is_me && inApp && can("documents.sign") ? (
         <div className="row">
           {!codeSent ? (
@@ -265,6 +294,39 @@ function SignerRow({
   );
 }
 
+/** A signature drawn on the screen (§ 10.2.2). */
+export function SignatureImage({ fileId }: { fileId: string }) {
+  const { t } = useTranslation();
+  return <img className="signature-image" src={`/api/files/${fileId}`} alt={t("documents.signature_image")} />;
+}
+
+/** The signers of one version with their answers and drawn signatures, for the print view. */
+export function VersionSignatures({ documentId, version }: { documentId: string; version: number }) {
+  const { t, i18n } = useTranslation();
+  const company = useCompany();
+  const zone = company.timezone ?? deviceTimeZone();
+  const query = useApi<SigningResult>(["document", company.public_id, documentId, "signing"], `/c/${company.public_id}/documents/${documentId}/signing`);
+  const signers = (query.data?.signing.signers ?? []).filter((x) => x.version_number === version);
+  if (signers.length === 0) return null;
+  return (
+    <div className="document-content print-signatures">
+      <h3>{t("documents.signatures")}</h3>
+      {signers.map((x) => (
+        <div key={x.id} className="print-signature">
+          <div>
+            <strong>{t(`documents.signer_${x.role}`)}</strong>: {x.name} — {t(`documents.signer_state_${x.state}`)}
+            {x.method ? `, ${t(`documents.method_${x.method}`)}` : ""}
+            {x.decided_at ? `, ${formatMoment(x.decided_at, zone, i18n.language)}` : ""}
+            {x.paper_signed_on ? `, ${t("documents.paper_signed_on")}: ${x.paper_signed_on}` : ""}
+          </div>
+          {x.comment ? <div>{t("documents.signer_comment")}: {x.comment}</div> : null}
+          {x.signature_file_id ? <SignatureImage fileId={x.signature_file_id} /> : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /** Allowed ways of signing of each kind (§ 18.4.2). */
 export function KindSigningCard() {
   const { t } = useTranslation();
@@ -273,7 +335,7 @@ export function KindSigningCard() {
   const queryClient = useQueryClient();
   const kinds = useDocumentKinds();
   const kindName = useKindName();
-  const query = useApi<{ kinds: { kind_id: string; methods: DocumentSigning["methods"] }[] }>(
+  const query = useApi<{ kinds: { kind_id: string; methods: DocumentSigning["methods"]; on_screen: boolean }[] }>(
     ["document-kind-signing", company.public_id],
     `/c/${company.public_id}/document-kinds/signing`,
   );
@@ -302,6 +364,24 @@ export function KindSigningCard() {
                     </option>
                   ))}
                 </select>
+              </td>
+              <td className="small">
+                {/* § 18.4.2: the signing on the screen applies to an act of inspection only. */}
+                {kinds.data?.kinds.find((k) => k.id === x.kind_id)?.code === "inspection_act" ? (
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={x.on_screen}
+                      disabled={!editable || change.pending}
+                      onChange={(e) =>
+                        void change
+                          .run({ kind_id: x.kind_id, methods: x.methods, on_screen: e.target.checked })
+                          .then((r) => (r ? queryClient.invalidateQueries({ queryKey: ["document-kind-signing"] }) : undefined))
+                      }
+                    />{" "}
+                    {t("documents.methods_on_screen")}
+                  </label>
+                ) : null}
               </td>
             </tr>
           ))}

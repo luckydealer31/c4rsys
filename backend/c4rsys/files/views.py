@@ -40,6 +40,8 @@ def _content_type(purpose: str, data: bytes) -> str:
         return services.inspection_photo_type(data)
     if purpose in services.DOCUMENT_PURPOSES:
         return services.document_type(data)
+    if purpose == services.DOCUMENT_SIGNATURE:
+        return services.signature_type(data)
     return services.image_type(data)
 
 

@@ -25,24 +25,17 @@ from django.http import HttpRequest, JsonResponse
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from c4rsys.accounts.middleware import require_user
-from c4rsys.companies import access, history
+from c4rsys.companies import history
 from c4rsys.companies import services as companies
 from c4rsys.companies.views import run_and_respond
 from c4rsys.fleet.models import VehicleCard
 from c4rsys.inspections import damages, links, policy, services, templates
+from c4rsys.inspections.access import VIEW_RIGHTS, _has, _location, can_view
 from c4rsys.inspections.models import Damage, Inspection
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
 
-VIEW_RIGHTS = (
-    "inspection.create",
-    "inspection.conduct",
-    "inspection.cancel",
-    "inspection.terminate",
-    "inspection.invalidate",
-    "vehicle.view",
-)
 POLICY = "inspection.policy.manage"
 
 
@@ -52,28 +45,9 @@ def _actor(request: HttpRequest, cmp: str) -> tuple[companies.CompanyContext, Ac
     return context, companies.company_actor(user, context, session.id)
 
 
-def _has(actor: Actor, permission: str, location_id: UUID | None) -> bool:
-    return access.RightsResolver().has_permission(actor, permission, location_id=location_id)
-
-
 def _require(actor: Actor, permission: str, location_id: UUID | None = None) -> None:
     if not _has(actor, permission, location_id):
         raise errors.permission_denied(permission)
-
-
-def _location(inspection: Inspection) -> UUID | None:
-    return inspection.vehicle_card.accounting_location_id or inspection.place_location_id
-
-
-def can_view(actor: Actor, inspection: Inspection) -> bool:
-    location_id = _location(inspection)
-    if any(_has(actor, p, location_id) for p in VIEW_RIGHTS):
-        return True
-    if inspection.application == Inspection.Application.RENTAL:
-        return _has(actor, "rental.view", location_id)
-    if inspection.application == Inspection.Application.SERVICE:
-        return _has(actor, "service.view", location_id)
-    return False
 
 
 def _card_visible(actor: Actor, card: VehicleCard) -> bool:

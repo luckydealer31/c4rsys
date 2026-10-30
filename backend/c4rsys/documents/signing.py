@@ -13,6 +13,9 @@
   that version only and is used once (§ 18.3.9–18.3.10).
 * A paper signature is a scan with the signer and the date, entered by an employee; it differs
   from a signature given inside c4rsys (§ 18.3.7). Allowed ways depend on the kind (§ 18.4.2).
+* On the screen (§ 10.2.2, § 18.4.2; decision В-8.3): the client reads an act of inspection on
+  the employee's device, marks the consent and signs by a finger, or refuses. The image, the
+  moment, the employee and the session of the device that presented it and the version are kept.
 """
 
 from dataclasses import dataclass
@@ -58,30 +61,58 @@ def methods_of(company_id: UUID, kind_id: UUID) -> str:
     return found.methods if found else KindSigning.Methods.BOTH
 
 
-def all_methods(company_id: UUID) -> dict[UUID, str]:
-    return {x.kind_id: x.methods for x in KindSigning.objects.filter(company_id=company_id)}
+def on_screen_of(company_id: UUID, kind_id: UUID) -> bool:
+    found = KindSigning.objects.filter(company_id=company_id, kind_id=kind_id).first()
+    return found.on_screen if found else True
 
 
-def set_methods(ctx: CommandContext, company: Company, kind_id: UUID, methods: str) -> None:
+def all_methods(company_id: UUID) -> dict[UUID, tuple[str, bool]]:
+    return {
+        x.kind_id: (x.methods, x.on_screen)
+        for x in KindSigning.objects.filter(company_id=company_id)
+    }
+
+
+def set_methods(
+    ctx: CommandContext,
+    company: Company,
+    kind_id: UUID,
+    methods: str,
+    on_screen: bool | None = None,
+) -> None:
     if methods not in KindSigning.Methods.values:
         raise errors.validation_error("methods")
     services.kind_of(company.id, kind_id)
-    before = methods_of(company.id, kind_id)
-    if before == methods:
+    before = {
+        "methods": methods_of(company.id, kind_id),
+        "on_screen": on_screen_of(company.id, kind_id),
+    }
+    after = {
+        "methods": methods,
+        "on_screen": before["on_screen"] if on_screen is None else on_screen,
+    }
+    if before == after:
         raise errors.business_rule("NOTHING_CHANGED")
-    KindSigning.objects.update_or_create(
-        company=company, kind_id=kind_id, defaults={"methods": methods}
-    )
+    KindSigning.objects.update_or_create(company=company, kind_id=kind_id, defaults=after)
     ctx.audit(
         "document_kind.signing_changed",
         object_type="document_kind",
         object_id=kind_id,
-        before={"methods": before},
-        after={"methods": methods},
+        before={k: v for k, v in before.items() if v != after[k]},
+        after={k: v for k, v in after.items() if v != before[k]},
     )
 
 
+def on_screen_allowed(d: Document) -> bool:
+    """Only an act of inspection is signed on the screen (§ 18.4.2), if its kind allows it."""
+    return d.source_type == "inspection" and on_screen_of(d.company_id, d.kind_id)
+
+
 def _allow(d: Document, method: str) -> None:
+    if method == Method.ON_SCREEN:
+        if not on_screen_allowed(d):
+            raise errors.business_rule("SIGNING_METHOD_NOT_ALLOWED", method=method)
+        return
     allowed = methods_of(d.company_id, d.kind_id)
     wanted = KindSigning.Methods.PAPER if method == Method.PAPER else KindSigning.Methods.IN_APP
     if allowed not in (KindSigning.Methods.BOTH, wanted):
@@ -480,6 +511,74 @@ def paper(
         object_type="document",
         object_id=d.id,
         after={**_decision_after(signer), "signed_on": signed_on},
+    )
+
+
+# --- On the screen of the employee's device (§ 10.2.2, § 18.4.2) ---------------------------------
+
+
+def on_screen(
+    ctx: CommandContext,
+    d: Document,
+    signer: DocumentSigner,
+    *,
+    version_number: int,
+    decision: str,
+    consent: bool,
+    file_id: UUID | None,
+    comment: str,
+) -> None:
+    """The client or the counterparty answers on the device the employee presents. The answer
+    is to the version they read: a replaced version is refused (§ 10.2.2, § 18.3.5). A signature
+    needs the consent and the drawn image; a refusal keeps its comment (§ 18.3.4)."""
+    if decision not in ("sign", "decline"):
+        raise errors.validation_error("decision")
+    _require_open(d, signer)
+    _allow(d, Method.ON_SCREEN)
+    if signer.role == Role.COMPANY:
+        raise errors.business_rule("SIGNER_SIGNS_IN_APP")
+    if signer.document_version.number != version_number:
+        raise errors.business_rule("SIGNING_VERSION_REPLACED")
+    if decision == "sign":
+        if not consent:
+            raise errors.validation_error("consent", code="SIGNING_CONSENT_REQUIRED")
+        if file_id is None:
+            raise errors.validation_error("file_id", code="FIELD_REQUIRED")
+        files.usable(
+            file_id,
+            purpose=files.DOCUMENT_SIGNATURE,
+            user_id=ctx.actor.user_id,
+            company_id=d.company_id,
+        )
+        files.attach_to_company(file_id, d.company_id)
+    current = active_invitation(signer)
+    if current is not None:
+        _revoke(ctx, current, "on_screen")
+    now = timezone.now()
+    signer.state = (
+        DocumentSigner.State.SIGNED if decision == "sign" else DocumentSigner.State.DECLINED
+    )
+    signer.method = Method.ON_SCREEN
+    signer.decided_at = now
+    signer.comment = comment
+    signer.signature_file_id = file_id if decision == "sign" else None
+    signer.entered_by_user_id = ctx.actor.user_id
+    signer.entered_at = now
+    signer.presented_session_id = ctx.actor.session_id
+    signer.version += 1
+    signer.save()
+    ctx.audit(
+        f"document.{'signed' if decision == 'sign' else 'signing_declined'}",
+        object_type="document",
+        object_id=d.id,
+        after={
+            **_decision_after(signer),
+            "consent": consent if decision == "sign" else None,
+            "signature_file": str(file_id) if signer.signature_file_id else None,
+            "presented_by": str(ctx.actor.user_id),
+            "session": str(ctx.actor.session_id) if ctx.actor.session_id else None,
+        },
+        reason=comment,
     )
 
 

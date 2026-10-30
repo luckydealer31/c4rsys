@@ -36,7 +36,7 @@ from c4rsys.platform.commands import CommandContext
 from c4rsys.platform.counters import next_number
 
 ObjectType = DocumentLink.ObjectType
-STARTING_KINDS = ("contract", "act", "settlement", "purchase", "internal")
+STARTING_KINDS = ("contract", "act", "settlement", "purchase", "internal", "inspection_act")
 
 
 # --- Kinds (§ 18.1.11) ---------------------------------------------------------------------------
@@ -72,6 +72,7 @@ def kind_of(company_id: UUID, kind_id: UUID) -> DocumentKind:
 def _getters() -> dict[str, Callable[[UUID, UUID], Any]]:
     from c4rsys.delivery import services as deliveries
     from c4rsys.fleet import services as fleet
+    from c4rsys.inspections import services as inspections
     from c4rsys.orders import services as orders
     from c4rsys.parties import counterparties
     from c4rsys.parties import services as parties
@@ -86,6 +87,7 @@ def _getters() -> dict[str, Callable[[UUID, UUID], Any]]:
         ObjectType.RENTAL: rentals.get_rental,
         ObjectType.SERVICE_OPERATION: operations.get_operation,
         ObjectType.DELIVERY: deliveries.get,
+        ObjectType.INSPECTION: inspections.get,
     }
 
 
@@ -483,7 +485,11 @@ def file_reader(user_id: UUID, item: Any) -> bool:
     from c4rsys.platform.commands import Actor
 
     version = DocumentVersion.objects.select_related("document").filter(file_id=item.id).first()
-    scan = DocumentSigner.objects.select_related("document").filter(paper_file_id=item.id).first()
+    scan = (
+        DocumentSigner.objects.select_related("document")
+        .filter(Q(paper_file_id=item.id) | Q(signature_file_id=item.id))
+        .first()
+    )
     holder = version or scan
     if holder is None:
         return False
@@ -543,3 +549,7 @@ def files_for_export(actor: Any, company_id: UUID) -> Iterator[tuple[str, bytes]
             item = StoredFile.objects.filter(pk=str(signer.paper_file_id)).first()
             if item is not None:
                 yield f"{d.number}/paper_signature_{signer.id}", files.content(item)
+        for signer in DocumentSigner.objects.filter(document=d, signature_file__isnull=False):
+            item = StoredFile.objects.filter(pk=str(signer.signature_file_id)).first()
+            if item is not None:
+                yield f"{d.number}/screen_signature_{signer.id}.png", files.content(item)

@@ -43,7 +43,8 @@ def _content(d: dict[str, Any]) -> str:
 
 
 def test_starting_templates_in_three_languages(owner: Client, s: Scenario) -> None:
-    assert DocumentTemplate.objects.filter(company__isnull=True).count() == 21
+    # Seven starting templates, the act of inspection among them (decision В-8.3).
+    assert DocumentTemplate.objects.filter(company__isnull=True).count() == 24
     contract = _template(owner, s, "rental_contract", "th")
     assert contract["system"] and contract["source"] == "rental"
 

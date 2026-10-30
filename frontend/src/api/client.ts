@@ -94,7 +94,8 @@ export async function uploadFile(
     | "company_document"
     | "task_attachment"
     | "inspection_photo"
-    | "inspection_video",
+    | "inspection_video"
+    | "document_signature",
   file: File,
   idempotencyKey: string = crypto.randomUUID(),
 ): Promise<{ id: string }> {

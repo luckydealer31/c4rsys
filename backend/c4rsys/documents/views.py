@@ -17,7 +17,7 @@ from c4rsys.companies import access
 from c4rsys.companies import services as companies
 from c4rsys.companies.models import Company
 from c4rsys.companies.views import run_and_respond
-from c4rsys.documents import fields, requirements, services, signing, templates
+from c4rsys.documents import fields, inspection_act, requirements, services, signing, templates
 from c4rsys.documents.models import Document, DocumentLink, DocumentTemplate
 from c4rsys.files import services as files
 from c4rsys.platform import errors
@@ -654,6 +654,9 @@ def _signer_payload(d: Document, x: Any, actor: Actor) -> dict[str, Any]:
         "paper_file_id": str(x.paper_file_id) if x.paper_file_id else None,
         "paper_signed_on": _iso(x.paper_signed_on),
         "entered_at": _iso(x.entered_at),
+        "signature_file_id": str(x.signature_file_id) if x.signature_file_id else None,
+        "presented_by_me": x.method == signing.Method.ON_SCREEN
+        and x.entered_by_user_id == actor.user_id,
         "emails": signing.emails_of(d, x) if x.state == "pending" else [],
         "link": {"email": invitation.email, "expires_at": invitation.expires_at.isoformat()}
         if invitation is not None
@@ -669,6 +672,7 @@ def _signing_payload(d: Document, actor: Actor) -> dict[str, Any]:
         "document_version": d.version,
         "status": _status_payload(d),
         "methods": signing.methods_of(d.company_id, d.kind_id),
+        "on_screen": signing.on_screen_allowed(d),
         "current_version": current.number if current else None,
         "sent_version": sent.number if sent else None,
         "template_signers": sorted(role for role, needed in roles.items() if needed),
@@ -870,6 +874,77 @@ def signer_paper(
     )
 
 
+@require_POST
+def signer_on_screen(
+    request: HttpRequest, cmp: str, document_id: UUID, signer_id: UUID
+) -> JsonResponse:
+    """The client answers on the screen of the employee's device (§ 10.2.2, § 18.4.2).
+    TODO(spec): the right to present the act is not stated. PROPOSAL: «Upload documents», as for
+    sending a personal link or entering a paper signature."""
+
+    def action(ctx: CommandContext | None, d: Any, signer: Any, data: dict[str, Any]) -> None:
+        decision, comment = _decision(data)
+        version_number = get_int(data, "version_number")
+        consent = data.get("consent", False)
+        if not isinstance(consent, bool):
+            raise errors.validation_error("consent")
+        file_id = _uuid(data.get("file_id"), "file_id")
+        if ctx is not None:
+            signing.on_screen(
+                ctx,
+                d,
+                signer,
+                version_number=version_number,
+                decision=decision,
+                consent=consent,
+                file_id=file_id,
+                comment=comment,
+            )
+
+    return _signer_command(
+        request,
+        cmp,
+        document_id,
+        signer_id,
+        "documents.upload",
+        "document.signing_on_screen",
+        action,
+        ("version_number", "decision", "consent", "file_id", "comment"),
+    )
+
+
+@require_POST
+def inspection_act_create(request: HttpRequest, cmp: str, inspection_id: UUID) -> JsonResponse:
+    """The act of a saved inspection (decision В-8.3): «Create documents by templates» and the
+    inspection seen by the employee (§ 18.1.8: its own rules of access stay)."""
+    from c4rsys.inspections import access as inspection_access
+    from c4rsys.inspections import services as inspections
+
+    context, actor = _actor(request, cmp)
+    if not _anywhere(actor, "documents.create"):
+        raise errors.permission_denied("documents.create")
+    inspection = inspections.get(context.company.id, inspection_id)
+    if not inspection_access.can_view(actor, inspection):
+        raise errors.not_found()
+    data = parse_json(request)
+    template_id = _uuid(data.get("template_id"), "template_id")
+    language = get_str(data, "language", max_length=5, required=False).strip()
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        d = inspection_act.make(
+            ctx, context.company, inspection_id, template_id=template_id, language=language
+        )
+        _require_on(actor, "documents.create", d)
+        return CommandResult(201, {"document": _document_payload(d, detail=True)})
+
+    payload = {
+        "inspection_id": str(inspection_id),
+        "template_id": str(template_id) if template_id else None,
+        "language": language,
+    }
+    return run_and_respond(request, "document.inspection_act", actor, payload, handler)
+
+
 @require_http_methods(["GET", "POST"])
 def kind_signing(request: HttpRequest, cmp: str) -> JsonResponse:
     """Allowed ways of signing by kind (§ 18.4.2): GET — all kinds; POST — one kind."""
@@ -881,7 +956,11 @@ def kind_signing(request: HttpRequest, cmp: str) -> JsonResponse:
         return JsonResponse(
             {
                 "kinds": [
-                    {"kind_id": str(k.id), "methods": found.get(k.id, "both")}
+                    {
+                        "kind_id": str(k.id),
+                        "methods": found.get(k.id, ("both", True))[0],
+                        "on_screen": found.get(k.id, ("both", True))[1],
+                    }
                     for k in services.kinds_of(context.company.id)
                 ]
             }
@@ -891,12 +970,22 @@ def kind_signing(request: HttpRequest, cmp: str) -> JsonResponse:
     data = parse_json(request)
     kind_id = _required(data, "kind_id")
     methods = get_str(data, "methods", max_length=10)
+    on_screen = data.get("on_screen")
+    if on_screen is not None and not isinstance(on_screen, bool):
+        raise errors.validation_error("on_screen")
 
     def handler(ctx: CommandContext) -> CommandResult:
-        signing.set_methods(ctx, context.company, kind_id, methods)
-        return CommandResult(200, {"kind_id": str(kind_id), "methods": methods})
+        signing.set_methods(ctx, context.company, kind_id, methods, on_screen)
+        return CommandResult(
+            200,
+            {
+                "kind_id": str(kind_id),
+                "methods": methods,
+                "on_screen": signing.on_screen_of(context.company.id, kind_id),
+            },
+        )
 
-    payload = {"kind_id": str(kind_id), "methods": methods}
+    payload = {"kind_id": str(kind_id), "methods": methods, "on_screen": on_screen}
     return run_and_respond(request, "document_kind.signing", actor, payload, handler)
 
 

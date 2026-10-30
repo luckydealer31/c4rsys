@@ -10,7 +10,7 @@ import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { useDocumentKinds, useKindName } from "./DocumentsPage";
-import { KindSigningCard } from "./Signing";
+import { KindSigningCard, VersionSignatures } from "./Signing";
 
 type Catalog = {
   fields: { code: string; source: string | null }[];
@@ -18,7 +18,7 @@ type Catalog = {
   sources: Record<string, string[]>;
 };
 
-const SOURCES = ["rental", "order", "service_operation", "delivery", "client", "vehicle", "none"] as const;
+const SOURCES = ["rental", "order", "service_operation", "delivery", "client", "vehicle", "inspection", "none"] as const;
 
 export function useTemplates() {
   const company = useCompany();
@@ -356,6 +356,7 @@ export function DocumentPrintPage() {
         </button>
       </div>
       <div className="document-content" dangerouslySetInnerHTML={{ __html: chosen?.content ?? "" }} />
+      {chosen ? <VersionSignatures documentId={d.id} version={chosen.number} /> : null}
     </div>
   );
 }

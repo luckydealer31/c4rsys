@@ -66,6 +66,20 @@ FIELDS: dict[str, str] = {
     "delivery.to": "delivery",
     "delivery.planned_start": "delivery",
     "delivery.price": "delivery",
+    # A saved inspection: its act (§ 10.2.2, § 18.1.8; decision В-8.3).
+    "inspection.kind": "inspection",
+    "inspection.application": "inspection",
+    "inspection.operation": "inspection",
+    "inspection.performed_at": "inspection",
+    "inspection.place": "inspection",
+    "inspection.performer": "inspection",
+    "inspection.participant": "inspection",
+    "inspection.check_status": "inspection",
+    "inspection.odometer": "inspection",
+    "inspection.fuel": "inspection",
+    "inspection.cleanliness": "inspection",
+    "inspection.photo_count": "inspection",
+    "inspection.video_count": "inspection",
 }
 
 # table code -> its columns.
@@ -74,7 +88,71 @@ TABLES: dict[str, tuple[str, ...]] = {
     "rental.charges": ("name", "amount"),
     "service.works": ("name", "executor", "price"),
     "service.materials": ("name", "quantity", "amount"),
+    "inspection.damages": ("zone", "description", "state"),
+    # Photos by the positions of the template: names and counts; the images stay in the
+    # inspection with its own rules of access (§ 18.1.8).
+    "inspection.photos": ("position", "count"),
 }
+
+# Values of an inspection in the language of the template (§ 10.1.1, § 10.1.5, § 10.5.1).
+INSPECTION_LABELS: dict[str, dict[str, str]] = {
+    "kind_issue": {"en": "At the issue", "ru": "При выдаче", "th": "เมื่อส่งมอบ"},
+    "kind_return": {"en": "At the acceptance", "ru": "При приёме", "th": "เมื่อรับคืน"},
+    "kind_out_of_rental": {"en": "Out of rental", "ru": "Вне аренды", "th": "นอกการเช่า"},
+    "kind_intermediate": {"en": "Intermediate", "ru": "Промежуточный", "th": "ระหว่างทาง"},
+    "application_rental": {"en": "Rental", "ru": "Аренда", "th": "การเช่า"},
+    "application_service": {"en": "Service", "ru": "Сервис", "th": "งานบริการ"},
+    "application_standalone": {"en": "On its own", "ru": "Отдельно", "th": "แยกต่างหาก"},
+    "check_conducted": {"en": "conducted", "ru": "проведена", "th": "ดำเนินการแล้ว"},
+    "check_not_required": {
+        "en": "not required by the policy",
+        "ru": "не требовалась по политике",
+        "th": "นโยบายไม่กำหนด",
+    },
+    "check_required_not_done": {
+        "en": "required, not done",
+        "ru": "требовалась, но не выполнена",
+        "th": "กำหนดไว้แต่ไม่ได้ทำ",
+    },
+    "damage_actual": {"en": "actual", "ru": "актуально", "th": "ปัจจุบัน"},
+    "damage_fixed": {"en": "fixed", "ru": "устранено", "th": "ซ่อมแล้ว"},
+    "damage_erroneous": {"en": "erroneous", "ru": "признано ошибочным", "th": "บันทึกผิดพลาด"},
+    "on_scheme": {
+        "en": "marked on the scheme",
+        "ru": "отмечено на схеме",
+        "th": "ทำเครื่องหมายบนแผนผัง",
+    },
+    "position_front": {"en": "Front", "ru": "Спереди", "th": "ด้านหน้า"},
+    "position_rear": {"en": "Rear", "ru": "Сзади", "th": "ด้านหลัง"},
+    "position_left": {"en": "Left side", "ru": "Левый бок", "th": "ด้านซ้าย"},
+    "position_right": {"en": "Right side", "ru": "Правый бок", "th": "ด้านขวา"},
+    "position_under": {"en": "Underneath", "ru": "Снизу", "th": "ด้านล่าง"},
+    "position_top": {"en": "From above", "ru": "Сверху", "th": "ด้านบน"},
+    "position_interior_front": {
+        "en": "Interior, front",
+        "ru": "Салон спереди",
+        "th": "ห้องโดยสารด้านหน้า",
+    },
+    "position_interior_rear": {
+        "en": "Interior, rear",
+        "ru": "Салон сзади",
+        "th": "ห้องโดยสารด้านหลัง",
+    },
+    "position_odometer": {"en": "Odometer", "ru": "Одометр", "th": "มาตรวัดระยะทาง"},
+    "position_extra": {
+        "en": "Additional photos",
+        "ru": "Дополнительные фото",
+        "th": "รูปเพิ่มเติม",
+    },
+}
+
+
+def _inspection_label(key: str, language: str) -> str:
+    found = INSPECTION_LABELS.get(key)
+    if found is None:
+        return key.split("_", 1)[-1]
+    return found.get(language) or found["en"]
+
 
 LABELS = {
     "rental_base": {"en": "Rental", "ru": "Аренда", "th": "ค่าเช่า"},
@@ -374,6 +452,105 @@ def _delivery(values: Values, company_id: UUID, delivery_id: UUID, language: str
     _order(values, company_id, d.order_id, language)
 
 
+def _number(value: Decimal) -> str:
+    return f"{Decimal(value).normalize():f}"
+
+
+def _inspection(values: Values, company: Company, inspection_id: UUID, language: str) -> None:
+    """The fields of a saved inspection; only a saved one has a result to confirm (§ 10.1.6,
+    § 10.2.2). The client is the participant's card or the client of the operation."""
+    from c4rsys.companies import locations, staff
+    from c4rsys.inspections import services as inspections
+    from c4rsys.orders import services as orders
+    from c4rsys.parties import counterparties
+    from c4rsys.parties import services as parties
+    from c4rsys.platform import errors
+    from c4rsys.rentals import rentals
+    from c4rsys.service import operations
+
+    company_id = company.id
+    i = inspections.get(company_id, inspection_id)
+    if i.state != "saved":
+        raise errors.business_rule("INSPECTION_ACT_NOT_SAVED", state=i.state)
+    values.links.append(("inspection", i.id))
+    label = _inspection_label
+    client_id: UUID | None = None
+    operation = ""
+    if i.rental_id is not None:
+        rental = rentals.get_rental(company_id, i.rental_id)
+        values.links.append(("rental", rental.id))
+        operation = str(rental.booking_number or "")
+        client_id = rental.client_id
+    elif i.service_operation_id is not None:
+        op = operations.get_operation(company_id, i.service_operation_id)
+        values.links.append(("service_operation", op.id))
+        operation = str(op.number)
+        client_id = orders.get_order(company_id, op.order_id).client_id
+    zone = ""
+    if i.place_kind == "location":
+        zone = _location(values, company_id, i.place_location_id)
+        place = values.fields.get("location.name", "")
+    else:
+        place = ", ".join(x for x in (i.place_note, i.place_address) if x)
+        if not place and i.place_lat is not None:
+            place = f"{i.place_lat}, {i.place_lng}"
+    if not zone:
+        card_location = i.vehicle_card.accounting_location_id
+        found = (
+            locations.locations_of(company_id).filter(pk=card_location) if card_location else None
+        )
+        own = next(iter(found.values_list("timezone", flat=True)), "") if found else ""
+        zone = own or company.timezone
+    _set(values, "inspection.kind", label(f"kind_{i.kind}", language))
+    _set(values, "inspection.application", label(f"application_{i.application}", language))
+    _set(values, "inspection.operation", operation)
+    _set(values, "inspection.performed_at", _moment(i.performed_at, zone))
+    _set(values, "inspection.place", place)
+    names = staff.employee_names(
+        company_id, {x for x in (i.performer_employment_id, i.participant_employment_id) if x}
+    )
+    _set(values, "inspection.performer", names.get(i.performer_employment_id))
+    participant = ""
+    if i.participant_kind == "client" and i.participant_client_id:
+        participant = parties.display_name(parties.get_client(company_id, i.participant_client_id))
+        client_id = i.participant_client_id
+    elif i.participant_kind == "counterparty" and i.participant_counterparty_id:
+        card = counterparties.get(company_id, i.participant_counterparty_id)
+        participant = counterparties.display_name(card)
+        values.links.append(("counterparty", card.id))
+    elif i.participant_kind == "employee" and i.participant_employment_id:
+        participant = names.get(i.participant_employment_id, "")
+    elif i.participant_kind == "other":
+        participant = i.participant_text
+    _set(values, "inspection.participant", participant)
+    _set(values, "inspection.check_status", label(f"check_{i.check_status}", language))
+    if i.odometer_value is not None:
+        _set(values, "inspection.odometer", f"{_number(i.odometer_value)} {i.odometer_unit}")
+    if i.fuel_value is not None:
+        _set(values, "inspection.fuel", _number(i.fuel_value))
+    _set(values, "inspection.cleanliness", i.cleanliness)
+    content = inspections.act_content(i)
+    values.tables["inspection.damages"] = [
+        {
+            "zone": d.zone_text or (label("on_scheme", language) if d.on_scheme else ""),
+            "description": d.description,
+            "state": label(f"damage_{d.state}", language),
+        }
+        for d in content.damages
+    ]
+    values.tables["inspection.photos"] = [
+        {
+            "position": p.name or label(f"position_{p.position or 'extra'}", language),
+            "count": str(p.count),
+        }
+        for p in content.photos
+    ]
+    _set(values, "inspection.photo_count", str(sum(p.count for p in content.photos)))
+    _set(values, "inspection.video_count", str(content.videos))
+    _vehicle(values, company_id, i.vehicle_card_id)
+    _client(values, company_id, client_id)
+
+
 def collect(
     company: Company,
     source_type: str,
@@ -401,6 +578,8 @@ def collect(
         _client(values, company.id, source_id)
     elif source_type == "vehicle":
         _vehicle(values, company.id, source_id)
+    elif source_type == "inspection":
+        _inspection(values, company, source_id, language)
     seen: set[tuple[str, UUID]] = set()
     values.links = [x for x in values.links if not (x in seen or seen.add(x))]  # type: ignore[func-returns-value]
     return values

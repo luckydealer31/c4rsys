@@ -994,7 +994,11 @@
     "offline_draft_already_sent": "Этот черновик уже отправлен; осмотр есть на сервере.",
     "inspection_possible_duplicate": "На сервере есть осмотры, которые могут быть тем же осмотром. Проверьте их перед отправкой.",
     "offline_file_missing": "Файла локального черновика больше нет на этом устройстве.",
-    "offline_storage_unavailable": "Локальное хранилище браузера недоступно: файл нельзя сохранить на этом устройстве."
+    "offline_storage_unavailable": "Локальное хранилище браузера недоступно: файл нельзя сохранить на этом устройстве.",
+    "inspection_act_not_saved": "Акт формируется только по сохранённому осмотру.",
+    "inspection_act_exists": "У этого осмотра уже есть акт.",
+    "signing_consent_required": "Отметьте согласие перед подписью.",
+    "template_source_mismatch": "Шаблон не подходит: акт осмотра формируется на странице осмотра."
   },
   "history": {
     "action": "Действие",
@@ -3196,7 +3200,29 @@
     "service_act_required": "Заказ клиента с сервисом не закрывается без акта",
     "service_act_signed": "Акт подписывается клиентом",
     "show_to_client": "Кабинет клиента",
-    "show_to_client_hint": "Показать клиенту (в личном кабинете связанного клиента)"
+    "show_to_client_hint": "Показать клиенту (в личном кабинете связанного клиента)",
+    "kind_inspection_act": "Акт осмотра",
+    "object_inspection": "Осмотр",
+    "source_inspection": "Осмотр",
+    "method_on_screen": "на экране",
+    "methods_on_screen": "Также на экране устройства сотрудника",
+    "on_screen_start": "Подписать на экране",
+    "on_screen_title": "Подпись на экране",
+    "on_screen_close": "Закрыть",
+    "on_screen_read": "Прочитайте документ. Затем отметьте согласие и распишитесь пальцем ниже или откажитесь.",
+    "on_screen_consent": "С документом ознакомлен(а) и согласен(на)",
+    "on_screen_draw": "Распишитесь в поле пальцем или стилусом.",
+    "on_screen_undo": "Отменить штрих",
+    "on_screen_clear": "Очистить",
+    "on_screen_sign": "Подписать",
+    "on_screen_refuse": "Отказаться от подписи",
+    "on_screen_refuse_reason": "Причина отказа",
+    "on_screen_refuse_confirm": "Отказаться",
+    "on_screen_back": "Вернуться к подписи",
+    "presented_by_me": "показано на моём устройстве",
+    "presented_by_employee": "показано на устройстве сотрудника",
+    "signature_image": "Подпись",
+    "signatures": "Подписи"
   },
   "document_fields": {
     "company__name": "Название компании",
@@ -3248,7 +3274,22 @@
     "order__lines": "Таблица: строки заказа",
     "rental__charges": "Таблица: начисления аренды",
     "service__works": "Таблица: работы",
-    "service__materials": "Таблица: запчасти"
+    "service__materials": "Таблица: запчасти",
+    "inspection__kind": "Осмотр: вид",
+    "inspection__application": "Осмотр: применение",
+    "inspection__operation": "Осмотр: номер аренды или сервиса",
+    "inspection__performed_at": "Осмотр: время",
+    "inspection__place": "Осмотр: место",
+    "inspection__performer": "Осмотр: исполнитель",
+    "inspection__participant": "Осмотр: второй участник",
+    "inspection__check_status": "Осмотр: проверка состояния",
+    "inspection__odometer": "Осмотр: пробег",
+    "inspection__fuel": "Осмотр: топливо или заряд",
+    "inspection__cleanliness": "Осмотр: чистота",
+    "inspection__photo_count": "Осмотр: число снимков",
+    "inspection__video_count": "Осмотр: число видео",
+    "inspection__damages": "Таблица: повреждения",
+    "inspection__photos": "Таблица: фото по позициям"
   },
   "tasks": {
     "none": "Задач нет",
@@ -4143,7 +4184,13 @@
     "event_erroneous": "Признано ошибочным",
     "fixed_by_work": "Повреждения, устранённые этой работой",
     "fixed_by_work_hint": "Явно отметьте устранённые повреждения и добавьте фото результата; завершение само по себе ничего не закрывает.",
-    "position_required_column": "Обязательна"
+    "position_required_column": "Обязательна",
+    "act_title": "Акт осмотра",
+    "act_none": "Акта ещё нет.",
+    "act_hint": "Акт фиксирует этот сохранённый осмотр и отправляется на подпись клиенту или участнику.",
+    "act_create": "Создать акт",
+    "act_no_signer": "нет подписанта: отправьте из карточки документа",
+    "act_of_invalid": "Осмотр признан недействительным; его акт и подписи сохраняются."
   },
   "offline": {
     "app_hint": "Нет связи с сервером. На этом устройстве доступны только локальные черновики осмотров; аренда, сервис и другие операции требуют связи.",

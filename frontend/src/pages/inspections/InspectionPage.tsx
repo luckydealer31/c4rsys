@@ -25,6 +25,7 @@ import {
   useVehicleInspections,
   vehicleScheme,
 } from "./data";
+import { InspectionActCard } from "./Act";
 import { DamageList, DamagesEditor } from "./DamagesEditor";
 import { DetailsFields, detailsBody, detailsOf, employeeName, type Details } from "./Fields";
 import { PhotoInput, PhotoThumb, VideoInput, VideoItem } from "./Media";
@@ -137,6 +138,7 @@ function InspectionView({ inspection }: { inspection: Inspection }) {
       ) : (
         <SavedContent inspection={inspection} vehicle={vehicle} />
       )}
+      {inspection.state === "saved" || inspection.state === "invalid" ? <InspectionActCard inspection={inspection} /> : null}
       <EndActions inspection={inspection} />
       <PreviousInspections inspection={inspection} zone={zone} />
       <History inspection={inspection} zone={zone} />

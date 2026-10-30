@@ -41,6 +41,11 @@ urlpatterns = [
         "c/<str:cmp>/documents/<uuid:document_id>/signers/<uuid:signer_id>/paper",
         views.signer_paper,
     ),
+    path(
+        "c/<str:cmp>/documents/<uuid:document_id>/signers/<uuid:signer_id>/on-screen",
+        views.signer_on_screen,
+    ),
+    path("c/<str:cmp>/inspections/<uuid:inspection_id>/act", views.inspection_act_create),
     path("sign/<str:token>", views.link_open),
     path("sign/<str:token>/file", views.link_file),
     path("sign/<str:token>/code", views.link_code),
