@@ -287,6 +287,10 @@ class ServiceJob(models.Model):
     # Who entered the result, apart from the executor (§ 16.4.2).
     result_by_user_id = models.UUIDField(null=True, blank=True)
     result_at = models.DateTimeField(null=True, blank=True)
+    # A finished work is closed for changes; it is opened for editing by a separate right and
+    # stays done meanwhile (customer's decision of 30.10.2026, § 16.8.2). Empty — closed.
+    editing_since = models.DateTimeField(null=True, blank=True)
+    editing_by_user_id = models.UUIDField(null=True, blank=True)
     created_by_user_id = models.UUIDField()
     created_at = models.DateTimeField(default=now)
     updated_at = models.DateTimeField(auto_now=True)

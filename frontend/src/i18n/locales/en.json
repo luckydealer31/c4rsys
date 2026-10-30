@@ -919,7 +919,9 @@
     "cabinet_host": "This is the personal cabinet; the company interface is on the business site.",
     "export_expired": "The link has expired; prepare a new export.",
     "service_operation_not_finished": "The service is not finished.",
-    "service_job_not_finished": "Only a done or terminated work is corrected."
+    "service_job_not_finished": "Only a done or terminated work is corrected.",
+    "service_job_not_open": "Open the work for editing first.",
+    "service_job_already_open": "The work is already open for editing."
   },
   "history": {
     "action": "Action",
@@ -1141,7 +1143,9 @@
     "line_delivery": "Delivery",
     "condition_not_finished_delivery": "A delivery is not finished: complete, terminate or cancel it",
     "condition_service_act_missing_service_work": "No act of completed works for the service",
-    "condition_service_act_not_signed_service_work": "The act of completed works is not signed by the client"
+    "condition_service_act_not_signed_service_work": "The act of completed works is not signed by the client",
+    "condition_service_job_editing_service": "A work of the service is open for editing",
+    "condition_service_job_editing_service_work": "A work of the service is open for editing"
   },
   "payments": {
     "account": "Cash desk or account",
@@ -2873,7 +2877,12 @@
     "reopen": "Open again",
     "correct_job": "Correct",
     "correct_hint": "The original facts stay in the history. The charge, the materials and the documents are not changed: check them and correct them separately if needed. The next maintenance counts from the corrected facts.",
-    "correct_reason": "Reason of the correction"
+    "correct_reason": "Reason of the correction",
+    "open_job": "Open for editing",
+    "open_job_hint": "The work stays done: its time and result do not change by the opening. Correct it and close it again; while it is open the service is not finished and the order is not closed.",
+    "close_job": "Close",
+    "job_editing": "Open for editing",
+    "blocker_service_job_editing": "A work is open for editing: close it to finish the service and close the order."
   },
   "trips": {
     "new": "New trip",

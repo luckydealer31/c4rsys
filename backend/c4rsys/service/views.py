@@ -367,6 +367,7 @@ def _job_payload(
         "odometer": catalog.amount_text(job.odometer),
         "comment": job.comment,
         "end_reason": job.end_reason,
+        "editing_since": job.editing_since.isoformat() if job.editing_since else None,
     }
 
 
@@ -703,6 +704,29 @@ def operation_reopen(request: HttpRequest, cmp: str, operation_id: UUID) -> Json
         action,
         ("reason",),
     )
+
+
+@require_POST
+def job_open(request: HttpRequest, cmp: str, job_id: UUID) -> JsonResponse:
+    """Opening a finished work for editing (§ 16.8.2): a separate right and a reason."""
+
+    def action(ctx: CommandContext | None, job: Any, data: dict[str, Any]) -> None:
+        reason = _text(data, "reason", required=True)
+        if ctx is not None:
+            operations.open_job(ctx, job, reason)
+
+    return _job_command(
+        request, cmp, job_id, "service.reopen", "service_job.open", action, ("reason",)
+    )
+
+
+@require_POST
+def job_close(request: HttpRequest, cmp: str, job_id: UUID) -> JsonResponse:
+    def action(ctx: CommandContext | None, job: Any, data: dict[str, Any]) -> None:
+        if ctx is not None:
+            operations.close_job(ctx, job)
+
+    return _job_command(request, cmp, job_id, "service.reopen", "service_job.close", action, ())
 
 
 @require_POST

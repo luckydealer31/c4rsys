@@ -128,8 +128,9 @@ PERMISSIONS: dict[str, str] = {
     "service.work": "service",
     "service.work.others": "service",
     "service.complete": "service",
-    # § 16.8.2: opening a finished service again and correcting a finished work; ordinary
-    # completion does not give it. Only in «Company administrator» (PROPOSAL).
+    # § 16.8.2: opening a finished service or work again and correcting it; ordinary completion
+    # does not give it. A separate right assigned to any employee (customer's decision of
+    # 30.10.2026); of the system sets only «Company administrator» has it.
     "service.reopen": "service",
     "service.price": "service",
     "service.catalog": "service",

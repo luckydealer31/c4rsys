@@ -459,7 +459,7 @@ function Jobs({ op, zone }: { op: ServiceOperation; zone: string }) {
   );
 }
 
-type Mode = "" | "start" | "complete" | "terminate" | "cancel" | "price" | "assign" | "contractor-cost" | "correct";
+type Mode = "" | "start" | "complete" | "terminate" | "cancel" | "price" | "assign" | "contractor-cost" | "correct" | "open";
 
 function JobActions({ op, job, zone }: { op: ServiceOperation; job: ServiceJob; zone: string }) {
   const { t } = useTranslation();
@@ -468,7 +468,8 @@ function JobActions({ op, job, zone }: { op: ServiceOperation; job: ServiceJob; 
   const holding = HOLDING_STATES.includes(op.state);
   const orderOpen = op.order_state !== "closed" && op.order_state !== "cancelled";
   const own = job.contractor_id === null;
-  const buttons: [Mode | "take", string, boolean][] = [
+  const finished = job.state === "done" || job.state === "terminated";
+  const buttons: [Mode | "take" | "close", string, boolean][] = [
     ["take", t("service.take"), own && job.state === "planned" && !job.executor_id && can("service.work")],
     ["assign", t("service.assign"), own && (job.state === "planned" || job.state === "in_progress") && can("service.assign")],
     ["start", t("service.start"), job.state === "planned" && (holding || !own) && !FINAL_STATES.includes(op.state) && can("service.work")],
@@ -477,8 +478,10 @@ function JobActions({ op, job, zone }: { op: ServiceOperation; job: ServiceJob; 
     ["cancel", t("service.cancel_job"), job.state === "planned" && can("service.cancel")],
     ["price", t("service.change_price"), job.state !== "cancelled" && orderOpen && can("service.price")],
     ["contractor-cost", t("service.contractor_cost"), !own && job.state !== "cancelled" && orderOpen && can("service.external")],
-    // § 16.8.2: the facts of a finished work are corrected by a separate right.
-    ["correct", t("service.correct_job"), (job.state === "done" || job.state === "terminated") && orderOpen && can("service.reopen")],
+    // § 16.8.2: a finished work is opened for editing by a separate right, corrected, closed.
+    ["open", t("service.open_job"), finished && !job.editing_since && orderOpen && can("service.reopen")],
+    ["correct", t("service.correct_job"), finished && Boolean(job.editing_since) && orderOpen && can("service.reopen")],
+    ["close", t("service.close_job"), finished && Boolean(job.editing_since) && can("service.reopen")],
   ];
   const visible = buttons.filter(([, , shown]) => shown);
   if (visible.length === 0) return null;
@@ -488,6 +491,8 @@ function JobActions({ op, job, zone }: { op: ServiceOperation; job: ServiceJob; 
         {visible.map(([key, label]) =>
           key === "take" ? (
             <Take key={key} job={job} />
+          ) : key === "close" ? (
+            <CloseEditing key={key} job={job} />
           ) : (
             <button key={key} type="button" className="secondary small" onClick={() => setMode(mode === key ? "" : key)}>
               {label}
@@ -495,7 +500,28 @@ function JobActions({ op, job, zone }: { op: ServiceOperation; job: ServiceJob; 
           ),
         )}
       </div>
+      {job.editing_since ? <p className="badge warn">{t("service.job_editing")}</p> : null}
       {mode ? <JobForm key={mode} mode={mode} job={job} zone={zone} onDone={() => setMode("")} /> : null}
+    </>
+  );
+}
+
+function CloseEditing({ job }: { job: ServiceJob }) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const refresh = useRefresh();
+  const close = useCommand<Record<string, unknown>, Result>(`/c/${company.public_id}/service/jobs/${job.id}/close`);
+  return (
+    <>
+      <button
+        type="button"
+        className="secondary small"
+        disabled={close.pending}
+        onClick={() => void close.run({ expected_version: job.version }).then((r) => (r ? refresh() : undefined))}
+      >
+        {t("service.close_job")}
+      </button>
+      <ErrorMessage error={close.error} />
     </>
   );
 }
@@ -555,6 +581,7 @@ function JobForm({ mode, job, zone, onDone }: { mode: Exclude<Mode, "">; job: Se
     if (mode === "terminate" || mode === "cancel") body.reason = reason;
     if (mode === "terminate" || mode === "price") body.price = number(amount);
     if (mode === "assign") body.executor_id = executor || null;
+    if (mode === "open") body.reason = reason;
     if (mode === "correct") {
       if (startAt) body.actual_start = fromLocalInput(startAt, zone);
       body.actual_end = fromLocalInput(at, zone);
@@ -570,6 +597,16 @@ function JobForm({ mode, job, zone, onDone }: { mode: Exclude<Mode, "">; job: Se
   }
 
   const fields: ReactNode[] = [];
+  if (mode === "open") {
+    fields.push(
+      <p key="hint" className="muted small" style={{ flexBasis: "100%" }}>
+        {t("service.open_job_hint")}
+      </p>,
+      <Field key="reason" label={t("service.reopen_reason")}>
+        <input value={reason} onChange={(e) => setReason(e.target.value)} />
+      </Field>,
+    );
+  }
   if (mode === "correct") {
     fields.push(
       <p key="hint" className="muted small" style={{ flexBasis: "100%" }}>
@@ -659,6 +696,7 @@ function JobForm({ mode, job, zone, onDone }: { mode: Exclude<Mode, "">; job: Se
     (mode === "contractor-cost" && !cost.trim()) ||
     (mode === "terminate" && !reason.trim()) ||
     (mode === "correct" && !reason.trim()) ||
+    (mode === "open" && !reason.trim()) ||
     (mode === "price" && !amount.trim());
   return (
     <form className="row" onSubmit={submit}>

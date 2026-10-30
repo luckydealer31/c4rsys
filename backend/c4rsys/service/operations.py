@@ -171,6 +171,9 @@ def blockers(operation: ServiceOperation, internal: bool) -> tuple[str, ...]:
     result = []
     if materials.unsettled(job_ids):
         result.append("service_materials_unsettled")
+    # A work opened for editing is closed before the order closes (decision of 30.10.2026).
+    if ServiceJob.objects.filter(operation=operation, editing_since__isnull=False).exists():
+        result.append("service_job_editing")
     if internal:
         return tuple(result)
     unpriced = ServiceJob.objects.filter(
@@ -1009,7 +1012,7 @@ def finish(ctx: CommandContext, op: ServiceOperation) -> ServiceOperation:
     jobs = jobs_of(op)
     if not jobs:
         raise errors.business_rule("SERVICE_WITHOUT_JOBS")
-    open_jobs = [str(j.id) for j in jobs if j.state not in FINAL_JOB]
+    open_jobs = [str(j.id) for j in jobs if j.state not in FINAL_JOB or j.editing_since]
     if open_jobs:
         raise errors.business_rule("SERVICE_JOBS_NOT_FINISHED", jobs=open_jobs)
     before = op.state
@@ -1211,6 +1214,52 @@ def reopen_operation(ctx: CommandContext, op: ServiceOperation, reason: str) -> 
     return op
 
 
+def open_job(ctx: CommandContext, job: ServiceJob, reason: str) -> ServiceJob:
+    """A finished work is opened for editing with a reason (§ 16.8.2; customer's decision of
+    30.10.2026). It stays done or terminated: its times, result and charge do not change by the
+    opening, and the maintenance keeps counting from it. While it is open, the service is not
+    finished and the order is not closed."""
+    if not reason.strip():
+        raise errors.validation_error("reason", code="FIELD_REQUIRED")
+    if job.state not in (Job.DONE, Job.TERMINATED):
+        raise errors.business_rule("SERVICE_JOB_NOT_FINISHED", state=job.state)
+    if job.editing_since is not None:
+        raise errors.business_rule("SERVICE_JOB_ALREADY_OPEN")
+    orders.ensure_open(job.company_id, job.order_id)
+    job.editing_since = timezone.now()
+    job.editing_by_user_id = ctx.actor.user_id
+    job.version += 1
+    job.save(update_fields=["editing_since", "editing_by_user_id", "version", "updated_at"])
+    ctx.audit(
+        "service_job.opened_for_editing",
+        object_type="service_job",
+        object_id=job.id,
+        after={"state": job.state},
+        reason=reason,
+    )
+    _bump(job.operation)
+    return job
+
+
+def close_job(ctx: CommandContext, job: ServiceJob) -> ServiceJob:
+    """The corrections are done: the work is closed for changes again."""
+    if job.editing_since is None:
+        raise errors.business_rule("SERVICE_JOB_NOT_OPEN")
+    opened = job.editing_since
+    job.editing_since = None
+    job.editing_by_user_id = None
+    job.version += 1
+    job.save(update_fields=["editing_since", "editing_by_user_id", "version", "updated_at"])
+    ctx.audit(
+        "service_job.closed_after_editing",
+        object_type="service_job",
+        object_id=job.id,
+        before={"editing_since": opened},
+    )
+    _bump(job.operation)
+    return job
+
+
 def correct_job(
     ctx: CommandContext,
     job: ServiceJob,
@@ -1221,15 +1270,14 @@ def correct_job(
     odometer: Decimal | None,
     comment: str | None,
 ) -> ServiceJob:
-    """Corrects the facts of a done or terminated work in one action: it is opened, corrected
-    and finished again; the original facts stay in the history (§ 16.8.2). The charge, the
-    materials and the documents are not changed by it (§ 16.8.1). An impossible chronology is
-    not saved. A corrected odometer replaces the reading of the work, so the next maintenance
-    counts from the corrected facts (§ 9.1.11)."""
+    """Corrects the facts of a work opened for editing; the original facts stay in the history
+    (§ 16.8.2). The charge, the materials and the documents are not changed by it (§ 16.8.1).
+    An impossible chronology is not saved. A corrected odometer replaces the reading of the
+    work, so the next maintenance counts from the corrected facts (§ 9.1.11)."""
     if not reason.strip():
         raise errors.validation_error("reason", code="FIELD_REQUIRED")
-    if job.state not in (Job.DONE, Job.TERMINATED):
-        raise errors.business_rule("SERVICE_JOB_NOT_FINISHED", state=job.state)
+    if job.editing_since is None:
+        raise errors.business_rule("SERVICE_JOB_NOT_OPEN")
     op = job.operation
     orders.ensure_open(op.company_id, op.order_id)
     start = actual_start or job.actual_start

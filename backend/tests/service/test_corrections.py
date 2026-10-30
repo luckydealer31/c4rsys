@@ -11,7 +11,7 @@ from tests.accounts.helpers import post
 from tests.companies.helpers import hire, key
 from tests.rentals.scenario import Scenario
 from tests.service.test_maintenance import _add_rule, _service_done, _status, today  # noqa: F401
-from tests.service.test_service import _at, _do, _ok, _work
+from tests.service.test_service import _at, _do, _job, _ok, _work
 
 pytestmark = pytest.mark.django_db
 
@@ -27,6 +27,14 @@ def test_correct_a_done_work_recounts_maintenance(owner: Client, s: Scenario) ->
     op = _service_done(owner, s, oil, "10500")
     job = op["jobs"][0]
 
+    # A finished work is closed for changes until it is opened for editing.
+    closed = _correct(owner, s, job, odometer="10050")
+    assert closed.json()["error"]["code"] == "SERVICE_JOB_NOT_OPEN"
+    opened = _ok(_job(owner, s, job, "open", reason="wrong odometer"))
+    job = opened["jobs"][0]
+    # It stays done; its time does not change by the opening.
+    assert job["state"] == "done" and job["editing_since"]
+    assert opened["state"] == "works_done"
     wrong = _correct(owner, s, job, actual_end=_at(-5))
     assert wrong.json()["error"]["field"] == "actual_end"  # before the start: not saved
     fixed = _correct(owner, s, job, odometer="10050")
@@ -43,6 +51,9 @@ def test_correct_a_done_work_recounts_maintenance(owner: Client, s: Scenario) ->
     assert event.reason == "typo"
     # The service stays finished; the work keeps its result.
     assert fixed.json()["operation"]["state"] == "works_done"
+    job = fixed.json()["operation"]["jobs"][0]
+    closed_again = _ok(_job(owner, s, job, "close"))
+    assert closed_again["jobs"][0]["editing_since"] is None
 
 
 def test_reopen_needs_its_own_right_and_an_open_order(owner: Client, s: Scenario) -> None:
@@ -51,12 +62,17 @@ def test_reopen_needs_its_own_right_and_an_open_order(owner: Client, s: Scenario
     rights = [{"type": "grant", "permission": p} for p in ("service.view", "service.complete")]
     manager, _ = hire(owner, s.cmp, "manager@example.com", rights)
     assert _do(manager, s, op, "reopen", reason="mistake").status_code == 403
-    assert _correct(manager, s, op["jobs"][0], odometer="10400").status_code == 403
+    assert _job(manager, s, op["jobs"][0], "open", reason="x").status_code == 403
 
     no_reason = _do(owner, s, op, "reopen", reason="")
     assert no_reason.json()["error"]["field"] == "reason"
     reopened = _ok(_do(owner, s, op, "reopen", reason="one more work"))
     assert reopened["state"] == "in_progress"
-    # The done work keeps its result; the service is finished again by the usual action.
+    # The done work keeps its result; the service is finished again by the usual action, but
+    # not while a work is open for editing.
     assert reopened["jobs"][0]["state"] == "done"
-    assert _ok(_do(owner, s, reopened, "finish"))["state"] == "works_done"
+    editing = _ok(_job(owner, s, reopened["jobs"][0], "open", reason="check"))
+    blocked = _do(owner, s, editing, "finish")
+    assert blocked.json()["error"]["code"] == "SERVICE_JOBS_NOT_FINISHED"
+    done = _ok(_job(owner, s, editing["jobs"][0], "close"))
+    assert _ok(_do(owner, s, done, "finish"))["state"] == "works_done"

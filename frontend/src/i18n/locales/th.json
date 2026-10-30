@@ -919,7 +919,9 @@
     "cabinet_host": "นี่คือบัญชีส่วนตัว",
     "export_expired": "ลิงก์หมดอายุแล้ว",
     "service_operation_not_finished": "บริการยังไม่เสร็จ",
-    "service_job_not_finished": "แก้ไขได้เฉพาะงานที่เสร็จหรือหยุดแล้ว"
+    "service_job_not_finished": "แก้ไขได้เฉพาะงานที่เสร็จหรือหยุดแล้ว",
+    "service_job_not_open": "เปิดงานเพื่อแก้ไขก่อน",
+    "service_job_already_open": "งานเปิดเพื่อแก้ไขอยู่แล้ว"
   },
   "history": {
     "action": "Action",
@@ -1141,7 +1143,9 @@
     "line_delivery": "การส่งรถ",
     "condition_not_finished_delivery": "การส่งยังไม่เสร็จ: ทำให้เสร็จ ยุติ หรือยกเลิก",
     "condition_service_act_missing_service_work": "ไม่มีใบรับรองงานที่เสร็จของงานบริการ",
-    "condition_service_act_not_signed_service_work": "ลูกค้ายังไม่ลงนามใบรับรองงานที่เสร็จ"
+    "condition_service_act_not_signed_service_work": "ลูกค้ายังไม่ลงนามใบรับรองงานที่เสร็จ",
+    "condition_service_job_editing_service": "งานบริการเปิดเพื่อแก้ไขอยู่",
+    "condition_service_job_editing_service_work": "งานบริการเปิดเพื่อแก้ไขอยู่"
   },
   "payments": {
     "account": "Cash desk or account",
@@ -2873,7 +2877,12 @@
     "reopen": "เปิดอีกครั้ง",
     "correct_job": "แก้ไข",
     "correct_hint": "ข้อมูลเดิมยังอยู่ในประวัติ ค่าใช้จ่าย วัสดุ และเอกสารไม่เปลี่ยน",
-    "correct_reason": "เหตุผลการแก้ไข"
+    "correct_reason": "เหตุผลการแก้ไข",
+    "open_job": "เปิดเพื่อแก้ไข",
+    "open_job_hint": "งานยังคงเสร็จแล้ว แก้ไขแล้วปิดอีกครั้ง",
+    "close_job": "ปิด",
+    "job_editing": "เปิดเพื่อแก้ไข",
+    "blocker_service_job_editing": "งานเปิดเพื่อแก้ไขอยู่ ปิดงานก่อน"
   },
   "trips": {
     "new": "การเดินทางใหม่",

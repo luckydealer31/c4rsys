@@ -1131,6 +1131,8 @@ export type ServiceJob = {
   actual_end: string | null;
   odometer: string | null;
   comment: string;
+  /** A finished work opened for editing (§ 16.8.2); it stays done meanwhile. */
+  editing_since?: string | null;
   end_reason: string;
 };
 
