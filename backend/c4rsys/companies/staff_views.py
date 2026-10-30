@@ -4,14 +4,16 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 from django.http import HttpRequest, JsonResponse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from c4rsys.accounts import services as accounts
 from c4rsys.accounts.middleware import require_user
-from c4rsys.companies import access, history, services, staff
-from c4rsys.companies.models import Employment, Invitation
+from c4rsys.companies import access, history, orgstructure, services, staff
+from c4rsys.companies.models import Employment, Invitation, Position
 from c4rsys.companies.permissions import PERMISSIONS, SYSTEM_SETS
 from c4rsys.companies.views import run_and_respond
 from c4rsys.platform import errors
@@ -28,7 +30,12 @@ EMPLOYEE_VIEW_PERMISSIONS = (
     "employee.rights.manage",
     "employee.access.block",
     "employee.access.restore",
+    "employee.access.terminate",
+    "employee.card.edit",
+    "employee.positions.manage",
+    "org.manage",
 )
+REASON_MAX = 500
 
 
 def _company_actor(
@@ -48,6 +55,11 @@ def _first(values: list[str]) -> str | None:
     return values[0] if values else None
 
 
+def _personal_phone(user: Any) -> str | None:
+    """The contact phone of the profile, otherwise the first confirmed phone (PROPOSAL)."""
+    return user.contact_phone or _first(accounts.confirmed_phones(user))
+
+
 def _employee_payload(employment: Employment) -> dict[str, Any]:
     user = employment.user
     person = None
@@ -59,6 +71,8 @@ def _employee_payload(employment: Employment) -> dict[str, Any]:
             "last_name": user.last_name,
             "middle_name": user.middle_name if employment.shares_middle_name else None,
             "email": _first(accounts.confirmed_emails(user)) if employment.shares_email else None,
+            "photo": str(user.avatar_id) if employment.shares_photo and user.avatar_id else None,
+            "phone": _personal_phone(user) if employment.shares_phone else None,
         }
     last_invitation = employment.invitations.order_by("-created_at").first()
     position = employment.position
@@ -70,9 +84,21 @@ def _employee_payload(employment: Employment) -> dict[str, Any]:
             "code": position.code,
             "name": position.name,
             "is_top_authority": position.is_top_authority,
+            "is_dedicated": position.is_top_authority or position.is_owner_position,
         },
         "user": person,
         "started_at": employment.started_at.isoformat() if employment.started_at else None,
+        # Work contacts are kept apart from the contacts used to sign in (§ 5.1.7).
+        "work_email": employment.work_email,
+        "work_phone": employment.work_phone,
+        "responsibles": orgstructure.responsibles_payload(employment.id),
+        "departments": orgstructure.departments_of(employment.id),
+        "termination": {
+            "at": employment.terminated_at.isoformat(),
+            "reason": employment.termination_reason,
+        }
+        if employment.terminated_at
+        else None,
         "version": employment.version,
         "rights": access.rights_of(employment.id),
         "owner_seat_rights": access.rights_of(employment.id, owner_seat=True),
@@ -92,11 +118,148 @@ def employee_list(request: HttpRequest, cmp: str) -> JsonResponse:
     return JsonResponse({"employees": items})
 
 
-@require_GET
+@require_http_methods(["GET", "PATCH"])
 def employee_detail(request: HttpRequest, cmp: str, employment_id: UUID) -> JsonResponse:
-    context, _actor = _company_actor(request, cmp, *EMPLOYEE_VIEW_PERMISSIONS)
-    employment = staff.get_employment(context.company.id, employment_id)
-    return JsonResponse({"employee": _employee_payload(employment)})
+    """GET: the card (§ 5.1.4). PATCH: position from the handbook and work contacts
+    (§ 5.1.5, § 5.1.7) with `employee.card.edit`; a new position added from the card also needs
+    `employee.positions.manage` (§ 23.3.9, PROPOSAL)."""
+    if request.method == "GET":
+        context, _actor = _company_actor(request, cmp, *EMPLOYEE_VIEW_PERMISSIONS)
+        employment = staff.get_employment(context.company.id, employment_id)
+        return JsonResponse({"employee": _employee_payload(employment)})
+
+    context, actor = _company_actor(request, cmp, "employee.card.edit")
+    data = parse_json(request)
+    expected_version = get_int(data, "expected_version")
+    position: staff.PositionChoice | None = None
+    if data.get("position_id"):
+        try:
+            position = staff.PositionChoice(position_id=UUID(str(data["position_id"])))
+        except ValueError as exc:
+            raise errors.validation_error("position_id") from exc
+    elif "position_name" in data:
+        name = get_str(data, "position_name", max_length=POSITION_NAME_MAX)
+        require_permission(access.RightsResolver(), actor, "employee.positions.manage")
+        position = staff.PositionChoice(name=name)
+    work_email = None
+    if "work_email" in data:
+        work_email = get_str(data, "work_email", max_length=254, required=False).lower()
+        if work_email:
+            try:
+                validate_email(work_email)
+            except ValidationError as exc:
+                raise errors.validation_error("work_email", code="EMAIL_INVALID") from exc
+    work_phone = (
+        get_str(data, "work_phone", max_length=40, required=False) if "work_phone" in data else None
+    )
+    changes = staff.CardChanges(position=position, work_email=work_email, work_phone=work_phone)
+    if changes == staff.CardChanges():
+        raise errors.validation_error("body", code="NOTHING_TO_CHANGE")
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        staff.update_card(ctx, context.company, employment_id, changes, expected_version)
+        employment = staff.get_employment(context.company.id, employment_id)
+        return CommandResult(200, {"employee": _employee_payload(employment)})
+
+    payload = {
+        "employment_id": str(employment_id),
+        "position_id": str(position.position_id) if position and position.position_id else None,
+        "position_name": position.name if position else None,
+        "work_email": work_email,
+        "work_phone": work_phone,
+        "expected_version": expected_version,
+    }
+    return run_and_respond(request, "employee.update_card", actor, payload, handler)
+
+
+@require_POST
+def employee_terminate(request: HttpRequest, cmp: str, employment_id: UUID) -> JsonResponse:
+    """«Terminate access» (§ 5.3.1), a right of its own (§ 23.3.1)."""
+    context, actor = _company_actor(request, cmp, "employee.access.terminate")
+    reason = get_str(parse_json(request), "reason", max_length=REASON_MAX, required=False)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        staff.terminate(ctx, context.company.id, employment_id, reason)
+        employment = staff.get_employment(context.company.id, employment_id)
+        return CommandResult(200, {"employee": _employee_payload(employment)})
+
+    payload = {"employment_id": str(employment_id), "reason": reason}
+    return run_and_respond(request, "employee.terminate", actor, payload, handler)
+
+
+@require_http_methods(["PUT"])
+def employee_responsibles(request: HttpRequest, cmp: str, employment_id: UUID) -> JsonResponse:
+    """Replaces the responsibles of an employee: employees or departments (§ 5.2.1, § 5.2.4)."""
+    context, actor = _company_actor(request, cmp, "org.manage")
+    data = parse_json(request)
+    raw = data.get("responsibles")
+    if not isinstance(raw, list) or len(raw) > 50:
+        raise errors.validation_error("responsibles")
+    wanted = [orgstructure.parse_node(x, f"responsibles[{i}]") for i, x in enumerate(raw)]
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        orgstructure.set_responsibles(ctx, context.company.id, employment_id, wanted)
+        employment = staff.get_employment(context.company.id, employment_id)
+        return CommandResult(200, {"employee": _employee_payload(employment)})
+
+    payload = {"employment_id": str(employment_id), "responsibles": [n.as_dict() for n in wanted]}
+    return run_and_respond(request, "org.set_responsibles", actor, payload, handler)
+
+
+# --- Positions handbook (§ 5.1.5) ------------------------------------------------------------
+
+
+def _position_payload(position: Position, used: int) -> dict[str, Any]:
+    return {
+        "id": str(position.id),
+        "code": position.code,
+        "name": position.name,
+        "is_dedicated": position.is_top_authority or position.is_owner_position,
+        "employees": used,
+    }
+
+
+def _positions_body(company_id: UUID) -> dict[str, Any]:
+    used: dict[UUID, int] = {}
+    for position_id in (
+        Employment.objects.filter(company_id=company_id)
+        .exclude(state=Employment.State.TERMINATED)
+        .values_list("position_id", flat=True)
+    ):
+        used[position_id] = used.get(position_id, 0) + 1
+    return {
+        "positions": [
+            _position_payload(p, used.get(p.id, 0)) for p in staff.positions_of(company_id)
+        ]
+    }
+
+
+@require_http_methods(["GET", "POST"])
+def positions(request: HttpRequest, cmp: str) -> JsonResponse:
+    if request.method == "GET":
+        context, _actor = _company_actor(request, cmp, *EMPLOYEE_VIEW_PERMISSIONS)
+        return JsonResponse(_positions_body(context.company.id))
+    context, actor = _company_actor(request, cmp, "employee.positions.manage")
+    name = get_str(parse_json(request), "name", max_length=POSITION_NAME_MAX)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        staff.create_position(ctx, context.company.id, name)
+        return CommandResult(201, _positions_body(context.company.id))
+
+    return run_and_respond(request, "position.create", actor, {"name": name}, handler)
+
+
+@require_http_methods(["PATCH"])
+def position_detail(request: HttpRequest, cmp: str, position_id: UUID) -> JsonResponse:
+    context, actor = _company_actor(request, cmp, "employee.positions.manage")
+    name = get_str(parse_json(request), "name", max_length=POSITION_NAME_MAX)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        staff.rename_position(ctx, context.company.id, position_id, name)
+        return CommandResult(200, _positions_body(context.company.id))
+
+    payload = {"position_id": str(position_id), "name": name}
+    return run_and_respond(request, "position.rename", actor, payload, handler)
 
 
 @require_POST
@@ -222,7 +385,7 @@ def _my_invitation_payload(invitation: Invitation) -> dict[str, Any]:
         # Shown before acceptance (§ 5.1.7).
         "data_given": {
             "required": ["first_name", "last_name"],
-            "optional": ["middle_name", "email"],
+            "optional": ["middle_name", "photo", "email", "phone"],
         },
     }
 
@@ -251,7 +414,10 @@ def invitation_accept(request: HttpRequest, invitation_id: UUID) -> JsonResponse
     user, session = require_user(request)
     data = parse_json(request)
     shared = staff.SharedData(
-        middle_name=_flag(data, "share_middle_name"), email=_flag(data, "share_email")
+        middle_name=_flag(data, "share_middle_name"),
+        email=_flag(data, "share_email"),
+        photo=_flag(data, "share_photo"),
+        phone=_flag(data, "share_phone"),
     )
 
     def handler(ctx: CommandContext) -> CommandResult:
@@ -262,6 +428,8 @@ def invitation_accept(request: HttpRequest, invitation_id: UUID) -> JsonResponse
         "invitation_id": str(invitation_id),
         "share_middle_name": shared.middle_name,
         "share_email": shared.email,
+        "share_photo": shared.photo,
+        "share_phone": shared.phone,
     }
     actor = Actor(user_id=user.id, session_id=session.id)
     return run_and_respond(request, "invitation.accept", actor, payload, handler)

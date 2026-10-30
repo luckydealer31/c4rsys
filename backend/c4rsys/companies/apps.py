@@ -24,7 +24,20 @@ class CompaniesConfig(AppConfig):
                 ).exists()
             )
 
+        def avatar_reader(user_id: UUID, item: StoredFile) -> bool:
+            """§ 5.1.7: a photo the employee chose to give is seen by the company's current
+            employees."""
+            companies = Employment.objects.filter(
+                user__avatar_id=item.id, shares_photo=True, state__in=("active", "blocked")
+            ).values_list("company_id", flat=True)
+            return Employment.objects.filter(
+                company_id__in=companies, user_id=user_id, state=Employment.State.ACTIVE
+            ).exists()
+
+        # TODO(spec): § 3.5.3 puts the logo into the minimal search card, but the logo file is
+        # still seen only by the company's employees (an earlier decision with its test).
         files.register_reader(StoredFile.Purpose.COMPANY_LOGO, logo_reader)
+        files.register_reader(StoredFile.Purpose.AVATAR, avatar_reader)
         # A photo of a catalog item is seen like the logo: by the company's employees.
         files.register_reader(StoredFile.Purpose.ITEM_PHOTO, logo_reader)
         # PROPOSAL: a receipt document is seen by the company's employees, like the logo.

@@ -56,9 +56,14 @@ def notify(
     params: dict[str, Any] | None = None,
     repeat: bool = False,
     now: datetime | None = None,
+    limited: Iterable[UUID] = (),
+    limited_params: dict[str, Any] | None = None,
 ) -> Notification:
+    """`limited` — recipients without access to the object: they see `limited_params` only
+    (§ 5.2.3). A recipient who is also among `recipients` sees everything."""
     moment = now or timezone.now()
     people = set(recipients)
+    restricted = set(limited) - people
     with transaction.atomic():
         found = (
             Notification.objects.select_for_update()
@@ -73,6 +78,7 @@ def notify(
                 event=event,
                 condition=condition,
                 params=params or {},
+                limited_params=limited_params or {},
                 object_type=object_type,
                 object_id=object_id,
                 created_at=moment,
@@ -85,17 +91,32 @@ def notify(
             found.repeats += 1
             found.last_at = moment
             found.params = params or found.params
-            found.save(update_fields=["repeats", "last_at", "params"])
+            found.limited_params = limited_params or found.limited_params
+            found.save(update_fields=["repeats", "last_at", "params", "limited_params"])
             # A repeated reminder is shown as new to everyone (§ 20.3.2).
             NotificationRecipient.objects.filter(notification=found).update(read_at=None)
-        known = set(
+        known = dict(
             NotificationRecipient.objects.filter(notification=found).values_list(
-                "employment_id", flat=True
+                "employment_id", "limited"
             )
         )
+        # Who got access meanwhile sees the whole notification.
+        upgraded = [x for x in people if known.get(x) is True]
+        if upgraded:
+            NotificationRecipient.objects.filter(
+                notification=found, employment_id__in=upgraded
+            ).update(limited=False)
         NotificationRecipient.objects.bulk_create(
-            NotificationRecipient(company_id=company_id, notification=found, employment_id=x)
-            for x in sorted(people - known)
+            [
+                NotificationRecipient(company_id=company_id, notification=found, employment_id=x)
+                for x in sorted(people - set(known))
+            ]
+            + [
+                NotificationRecipient(
+                    company_id=company_id, notification=found, employment_id=x, limited=True
+                )
+                for x in sorted(restricted - set(known))
+            ]
         )
     return found
 

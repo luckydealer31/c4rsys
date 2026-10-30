@@ -335,6 +335,14 @@ def test_successor_may_be_another_owner(a: tuple[Client, str], cmp: str) -> None
     assert shares(cmp) == {b_id: Decimal(30), c_id: Decimal(70)}
     assert b.get(f"/api/c/{cmp}").json()["company"]["employment"]["is_top_authority"]
     assert not c.get(f"/api/c/{cmp}").json()["company"]["employment"]["is_top_authority"]
+    # § 5.2.1: the new top manager is at the top; the others are under him.
+    org = b.get(f"/api/c/{cmp}/org").json()["org"]
+    top = org["top"]
+    assert all(link["subordinate"] != top for link in org["links"])
+    assert {link["subordinate"] for link in org["links"]} == {
+        e["id"] for e in org["employees"] if e["id"] != top
+    }
+    assert all(link["responsible"] == {"type": "employee", "id": top} for link in org["links"])
 
 
 # --- Corporate ownership (§ 3.4.1) ---------------------------------------------------------------

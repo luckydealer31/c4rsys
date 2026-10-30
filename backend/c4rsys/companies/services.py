@@ -241,6 +241,75 @@ REQUISITES = {
 }
 
 
+# Additional fields of the editable profile that may be made public (§ 3.1.8). The minimal search
+# card — display name, logo, country and company ID — is always shown and has no switch.
+PUBLIC_FIELDS = (
+    "legal_name",
+    "legal_form",
+    "identifiers",
+    "legal_address",
+    "actual_address",
+    "phone",
+    "email",
+    "website",
+    "description",
+)
+
+
+def public_data(company: Company) -> dict[str, Any]:
+    """Values of the fields the company made public, the empty ones left out (§ 3.5.3)."""
+    data = {}
+    for key in company.public_fields:
+        if key in PUBLIC_FIELDS:
+            value = getattr(company, key)
+            if value:
+                data[key] = value
+    return data
+
+
+def set_public_fields(
+    ctx: CommandContext, company_id: UUID, fields: list[str], expected_version: int
+) -> Company:
+    """The caller checks the authority of § 3.1.8. The switch does not reach documents, owners or
+    the internal history."""
+    company = Company.objects.select_for_update(no_key=True).get(pk=company_id)
+    if company.version != expected_version:
+        raise errors.version_conflict()
+    wanted = [key for key in PUBLIC_FIELDS if key in set(fields)]
+    before = list(company.public_fields)
+    if wanted == before:
+        return company
+    company.public_fields = wanted
+    company.version += 1
+    company.save(update_fields=["public_fields", "version", "updated_at"])
+    ctx.audit(
+        "company.public_fields_changed",
+        object_type="company",
+        object_id=company.public_id,
+        before={"public_fields": before},
+        after={"public_fields": wanted},
+    )
+    return company
+
+
+PROFILE_HISTORY_ACTIONS = (
+    "company.created",
+    "company.profile_changed",
+    "company.public_fields_changed",
+)
+
+
+def profile_history(company: Company) -> QuerySet[AuditEvent]:
+    """Changes of the profile: initiator, time, changed fields with old and new values
+    (§ 3.5.2), newest first."""
+    return AuditEvent.objects.filter(
+        company_id=company.id,
+        object_type="company",
+        object_id=company.public_id,
+        action__in=PROFILE_HISTORY_ACTIONS,
+    ).order_by("-occurred_at", "-id")
+
+
 def profile_snapshot(company: Company) -> dict[str, Any]:
     return {
         "display_name": company.display_name,

@@ -52,6 +52,7 @@ import { RentalPolicyPage } from "./pages/settings/RentalPolicyPage";
 import { NotificationRulesPage } from "./pages/notifications/RulesPage";
 import { LocationPage } from "./pages/settings/LocationsPage";
 import { EmployeePage } from "./pages/settings/EmployeesPage";
+import { OrgPage, PositionsPage } from "./pages/settings/OrgPage";
 import { ExportPage } from "./pages/settings/ExportPage";
 import { DiscountCatalogPage } from "./pages/orders/Discounts";
 import { SettingsPage } from "./pages/settings/SettingsPage";
@@ -211,6 +212,8 @@ export function App() {
         <Route path="finance" element={<FinancePage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="settings/company" element={<CompanyProfilePage />} />
+        <Route path="settings/org" element={<OrgPage />} />
+        <Route path="settings/positions" element={<PositionsPage />} />
         <Route path="settings/owners" element={<OwnersPage />} />
         <Route path="settings/holdings" element={<HoldingsPage />} />
         <Route path="settings/state" element={<CompanyStatePage />} />

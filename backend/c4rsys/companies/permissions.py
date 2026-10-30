@@ -22,6 +22,13 @@ PERMISSIONS: dict[str, str] = {
     "employee.journal.view": "employee",
     "employee.access.block": "employee",
     "employee.access.restore": "employee",
+    # § 23.3.9, § 23.3.1 (block 10, part B): editing the employee card, managing the positions
+    # handbook, terminating access and managing the organisation structure are separate rights;
+    # only in «Company administrator» (PROPOSAL).
+    "employee.card.edit": "employee",
+    "employee.positions.manage": "employee",
+    "employee.access.terminate": "employee",
+    "org.manage": "org",
     "finance.cash_account.manage": "finance",
     "finance.payment.receive": "finance",
     # Finance stage (§ 23.7.1, § 23.2.7): balances and records of accounts, payouts, articles.

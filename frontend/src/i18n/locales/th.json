@@ -222,7 +222,19 @@
     "damage_returned": "ความเสียหายกลับมา",
     "damage_erroneous": "ความเสียหายถูกระบุว่าผิดพลาด",
     "file_video_compressed": "บีบอัดวิดีโอแล้ว",
-    "file_video_compression_failed": "บีบอัดวิดีโอไม่สำเร็จ"
+    "file_video_compression_failed": "บีบอัดวิดีโอไม่สำเร็จ",
+    "employee_access_terminated": "ยุติการเข้าถึง",
+    "employee_card_changed": "แก้ไขบัตรพนักงาน",
+    "org_responsibles_changed": "เปลี่ยนผู้รับผิดชอบ",
+    "org_department_created": "สร้างแผนก",
+    "org_department_changed": "แก้ไขแผนก",
+    "org_department_archived": "เก็บแผนกเข้าคลัง",
+    "org_member_added": "เพิ่มพนักงานในแผนก",
+    "org_member_removed": "นำพนักงานออกจากแผนก",
+    "position_created": "สร้างตำแหน่ง",
+    "position_renamed": "เปลี่ยนชื่อตำแหน่ง",
+    "company_profile_changed": "แก้ไขโปรไฟล์",
+    "company_public_fields_changed": "เปลี่ยนข้อมูลที่เปิดเผย"
   },
   "finance_articles": {
     "archive": "เก็บเข้าคลัง",
@@ -383,7 +395,19 @@
     "requisites": "Details",
     "settings": "Company settings",
     "setup_not_completed": "The initial setup is not completed yet.",
-    "website": "Website"
+    "website": "Website",
+    "public_title": "ข้อมูลโปรไฟล์ที่เปิดเผย",
+    "public_hint": "ชื่อ โลโก้ ประเทศ และ ID บริษัท แสดงเสมอเมื่อค้นหาด้วย ID ที่ตรงกัน เลือกข้อมูลเพิ่มเติมที่จะแสดงด้วย ไม่มีผลต่อเอกสาร เจ้าของ และประวัติภายใน",
+    "search_card": "บัตรในการค้นหา",
+    "search_card_hint": "นี่คือสิ่งที่ผู้อื่นเห็นก่อนเชื่อมโยงกับบริษัท",
+    "history": "ประวัติโปรไฟล์",
+    "history_changes": "การเปลี่ยนแปลง",
+    "history_created": "สร้างบริษัท",
+    "public_fields": "ข้อมูลที่เปิดเผย",
+    "display_name": "ชื่อที่แสดง",
+    "logo": "โลโก้",
+    "timezone": "เขตเวลา",
+    "main_currency": "สกุลเงินหลัก"
   },
   "contexts": {
     "module_later": "Work in this section comes with its module; its sections by location are already shown.",
@@ -417,7 +441,23 @@
     "target": "c4rsys ID or email",
     "target_hint": "Someone without an account gets a link to register.",
     "top_authority": "Full authority of the director",
-    "top_authority_note": "The director with top authority may do everything in the company; rights are not assigned to this position."
+    "top_authority_note": "The director with top authority may do everything in the company; rights are not assigned to this position.",
+    "no_profile": "ยังไม่ได้เชื่อมกับโปรไฟล์",
+    "started_at": "เริ่มงาน",
+    "work_contacts": "ช่องทางติดต่องาน",
+    "work_email": "อีเมลงาน",
+    "work_phone": "โทรศัพท์งาน",
+    "work_contacts_hint": "แยกจากช่องทางที่ใช้เข้าสู่ระบบ",
+    "card": "บัตรพนักงาน",
+    "position_dedicated": "ตำแหน่งเฉพาะเปลี่ยนได้ด้วยขั้นตอนการถือหุ้นเท่านั้น",
+    "position_new": "หรือตำแหน่งใหม่",
+    "position_new_hint": "จะถูกเพิ่มในรายการเพื่อใช้ซ้ำ",
+    "terminate": "ยุติการเข้าถึง",
+    "terminate_note": "บัญชีส่วนตัวและประวัติยังคงอยู่ งานที่สร้างไว้ไม่ถูกยกเลิก และสิทธิ์ไม่ถูกโอนให้ใคร ผู้อื่นสามารถทำงานที่ค้างต่อได้",
+    "terminate_reason": "เหตุผล",
+    "terminate_confirm": "ยุติ",
+    "terminated_at": "ยุติการเข้าถึงเมื่อ {{at}}",
+    "terminated_note": "ประวัติการทำงานของพนักงานยังอยู่ในบริษัท"
   },
   "errors": {
     "allocation_exceeds_payment": "The allocated sum exceeds the payment.",
@@ -466,7 +506,7 @@
     "email_invalid": "Enter a valid email.",
     "email_same_as_current": "This is already your login email.",
     "employee_already_exists": "This person already works in the company.",
-    "employee_is_top_authority": "The director's access cannot be blocked.",
+    "employee_is_top_authority": "ไม่สามารถระงับหรือยุติการเข้าถึงของผู้อำนวยการได้",
     "employment_blocked": "Your access to this company is blocked.",
     "employment_not_active": "The employee is not active.",
     "employment_state_invalid": "The action is not possible in the current state.",
@@ -550,7 +590,7 @@
     "permission_set_unknown": "Unknown permission set.",
     "permission_unknown": "Unknown permission.",
     "phone_invalid": "Invalid phone number.",
-    "position_not_assignable": "This position cannot be given by invitation.",
+    "position_not_assignable": "ไม่สามารถมอบหมายตำแหน่งนี้ได้",
     "position_required": "Choose or enter a position.",
     "position_unknown": "Unknown position.",
     "quantity_not_positive": "The quantity must be above zero.",
@@ -567,7 +607,7 @@
     "rental_not_returned": "The vehicle has not been returned yet.",
     "rights_duplicated": "The same right is listed twice.",
     "scope_invalid": "Check the scope.",
-    "self_access_change_forbidden": "You cannot block your own access.",
+    "self_access_change_forbidden": "ไม่สามารถเปลี่ยนการเข้าถึงของตนเองได้",
     "self_rights_change_forbidden": "You cannot change your own rights.",
     "session_expired": "The session has expired. Please sign in again.",
     "session_required": "Please sign in.",
@@ -1022,7 +1062,24 @@
     "representative_rights_exceed_limit": "สิทธิ์เกินขอบเขตของตำแหน่ง",
     "representative_is_top_authority": "ตัวแทนถืออำนาจสูงสุด ทำได้เพียงเปลี่ยนตัว",
     "percent_invalid": "ระบุเปอร์เซ็นต์มากกว่า 0 และไม่เกิน 100",
-    "percent_too_precise": "ทศนิยมไม่เกินสี่ตำแหน่ง"
+    "percent_too_precise": "ทศนิยมไม่เกินสี่ตำแหน่ง",
+    "org_self_subordination": "พนักงานหรือแผนกไม่สามารถขึ้นตรงต่อตนเองได้",
+    "org_cycle": "การเชื่อมนี้จะทำให้เกิดวงวนในโครงสร้าง",
+    "org_top_has_no_responsible": "ผู้บริหารสูงสุดไม่มีผู้รับผิดชอบ เปลี่ยนได้ด้วยการโอนอำนาจสูงสุดเท่านั้น",
+    "org_responsible_required": "พนักงานต้องมีผู้รับผิดชอบอย่างน้อยหนึ่งคน",
+    "org_duplicated": "ระบุผู้รับผิดชอบซ้ำ",
+    "org_node_unknown": "ไม่พบพนักงานหรือแผนก",
+    "org_responsible_not_active": "เลือกได้เฉพาะพนักงานที่ยังทำงานอยู่",
+    "org_department_archived": "แผนกถูกเก็บเข้าคลังแล้ว",
+    "org_department_has_children": "แผนกนี้มีแผนกย่อย กรุณาย้ายก่อน",
+    "org_subordinates_without_responsible": "ผู้ใต้บังคับบัญชาจะไม่มีผู้รับผิดชอบ ({{count}}) กรุณามอบหมายผู้แทนก่อน",
+    "org_parent_required": "กรุณาเลือกว่าแผนกขึ้นตรงต่อใคร",
+    "org_already_member": "พนักงานอยู่ในแผนกแล้ว",
+    "employment_terminated": "การเข้าถึงของพนักงานถูกยุติแล้ว",
+    "employee_holds_owner_seat": "พนักงานดำรงตำแหน่งเฉพาะของเจ้าของ ซึ่งสิ้นสุดตามขั้นตอนการถือหุ้น",
+    "employee_position_dedicated": "ตำแหน่งเฉพาะเปลี่ยนจากบัตรพนักงานไม่ได้",
+    "position_name_taken": "มีตำแหน่งชื่อนี้แล้ว",
+    "position_special": "ตำแหน่งนี้เป็นตำแหน่งเฉพาะ เปลี่ยนชื่อไม่ได้"
   },
   "history": {
     "action": "Action",
@@ -1062,7 +1119,9 @@
     "state_declined": "declined",
     "state_expired": "expired",
     "state_pending": "pending",
-    "title": "Invitations"
+    "title": "Invitations",
+    "share_photo": "ให้รูปถ่ายของฉัน",
+    "share_phone": "ให้เบอร์โทรส่วนตัว"
   },
   "languages": {
     "en": "English",
@@ -1407,7 +1466,11 @@
     "inspection_terminate": "ยุติการตรวจสภาพที่เริ่มแล้ว",
     "inspection_invalidate": "ทำให้การตรวจสภาพที่บันทึกแล้วเป็นโมฆะ",
     "inspection_policy_manage": "จัดการนโยบายและแม่แบบการตรวจสภาพ",
-    "company_deactivate": "ปิดใช้งานและกู้คืนบริษัท"
+    "company_deactivate": "ปิดใช้งานและกู้คืนบริษัท",
+    "employee_card_edit": "แก้ไขบัตรพนักงาน",
+    "employee_positions_manage": "จัดการรายการตำแหน่งงาน",
+    "employee_access_terminate": "ยุติการเข้าถึง",
+    "org_manage": "จัดการโครงสร้างองค์กร"
   },
   "positions": {
     "director": "Director",
@@ -1618,7 +1681,11 @@
     "holdings": "หุ้นในบริษัทอื่น",
     "holdings_hint": "ตัวแทนและการโอนหุ้นของบริษัท",
     "state": "การปิดใช้งานบริษัท",
-    "state_hint": "การปิดใช้งานและกู้คืนด้วยการอนุมัติของเจ้าของ"
+    "state_hint": "การปิดใช้งานและกู้คืนด้วยการอนุมัติของเจ้าของ",
+    "org": "โครงสร้างองค์กร",
+    "org_hint": "แผนก ผู้รับผิดชอบ และสายการบังคับบัญชา",
+    "positions": "ตำแหน่งงาน",
+    "positions_hint": "รายการตำแหน่งงานของบริษัท"
   },
   "setup": {
     "back": "Back",
@@ -3515,7 +3582,9 @@
     "event_ownership_approval_requested": "การโอนหุ้นของ «{{company}}» ({{percent}}%) รอการยืนยันของคุณ",
     "rule_ownership_approval_requested": "การยืนยันการโอนหุ้น",
     "event_company_state_approval_requested": "«{{company}}»: ต้องได้รับการอนุมัติจากเจ้าของ",
-    "rule_company_state_approval_requested": "การอนุมัติการปิดใช้งานหรือกู้คืน"
+    "rule_company_state_approval_requested": "การอนุมัติการปิดใช้งานหรือกู้คืน",
+    "event_task_overdue_of": "งานเลขที่ {{number}} «{{title}}» ของ {{assignee_name}} เลยกำหนด",
+    "event_task_overdue_limited": "{{assignee_name}} มีงานที่เลยกำหนด"
   },
   "reports": {
     "metric_rental_issues_today": "การส่งมอบที่คาดว่าจะมีวันนี้",
@@ -4407,5 +4476,38 @@
     "asks_restore": "อนุมัติการกู้คืนบริษัทในฐานะเจ้าของ ({{party}})",
     "banner": "บริษัทถูกปิดใช้งาน: ไม่สามารถสร้างคำสั่งซื้อหรือกิจกรรมใหม่ได้ การชำระเดิม ประวัติ และการส่งออกยังใช้ได้",
     "banner_link": "รายละเอียด"
+  },
+  "org": {
+    "title": "โครงสร้างองค์กร",
+    "hint": "แผนก ผู้รับผิดชอบ และสายการบังคับบัญชา ตำแหน่งในโครงสร้างไม่ได้ให้สิทธิ์ แต่กำหนดว่าใครจะได้รับแจ้งเมื่องานของผู้ใต้บังคับบัญชาเลยกำหนด",
+    "department": "แผนก",
+    "departments": "แผนก",
+    "employees": "พนักงาน",
+    "members": "พนักงานในแผนก",
+    "top": "สูงสุด",
+    "outside": "นอกโครงสร้าง",
+    "new_department": "แผนกใหม่",
+    "department_name": "ชื่อแผนก",
+    "parent": "ขึ้นตรงต่อ",
+    "parent_hint": "แผนกอื่นหรือผู้จัดการ หากไม่เลือก จะขึ้นตรงต่อผู้บริหารสูงสุด",
+    "create": "สร้าง",
+    "add": "เพิ่ม",
+    "add_member": "เพิ่มพนักงาน",
+    "remove_member": "นำออก",
+    "remove": "นำออก",
+    "archive": "เก็บแผนกเข้าคลัง",
+    "responsibles": "ผู้รับผิดชอบ",
+    "add_responsible": "เพิ่มผู้รับผิดชอบ",
+    "subordinates": "ผู้ใต้บังคับบัญชา",
+    "top_note": "ผู้บริหารสูงสุดไม่มีผู้รับผิดชอบ การเปลี่ยนตำแหน่งสูงสุดทำได้โดยการโอนอำนาจสูงสุดเท่านั้น",
+    "no_rights_note": "สายการบังคับบัญชาไม่ได้ให้สิทธิ์การเข้าถึง แต่เปลี่ยนผู้รับการแจ้งเตือน"
+  },
+  "positions_page": {
+    "title": "ตำแหน่งงาน",
+    "hint": "รายการตำแหน่งงานของบริษัท ชื่อตำแหน่งไม่ได้ให้สิทธิ์",
+    "name": "ตำแหน่ง",
+    "employees": "พนักงาน",
+    "add": "เพิ่มตำแหน่ง",
+    "dedicated": "ตำแหน่งเฉพาะของผู้มีอำนาจสูงสุดหรือเจ้าของ"
   }
 }

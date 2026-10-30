@@ -33,15 +33,32 @@ def _mine(user_id: UUID) -> QuerySet[NotificationRecipient]:
 
 def _payload(r: NotificationRecipient) -> dict[str, Any]:
     n = r.notification
+    if r.limited:
+        # Without access to the object: the employee and the fact only (§ 5.2.3, § 20.2.2).
+        return {
+            **_common(r),
+            "params": n.limited_params,
+            "object_type": None,
+            "object_id": None,
+            "limited": True,
+        }
+    return {
+        **_common(r),
+        "params": n.params,
+        "object_type": n.object_type or None,
+        "object_id": str(n.object_id) if n.object_id else None,
+        "limited": False,
+    }
+
+
+def _common(r: NotificationRecipient) -> dict[str, Any]:
+    n = r.notification
     return {
         "id": str(r.id),
         "company": {"public_id": n.company.public_id, "name": n.company.display_name},
         "location": {"id": str(n.location_id), "name": n.location.name} if n.location else None,
         "kind": n.kind,
         "event": n.event,
-        "params": n.params,
-        "object_type": n.object_type or None,
-        "object_id": str(n.object_id) if n.object_id else None,
         "state": n.state,
         "done_reason": n.done_reason or None,
         "created_at": n.created_at.isoformat(),
@@ -104,7 +121,10 @@ def notification_detail(request: HttpRequest, recipient_id: UUID) -> JsonRespons
     if found is None:
         raise errors.not_found()
     history = [
-        {"at": x.at.isoformat(), "params": x.params}
+        {
+            "at": x.at.isoformat(),
+            "params": found.notification.limited_params if found.limited else x.params,
+        }
         for x in found.notification.repetitions.order_by("at")
     ]
     return JsonResponse({"notification": {**_payload(found), "history": history}})

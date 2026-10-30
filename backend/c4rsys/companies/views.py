@@ -7,16 +7,17 @@ from uuid import UUID
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.http import HttpRequest, JsonResponse
-from django.views.decorators.http import require_http_methods, require_POST
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from c4rsys.accounts.middleware import require_user
-from c4rsys.companies import access, locations, ownership, services
+from c4rsys.companies import access, history, locations, ownership, services
 from c4rsys.companies.models import ActivityContext, Company, Location
 from c4rsys.companies.permissions import PERMISSIONS
 from c4rsys.platform import errors
 from c4rsys.platform.access import require_permission
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult, Handler, run_command
 from c4rsys.platform.http import get_int, get_str, idempotency_key, parse_json, respond
+from c4rsys.platform.ids import normalize_public_id
 from c4rsys.platform.middleware import get_request_id
 
 DISPLAY_NAME_MAX = 200
@@ -104,6 +105,7 @@ def _company_payload(company: Company, context: services.CompanyContext | None) 
         "deactivated_at": company.deactivated_at.isoformat() if company.deactivated_at else None,
         **{key: getattr(company, key) for key in services.REQUISITES},
         "identifiers": company.identifiers,
+        "public_fields": list(company.public_fields),
     }
     if context is not None:
         body["employment"] = {
@@ -206,6 +208,63 @@ def company(request: HttpRequest, cmp: str) -> JsonResponse:
         actor,
         {**changes, "expected_version": expected_version},
         handler,
+    )
+
+
+@require_http_methods(["PUT"])
+def public_fields(request: HttpRequest, cmp: str) -> JsonResponse:
+    """§ 3.1.8: the top authority or an employee with full administrative access chooses which
+    additional profile fields are public."""
+    user, session = require_user(request)
+    context = services.resolve_company(user, cmp, session.id)
+    actor = services.company_actor(user, context, session.id)
+    if not access.has_full_rights(context.employment):
+        raise errors.permission_denied("company.full_access")
+    data = parse_json(request)
+    expected_version = get_int(data, "expected_version")
+    fields = data.get("fields")
+    if not isinstance(fields, list) or any(f not in services.PUBLIC_FIELDS for f in fields):
+        raise errors.validation_error("fields")
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        # Fresh check inside the transaction: the rights may have changed meanwhile (§ 23.3.8).
+        employment = services.resolve_company(user, cmp, session.id).employment
+        if not access.has_full_rights(employment):
+            raise errors.permission_denied("company.full_access")
+        updated = services.set_public_fields(ctx, context.company.id, fields, expected_version)
+        return CommandResult(200, {"company": _company_payload(updated, context)})
+
+    payload = {"fields": sorted(fields), "expected_version": expected_version}
+    return run_and_respond(request, "company.public_fields", actor, payload, handler)
+
+
+@require_GET
+def profile_history(request: HttpRequest, cmp: str) -> JsonResponse:
+    """§ 3.5.2: who changed the profile, when, which fields from which values to which. Shown to
+    those who may edit the profile (PROPOSAL)."""
+    user, session = require_user(request)
+    context = services.resolve_company(user, cmp, session.id)
+    actor = services.company_actor(user, context, session.id)
+    require_permission(access.RightsResolver(), actor, "company.settings")
+    events = services.profile_history(context.company)
+    return JsonResponse({"history": history.payload(events)})
+
+
+@require_GET
+def company_lookup(request: HttpRequest) -> JsonResponse:
+    """§ 3.5.3: search by the exact company ID shows only the minimal card and the fields the
+    company made public, so the initiator can check the recipient of a request."""
+    require_user(request)
+    public_id = normalize_public_id(request.GET.get("id", "")[:64])
+    company = (
+        services.find_company(public_id)
+        if public_id is not None and public_id.startswith("CMP-")
+        else None
+    )
+    if company is None:
+        raise errors.not_found()
+    return JsonResponse(
+        {"company": ownership.search_card(ownership.Party(user=None, company=company))}
     )
 
 

@@ -350,3 +350,11 @@ fieldset.choice legend { margin-bottom: 8px; font-weight: 600; }
   .inspection-page dl.facts dd { margin-bottom: 8px; }
   .filters > * { flex-basis: 100%; }
 }
+
+/* Organisation structure (§ 5.2): a nested tree that stays readable on a phone. */
+.org-tree, .org-tree ul { list-style: none; margin: 0; padding: 0; }
+.org-tree ul { margin-left: 10px; padding-left: 12px; border-left: 1px solid var(--border); }
+.org-tree li { margin: 6px 0; }
+.org-node { padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; overflow-wrap: anywhere; }
+ul.plain { list-style: none; margin: 0 0 8px; padding: 0; }
+ul.plain li { margin: 4px 0; }

@@ -3,6 +3,18 @@ import { Link } from "react-router";
 
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 
+// The rights that open the employee cards and the structure (the server checks the same).
+const EMPLOYEE_VIEW = [
+  "employee.invite",
+  "employee.rights.manage",
+  "employee.access.block",
+  "employee.access.restore",
+  "employee.access.terminate",
+  "employee.card.edit",
+  "employee.positions.manage",
+  "org.manage",
+];
+
 /** Settings of the company: its profile and the setup wizard. Employees are a tab of «Contacts»,
  * locations are in «Company», tariffs are in «Rental» (decisions of 24.10.2026). */
 export function SettingsPage() {
@@ -14,6 +26,9 @@ export function SettingsPage() {
   const links = [
     ["setup", "/setup", can("company.settings")],
     ["company", "/settings/company", can("company.settings")],
+    // § 5.2, § 5.1.5: the organisation structure and the positions handbook.
+    ["org", "/settings/org", EMPLOYEE_VIEW.some(can)],
+    ["positions", "/settings/positions", EMPLOYEE_VIEW.some(can)],
     ["rental", "/settings/rental", can("company.settings")],
     ["notifications", "/settings/notifications", can("company.settings")],
     ["discounts", "/settings/discounts", can("company.settings")],

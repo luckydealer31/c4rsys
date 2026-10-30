@@ -222,7 +222,19 @@
     "damage_returned": "Damage returned",
     "damage_erroneous": "Damage recognised as erroneous",
     "file_video_compressed": "Video compressed",
-    "file_video_compression_failed": "Video not compressed"
+    "file_video_compression_failed": "Video not compressed",
+    "employee_access_terminated": "Access terminated",
+    "employee_card_changed": "Card changed",
+    "org_responsibles_changed": "Responsibles changed",
+    "org_department_created": "Department created",
+    "org_department_changed": "Department changed",
+    "org_department_archived": "Department archived",
+    "org_member_added": "Employee added to the department",
+    "org_member_removed": "Employee removed from the department",
+    "position_created": "Position created",
+    "position_renamed": "Position renamed",
+    "company_profile_changed": "Profile changed",
+    "company_public_fields_changed": "Public fields changed"
   },
   "finance_articles": {
     "archive": "Archive",
@@ -383,7 +395,19 @@
     "requisites": "Details",
     "settings": "Company settings",
     "setup_not_completed": "The initial setup is not completed yet.",
-    "website": "Website"
+    "website": "Website",
+    "public_title": "Public profile fields",
+    "public_hint": "Name, logo, country and company ID are always shown in the search by the exact ID. Mark the additional fields to show with them. Documents, owners and the internal history are not affected.",
+    "search_card": "Search card",
+    "search_card_hint": "This is how others see the company before a link is set.",
+    "history": "Profile history",
+    "history_changes": "Changes",
+    "history_created": "Company created",
+    "public_fields": "Public fields",
+    "display_name": "Display name",
+    "logo": "Logo",
+    "timezone": "Time zone",
+    "main_currency": "Main currency"
   },
   "contexts": {
     "module_later": "Work in this section comes with its module; its sections by location are already shown.",
@@ -417,7 +441,23 @@
     "target": "c4rsys ID or email",
     "target_hint": "Someone without an account gets a link to register.",
     "top_authority": "Full authority of the director",
-    "top_authority_note": "The director with top authority may do everything in the company; rights are not assigned to this position."
+    "top_authority_note": "The director with top authority may do everything in the company; rights are not assigned to this position.",
+    "no_profile": "Not linked with a profile yet",
+    "started_at": "Start of work",
+    "work_contacts": "Work contacts",
+    "work_email": "Work email",
+    "work_phone": "Work phone",
+    "work_contacts_hint": "Kept apart from the contacts used to sign in.",
+    "card": "Employee card",
+    "position_dedicated": "A dedicated position is changed only by the ownership procedures.",
+    "position_new": "Or a new position",
+    "position_new_hint": "It is added to the handbook for reuse.",
+    "terminate": "Terminate access",
+    "terminate_note": "The personal account and the history stay; created operations are not cancelled and the rights pass to nobody. Others may continue unfinished work.",
+    "terminate_reason": "Reason",
+    "terminate_confirm": "Terminate",
+    "terminated_at": "Access terminated {{at}}",
+    "terminated_note": "The history of the employee's actions stays in the company."
   },
   "errors": {
     "allocation_exceeds_payment": "The allocated sum exceeds the payment.",
@@ -466,7 +506,7 @@
     "email_invalid": "Enter a valid email.",
     "email_same_as_current": "This is already your login email.",
     "employee_already_exists": "This person already works in the company.",
-    "employee_is_top_authority": "The director's access cannot be blocked.",
+    "employee_is_top_authority": "The access of the director cannot be blocked or terminated.",
     "employment_blocked": "Your access to this company is blocked.",
     "employment_not_active": "The employee is not active.",
     "employment_state_invalid": "The action is not possible in the current state.",
@@ -550,7 +590,7 @@
     "permission_set_unknown": "Unknown permission set.",
     "permission_unknown": "Unknown permission.",
     "phone_invalid": "Invalid phone number.",
-    "position_not_assignable": "This position cannot be given by invitation.",
+    "position_not_assignable": "This position cannot be assigned.",
     "position_required": "Choose or enter a position.",
     "position_unknown": "Unknown position.",
     "quantity_not_positive": "The quantity must be above zero.",
@@ -567,7 +607,7 @@
     "rental_not_returned": "The vehicle has not been returned yet.",
     "rights_duplicated": "The same right is listed twice.",
     "scope_invalid": "Check the scope.",
-    "self_access_change_forbidden": "You cannot block your own access.",
+    "self_access_change_forbidden": "You cannot change your own access.",
     "self_rights_change_forbidden": "You cannot change your own rights.",
     "session_expired": "The session has expired. Please sign in again.",
     "session_required": "Please sign in.",
@@ -1022,7 +1062,24 @@
     "representative_rights_exceed_limit": "The rights go beyond the limit of the position.",
     "representative_is_top_authority": "The representative holds the top authority; replace him instead.",
     "percent_invalid": "Enter a percent above 0 and up to 100.",
-    "percent_too_precise": "At most four decimals."
+    "percent_too_precise": "At most four decimals.",
+    "org_self_subordination": "An employee or a department cannot be subordinate to itself.",
+    "org_cycle": "This link would create a cycle in the structure.",
+    "org_top_has_no_responsible": "The top manager has no responsible; the top changes only by passing the top authority.",
+    "org_responsible_required": "An employee needs at least one responsible.",
+    "org_duplicated": "A responsible is listed twice.",
+    "org_node_unknown": "The employee or department is not found.",
+    "org_responsible_not_active": "Only an active employee can be chosen.",
+    "org_department_archived": "The department is archived.",
+    "org_department_has_children": "The department has subordinate departments; move them first.",
+    "org_subordinates_without_responsible": "Subordinates would be left without an active responsible ({{count}}). Assign a replacement first.",
+    "org_parent_required": "Choose whom the department is subordinate to.",
+    "org_already_member": "The employee is already in the department.",
+    "employment_terminated": "The employee's access has been terminated.",
+    "employee_holds_owner_seat": "The employee holds an owner's dedicated position; it ends by the ownership procedures.",
+    "employee_position_dedicated": "A dedicated position is not changed from the card.",
+    "position_name_taken": "A position with this name already exists.",
+    "position_special": "This position is dedicated and keeps its name."
   },
   "history": {
     "action": "Action",
@@ -1062,7 +1119,9 @@
     "state_declined": "declined",
     "state_expired": "expired",
     "state_pending": "pending",
-    "title": "Invitations"
+    "title": "Invitations",
+    "share_photo": "Give my photo",
+    "share_phone": "Give my personal phone"
   },
   "languages": {
     "en": "English",
@@ -1407,7 +1466,11 @@
     "inspection_terminate": "Terminate started inspections",
     "inspection_invalidate": "Recognise saved inspections as invalid",
     "inspection_policy_manage": "Manage inspection policies and templates",
-    "company_deactivate": "Deactivate and restore the company"
+    "company_deactivate": "Deactivate and restore the company",
+    "employee_card_edit": "Edit employee cards",
+    "employee_positions_manage": "Manage the positions handbook",
+    "employee_access_terminate": "Terminate access",
+    "org_manage": "Manage the organisation structure"
   },
   "positions": {
     "director": "Director",
@@ -1618,7 +1681,11 @@
     "holdings": "Shares in other companies",
     "holdings_hint": "Representatives and transfers of the company's shares",
     "state": "Deactivation of the company",
-    "state_hint": "Deactivation and restoration with the owners' approval"
+    "state_hint": "Deactivation and restoration with the owners' approval",
+    "org": "Organisation structure",
+    "org_hint": "Departments, responsibles and subordination",
+    "positions": "Positions",
+    "positions_hint": "The company's handbook of positions"
   },
   "setup": {
     "back": "Back",
@@ -3515,7 +3582,9 @@
     "event_ownership_approval_requested": "A share transfer of «{{company}}» ({{percent}}%) waits for your confirmation",
     "rule_ownership_approval_requested": "Confirmation of a share transfer",
     "event_company_state_approval_requested": "«{{company}}»: the owners' approval is needed",
-    "rule_company_state_approval_requested": "Approval of deactivation or restoration"
+    "rule_company_state_approval_requested": "Approval of deactivation or restoration",
+    "event_task_overdue_of": "Task No. {{number}} «{{title}}» of {{assignee_name}} is overdue",
+    "event_task_overdue_limited": "{{assignee_name}} has an overdue task"
   },
   "reports": {
     "metric_rental_issues_today": "Issues expected today",
@@ -4407,5 +4476,38 @@
     "asks_restore": "Approve the restoration of the company as an owner ({{party}})",
     "banner": "The company is deactivated: new orders and new activity are not possible; former settlements, history and export are available.",
     "banner_link": "Details"
+  },
+  "org": {
+    "title": "Organisation structure",
+    "hint": "Departments, responsibles and subordination. The place in the structure gives no rights; it decides who is told about overdue tasks of subordinates.",
+    "department": "Department",
+    "departments": "Departments",
+    "employees": "Employees",
+    "members": "Employees of the department",
+    "top": "Top",
+    "outside": "Outside the tree",
+    "new_department": "New department",
+    "department_name": "Department name",
+    "parent": "Subordinate to",
+    "parent_hint": "Another department or a manager. Without a choice — the top manager.",
+    "create": "Create",
+    "add": "Add",
+    "add_member": "Add an employee",
+    "remove_member": "Remove",
+    "remove": "Remove",
+    "archive": "Archive the department",
+    "responsibles": "Responsibles",
+    "add_responsible": "Add a responsible",
+    "subordinates": "Subordinates",
+    "top_note": "The top manager has no responsible. The top changes only by passing the top authority.",
+    "no_rights_note": "Subordination gives no access rights; it changes who gets the notifications."
+  },
+  "positions_page": {
+    "title": "Positions",
+    "hint": "The company's handbook of positions. A position name gives no rights.",
+    "name": "Position",
+    "employees": "Employees",
+    "add": "Add a position",
+    "dedicated": "Dedicated position of the top authority or an owner"
   }
 }

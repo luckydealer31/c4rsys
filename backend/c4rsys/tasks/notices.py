@@ -5,7 +5,10 @@
 * Reminders before the deadline (up to 5, «N minutes before») are one active reminder with its
   repetitions in the history.
 * After the deadline the executor, the creator and the employees with «manage» in the task's
-  scope are told (decision З-1); the notice repeats every N hours by the company's rule (З-4).
+  scope are told (decision З-1), and every responsible of the executor by the organisation
+  structure, all employees of a responsible department included (§ 5.2.3, § 20.2.1). A
+  responsible without access to the task sees the employee and the fact only. The notice repeats
+  every N hours by the company's rule (З-4).
 * Once the task is done or cancelled every notice of it ends for all recipients.
 * An executor blocked or without access to tasks in the scope gives the active task back to the
   queue (§ 19.1.6–19.1.7).
@@ -16,8 +19,11 @@ from uuid import UUID
 
 from django.db import transaction
 
+from c4rsys.companies import orgstructure, staff
+from c4rsys.companies.models import Employment
 from c4rsys.notifications import rules
 from c4rsys.notifications import services as notifications
+from c4rsys.platform.commands import Actor
 from c4rsys.platform.models import AuditEvent
 from c4rsys.tasks.models import ACTIVE_STATES, Task, TaskPolicy
 
@@ -45,7 +51,14 @@ def _notify(
     *,
     repeat: bool = False,
     now: datetime | None = None,
+    limited: list[UUID] | None = None,
 ) -> None:
+    params = _params(t)
+    limited_params: dict[str, object] = {}
+    if kind == "overdue" and t.assignee_id is not None:
+        name = staff.employee_names(t.company_id, {t.assignee_id}).get(t.assignee_id, "")
+        params["assignee_name"] = name
+        limited_params = {"assignee_name": name}
     notifications.notify(
         t.company_id,
         condition=_condition(kind, t),
@@ -55,9 +68,11 @@ def _notify(
         location_id=t.location_id,
         object_type="task",
         object_id=t.id,
-        params=_params(t),
+        params=params,
         repeat=repeat,
         now=now,
+        limited=limited or (),
+        limited_params=limited_params,
     )
 
 
@@ -100,11 +115,32 @@ def sync(t: Task, actor_employment_id: UUID | None) -> None:
 
 
 def _overdue_people(t: Task) -> list[UUID]:
-    """Decision З-1: the executor, the creator and «manage» in the scope; without the
-    organisation structure yet."""
+    """Decision З-1: the executor, the creator and «manage» in the scope."""
     people = {x for x in (t.assignee_id, t.created_by_employment_id) if x}
     people |= set(notifications.with_permission(t.company_id, "tasks.manage", t.location_id))
     return sorted(people) or notifications.heads(t.company_id)
+
+
+def _overdue_recipients(t: Task) -> tuple[list[UUID], list[UUID]]:
+    """Recipients who see the task and those who see only the employee and the fact (§ 5.2.3):
+    the responsibles of the executor by the organisation structure are added."""
+    from c4rsys.tasks import services
+
+    full = set(_overdue_people(t))
+    limited: set[UUID] = set()
+    if t.assignee_id is not None:
+        employments = {
+            e.id: e
+            for e in Employment.objects.filter(
+                pk__in=orgstructure.supervisors(t.company_id, t.assignee_id)
+            )
+        }
+        for employment_id, e in employments.items():
+            if employment_id in full or e.user_id is None:
+                continue
+            actor = Actor(user_id=e.user_id, company_id=t.company_id, employment_id=e.id)
+            (full if services.can_view(actor, t) else limited).add(employment_id)
+    return sorted(full), sorted(limited)
 
 
 def _release_lost(t: Task, now: datetime) -> bool:
@@ -170,16 +206,19 @@ def run(now: datetime) -> int:
             overdue = notifications.active(t.company_id, _condition("overdue", t))
             hours = repeat_hours.get(t.company_id, 24)
             if overdue is None:
-                _notify(t, "overdue", notifications.Kind.WARNING, _overdue_people(t), now=now)
+                full, limited = _overdue_recipients(t)
+                _notify(t, "overdue", notifications.Kind.WARNING, full, now=now, limited=limited)
                 done += 1
             elif hours and now - overdue.last_at >= timedelta(hours=hours):
+                full, limited = _overdue_recipients(t)
                 _notify(
                     t,
                     "overdue",
                     notifications.Kind.WARNING,
-                    _overdue_people(t),
+                    full,
                     repeat=True,
                     now=now,
+                    limited=limited,
                 )
                 done += 1
     return done

@@ -39,6 +39,9 @@ class Notification(models.Model):
     event = models.CharField(max_length=60)
     condition = models.CharField(max_length=200)
     params = models.JSONField(default=dict, blank=True)
+    # What a recipient without access to the object sees (§ 5.2.3, § 20.2.2): the employee and the
+    # fact, not the closed details.
+    limited_params = models.JSONField(default=dict, blank=True)
     object_type = models.CharField(max_length=20, blank=True, default="")
     object_id = models.UUIDField(null=True, blank=True)
     state = models.CharField(max_length=10, choices=State.choices, default=State.ACTIVE)
@@ -80,6 +83,8 @@ class NotificationRecipient(models.Model):
     employment = models.ForeignKey(Employment, on_delete=models.PROTECT, related_name="+")
     read_at = models.DateTimeField(null=True, blank=True)
     added_at = models.DateTimeField(default=now)
+    # A recipient by the organisation structure without access to the object (§ 5.2.3).
+    limited = models.BooleanField(default=False)
 
     class Meta:
         db_table = "notification_recipient"

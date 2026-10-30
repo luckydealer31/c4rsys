@@ -46,6 +46,8 @@ export type Company = CompanySummary & {
   email: string;
   website: string;
   description: string;
+  /** § 3.1.8: additional profile fields made public. */
+  public_fields: string[];
   /** § 3.6.1: set while the company is deactivated. */
   deactivated_at: string | null;
   employment?: {
@@ -61,7 +63,15 @@ export type Company = CompanySummary & {
 /** An owner seen by the owners (§ 3.3.6) or a party before acceptance (§ 2.2.4, § 3.1.8). */
 export type PartyCard =
   | { type: "user"; public_id: string; first_name?: string; last_name?: string; username?: string }
-  | { type: "company"; public_id: string; display_name: string; logo?: string | null; country?: string };
+  | {
+      type: "company";
+      public_id: string;
+      display_name: string;
+      logo?: string | null;
+      country?: string;
+      /** Fields the company made public (§ 3.1.8, § 3.5.3). */
+      public?: Record<string, unknown>;
+    };
 
 export type ShareTransfer = {
   id: string;
@@ -301,21 +311,61 @@ export type Invitation = {
   data_given?: { required: string[]; optional: string[] };
 };
 
+export type OrgNode = { type: "employee" | "department"; id: string };
+
 export type Employee = {
   id: string;
   state: "invited" | "active" | "blocked" | "terminated";
-  position: { id: string; code: string; name: string; is_top_authority: boolean };
+  position: {
+    id: string;
+    code: string;
+    name: string;
+    is_top_authority: boolean;
+    is_dedicated?: boolean;
+  };
   user: {
     public_id: string;
     first_name: string;
     last_name: string;
     middle_name: string | null;
     email: string | null;
+    photo?: string | null;
+    phone?: string | null;
   } | null;
   started_at: string | null;
+  /** Work contacts, kept apart from the contacts used to sign in (§ 5.1.7). */
+  work_email: string;
+  work_phone: string;
+  responsibles: OrgNode[];
+  departments: { id: string; name: string }[];
+  termination: { at: string; reason: string } | null;
   version: number;
   rights: (RightSpec & { id: string; permissions: string[]; granted_at: string })[];
   invitation: Invitation | null;
+};
+
+/** An entry of the positions handbook (§ 5.1.5). */
+export type PositionEntry = {
+  id: string;
+  code: string;
+  name: string;
+  is_dedicated: boolean;
+  employees: number;
+};
+
+/** The organisation structure (§ 5.2). */
+export type OrgStructure = {
+  top: string | null;
+  departments: { id: string; name: string; parent: OrgNode; members: string[]; version: number }[];
+  links: { subordinate: string; responsible: OrgNode }[];
+  employees: {
+    id: string;
+    name: string;
+    state: Employee["state"];
+    position: { id: string; code: string; name: string };
+    is_top_authority: boolean;
+    linked: boolean;
+  }[];
 };
 
 export type PermissionCatalog = {

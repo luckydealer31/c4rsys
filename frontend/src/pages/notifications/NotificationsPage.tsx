@@ -25,6 +25,8 @@ export type CentreNotification = {
   last_at: string;
   repeats: number;
   read: boolean;
+  /** A recipient by the organisation structure without access to the object (§ 5.2.3). */
+  limited?: boolean;
 };
 
 const OBJECT_PATHS: Record<string, string> = {
@@ -59,7 +61,15 @@ export function NotificationBell() {
 }
 
 export function notificationText(t: (key: string, options?: Record<string, unknown>) => string, n: CentreNotification): string {
-  return t(`notifications.event_${n.event.replaceAll(".", "_")}`, { ...n.params, defaultValue: n.event });
+  const event = n.event.replaceAll(".", "_");
+  if (n.limited) {
+    // Only the employee and the fact (§ 5.2.3).
+    return t(`notifications.event_${event}_limited`, { ...n.params, defaultValue: n.event });
+  }
+  if (n.event === "task.overdue" && n.params.assignee_name) {
+    return t("notifications.event_task_overdue_of", { ...n.params });
+  }
+  return t(`notifications.event_${event}`, { ...n.params, defaultValue: n.event });
 }
 
 /** The notification centre of the user: every company, with filters (§ 20.1.5). */

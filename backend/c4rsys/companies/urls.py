@@ -1,10 +1,13 @@
 from django.urls import path
 
-from c4rsys.companies import ownership_views, staff_views, views
+from c4rsys.companies import org_views, ownership_views, staff_views, views
 
 urlpatterns = [
     path("companies", views.companies),
+    path("companies/lookup", views.company_lookup),
     path("c/<str:cmp>", views.company),
+    path("c/<str:cmp>/public-fields", views.public_fields),
+    path("c/<str:cmp>/profile-history", views.profile_history),
     path("c/<str:cmp>/locations", views.location_list),
     path("c/<str:cmp>/locations/<uuid:location_id>", views.location_detail),
     path("c/<str:cmp>/locations/<uuid:location_id>/contexts", views.location_contexts),
@@ -30,6 +33,23 @@ urlpatterns = [
     path("c/<str:cmp>/employees/<uuid:employment_id>/journal", staff_views.employee_journal),
     path("c/<str:cmp>/employees/<uuid:employment_id>/block", staff_views.employee_block),
     path("c/<str:cmp>/employees/<uuid:employment_id>/restore", staff_views.employee_restore),
+    path("c/<str:cmp>/employees/<uuid:employment_id>/terminate", staff_views.employee_terminate),
+    path(
+        "c/<str:cmp>/employees/<uuid:employment_id>/responsibles",
+        staff_views.employee_responsibles,
+    ),
+    # Positions handbook and organisation structure (§ 5.1.5, § 5.2).
+    path("c/<str:cmp>/positions", staff_views.positions),
+    path("c/<str:cmp>/positions/<uuid:position_id>", staff_views.position_detail),
+    path("c/<str:cmp>/org", org_views.org),
+    path("c/<str:cmp>/org/departments", org_views.department_create),
+    path("c/<str:cmp>/org/departments/<uuid:department_id>", org_views.department_detail),
+    path("c/<str:cmp>/org/departments/<uuid:department_id>/archive", org_views.department_archive),
+    path("c/<str:cmp>/org/departments/<uuid:department_id>/members", org_views.member_add),
+    path(
+        "c/<str:cmp>/org/departments/<uuid:department_id>/members/<uuid:employment_id>/remove",
+        org_views.member_remove,
+    ),
     # Owners, transfers, representatives, deactivation (§ 3.3–3.6).
     path("c/<str:cmp>/owners", ownership_views.owners),
     path("c/<str:cmp>/owners/transfers", ownership_views.transfer_start),

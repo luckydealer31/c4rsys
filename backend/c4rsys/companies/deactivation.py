@@ -77,12 +77,15 @@ ALLOWED = frozenset(
         "company.state_request_complete",
         "company.state_approval_answer",
         "company.update_profile",
-        # Access of employees: who settles, exports or restores needs access (§ 3.6.1).
+        "company.public_fields",
+        # Access of employees: who settles, exports or restores needs access (§ 3.6.1). The card,
+        # the positions handbook and the organisation structure are not changed (PROPOSAL).
         "employee.invite",
         "employee.cancel_invitation",
         "employee.change_rights",
         "employee.block",
         "employee.restore",
+        "employee.terminate",
         # History and export within the rights (§ 3.6.1).
         "data.export",
         "notification.read",

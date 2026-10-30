@@ -39,6 +39,8 @@ function InvitationCard({ invitation }: { invitation: Invitation }) {
   const client = useQueryClient();
   const [shareMiddle, setShareMiddle] = useState(false);
   const [shareEmail, setShareEmail] = useState(false);
+  const [sharePhoto, setSharePhoto] = useState(false);
+  const [sharePhone, setSharePhone] = useState(false);
   const accept = useCommand<Record<string, boolean>, unknown>(
     `/invitations/${invitation.id}/accept`,
   );
@@ -65,8 +67,18 @@ function InvitationCard({ invitation }: { invitation: Invitation }) {
       </label>
       <br />
       <label className="small">
+        <input type="checkbox" checked={sharePhoto} onChange={() => setSharePhoto(!sharePhoto)} />{" "}
+        {t("invitations.share_photo")}
+      </label>
+      <br />
+      <label className="small">
         <input type="checkbox" checked={shareEmail} onChange={() => setShareEmail(!shareEmail)} />{" "}
         {t("invitations.share_email")}
+      </label>
+      <br />
+      <label className="small">
+        <input type="checkbox" checked={sharePhone} onChange={() => setSharePhone(!sharePhone)} />{" "}
+        {t("invitations.share_phone")}
       </label>
       <p className="muted small">{t("invitations.consent")}</p>
       <ErrorMessage error={accept.error ?? decline.error} />
@@ -75,8 +87,12 @@ function InvitationCard({ invitation }: { invitation: Invitation }) {
           type="button"
           onClick={async () => {
             if (
-              (await accept.run({ share_middle_name: shareMiddle, share_email: shareEmail })) !==
-              null
+              (await accept.run({
+                share_middle_name: shareMiddle,
+                share_email: shareEmail,
+                share_photo: sharePhoto,
+                share_phone: sharePhone,
+              })) !== null
             )
               await done();
           }}

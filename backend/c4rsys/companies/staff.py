@@ -1,6 +1,7 @@
-"""Employees: invitation and its acceptance, blocking and restoring access.
+"""Employees: invitation and its acceptance, the card and the positions handbook, blocking,
+restoring and terminating access.
 
-ТЗ § 2.5.1–2.5.2, § 5.1.1–5.1.7, § 23.3.1, § 23.3.10.
+ТЗ § 2.5.1–2.5.2, § 5.1.1–5.1.7, § 5.3, § 23.3.1, § 23.3.9, § 23.3.10.
 """
 
 from dataclasses import dataclass
@@ -15,8 +16,8 @@ from django.utils import timezone
 from c4rsys.accounts import mail
 from c4rsys.accounts import services as accounts
 from c4rsys.accounts.models import UserAccount
-from c4rsys.companies import access
-from c4rsys.companies.models import Company, Employment, Invitation, Position
+from c4rsys.companies import access, orgstructure
+from c4rsys.companies.models import Company, Employment, Invitation, OwnerSeat, Position
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
 from c4rsys.platform.ids import normalize_public_id
@@ -166,6 +167,7 @@ def invite(
             object_id=card.id,
             after={"position": str(position.id), "state": card.state},
         )
+        orgstructure.attach_new(ctx, card)
     elif card.position_id != position.id:
         card.position = position
         card.save(update_fields=["position"])
@@ -267,6 +269,8 @@ class SharedData:
 
     middle_name: bool = False
     email: bool = False
+    photo: bool = False
+    phone: bool = False
 
 
 def accept(
@@ -286,6 +290,8 @@ def accept(
     card.started_at = now
     card.shares_middle_name = shared.middle_name
     card.shares_email = shared.email
+    card.shares_photo = shared.photo
+    card.shares_phone = shared.phone
     card.version += 1
     card.save(
         update_fields=[
@@ -294,6 +300,8 @@ def accept(
             "started_at",
             "shares_middle_name",
             "shares_email",
+            "shares_photo",
+            "shares_phone",
             "version",
         ]
     )
@@ -315,7 +323,12 @@ def accept(
         after={
             "employment": str(card.id),
             "user": user.public_id,
-            "shared": {"middle_name": shared.middle_name, "email": shared.email},
+            "shared": {
+                "middle_name": shared.middle_name,
+                "email": shared.email,
+                "photo": shared.photo,
+                "phone": shared.phone,
+            },
         },
         company_id=invitation.company_id,
     )
@@ -344,7 +357,9 @@ def set_blocked(
     ctx: CommandContext, company_id: UUID, employment_id: UUID, *, blocked: bool
 ) -> Employment:
     """A blocked employee loses access at once; restoring is a separate action. The own access and
-    that of the director with top authority are not changed this way."""
+    that of the director with top authority are not changed this way. Before a responsible is
+    blocked his subordinates must keep active responsibles (§ 5.2.4)."""
+    orgstructure.lock(company_id)
     employment = (
         Employment.objects.select_for_update()
         .select_related("position")
@@ -364,6 +379,8 @@ def set_blocked(
     )
     if employment.state != source:
         raise errors.business_rule("EMPLOYMENT_STATE_INVALID", state=employment.state)
+    if blocked:
+        orgstructure.check_can_disable(company_id, employment.id)
     employment.state = target
     employment.version += 1
     employment.save(update_fields=["state", "version"])
@@ -373,6 +390,185 @@ def set_blocked(
         object_id=employment.id,
         before={"state": source},
         after={"state": target},
+    )
+    return employment
+
+
+# --- Termination of access (§ 5.3.1, § 5.3.3, § 23.3.1) ----------------------------------------
+
+
+def holds_owner_seat(employment_id: UUID) -> bool:
+    return (
+        OwnerSeat.objects.filter(holder_id=employment_id)
+        .exclude(state=OwnerSeat.State.ENDED)
+        .exists()
+    )
+
+
+def terminate(
+    ctx: CommandContext, company_id: UUID, employment_id: UUID, reason: str
+) -> Employment:
+    """Ends the employee's access to the company. The personal account stays, the history of his
+    operations stays with him as the author, the operations he created are not cancelled and his
+    rights pass to nobody (§ 5.3.1, § 5.3.3). His subordinates must keep active responsibles
+    (§ 5.2.4). The top authority and the holder of an owner's dedicated position leave only by
+    the ownership procedures (§ 3.4.4, § 3.4.6)."""
+    orgstructure.lock(company_id)
+    employment = (
+        Employment.objects.select_for_update(of=("self",))
+        .select_related("position")
+        .filter(company_id=company_id, pk=employment_id)
+        .first()
+    )
+    if employment is None:
+        raise errors.not_found()
+    if employment.id == ctx.actor.employment_id:
+        raise errors.business_rule("SELF_ACCESS_CHANGE_FORBIDDEN")
+    if employment.position.is_top_authority:
+        raise errors.business_rule("EMPLOYEE_IS_TOP_AUTHORITY")
+    if holds_owner_seat(employment.id):
+        raise errors.business_rule("EMPLOYEE_HOLDS_OWNER_SEAT")
+    if employment.state not in CURRENT_STATES:
+        raise errors.business_rule("EMPLOYMENT_STATE_INVALID", state=employment.state)
+    orgstructure.check_can_disable(company_id, employment.id)
+    before = employment.state
+    employment.state = Employment.State.TERMINATED
+    employment.terminated_at = timezone.now()
+    employment.terminated_by_user_id = ctx.actor.user_id
+    employment.termination_reason = reason
+    employment.version += 1
+    employment.save(
+        update_fields=[
+            "state",
+            "terminated_at",
+            "terminated_by_user_id",
+            "termination_reason",
+            "version",
+        ]
+    )
+    ctx.audit(
+        "employee.access_terminated",
+        object_type="employment",
+        object_id=employment.id,
+        before={"state": before},
+        after={"state": employment.state},
+        reason=reason,
+    )
+    orgstructure.on_terminated(ctx, employment)
+    return employment
+
+
+# --- Positions handbook and the card (§ 5.1.4, § 5.1.5, § 5.1.7, § 23.3.9) ---------------------
+
+
+def positions_of(company_id: UUID) -> QuerySet[Position]:
+    return Position.objects.filter(company_id=company_id).order_by("created_at")
+
+
+def _name_taken(company_id: UUID, name: str, exclude: UUID | None = None) -> bool:
+    query = Position.objects.filter(company_id=company_id, name__iexact=name)
+    if exclude is not None:
+        query = query.exclude(pk=exclude)
+    return query.exists()
+
+
+def create_position(ctx: CommandContext, company_id: UUID, name: str) -> Position:
+    """A position added to the handbook for reuse (§ 5.1.5). A name gives no rights (§ 5.1.4)."""
+    orgstructure.lock(company_id)
+    if _name_taken(company_id, name):
+        raise errors.business_rule("POSITION_NAME_TAKEN", field="name")
+    position = Position.objects.create(company_id=company_id, name=name)
+    ctx.audit(
+        "position.created", object_type="position", object_id=position.id, after={"name": name}
+    )
+    return position
+
+
+def rename_position(
+    ctx: CommandContext, company_id: UUID, position_id: UUID, name: str
+) -> Position:
+    """The dedicated positions of the top authority and of owners keep their names (PROPOSAL):
+    they are governed by § 3.3.4 and § 3.4.1."""
+    orgstructure.lock(company_id)
+    position = (
+        Position.objects.select_for_update().filter(company_id=company_id, pk=position_id).first()
+    )
+    if position is None:
+        raise errors.not_found()
+    if position.is_top_authority or position.is_owner_position or position.code:
+        raise errors.business_rule("POSITION_SPECIAL")
+    if _name_taken(company_id, name, exclude=position.id):
+        raise errors.business_rule("POSITION_NAME_TAKEN", field="name")
+    before = position.name
+    position.name = name
+    position.save(update_fields=["name"])
+    ctx.audit(
+        "position.renamed",
+        object_type="position",
+        object_id=position.id,
+        before={"name": before},
+        after={"name": name},
+    )
+    return position
+
+
+@dataclass(frozen=True)
+class CardChanges:
+    position: PositionChoice | None = None
+    work_email: str | None = None
+    work_phone: str | None = None
+
+
+def update_card(
+    ctx: CommandContext,
+    company: Company,
+    employment_id: UUID,
+    changes: CardChanges,
+    expected_version: int,
+) -> Employment:
+    """Position from the handbook (or a new one added to it) and the work contacts, kept apart
+    from the contacts used to sign in (§ 5.1.5, § 5.1.7). Changing the card changes no rights
+    (§ 23.3.9). The dedicated positions of the top authority and of owners are not changed here
+    (§ 3.3.4, § 3.4.6)."""
+    if changes.position is not None and changes.position.position_id is None:
+        orgstructure.lock(company.id)
+    employment = (
+        Employment.objects.select_for_update(of=("self",))
+        .select_related("position")
+        .filter(company_id=company.id, pk=employment_id)
+        .first()
+    )
+    if employment is None:
+        raise errors.not_found()
+    if employment.state == Employment.State.TERMINATED:
+        raise errors.business_rule("EMPLOYMENT_TERMINATED")
+    if employment.version != expected_version:
+        raise errors.version_conflict()
+    before: dict[str, Any] = {}
+    after: dict[str, Any] = {}
+    if changes.position is not None:
+        current = employment.position
+        if current.is_top_authority or current.is_owner_position:
+            raise errors.business_rule("EMPLOYEE_POSITION_DEDICATED", field="position_id")
+        position = _position(company, changes.position, timezone.now())
+        if position.id != current.id:
+            before["position"], after["position"] = str(current.id), str(position.id)
+            employment.position = position
+    for key in ("work_email", "work_phone"):
+        value = getattr(changes, key)
+        if value is not None and value != getattr(employment, key):
+            before[key], after[key] = getattr(employment, key), value
+            setattr(employment, key, value)
+    if not after:
+        return employment
+    employment.version += 1
+    employment.save(update_fields=["position", "work_email", "work_phone", "version"])
+    ctx.audit(
+        "employee.card_changed",
+        object_type="employment",
+        object_id=employment.id,
+        before=before,
+        after=after,
     )
     return employment
 

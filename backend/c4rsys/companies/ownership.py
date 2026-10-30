@@ -25,7 +25,7 @@ from django.utils import timezone
 
 from c4rsys.accounts import services as accounts
 from c4rsys.accounts.models import UserAccount
-from c4rsys.companies import access
+from c4rsys.companies import access, orgstructure, services
 from c4rsys.companies.models import (
     Company,
     Employment,
@@ -135,6 +135,8 @@ def search_card(party: Party) -> dict[str, Any]:
             "display_name": party.company.display_name,
             "logo": str(party.company.logo_id) if party.company.logo_id else None,
             "country": party.company.country,
+            # Fields the company made public (§ 3.1.8, § 3.5.3).
+            "public": services.public_data(party.company),
         }
     if party.user is None:
         raise ValueError("party.user")
@@ -290,6 +292,7 @@ def _terminate(ctx: CommandContext, employment: Employment, reason: str) -> None
         reason=reason,
         company_id=employment.company_id,
     )
+    orgstructure.on_terminated(ctx, employment)
 
 
 def _release_holder(ctx: CommandContext, seat: OwnerSeat, reason: str) -> None:
@@ -382,6 +385,7 @@ def _activate_seat(ctx: CommandContext, seat: OwnerSeat, party: Party, now: date
                 },
                 company_id=seat.company_id,
             )
+            orgstructure.attach_new(ctx, employment)
         seat.holder = employment
     seat.version += 1
     seat.save(update_fields=["state", "activated_at", "holder", "version"])
@@ -811,6 +815,9 @@ def _pass_top_authority(
         holder.position = position
         holder.version += 1
         holder.save(update_fields=["position", "version"])
+    # The new top manager is at the top of the structure; whoever was left without a responsible
+    # is put under him (§ 5.2.1).
+    orgstructure.reattach_orphans(ctx, old_top.company_id)
     ctx.audit(
         "ownership.top_authority_passed",
         object_type="owner_seat",
@@ -972,6 +979,7 @@ def assign_representative(
         state=Employment.State.INVITED,
         created_at=now,
     )
+    orgstructure.attach_new(ctx, card)
     invitation = Invitation.objects.create(
         company_id=seat.company_id,
         employment=card,

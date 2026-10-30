@@ -52,6 +52,9 @@ class Company(models.Model):
     email = models.CharField(max_length=254, blank=True, default="")
     website = models.CharField(max_length=300, blank=True, default="")
     description = models.TextField(blank=True, default="")
+    # § 3.1.8: additional profile fields the company made public; they are shown in the minimal
+    # search card next to the name, logo, country and company ID (§ 3.5.3).
+    public_fields = ArrayField(models.CharField(max_length=40), default=list, blank=True)
     created_by = models.ForeignKey(UserAccount, on_delete=models.PROTECT, related_name="+")
     created_at = models.DateTimeField(default=now)
     updated_at = models.DateTimeField(auto_now=True)
@@ -182,6 +185,12 @@ class Employment(models.Model):
     # Data the user chose to give the company on acceptance; first and last name always (§ 5.1.7).
     shares_middle_name = models.BooleanField(default=False)
     shares_email = models.BooleanField(default=False)
+    shares_photo = models.BooleanField(default=False)
+    shares_phone = models.BooleanField(default=False)
+    # Termination of access (§ 5.3.1): the account, the history and the operations stay.
+    terminated_at = models.DateTimeField(null=True, blank=True)
+    terminated_by_user_id = models.UUIDField(null=True, blank=True)
+    termination_reason = models.CharField(max_length=500, blank=True, default="")
     created_at = models.DateTimeField(default=now)
     version = models.PositiveIntegerField(default=1)
 
@@ -198,6 +207,129 @@ class Employment(models.Model):
 
     def __str__(self) -> str:
         return f"employment {self.id}"
+
+
+class Department(models.Model):
+    """A department of the organisation structure (§ 5.2.1).
+
+    A department is subordinate either to another department or to a manager (an employee);
+    exactly one of the two. Self-subordination and cycles are refused by companies.orgstructure.
+    An archived department keeps its history and takes no new links.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    name = models.CharField(max_length=150)
+    parent_department = models.ForeignKey(
+        "self", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    parent_employment = models.ForeignKey(
+        Employment, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    created_at = models.DateTimeField(default=now)
+    archived_at = models.DateTimeField(null=True, blank=True)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "department"
+        constraints = [
+            models.UniqueConstraint(fields=["company", "id"], name="department_company_id_uniq"),
+            models.CheckConstraint(condition=~Q(name=""), name="department_name_not_empty"),
+            models.CheckConstraint(
+                condition=Q(parent_department__isnull=False, parent_employment__isnull=True)
+                | Q(parent_department__isnull=True, parent_employment__isnull=False),
+                name="department_one_parent",
+            ),
+            models.CheckConstraint(
+                condition=~Q(parent_department=models.F("id")), name="department_not_own_parent"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class DepartmentMember(models.Model):
+    """An employee of a department (§ 5.2.1, § 5.2.3). Rows are not deleted: leaving the
+    department sets `removed_at`, so the history stays."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    department = models.ForeignKey(Department, on_delete=models.PROTECT, related_name="+")
+    employment = models.ForeignKey(Employment, on_delete=models.PROTECT, related_name="+")
+    added_at = models.DateTimeField(default=now)
+    added_by_user_id = models.UUIDField(null=True, blank=True)
+    removed_at = models.DateTimeField(null=True, blank=True)
+    removed_by_user_id = models.UUIDField(null=True, blank=True)
+
+    class Meta:
+        db_table = "department_member"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["department", "employment"],
+                condition=Q(removed_at__isnull=True),
+                name="department_member_current_uniq",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.employment_id}@{self.department_id}"
+
+
+class Responsibility(models.Model):
+    """A responsible of an employee: another employee or a department (§ 5.2.1, § 5.2.4).
+
+    An employee may have several. A link is ended, not deleted (`ended_at`), so the history of
+    subordination stays. The position in the structure gives no rights (§ 5.2.1).
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    subordinate = models.ForeignKey(Employment, on_delete=models.PROTECT, related_name="+")
+    responsible_employment = models.ForeignKey(
+        Employment, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    responsible_department = models.ForeignKey(
+        Department, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    created_at = models.DateTimeField(default=now)
+    created_by_user_id = models.UUIDField(null=True, blank=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    ended_by_user_id = models.UUIDField(null=True, blank=True)
+
+    class Meta:
+        db_table = "responsibility"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(
+                    responsible_employment__isnull=False, responsible_department__isnull=True
+                )
+                | Q(responsible_employment__isnull=True, responsible_department__isnull=False),
+                name="responsibility_one_responsible",
+            ),
+            # § 5.2.4: no self-subordination.
+            models.CheckConstraint(
+                condition=~Q(responsible_employment=models.F("subordinate")),
+                name="responsibility_not_self",
+            ),
+            models.UniqueConstraint(
+                fields=["subordinate", "responsible_employment"],
+                condition=Q(ended_at__isnull=True, responsible_employment__isnull=False),
+                name="responsibility_current_employee_uniq",
+            ),
+            models.UniqueConstraint(
+                fields=["subordinate", "responsible_department"],
+                condition=Q(ended_at__isnull=True, responsible_department__isnull=False),
+                name="responsibility_current_department_uniq",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["company", "ended_at"], name="responsibility_company_idx"),
+        ]
+
+    def __str__(self) -> str:
+        target = self.responsible_employment_id or self.responsible_department_id
+        return f"{self.subordinate_id} <- {target}"
 
 
 WEEKDAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
