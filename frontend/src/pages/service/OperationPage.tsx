@@ -41,6 +41,7 @@ export function ServiceOperationPage() {
   const { t, i18n } = useTranslation();
   const { id } = useParams();
   const company = useCompany();
+  const can = useCan();
   const locations = useLocations();
   const query = useServiceOperation(id);
   const op = query.data?.operation;
@@ -124,6 +125,7 @@ export function ServiceOperationPage() {
       <LinkedDocuments objectType="service_operation" objectId={op.id} />
       <LinkedTasks objectType="service_operation" objectId={op.id} />
       {!final ? <OperationActions op={op} zone={zone} /> : null}
+      {op.state === "works_done" && can("service.reopen") ? <Reopen op={op} /> : null}
     </div>
   );
 }
@@ -299,6 +301,39 @@ function Finish({ op }: { op: ServiceOperation }) {
   );
 }
 
+/** A service finished by mistake is opened again by a separate right (§ 16.8.2): works may be
+ * added or corrected and it is finished again; the done works keep their results. */
+function Reopen({ op }: { op: ServiceOperation }) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const refresh = useRefresh();
+  const [reason, setReason] = useState("");
+  const reopen = useCommand<Record<string, unknown>, Result>(opCommand(company.public_id, op, "reopen"));
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (await reopen.run({ reason, expected_version: op.version })) {
+      setReason("");
+      await refresh();
+    }
+  }
+  return (
+    <Card title={t("service.reopen_title")}>
+      <p className="muted small">{t("service.reopen_hint")}</p>
+      <form className="row" onSubmit={submit}>
+        <Field label={t("service.reopen_reason")}>
+          <input value={reason} onChange={(e) => setReason(e.target.value)} />
+        </Field>
+        <div className="actions">
+          <button type="submit" className="secondary" disabled={reopen.pending || !reason.trim()}>
+            {t("service.reopen")}
+          </button>
+        </div>
+      </form>
+      <ErrorMessage error={reopen.error} />
+    </Card>
+  );
+}
+
 /** «Cancel» before any start, «Terminate» after one (§ 16.4.8). */
 function End({ op }: { op: ServiceOperation }) {
   const { t } = useTranslation();
@@ -424,7 +459,7 @@ function Jobs({ op, zone }: { op: ServiceOperation; zone: string }) {
   );
 }
 
-type Mode = "" | "start" | "complete" | "terminate" | "cancel" | "price" | "assign" | "contractor-cost";
+type Mode = "" | "start" | "complete" | "terminate" | "cancel" | "price" | "assign" | "contractor-cost" | "correct";
 
 function JobActions({ op, job, zone }: { op: ServiceOperation; job: ServiceJob; zone: string }) {
   const { t } = useTranslation();
@@ -442,6 +477,8 @@ function JobActions({ op, job, zone }: { op: ServiceOperation; job: ServiceJob; 
     ["cancel", t("service.cancel_job"), job.state === "planned" && can("service.cancel")],
     ["price", t("service.change_price"), job.state !== "cancelled" && orderOpen && can("service.price")],
     ["contractor-cost", t("service.contractor_cost"), !own && job.state !== "cancelled" && orderOpen && can("service.external")],
+    // § 16.8.2: the facts of a finished work are corrected by a separate right.
+    ["correct", t("service.correct_job"), (job.state === "done" || job.state === "terminated") && orderOpen && can("service.reopen")],
   ];
   const visible = buttons.filter(([, , shown]) => shown);
   if (visible.length === 0) return null;
@@ -488,9 +525,12 @@ function JobForm({ mode, job, zone, onDone }: { mode: Exclude<Mode, "">; job: Se
   const company = useCompany();
   const refresh = useRefresh();
   const executors = useExecutors(mode === "assign");
-  const [at, setAt] = useState(toLocalInput(new Date(), zone));
-  const [odometer, setOdometer] = useState("");
-  const [comment, setComment] = useState("");
+  const [at, setAt] = useState(
+    toLocalInput(mode === "correct" && job.actual_end ? new Date(job.actual_end) : new Date(), zone),
+  );
+  const [startAt, setStartAt] = useState(job.actual_start ? toLocalInput(new Date(job.actual_start), zone) : "");
+  const [odometer, setOdometer] = useState(mode === "correct" && job.odometer ? String(Number(job.odometer)) : "");
+  const [comment, setComment] = useState(mode === "correct" ? job.comment : "");
   const [reason, setReason] = useState("");
   const [amount, setAmount] = useState(job.price !== null ? String(Number(job.price)) : "");
   const [executor, setExecutor] = useState(job.executor_id ?? "");
@@ -515,6 +555,13 @@ function JobForm({ mode, job, zone, onDone }: { mode: Exclude<Mode, "">; job: Se
     if (mode === "terminate" || mode === "cancel") body.reason = reason;
     if (mode === "terminate" || mode === "price") body.price = number(amount);
     if (mode === "assign") body.executor_id = executor || null;
+    if (mode === "correct") {
+      if (startAt) body.actual_start = fromLocalInput(startAt, zone);
+      body.actual_end = fromLocalInput(at, zone);
+      if (job.state === "done" && odometer.trim()) body.odometer = number(odometer);
+      body.comment = comment;
+      body.reason = reason;
+    }
     const result = await command.run(body);
     if (result) {
       await refresh();
@@ -523,6 +570,34 @@ function JobForm({ mode, job, zone, onDone }: { mode: Exclude<Mode, "">; job: Se
   }
 
   const fields: ReactNode[] = [];
+  if (mode === "correct") {
+    fields.push(
+      <p key="hint" className="muted small" style={{ flexBasis: "100%" }}>
+        {t("service.correct_hint")}
+      </p>,
+      <Field key="start" label={t("service.actual_start")}>
+        <input type="datetime-local" value={startAt} onChange={(e) => setStartAt(e.target.value)} />
+      </Field>,
+      <Field key="end" label={t("service.actual_end")}>
+        <input type="datetime-local" value={at} onChange={(e) => setAt(e.target.value)} />
+      </Field>,
+    );
+    if (job.state === "done") {
+      fields.push(
+        <Field key="odometer" label={t("service.odometer")}>
+          <input inputMode="decimal" value={odometer} onChange={(e) => setOdometer(e.target.value)} />
+        </Field>,
+      );
+    }
+    fields.push(
+      <Field key="comment" label={t("service.comment")}>
+        <input value={comment} onChange={(e) => setComment(e.target.value)} />
+      </Field>,
+      <Field key="reason" label={t("service.correct_reason")}>
+        <input value={reason} onChange={(e) => setReason(e.target.value)} />
+      </Field>,
+    );
+  }
   if (mode === "start" || mode === "complete" || mode === "terminate") {
     fields.push(
       <Field key="at" label={mode === "start" ? t("service.actual_start") : t("service.actual_end")}>
@@ -583,6 +658,7 @@ function JobForm({ mode, job, zone, onDone }: { mode: Exclude<Mode, "">; job: Se
     (mode === "complete" && !contractor && !odometer.trim()) ||
     (mode === "contractor-cost" && !cost.trim()) ||
     (mode === "terminate" && !reason.trim()) ||
+    (mode === "correct" && !reason.trim()) ||
     (mode === "price" && !amount.trim());
   return (
     <form className="row" onSubmit={submit}>

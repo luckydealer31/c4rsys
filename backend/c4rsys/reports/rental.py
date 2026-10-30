@@ -289,6 +289,7 @@ def _fleet_blocks(
     for card_id, low, high in (
         OdometerReading.objects.filter(
             vehicle_card_id__in=ids,
+            replaced_by__isnull=True,
             measured_at__gte=filters.start_at,
             measured_at__lt=filters.end_at,
         )

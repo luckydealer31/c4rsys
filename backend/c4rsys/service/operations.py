@@ -1181,3 +1181,103 @@ def client_view_for_order(company_id: UUID, order_id: UUID) -> list[dict[str, An
             }
         )
     return result
+
+
+# --- Corrections (§ 16.8; part С6) ---------------------------------------------------------------
+
+
+def reopen_operation(ctx: CommandContext, op: ServiceOperation, reason: str) -> ServiceOperation:
+    """A service finished by mistake is opened again by a separate right (§ 16.8.2): works may be
+    added or corrected and it is finished again. The works, their results and the past occupancy
+    of the vehicle and the post stay; no new occupancy is created. A closed order is reopened
+    first (§ 12.2.3)."""
+    if not reason.strip():
+        raise errors.validation_error("reason", code="FIELD_REQUIRED")
+    if op.state != Op.WORKS_DONE:
+        raise errors.business_rule("SERVICE_OPERATION_NOT_FINISHED", state=op.state)
+    orders.ensure_open(op.company_id, op.order_id)
+    finished_at = op.finished_at
+    op.state = Op.IN_PROGRESS
+    op.finished_at = None
+    _bump(op, "state", "finished_at")
+    ctx.audit(
+        "service_operation.reopened",
+        object_type="service_operation",
+        object_id=op.id,
+        before={"state": Op.WORKS_DONE, "finished_at": finished_at},
+        after={"state": op.state},
+        reason=reason,
+    )
+    return op
+
+
+def correct_job(
+    ctx: CommandContext,
+    job: ServiceJob,
+    *,
+    reason: str,
+    actual_start: datetime | None,
+    actual_end: datetime | None,
+    odometer: Decimal | None,
+    comment: str | None,
+) -> ServiceJob:
+    """Corrects the facts of a done or terminated work in one action: it is opened, corrected
+    and finished again; the original facts stay in the history (§ 16.8.2). The charge, the
+    materials and the documents are not changed by it (§ 16.8.1). An impossible chronology is
+    not saved. A corrected odometer replaces the reading of the work, so the next maintenance
+    counts from the corrected facts (§ 9.1.11)."""
+    if not reason.strip():
+        raise errors.validation_error("reason", code="FIELD_REQUIRED")
+    if job.state not in (Job.DONE, Job.TERMINATED):
+        raise errors.business_rule("SERVICE_JOB_NOT_FINISHED", state=job.state)
+    op = job.operation
+    orders.ensure_open(op.company_id, op.order_id)
+    start = actual_start or job.actual_start
+    end = actual_end or job.actual_end
+    for moment, field in ((start, "actual_start"), (end, "actual_end")):
+        if moment is not None:
+            _not_future(moment, field)
+    if op.accepted_at is not None and start is not None and job.contractor_id is None:
+        if start < op.accepted_at:
+            raise errors.validation_error("actual_start", code="START_BEFORE_ACCEPTANCE")
+    if start is not None and end is not None and end < start:
+        raise errors.validation_error("actual_end", code="PERIOD_INVALID")
+    if odometer is not None and job.state != Job.DONE:
+        raise errors.validation_error("odometer", code="FIELD_NOT_APPLICABLE")
+    before = job_snapshot(job)
+    before["comment"] = job.comment
+    job.actual_start = start
+    job.actual_end = end
+    if comment is not None:
+        job.comment = comment
+    reading_moved = end != before["actual_end"]
+    if odometer is not None or (reading_moved and job.odometer is not None):
+        value = odometer if odometer is not None else job.odometer
+        if value is not None and end is not None:
+            card = VehicleCard.objects.get(pk=op.vehicle_card_id)
+            fleet.replace_reading(
+                ctx,
+                card,
+                source_type="service_job",
+                source_id=job.id,
+                measured_at=end,
+                value=value,
+            )
+            job.odometer = value
+    job.version += 1
+    job.save()
+    after = job_snapshot(job)
+    after["comment"] = job.comment
+    changed = {k for k in after if after[k] != before.get(k)}
+    if not changed:
+        raise errors.business_rule("NOTHING_CHANGED")
+    ctx.audit(
+        "service_job.corrected",
+        object_type="service_job",
+        object_id=job.id,
+        before={k: before.get(k) for k in changed},
+        after={k: after[k] for k in changed},
+        reason=reason,
+    )
+    _bump(op)
+    return job

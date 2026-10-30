@@ -917,7 +917,9 @@
     "owner_request_expired": "คำขอหมดอายุ",
     "owner_answer_given": "ตอบคำถามนี้แล้ว",
     "cabinet_host": "นี่คือบัญชีส่วนตัว",
-    "export_expired": "ลิงก์หมดอายุแล้ว"
+    "export_expired": "ลิงก์หมดอายุแล้ว",
+    "service_operation_not_finished": "บริการยังไม่เสร็จ",
+    "service_job_not_finished": "แก้ไขได้เฉพาะงานที่เสร็จหรือหยุดแล้ว"
   },
   "history": {
     "action": "Action",
@@ -1290,7 +1292,8 @@
     "reports_view": "ดูรายงาน",
     "reports_export": "ส่งออกรายงาน",
     "company_link_answer": "ตอบคำขอเชื่อมกับบริษัท",
-    "data_export": "ส่งออกข้อมูลทั้งหมด"
+    "data_export": "ส่งออกข้อมูลทั้งหมด",
+    "service_reopen": "เปิดบริการอีกครั้งและแก้ไขงานที่เสร็จแล้ว"
   },
   "positions": {
     "director": "Director"
@@ -2863,7 +2866,14 @@
     "no_history": "ยังไม่มีงาน",
     "maintenance_due": "ถึงกำหนดบำรุงรักษา",
     "blocker_service_act_missing": "ไม่มีใบรับรองงานที่เสร็จ: คำสั่งซื้อจะปิดไม่ได้",
-    "blocker_service_act_not_signed": "ลูกค้ายังไม่ลงนามใบรับรอง: คำสั่งซื้อจะปิดไม่ได้"
+    "blocker_service_act_not_signed": "ลูกค้ายังไม่ลงนามใบรับรอง: คำสั่งซื้อจะปิดไม่ได้",
+    "reopen_title": "เปิดเพื่อแก้ไข",
+    "reopen_hint": "สำหรับบริการที่ปิดผิดพลาด สามารถเพิ่มหรือแก้ไขงานแล้วปิดอีกครั้ง",
+    "reopen_reason": "เหตุผล",
+    "reopen": "เปิดอีกครั้ง",
+    "correct_job": "แก้ไข",
+    "correct_hint": "ข้อมูลเดิมยังอยู่ในประวัติ ค่าใช้จ่าย วัสดุ และเอกสารไม่เปลี่ยน",
+    "correct_reason": "เหตุผลการแก้ไข"
   },
   "trips": {
     "new": "การเดินทางใหม่",

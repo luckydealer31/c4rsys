@@ -686,6 +686,58 @@ def operation_finish(request: HttpRequest, cmp: str, operation_id: UUID) -> Json
 
 
 @require_POST
+def operation_reopen(request: HttpRequest, cmp: str, operation_id: UUID) -> JsonResponse:
+    """Opening a finished service again for corrections (§ 16.8.2): a separate right."""
+
+    def action(ctx: CommandContext | None, op: Any, data: dict[str, Any]) -> None:
+        reason = _text(data, "reason", required=True)
+        if ctx is not None:
+            operations.reopen_operation(ctx, op, reason)
+
+    return _operation_command(
+        request,
+        cmp,
+        operation_id,
+        "service.reopen",
+        "service_operation.reopen",
+        action,
+        ("reason",),
+    )
+
+
+@require_POST
+def job_correct(request: HttpRequest, cmp: str, job_id: UUID) -> JsonResponse:
+    """Correcting the facts of a done or terminated work (§ 16.8.2): a separate right."""
+
+    def action(ctx: CommandContext | None, job: Any, data: dict[str, Any]) -> None:
+        reason = _text(data, "reason", required=True)
+        start = _moment(data, "actual_start", required=False)
+        end = _moment(data, "actual_end", required=False)
+        odometer = _amount(data, "odometer", places=1)
+        comment = _text(data, "comment", required=False) if "comment" in data else None
+        if ctx is not None:
+            operations.correct_job(
+                ctx,
+                job,
+                reason=reason,
+                actual_start=start,
+                actual_end=end,
+                odometer=odometer,
+                comment=comment,
+            )
+
+    return _job_command(
+        request,
+        cmp,
+        job_id,
+        "service.reopen",
+        "service_job.correct",
+        action,
+        ("reason", "actual_start", "actual_end", "odometer", "comment"),
+    )
+
+
+@require_POST
 def operation_cancel(request: HttpRequest, cmp: str, operation_id: UUID) -> JsonResponse:
     def action(ctx: CommandContext | None, op: Any, data: dict[str, Any]) -> None:
         reason = _text(data, "reason", required=True)

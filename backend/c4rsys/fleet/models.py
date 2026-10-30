@@ -271,6 +271,10 @@ class OdometerReading(models.Model):
     unit = models.CharField(max_length=2, choices=VehicleCard.OdometerUnit.choices)
     source_type = models.CharField(max_length=30)
     source_id = models.UUIDField(null=True, blank=True)
+    # A wrong reading is not changed: the corrected one replaces it and both stay (§ 16.8.2).
+    replaced_by = models.ForeignKey(
+        "self", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
 
     class Meta:
         db_table = "odometer_reading"

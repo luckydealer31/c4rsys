@@ -325,10 +325,42 @@ def update_vehicle(
 # --- Odometer (§ 8.2.12) --------------------------------------------------------------------
 
 
+def replace_reading(
+    ctx: CommandContext,
+    card: VehicleCard,
+    *,
+    source_type: str,
+    source_id: UUID,
+    measured_at: datetime,
+    value: Decimal,
+) -> OdometerReading:
+    """A corrected reading of a source replaces its wrong one; the wrong one stays with the link
+    to its replacement (§ 16.8.2). The sequence is checked without the replaced reading."""
+    old = (
+        OdometerReading.objects.select_for_update()
+        .filter(vehicle_card=card, source_type=source_type, source_id=source_id)
+        .filter(replaced_by__isnull=True)
+        .first()
+    )
+    new = record_reading(
+        ctx,
+        card,
+        measured_at=measured_at,
+        value=value,
+        source_type=source_type,
+        source_id=source_id,
+        replaces=old,
+    )
+    if old is not None:
+        old.replaced_by = new
+        old.save(update_fields=["replaced_by"])
+    return new
+
+
 def current_reading(card_id: UUID) -> OdometerReading | None:
     """The latest measurement, not the latest entry."""
     return (
-        OdometerReading.objects.filter(vehicle_card_id=card_id)
+        OdometerReading.objects.filter(vehicle_card_id=card_id, replaced_by__isnull=True)
         .order_by("-measured_at", "-entered_at")
         .first()
     )
@@ -342,6 +374,7 @@ def record_reading(
     value: Decimal,
     source_type: str,
     source_id: UUID | None = None,
+    replaces: OdometerReading | None = None,
 ) -> OdometerReading:
     """Stores a reading inside the caller's command (inspections). The card row is locked so that
     concurrent readings are checked against each other. A value below the nearest earlier
@@ -350,7 +383,9 @@ def record_reading(
     if value < 0:
         raise errors.validation_error("odometer", code="ODOMETER_INVALID")
     VehicleCard.objects.select_for_update().filter(pk=card.pk).first()
-    readings = OdometerReading.objects.filter(vehicle_card=card)
+    readings = OdometerReading.objects.filter(vehicle_card=card, replaced_by__isnull=True)
+    if replaces is not None:
+        readings = readings.exclude(pk=replaces.pk)
     earlier = readings.filter(measured_at__lte=measured_at).order_by("-measured_at").first()
     later = readings.filter(measured_at__gte=measured_at).order_by("measured_at").first()
     conflicts = [

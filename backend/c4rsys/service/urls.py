@@ -24,6 +24,8 @@ urlpatterns = [
         views.operation_terminate,
     ),
     path("c/<str:cmp>/service/jobs/<uuid:job_id>/assign", views.job_assign),
+    path("c/<str:cmp>/service/jobs/<uuid:job_id>/correct", views.job_correct),
+    path("c/<str:cmp>/service/operations/<uuid:operation_id>/reopen", views.operation_reopen),
     path("c/<str:cmp>/service/jobs/<uuid:job_id>/take", views.job_take),
     path("c/<str:cmp>/service/jobs/<uuid:job_id>/start", views.job_start),
     path("c/<str:cmp>/service/jobs/<uuid:job_id>/complete", views.job_complete),

@@ -917,7 +917,9 @@
     "owner_request_expired": "The request has expired.",
     "owner_answer_given": "This question has already been answered; the answer is not changed.",
     "cabinet_host": "This is the personal cabinet; the company interface is on the business site.",
-    "export_expired": "The link has expired; prepare a new export."
+    "export_expired": "The link has expired; prepare a new export.",
+    "service_operation_not_finished": "The service is not finished.",
+    "service_job_not_finished": "Only a done or terminated work is corrected."
   },
   "history": {
     "action": "Action",
@@ -1290,7 +1292,8 @@
     "reports_view": "View reports",
     "reports_export": "Export reports",
     "company_link_answer": "Answer requests to link with the company",
-    "data_export": "Full data export"
+    "data_export": "Full data export",
+    "service_reopen": "Open a finished service again and correct finished works"
   },
   "positions": {
     "director": "Director"
@@ -2863,7 +2866,14 @@
     "no_history": "No works yet.",
     "maintenance_due": "Maintenance due",
     "blocker_service_act_missing": "No act of completed works: the order will not close.",
-    "blocker_service_act_not_signed": "The act is not signed by the client: the order will not close."
+    "blocker_service_act_not_signed": "The act is not signed by the client: the order will not close.",
+    "reopen_title": "Open for corrections",
+    "reopen_hint": "For a service finished by mistake: works can be added or corrected, then it is finished again. Done works keep their results; the charges, materials and documents are not changed by it.",
+    "reopen_reason": "Reason",
+    "reopen": "Open again",
+    "correct_job": "Correct",
+    "correct_hint": "The original facts stay in the history. The charge, the materials and the documents are not changed: check them and correct them separately if needed. The next maintenance counts from the corrected facts.",
+    "correct_reason": "Reason of the correction"
   },
   "trips": {
     "new": "New trip",
