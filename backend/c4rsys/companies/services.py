@@ -18,6 +18,7 @@ from c4rsys.companies.models import (
     ActivityContext,
     Company,
     Employment,
+    OwnerSeat,
     OwnershipShare,
     Position,
 )
@@ -122,6 +123,17 @@ def create_company(ctx: CommandContext, user: UserAccount, data: NewCompany) -> 
         created_at=now,
     )
 
+    # The creator's director position is also his dedicated owner position (§ 3.3.4, § 3.4.4).
+    seat = OwnerSeat.objects.create(
+        company=company,
+        position=position,
+        owner_user=user,
+        holder=employment,
+        state=OwnerSeat.State.ACTIVE,
+        created_at=now,
+        activated_at=now,
+    )
+
     for handler in _on_created:
         handler(company.id)
 
@@ -137,7 +149,7 @@ def create_company(ctx: CommandContext, user: UserAccount, data: NewCompany) -> 
         "company.share_granted",
         object_type="ownership_share",
         object_id=share.id,
-        after={"owner_user": user.public_id, "percent": share.percent},
+        after={"owner_user": user.public_id, "percent": share.percent, "seat": str(seat.id)},
         company_id=company.id,
     )
     ctx.audit(
@@ -309,7 +321,7 @@ def set_setup_choice(
     """An explicit answer of a wizard section; None takes it back (§ 22.1.10–22.1.11)."""
     if section not in SETUP_CHOICES or (value is not None and value not in SETUP_CHOICES[section]):
         raise errors.validation_error("section")
-    company = Company.objects.select_for_update().get(pk=company_id)
+    company = Company.objects.select_for_update(no_key=True).get(pk=company_id)
     choices = dict(company.setup_choices)
     before = choices.get(section)
     if value is None:
@@ -330,7 +342,7 @@ def set_setup_choice(
 
 def complete_setup(ctx: CommandContext, company_id: UUID) -> Company:
     """«Complete» of the setup wizard. The caller checks that a context is ready (§ 22.1.12)."""
-    company = Company.objects.select_for_update().get(pk=company_id)
+    company = Company.objects.select_for_update(no_key=True).get(pk=company_id)
     if company.setup_completed_at is None:
         company.setup_completed_at = timezone.now()
         company.save(update_fields=["setup_completed_at", "updated_at"])
@@ -346,7 +358,7 @@ def complete_setup(ctx: CommandContext, company_id: UUID) -> Company:
 def update_profile(
     ctx: CommandContext, company_id: UUID, changes: dict[str, Any], expected_version: int
 ) -> Company:
-    company = Company.objects.select_for_update().get(pk=company_id)
+    company = Company.objects.select_for_update(no_key=True).get(pk=company_id)
     if company.version != expected_version:
         raise errors.version_conflict()
     before = profile_snapshot(company)

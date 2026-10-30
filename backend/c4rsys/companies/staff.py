@@ -297,8 +297,14 @@ def accept(
             "version",
         ]
     )
-    rights = access.parse_rights(invitation.offered.get("rights", []))
-    access.assign(card, rights, invitation.created_by_user_id)
+    if invitation.offered.get("owner_seat"):
+        # The representative of an owner company (§ 3.4.1): the rights of the dedicated position.
+        from c4rsys.companies import ownership
+
+        ownership.on_representative_accepted(ctx, invitation, card)
+    else:
+        rights = access.parse_rights(invitation.offered.get("rights", []))
+        access.assign(card, rights, invitation.created_by_user_id)
     invitation.state = Invitation.State.ACCEPTED
     invitation.decided_at = now
     invitation.save(update_fields=["state", "decided_at"])

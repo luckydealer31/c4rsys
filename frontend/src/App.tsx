@@ -55,6 +55,9 @@ import { EmployeePage } from "./pages/settings/EmployeesPage";
 import { ExportPage } from "./pages/settings/ExportPage";
 import { DiscountCatalogPage } from "./pages/orders/Discounts";
 import { SettingsPage } from "./pages/settings/SettingsPage";
+import { OwnersPage } from "./pages/ownership/OwnersPage";
+import { HoldingsPage } from "./pages/ownership/HoldingsPage";
+import { CompanyStatePage } from "./pages/ownership/CompanyStatePage";
 import { SetupPage } from "./pages/setup/SetupPage";
 import { TariffPage, TariffsPage } from "./pages/tariffs/TariffsPage";
 import { EditVehiclePage, NewVehiclePage } from "./pages/vehicles/NewVehiclePage";
@@ -208,6 +211,9 @@ export function App() {
         <Route path="finance" element={<FinancePage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="settings/company" element={<CompanyProfilePage />} />
+        <Route path="settings/owners" element={<OwnersPage />} />
+        <Route path="settings/holdings" element={<HoldingsPage />} />
+        <Route path="settings/state" element={<CompanyStatePage />} />
         <Route path="settings/rental" element={<RentalPolicyPage />} />
         <Route path="settings/notifications" element={<NotificationRulesPage />} />
         <Route path="settings/export" element={<ExportPage />} />

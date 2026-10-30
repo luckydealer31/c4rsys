@@ -91,6 +91,8 @@ button:disabled { opacity: 0.55; cursor: default; }
 .alert.error { background: var(--danger-bg); color: var(--danger); }
 .alert.warn { background: var(--warn-bg); }
 .alert.ok { background: var(--ok-bg); color: var(--ok); }
+/* § 3.6.1: the state of a deactivated company above every page of it. */
+.alert.deactivated-banner { max-width: 1068px; margin: 16px auto 0; margin-inline: max(16px, calc((100% - 1068px) / 2)); }
 
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); vertical-align: top; }

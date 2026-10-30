@@ -35,6 +35,9 @@ class Company(models.Model):
         Currency, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
     setup_completed_at = models.DateTimeField(null=True, blank=True)
+    # § 3.6.1: a voluntarily deactivated company keeps its data and ID; new activity is refused
+    # until it is restored (companies.deactivation).
+    deactivated_at = models.DateTimeField(null=True, blank=True)
     # Explicit answers of the setup wizard (§ 22.1.10–22.1.11): «work without employees»,
     # «no required documents». A choice of the wizard only, it changes no rule.
     setup_choices = models.JSONField(default=dict, blank=True)
@@ -67,11 +70,20 @@ class Company(models.Model):
 
 
 class OwnershipShare(models.Model):
-    """Share of a user in the company (§ 3.3.4). Owner companies come with share transfers."""
+    """Share of a user or of another company in the company (§ 3.3.4).
+
+    A row is never changed in its percent: a change closes the row (`valid_to`) and opens a new
+    one, so the rows are the history of ownership (§ 3.4.3). The current rows sum to 100%.
+    """
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="shares")
-    owner_user = models.ForeignKey(UserAccount, on_delete=models.PROTECT, related_name="+")
+    owner_user = models.ForeignKey(
+        UserAccount, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    owner_company = models.ForeignKey(
+        Company, on_delete=models.PROTECT, null=True, blank=True, related_name="held_shares"
+    )
     percent = models.DecimalField(max_digits=7, decimal_places=4)
     valid_from = models.DateTimeField(default=now)
     valid_to = models.DateTimeField(null=True, blank=True)
@@ -83,10 +95,30 @@ class OwnershipShare(models.Model):
                 condition=Q(percent__gt=0) & Q(percent__lte=100),
                 name="ownership_share_percent_range",
             ),
+            models.CheckConstraint(
+                condition=Q(owner_user__isnull=False, owner_company__isnull=True)
+                | Q(owner_user__isnull=True, owner_company__isnull=False),
+                name="ownership_share_one_owner",
+            ),
+            # § 3.5.4: a company does not own its own share directly.
+            models.CheckConstraint(
+                condition=~Q(owner_company=models.F("company")),
+                name="ownership_share_not_own_company",
+            ),
+            models.UniqueConstraint(
+                fields=["company", "owner_user"],
+                condition=Q(valid_to__isnull=True, owner_user__isnull=False),
+                name="ownership_share_current_user_uniq",
+            ),
+            models.UniqueConstraint(
+                fields=["company", "owner_company"],
+                condition=Q(valid_to__isnull=True, owner_company__isnull=False),
+                name="ownership_share_current_company_uniq",
+            ),
         ]
 
     def __str__(self) -> str:
-        return f"{self.owner_user_id} {self.percent}%"
+        return f"{self.owner_user_id or self.owner_company_id} {self.percent}%"
 
 
 class Position(models.Model):
@@ -98,6 +130,10 @@ class Position(models.Model):
 
     class Code(models.TextChoices):
         DIRECTOR = "director"
+        # Dedicated positions of owners (§ 3.3.4, § 3.4.1): of a user owner for himself, of an
+        # owner company for its representative.
+        OWNER = "owner"
+        OWNER_REPRESENTATIVE = "owner_representative"
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="positions")
@@ -347,6 +383,11 @@ class PermissionAssignment(models.Model):
     contexts = models.ManyToManyField(
         ActivityContext, through="AssignmentContext", related_name="+"
     )
+    # Rights a representative got with the dedicated position of an owner company within its limit
+    # (§ 3.4.1); they end with the representative and are not edited as ordinary rights.
+    owner_seat = models.ForeignKey(
+        "OwnerSeat", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
     granted_by_user_id = models.UUIDField()
     granted_at = models.DateTimeField(default=now)
     revoked_by_user_id = models.UUIDField(null=True, blank=True)
@@ -481,3 +522,314 @@ class Invitation(models.Model):
 
     def __str__(self) -> str:
         return f"invitation {self.id}"
+
+
+# --- Ownership (ТЗ § 3.3–3.6) ------------------------------------------------------------------
+
+
+def _one(prefix: str, name: str) -> models.CheckConstraint:
+    """Exactly one of `<prefix>_user` and `<prefix>_company` is set."""
+    user, company = f"{prefix}_user__isnull", f"{prefix}_company__isnull"
+    return models.CheckConstraint(
+        condition=Q(**{user: False, company: True}) | Q(**{user: True, company: False}),
+        name=name,
+    )
+
+
+class OwnerSeat(models.Model):
+    """The dedicated position of an owner (§ 3.3.4, § 3.4.1).
+
+    For a user owner the position is for himself: `holder` is his employment in the company. For an
+    owner company it is the position of its representative: `rights_limit` is the limit of rights
+    set by the top authority of this company; the owner company appoints a person (`holder`) with
+    rights within it, or leaves the position vacant. A seat is prepared for the recipient of a
+    share transfer, becomes active when the share passes and ends after the owner transferred the
+    whole share (§ 3.4.4); the history stays.
+    """
+
+    class State(models.TextChoices):
+        PREPARED = "prepared"
+        ACTIVE = "active"
+        ENDED = "ended"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    position = models.ForeignKey(Position, on_delete=models.PROTECT, related_name="+")
+    owner_user = models.ForeignKey(
+        UserAccount, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    owner_company = models.ForeignKey(
+        Company, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    holder = models.ForeignKey(
+        Employment, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    # [RightSpec.as_dict()] — the limit for the representative of an owner company (§ 3.4.1).
+    rights_limit = models.JSONField(default=list, blank=True)
+    state = models.CharField(max_length=10, choices=State.choices, default=State.PREPARED)
+    created_at = models.DateTimeField(default=now)
+    activated_at = models.DateTimeField(null=True, blank=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "owner_seat"
+        constraints = [
+            _one("owner", "owner_seat_one_owner"),
+            models.UniqueConstraint(
+                fields=["company", "owner_user"],
+                condition=~Q(state="ended") & Q(owner_user__isnull=False),
+                name="owner_seat_current_user_uniq",
+            ),
+            models.UniqueConstraint(
+                fields=["company", "owner_company"],
+                condition=~Q(state="ended") & Q(owner_company__isnull=False),
+                name="owner_seat_current_company_uniq",
+            ),
+            models.CheckConstraint(
+                condition=Q(state="ended", ended_at__isnull=False)
+                | (~Q(state="ended") & Q(ended_at__isnull=True)),
+                name="owner_seat_ended_has_time",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"seat {self.id}"
+
+
+class OwnershipPolicy(models.Model):
+    """Approval policies of the company (§ 3.4.2, § 3.6.2).
+
+    * `transfer_mode` — additional approval of a share transfer by the other co-owners; without a
+      row «none» (§ 3.4.2).
+    * `state_mode` — approval of deactivation and restoration; «unset» means all owners when the
+      company has several of them (§ 3.6.2).
+    `percent` modes need owners together holding at least the given percent of the capital.
+    """
+
+    class Mode(models.TextChoices):
+        UNSET = "unset"
+        NONE = "none"
+        ALL = "all"
+        PERCENT = "percent"
+
+    company = models.OneToOneField(
+        Company, on_delete=models.PROTECT, primary_key=True, related_name="+"
+    )
+    transfer_mode = models.CharField(max_length=10, choices=Mode.choices, default=Mode.NONE)
+    transfer_percent = models.DecimalField(max_digits=7, decimal_places=4, null=True, blank=True)
+    state_mode = models.CharField(max_length=10, choices=Mode.choices, default=Mode.UNSET)
+    state_percent = models.DecimalField(max_digits=7, decimal_places=4, null=True, blank=True)
+    updated_by_user_id = models.UUIDField(null=True, blank=True)
+    updated_at = models.DateTimeField(default=now)
+    version = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = "ownership_policy"
+        constraints = [
+            models.CheckConstraint(
+                condition=~Q(transfer_mode="unset"), name="ownership_policy_transfer_mode_set"
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(transfer_mode="percent", transfer_percent__gt=0, transfer_percent__lte=100)
+                    | (~Q(transfer_mode="percent") & Q(transfer_percent__isnull=True))
+                ),
+                name="ownership_policy_transfer_percent",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(state_mode="percent", state_percent__gt=0, state_percent__lte=100)
+                    | (~Q(state_mode="percent") & Q(state_percent__isnull=True))
+                ),
+                name="ownership_policy_state_percent",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"policy {self.company_id}"
+
+
+class ShareTransfer(models.Model):
+    """A request to transfer a part of a share (§ 3.4.3, § 3.4.6).
+
+    The share stays with the sender until every needed confirmation; then one operation reduces
+    the sender's share and creates or increases the recipient's. `successor` is the chosen
+    successor of the top authority when the top authority gives away the whole remaining share.
+    """
+
+    class State(models.TextChoices):
+        PENDING = "pending"
+        COMPLETED = "completed"
+        DECLINED = "declined"
+        CANCELLED = "cancelled"
+        EXPIRED = "expired"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    sender_user = models.ForeignKey(
+        UserAccount, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    sender_company = models.ForeignKey(
+        Company, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    recipient_user = models.ForeignKey(
+        UserAccount, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    recipient_company = models.ForeignKey(
+        Company, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    percent = models.DecimalField(max_digits=7, decimal_places=4)
+    successor_user = models.ForeignKey(
+        UserAccount, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    successor_company = models.ForeignKey(
+        Company, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    recipient_seat = models.ForeignKey(
+        OwnerSeat, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    # The co-owner approval policy at the moment of the request (§ 3.4.2).
+    policy_mode = models.CharField(max_length=10)
+    policy_percent = models.DecimalField(max_digits=7, decimal_places=4, null=True, blank=True)
+    state = models.CharField(max_length=10, choices=State.choices, default=State.PENDING)
+    initiated_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+    expires_at = models.DateTimeField()
+    decided_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "share_transfer"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(percent__gt=0) & Q(percent__lte=100),
+                name="share_transfer_percent_range",
+            ),
+            _one("sender", "share_transfer_one_sender"),
+            _one("recipient", "share_transfer_one_recipient"),
+            models.CheckConstraint(
+                condition=Q(successor_user__isnull=True) | Q(successor_company__isnull=True),
+                name="share_transfer_one_successor",
+            ),
+        ]
+        indexes = [models.Index(fields=["company", "state"], name="share_transfer_state_idx")]
+
+    def __str__(self) -> str:
+        return f"transfer {self.id}"
+
+
+class ShareTransferApproval(models.Model):
+    """One confirmation a transfer waits for (§ 3.4.1–3.4.3, § 3.4.6).
+
+    * `sender_owner` — each owner of the owner company disposing of its share;
+    * `recipient` — the recipient user accepts;
+    * `recipient_owner` — each owner of the recipient company;
+    * `coowner` — the other co-owners by the approval policy;
+    * `successor` — the chosen successor accepts the top authority.
+    A party company decides through its top authority or an employee with full rights (PROPOSAL).
+    """
+
+    class Role(models.TextChoices):
+        SENDER_OWNER = "sender_owner"
+        RECIPIENT = "recipient"
+        RECIPIENT_OWNER = "recipient_owner"
+        COOWNER = "coowner"
+        SUCCESSOR = "successor"
+
+    class State(models.TextChoices):
+        PENDING = "pending"
+        APPROVED = "approved"
+        DECLINED = "declined"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    transfer = models.ForeignKey(ShareTransfer, on_delete=models.PROTECT, related_name="approvals")
+    role = models.CharField(max_length=20, choices=Role.choices)
+    party_user = models.ForeignKey(
+        UserAccount, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    party_company = models.ForeignKey(
+        Company, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    state = models.CharField(max_length=10, choices=State.choices, default=State.PENDING)
+    decided_by_user_id = models.UUIDField(null=True, blank=True)
+    decided_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "share_transfer_approval"
+        constraints = [_one("party", "share_transfer_approval_one_party")]
+
+    def __str__(self) -> str:
+        return f"{self.role} {self.id}"
+
+
+class CompanyStateRequest(models.Model):
+    """Deactivation or restoration of the company waiting for the owners (§ 3.6.1–3.6.2)."""
+
+    class Kind(models.TextChoices):
+        DEACTIVATE = "deactivate"
+        RESTORE = "restore"
+
+    class State(models.TextChoices):
+        PENDING = "pending"
+        COMPLETED = "completed"
+        DECLINED = "declined"
+        CANCELLED = "cancelled"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    kind = models.CharField(max_length=10, choices=Kind.choices)
+    state = models.CharField(max_length=10, choices=State.choices, default=State.PENDING)
+    initiated_by_user_id = models.UUIDField()
+    initiated_by_employment_id = models.UUIDField(null=True, blank=True)
+    created_at = models.DateTimeField(default=now)
+    decided_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "company_state_request"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company"],
+                condition=Q(state="pending"),
+                name="company_state_request_one_pending",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.kind} {self.id}"
+
+
+class CompanyStateApproval(models.Model):
+    """A decision of an owner on a deactivation or restoration request (§ 3.6.2).
+
+    `composition` fingerprints the owners and shares at the moment of the decision: when they
+    change, earlier decisions stay in the history but no longer count for the request.
+    """
+
+    class Decision(models.TextChoices):
+        APPROVED = "approved"
+        DECLINED = "declined"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    request = models.ForeignKey(
+        CompanyStateRequest, on_delete=models.PROTECT, related_name="approvals"
+    )
+    party_user = models.ForeignKey(
+        UserAccount, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    party_company = models.ForeignKey(
+        Company, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    decision = models.CharField(max_length=10, choices=Decision.choices)
+    composition = models.CharField(max_length=64)
+    decided_by_user_id = models.UUIDField()
+    decided_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "company_state_approval"
+        constraints = [_one("party", "company_state_approval_one_party")]
+
+    def __str__(self) -> str:
+        return f"{self.decision} {self.id}"

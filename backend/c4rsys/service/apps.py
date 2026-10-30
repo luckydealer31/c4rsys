@@ -20,6 +20,9 @@ class ServiceConfig(AppConfig):
         # § 4.3.1: a service context is ready with an active work in the catalog.
         readiness.register("service", catalog.has_active_work)
         locations.register_blockers(operations.location_blockers)
+        from c4rsys.companies import deactivation
+
+        deactivation.register_blocker(operations.company_blockers)
         # Decision С-3: an operation holds its vehicle for bookings, issues and moves.
         fleet.register_occupancy(operations.occupancy)
         moves.register_busy(operations.vehicle_busy)

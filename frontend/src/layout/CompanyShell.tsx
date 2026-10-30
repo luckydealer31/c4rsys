@@ -140,6 +140,14 @@ export function CompanyShell({ user }: { user: User }) {
       ) : company.data ? (
         <CompanyContext.Provider value={company.data}>
           <ScopeContext.Provider value={scope}>
+            {company.data.company.deactivated_at ? (
+              // § 3.6.1: a deactivated company starts no new activity; settlements, history and
+              // export stay.
+              <div className="alert warn deactivated-banner" role="status">
+                {t("company_state.banner")}{" "}
+                <NavLink to={`/c/${cmp}/settings/state`}>{t("company_state.banner_link")}</NavLink>
+              </div>
+            ) : null}
             <Outlet />
           </ScopeContext.Provider>
         </CompanyContext.Provider>

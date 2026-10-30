@@ -98,6 +98,15 @@ class CommandContext:
 
 Handler = Callable[[CommandContext], CommandResult]
 
+# Checks run inside the transaction of every command before its handler; a check refuses the
+# command by raising an ApiError (companies: no new activity in a deactivated company, § 3.6.1).
+Guard = Callable[[str, Actor], None]
+_guards: list[Guard] = []
+
+
+def register_guard(guard: Guard) -> None:
+    _guards.append(guard)
+
 
 def request_hash(command: str, payload: dict[str, Any]) -> str:
     canonical = json.dumps(
@@ -146,6 +155,8 @@ def run_command(
             except IntegrityError:
                 return _replay(IdempotencyRecord.objects.get(**scope), command, digest)
 
+            for guard in _guards:
+                guard(command, actor)
             context = CommandContext(
                 actor=actor, command=command, idempotency_key=key, request_id=request_id
             )

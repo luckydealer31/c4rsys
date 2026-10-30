@@ -15,6 +15,12 @@ class WarehouseConfig(AppConfig):
         # enabled warehouse context is ready — it always stores (§ 11.1.5).
         readiness.register("warehouse", lambda company_id, location_id: True)
 
+        from c4rsys.companies import deactivation
+        from c4rsys.warehouse import blockers
+
+        # § 3.6.1: unfinished warehouse operations block deactivation of the company.
+        deactivation.register_blocker(blockers.company_blockers)
+
         from c4rsys.orders import services as orders
         from c4rsys.warehouse import sales
 

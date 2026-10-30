@@ -138,10 +138,18 @@ def require_broad_rights_authority(specs: list[RightSpec], *, is_top_authority: 
 # --- Stored assignments -----------------------------------------------------------------------
 
 
-def _active_assignments(employment_id: UUID) -> list[PermissionAssignment]:
+def _active_assignments(
+    employment_id: UUID, *, ordinary_only: bool = False
+) -> list[PermissionAssignment]:
+    """`ordinary_only` leaves out the rights of a representative's dedicated position (§ 3.4.1),
+    which the ordinary rights editor does not change."""
+    query = PermissionAssignment.objects.filter(
+        employment_id=employment_id, revoked_at__isnull=True
+    )
+    if ordinary_only:
+        query = query.filter(owner_seat__isnull=True)
     return list(
-        PermissionAssignment.objects.filter(employment_id=employment_id, revoked_at__isnull=True)
-        .select_related("permission_set")
+        query.select_related("permission_set")
         .prefetch_related(
             Prefetch("locations", queryset=Location.objects.only("id")),
             Prefetch("contexts", queryset=ActivityContext.objects.only("id")),
@@ -168,21 +176,28 @@ def _spec_of(assignment: PermissionAssignment) -> RightSpec:
     )
 
 
-def rights_of(employment_id: UUID) -> list[dict[str, Any]]:
-    """Each assignment with its source, codes and scope (§ 23.1.13)."""
+def rights_of(employment_id: UUID, *, owner_seat: bool = False) -> list[dict[str, Any]]:
+    """Each assignment with its source, codes and scope (§ 23.1.13). `owner_seat` — the rights a
+    representative has through the dedicated position of an owner company (§ 3.4.1), shown apart
+    from the ordinary rights the editor changes."""
     return [
         {
             "id": str(a.id),
             **_spec_of(a).as_dict(),
             "permissions": sorted(a.permissions),
             "granted_at": a.granted_at.isoformat(),
+            "owner_seat": str(a.owner_seat_id) if a.owner_seat_id else None,
         }
         for a in _active_assignments(employment_id)
+        if (a.owner_seat_id is not None) == owner_seat
     ]
 
 
 def assign(
-    employment: Employment, specs: list[RightSpec], granted_by_user_id: UUID
+    employment: Employment,
+    specs: list[RightSpec],
+    granted_by_user_id: UUID,
+    owner_seat_id: UUID | None = None,
 ) -> list[PermissionAssignment]:
     now = timezone.now()
     created = []
@@ -206,6 +221,7 @@ def assign(
             all_locations=spec.locations is None,
             all_contexts=spec.contexts is None,
             all_cash_accounts=spec.cash_accounts is None,
+            owner_seat_id=owner_seat_id,
             granted_by_user_id=granted_by_user_id,
             granted_at=now,
         )
@@ -254,7 +270,7 @@ def replace_rights(
     if employment.version != expected_version:
         raise errors.version_conflict()
 
-    current = {_spec_of(a): a for a in _active_assignments(employment.id)}
+    current = {_spec_of(a): a for a in _active_assignments(employment.id, ordinary_only=True)}
     wanted = set(specs)
     added = [s for s in specs if s not in current]
     removed = [a for s, a in current.items() if s not in wanted]
@@ -358,3 +374,77 @@ class RightsResolver:
         if any(a.kind == Kind.DENY and (located or a.all_locations) for a in covering):
             return False
         return any(a.kind in (Kind.SET, Kind.GRANT) for a in covering)
+
+
+# --- Full rights and the limit of a representative (§ 3.4.1) ---------------------------------
+
+
+def has_full_rights(employment: Employment) -> bool:
+    """The top-authority director, or an employee with «Company administrator» for the whole
+    company, every context and cash account and no personal denial. This reading of «full rights
+    of the company» (§ 3.4.1) is a PROPOSAL."""
+    if employment.state != Employment.State.ACTIVE:
+        return False
+    if employment.position.is_top_authority:
+        return True
+    assignments = _active_assignments(employment.id)
+    if any(a.kind == Kind.DENY for a in assignments):
+        return False
+    return any(
+        a.kind == Kind.SET
+        and a.permission_set is not None
+        and a.permission_set.code in BROAD_SETS
+        and a.all_locations
+        and a.all_contexts
+        and a.all_cash_accounts
+        for a in assignments
+    )
+
+
+def _scope_within(inner: frozenset[UUID] | None, outer: frozenset[UUID] | None) -> bool:
+    if outer is None:
+        return True
+    return inner is not None and inner <= outer
+
+
+def within_limit(specs: list[RightSpec], limit: list[RightSpec]) -> bool:
+    """Every requested set or permission is in the limit with no wider scope (§ 3.4.1). A
+    permission inside a set of the limit counts as in the limit."""
+    set_codes = {spec.code: spec for spec in limit if spec.kind == Kind.SET}
+    members: dict[str, set[str]] = {}
+    for code in set_codes:
+        members[code] = set(
+            PermissionSetItem.objects.filter(
+                permission_set__is_system=True, permission_set__code=code
+            ).values_list("permission_id", flat=True)
+        )
+    for spec in specs:
+        if spec.kind == Kind.DENY:
+            return False
+        candidates = [x for x in limit if x.kind == spec.kind and x.code == spec.code]
+        if spec.kind == Kind.GRANT:
+            candidates += [set_codes[c] for c, codes in members.items() if spec.code in codes]
+        if not any(
+            _scope_within(spec.locations, x.locations)
+            and _scope_within(spec.contexts, x.contexts)
+            and _scope_within(spec.cash_accounts, x.cash_accounts)
+            for x in candidates
+        ):
+            return False
+    return True
+
+
+def seat_assignments(employment_id: UUID, seat_id: UUID) -> list[PermissionAssignment]:
+    return [a for a in _active_assignments(employment_id) if a.owner_seat_id == seat_id]
+
+
+def revoke(assignments: list[PermissionAssignment], by_user_id: UUID) -> None:
+    now = timezone.now()
+    for assignment in assignments:
+        assignment.revoked_at = now
+        assignment.revoked_by_user_id = by_user_id
+        assignment.save(update_fields=["revoked_at", "revoked_by_user_id"])
+
+
+def spec_of(assignment: PermissionAssignment) -> RightSpec:
+    return _spec_of(assignment)

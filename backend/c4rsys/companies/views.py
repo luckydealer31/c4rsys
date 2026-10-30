@@ -10,7 +10,7 @@ from django.http import HttpRequest, JsonResponse
 from django.views.decorators.http import require_http_methods, require_POST
 
 from c4rsys.accounts.middleware import require_user
-from c4rsys.companies import access, locations, services
+from c4rsys.companies import access, locations, ownership, services
 from c4rsys.companies.models import ActivityContext, Company, Location
 from c4rsys.companies.permissions import PERMISSIONS
 from c4rsys.platform import errors
@@ -101,6 +101,7 @@ def _company_payload(company: Company, context: services.CompanyContext | None) 
             company.setup_completed_at.isoformat() if company.setup_completed_at else None
         ),
         "context_types": services.context_types(company),
+        "deactivated_at": company.deactivated_at.isoformat() if company.deactivated_at else None,
         **{key: getattr(company, key) for key in services.REQUISITES},
         "identifiers": company.identifiers,
     }
@@ -110,6 +111,11 @@ def _company_payload(company: Company, context: services.CompanyContext | None) 
             "position_code": context.employment.position.code,
             "position_name": context.employment.position.name,
             "is_top_authority": context.is_top_authority,
+            # For the interface to show the owners' pages; the server checks each request.
+            "is_owner": ownership.is_owner(company.id, context.employment.user_id)
+            if context.employment.user_id
+            else False,
+            "has_full_rights": access.has_full_rights(context.employment),
         }
     return body
 

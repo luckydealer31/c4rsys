@@ -75,6 +75,7 @@ def _employee_payload(employment: Employment) -> dict[str, Any]:
         "started_at": employment.started_at.isoformat() if employment.started_at else None,
         "version": employment.version,
         "rights": access.rights_of(employment.id),
+        "owner_seat_rights": access.rights_of(employment.id, owner_seat=True),
         "invitation": staff.invitation_payload(last_invitation, timezone.now())
         if last_invitation
         else None,

@@ -304,6 +304,14 @@ def location_blockers(company_id: UUID, location_id: UUID, context_type: str | N
     return ["service_operations_not_finished"] if unfinished.exists() else []
 
 
+def company_blockers(company_id: UUID) -> list[str]:
+    """§ 3.6.1: service orders not finished block deactivation of the company."""
+    unfinished = ServiceOperation.objects.filter(company_id=company_id).exclude(
+        state__in=FINAL_OPERATION
+    )
+    return ["service_operations_not_finished"] if unfinished.exists() else []
+
+
 # --- Creation (§ 16.1.6, § 16.2.1–16.2.7) --------------------------------------------------------
 
 

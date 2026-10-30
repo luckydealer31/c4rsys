@@ -18,6 +18,9 @@ class RentalsConfig(AppConfig):
 
         readiness.register("rental", tariffs.rental_conditions_met)
         locations.register_blockers(rentals.location_blockers)
+        from c4rsys.companies import deactivation
+
+        deactivation.register_blocker(rentals.company_blockers)
         moves.register_busy(rentals.vehicle_busy)
         fleet.register_later_operations(rentals.started_after)
         fleet.register_context_blockers(rentals.vehicle_context_blockers)

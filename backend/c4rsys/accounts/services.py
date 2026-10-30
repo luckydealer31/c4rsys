@@ -36,6 +36,8 @@ CRITICAL_ACTIONS = {
     # password and a code to the email.
     "change_password",
     "change_email",  # § 2.3.2
+    "transfer_share",  # § 2.1.1, § 3.4.3: transfer of company ownership
+    "deactivate_company",  # § 3.6.1
 }
 
 
@@ -539,6 +541,15 @@ def replace_email(ctx: CommandContext, user: UserAccount, token: str) -> str:
 def find_active_user(public_id: str) -> UserAccount | None:
     """Active account by its USR ID (§ 2.1.4)."""
     return UserAccount.objects.filter(public_id=public_id, state=UserAccount.State.ACTIVE).first()
+
+
+def find_active_user_by_username(username: str) -> UserAccount | None:
+    """Active account by its optional username, without regard to case (§ 2.1.4, § 2.2.1)."""
+    if not username:
+        return None
+    return UserAccount.objects.filter(
+        username__iexact=username, state=UserAccount.State.ACTIVE
+    ).first()
 
 
 def find_user_by_email(email: str) -> UserAccount | None:

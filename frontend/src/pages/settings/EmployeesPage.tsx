@@ -21,7 +21,7 @@ export function useEmployees() {
   );
 }
 
-function useCatalog() {
+export function useCatalog() {
   const company = useCompany();
   return useApi<PermissionCatalog>(
     ["permission-catalog", company.public_id],

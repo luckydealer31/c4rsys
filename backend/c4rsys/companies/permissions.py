@@ -14,6 +14,9 @@ PERMISSIONS: dict[str, str] = {
     # § 22.6.1 (decision Б-6): the full export of the company's data; only in «Company
     # administrator».
     "data.export": "company",
+    # § 3.6.1: deactivation and restoration of the company with the owners' approval. One right
+    # for both and only in «Company administrator» (PROPOSAL).
+    "company.deactivate": "company",
     "employee.invite": "employee",
     "employee.rights.manage": "employee",
     "employee.journal.view": "employee",

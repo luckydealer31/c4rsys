@@ -46,12 +46,128 @@ export type Company = CompanySummary & {
   email: string;
   website: string;
   description: string;
+  /** § 3.6.1: set while the company is deactivated. */
+  deactivated_at: string | null;
   employment?: {
     id: string;
     position_code: string;
     position_name: string;
     is_top_authority: boolean;
+    is_owner: boolean;
+    has_full_rights: boolean;
   };
+};
+
+/** An owner seen by the owners (§ 3.3.6) or a party before acceptance (§ 2.2.4, § 3.1.8). */
+export type PartyCard =
+  | { type: "user"; public_id: string; first_name?: string; last_name?: string; username?: string }
+  | { type: "company"; public_id: string; display_name: string; logo?: string | null; country?: string };
+
+export type ShareTransfer = {
+  id: string;
+  company: { public_id: string; display_name: string };
+  state: "pending" | "completed" | "declined" | "cancelled" | "expired";
+  sender: PartyCard;
+  recipient: PartyCard;
+  percent: string;
+  successor: PartyCard | null;
+  policy_mode: string;
+  policy_percent: string | null;
+  approvals: { id: string; role: string; party: string; state: string; decided_at: string | null }[];
+  created_at: string;
+  expires_at: string;
+  decided_at: string | null;
+};
+
+export type OwnershipPolicy = {
+  transfer_mode: "none" | "all" | "percent";
+  transfer_percent: string | null;
+  state_mode: "unset" | "none" | "all" | "percent";
+  state_percent: string | null;
+  version: number;
+};
+
+export type OwnerSeat = {
+  id: string;
+  state: "prepared" | "active" | "ended";
+  position_id: string;
+  is_top_authority: boolean;
+  limit: RightSpec[];
+  holder: {
+    employment_id: string;
+    state: string;
+    public_id: string | null;
+    first_name: string;
+    last_name: string;
+    rights: RightSpec[];
+  } | null;
+  pending_invitation: {
+    id: string;
+    target: PartyCard | null;
+    rights: RightSpec[];
+    expires_at: string;
+  } | null;
+  version: number;
+  owner?: PartyCard;
+};
+
+export type OwnersView = {
+  owners: { owner: PartyCard; percent: string; since: string; is_top_authority: boolean }[];
+  history: { owner: PartyCard; percent: string; valid_from: string; valid_to: string | null }[];
+  transfers: ShareTransfer[];
+  policy: OwnershipPolicy;
+  seats: OwnerSeat[];
+  me: { is_owner: boolean; percent: string | null; is_top_authority: boolean; public_id: string };
+};
+
+export type Holding = {
+  seat: OwnerSeat;
+  company: PartyCard;
+  percent: string | null;
+  owners: { owner: PartyCard; percent: string }[];
+  is_top_authority: boolean;
+};
+
+export type StateRequest = {
+  id: string;
+  kind: "deactivate" | "restore";
+  state: string;
+  created_at: string;
+  decided_at: string | null;
+  mode: string;
+  percent: string | null;
+  approved_percent: string;
+  satisfied: boolean;
+  owners: { owner: PartyCard; percent: string; decision: string | null }[];
+  history: { party: string; decision: string; decided_at: string; counted: boolean }[];
+};
+
+export type CompanyState = {
+  deactivated_at: string | null;
+  blockers: string[];
+  policy: { configured: string; mode: string; percent: string | null };
+  request: StateRequest | null;
+  can_manage: boolean;
+};
+
+export type OwnershipRequests = {
+  transfers: {
+    approval_id: string;
+    role: string;
+    party: PartyCard;
+    company: PartyCard;
+    transfer: ShareTransfer;
+  }[];
+  states: {
+    request_id: string;
+    kind: "deactivate" | "restore";
+    party: PartyCard;
+    party_key: string;
+    company: PartyCard;
+    request: StateRequest;
+    blockers: string[];
+  }[];
+  outgoing: ShareTransfer[];
 };
 
 export type StartedFlow = { flow: string; resend_after_seconds: number; code_ttl_seconds: number };

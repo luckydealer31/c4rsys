@@ -207,6 +207,10 @@ def _run_one(series_id: UUID, moment: datetime) -> int:
     if series.state != TaskSeries.State.ACTIVE or series.next_on is None:
         return 0
     company = series.company
+    if company.deactivated_at is not None:
+        # § 3.6.4: no new repetitions while the company is deactivated; after the restoration
+        # the repetition goes on from the nearest future date (`resume_after_restore`).
+        return 0
     today = moment.astimezone(_zone(company, series.location_id)).date()
     if series.next_on > today:
         return 0
@@ -232,6 +236,26 @@ def _run_one(series_id: UUID, moment: datetime) -> int:
     series.next_on = occurrence_from(series, on + timedelta(days=1))
     series.save(update_fields=["next_on"])
     return made
+
+
+def resume_after_restore(company_id: UUID) -> None:
+    """§ 3.6.4: after a restoration each active repetition continues from its nearest date whose
+    moment is still ahead; the repetitions of the deactivation period are not made. Called in the
+    transaction of the restoration."""
+    moment = timezone.now()
+    for series in (
+        TaskSeries.objects.select_for_update()
+        .select_related("company")
+        .filter(company_id=company_id, state=TaskSeries.State.ACTIVE, next_on__isnull=False)
+    ):
+        company = series.company
+        today = moment.astimezone(_zone(company, series.location_id)).date()
+        nearest = occurrence_from(series, today)
+        if nearest is not None and _due(series, company, nearest) <= moment:
+            nearest = occurrence_from(series, nearest + timedelta(days=1))
+        if nearest != series.next_on:
+            series.next_on = nearest
+            series.save(update_fields=["next_on"])
 
 
 def locked(company_id: UUID, series_id: UUID, expected: int | None) -> TaskSeries:

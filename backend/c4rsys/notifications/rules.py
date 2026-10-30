@@ -55,6 +55,9 @@ EVENTS: dict[str, Event] = {
     # Requests to the owner of a vehicle and the answers (§ 8.3.1, part К5).
     "vehicle.owner_requested": Event(Kind.ACTION, "company.link.answer", mandatory=True),
     "vehicle.owner_answered": Event(Kind.INFO, None, mandatory=True),
+    # Confirmations of share transfers and owners' approvals of deactivation (§ 3.4.1, § 3.6.2).
+    "ownership.approval_requested": Event(Kind.ACTION, None, mandatory=True),
+    "company.state_approval_requested": Event(Kind.ACTION, None, mandatory=True),
     "rental.inspection_missing": Event(
         Kind.ACTION, "rental.complete_formalization", mandatory=True
     ),

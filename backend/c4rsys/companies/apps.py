@@ -29,3 +29,11 @@ class CompaniesConfig(AppConfig):
         files.register_reader(StoredFile.Purpose.ITEM_PHOTO, logo_reader)
         # PROPOSAL: a receipt document is seen by the company's employees, like the logo.
         files.register_reader(StoredFile.Purpose.WAREHOUSE_DOCUMENT, logo_reader)
+
+        # § 3.6.1: no new activity in a deactivated company, checked inside every command.
+        from c4rsys.companies import deactivation, ownership_notices
+        from c4rsys.notifications import services as notifications
+        from c4rsys.platform import commands
+
+        commands.register_guard(deactivation.guard)
+        notifications.register_check(ownership_notices.run)

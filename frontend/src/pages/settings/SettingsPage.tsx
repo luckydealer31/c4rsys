@@ -9,6 +9,8 @@ export function SettingsPage() {
   const { t } = useTranslation();
   const company = useCompany();
   const can = useCan();
+  const owner = company.employment?.is_owner;
+  const top = company.employment?.is_top_authority;
   const links = [
     ["setup", "/setup", can("company.settings")],
     ["company", "/settings/company", can("company.settings")],
@@ -19,6 +21,11 @@ export function SettingsPage() {
     ["inspection_templates", "/settings/inspection-templates", can("inspection.policy.manage") || can("inspection.conduct")],
     ["inspection_policy", "/settings/inspection-policy", can("inspection.policy.manage") || can("inspection.conduct")],
     ["export", "/settings/export", can("data.export")],
+    // § 3.3.4: owners see the owners; § 3.4.1: shares held in other companies for full rights;
+    // § 3.6.1: deactivation for the right or the owners.
+    ["owners", "/settings/owners", Boolean(owner || top)],
+    ["holdings", "/settings/holdings", Boolean(company.employment?.has_full_rights)],
+    ["state", "/settings/state", Boolean(owner || can("company.deactivate"))],
   ] as const;
   return (
     <div className="page">

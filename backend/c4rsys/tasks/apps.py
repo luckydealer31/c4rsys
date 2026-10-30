@@ -17,3 +17,9 @@ class TasksConfig(AppConfig):
         files.register_reader(files.TASK_ATTACHMENT, services.file_reader)
         # Decisions З-4, З-5: reminders, overdue notices, tasks of executors without access.
         notifications.register_check(notices.run)
+
+        from c4rsys.companies import deactivation
+        from c4rsys.tasks import series
+
+        # § 3.6.4: repetitions are paused while the company is deactivated.
+        deactivation.register_restored(series.resume_after_restore)
