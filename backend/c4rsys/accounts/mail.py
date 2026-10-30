@@ -53,6 +53,17 @@ BODY_LINK = (
 )
 
 
+SUBJECT_OWNER = "c4rsys: подтверждение владения ТС / vehicle ownership"
+BODY_OWNER = (
+    "Компания «{company}» указала вас владельцем транспортного средства и просит подтвердить "
+    "связь с компанией, владение и согласие на управление. Войдите или зарегистрируйтесь с этим "
+    "адресом:\n{url}\n\n"
+    "The company «{company}» named you the owner of a vehicle and asks you to confirm the link, "
+    "the ownership and the consent to its management. Sign in or register with this address:\n"
+    "{url}\n"
+)
+
+
 def _deliver(email: str, subject: str, body: str, kind: str) -> None:
     try:
         send_mail(subject, body, None, [email])
@@ -85,6 +96,15 @@ def send_link_request(email: str, company_name: str) -> None:
         return
     body = BODY_LINK.format(company=company_name, url=settings.C4R_PUBLIC_URL)
     _deliver(email, SUBJECT_LINK, body, "link request")
+
+
+def send_owner_request(email: str, company_name: str) -> None:
+    """Notice of a request to the owner of a vehicle (§ 8.3.1, § 20.3.4)."""
+    if settings.C4R_MAIL_MODE == "console":
+        logger.warning("DEV MAIL to %s: owner request from %s", email, company_name)
+        return
+    body = BODY_OWNER.format(company=company_name, url=settings.C4R_PUBLIC_URL)
+    _deliver(email, SUBJECT_OWNER, body, "owner request")
 
 
 def send_signing_link(email: str, company_name: str, title: str, url: str) -> None:

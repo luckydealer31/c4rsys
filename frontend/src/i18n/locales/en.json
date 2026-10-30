@@ -908,7 +908,14 @@
     "link_not_pending": "The request is no longer waiting for an answer.",
     "link_expired": "The request has expired.",
     "link_not_accepted": "The link is not confirmed.",
-    "card_archived": "The card is in the archive."
+    "card_archived": "The card is in the archive.",
+    "owner_request_managed_only": "A request is sent to the owner of a managed vehicle.",
+    "owner_profile_required": "Give the owner by USR ID, email, phone or CMP ID first.",
+    "owner_request_pending": "A request is already waiting for the answers.",
+    "owner_already_confirmed": "The owner has already confirmed the management.",
+    "owner_request_not_open": "The request is closed.",
+    "owner_request_expired": "The request has expired.",
+    "owner_answer_given": "This question has already been answered; the answer is not changed."
   },
   "history": {
     "action": "Action",
@@ -3309,7 +3316,9 @@
     "recipients_hint": "None chosen — by responsibility and rights; the chosen ones receive it only with access to the object",
     "auto_task": "Also create a task",
     "event_link_requested": "«{{company}}» asks to link with the company's profile",
-    "event_link_answered": "Answer to the link request ({{target}})"
+    "event_link_answered": "Answer to the link request ({{target}})",
+    "event_vehicle_owner_requested": "«{{company}}» asks the company as the owner of a vehicle",
+    "event_vehicle_owner_answered": "The owner answered the request ({{target}})"
   },
   "reports": {
     "metric_rental_issues_today": "Issues expected today",
@@ -3514,7 +3523,9 @@
     "action_create_packaging": "Create the packaging and load",
     "by_lot_external_number": "by the external lot number — possibly an existing lot",
     "blocker_corrected": "Corrected receipt",
-    "hint_stock": "Initial stock: one row per unit of an individual item; a material by lots — a new lot by its code in the file, an existing one by its LOT ID; closed packages, an opened package with its rest, or loose material. The IDs of items, warehouses and lots are on the sheets of the template."
+    "hint_stock": "Initial stock: one row per unit of an individual item; a material by lots — a new lot by its code in the file, an existing one by its LOT ID; closed packages, an opened package with its rest, or loose material. The IDs of items, warehouses and lots are on the sheets of the template.",
+    "blocker_owner_confirmed": "Ownership confirmed by the owner",
+    "blocker_owner_request": "A request was sent to the owner"
   },
   "links": {
     "title": "Link with a c4rsys profile",
@@ -3569,5 +3580,33 @@
     "field_identifiers": "Registration and tax numbers",
     "field_legal_address": "Legal address",
     "field_actual_address": "Actual address"
+  },
+  "owner_requests": {
+    "title": "Confirmation by the owner",
+    "confirmed": "Management confirmed by the owner",
+    "conflict": "Conflict: the owner refused the link or the management. You can keep working with the vehicle.",
+    "profile_needed": "To send a request give the owner by USR ID, email, phone or CMP ID.",
+    "state_open": "Awaiting the answers",
+    "state_awaiting_rest": "Awaiting the other answers",
+    "state_complete": "Answered",
+    "state_cancelled": "Cancelled",
+    "state_superseded": "Replaced by a new request",
+    "state_expired": "Expired",
+    "question_link": "Link with the company",
+    "question_ownership": "The vehicle is theirs",
+    "question_management": "Consent to the management",
+    "yes": "Yes",
+    "no": "No",
+    "dispute": "The vehicle already has another confirmed owner: ownership is not changed automatically, the case is for the c4rsys support.",
+    "send": "Send a request to the owner",
+    "send_again": "Send a new request",
+    "my_title": "Vehicles: requests to the owner",
+    "incoming_title": "Vehicles: requests to the owner",
+    "asks": "The company named you the owner of this vehicle. Each answer is separate:",
+    "ask_link": "Do you confirm the link with this company?",
+    "ask_ownership": "Is this vehicle yours? «Yes» adds it to your personal garage.",
+    "ask_management": "Do you agree that this company manages the vehicle?",
+    "final": "An answer cannot be changed later: a new decision needs a new request of the company. You may answer some questions now and the rest later.",
+    "answer": "Answer"
   }
 }

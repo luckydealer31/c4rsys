@@ -20,8 +20,14 @@ from django.utils import timezone
 
 from c4rsys.companies import access, locations
 from c4rsys.companies.models import Company
-from c4rsys.fleet import characteristics, owners, services
-from c4rsys.fleet.models import VehicleCard, VehicleMake, VehicleModel, VehiclePlate
+from c4rsys.fleet import characteristics, owner_requests, owners, services
+from c4rsys.fleet.models import (
+    VehicleCard,
+    VehicleMake,
+    VehicleModel,
+    VehicleOwnerRequest,
+    VehiclePlate,
+)
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
 from c4rsys.warehouse.imports import Checked, Scope
@@ -375,6 +381,25 @@ class VehiclesTemplate:
         return card.id
 
     def remove(self, ctx: CommandContext, company_id: UUID, record_ids: list[UUID]) -> None:
+        """A confirmed ownership or a request sent to the owner stops the cancel: the answers
+        and the history of the global vehicle are kept (§ 8.3.14, part К5)."""
+        confirmed = owner_requests.has_confirmed_ownership(record_ids)
+        asked = set(
+            VehicleOwnerRequest.objects.filter(vehicle_card_id__in=record_ids).values_list(
+                "vehicle_card_id", flat=True
+            )
+        )
+        if asked:
+            raise errors.business_rule(
+                "IMPORT_CANCEL_BLOCKED",
+                blockers=[
+                    {
+                        "reason": "owner_confirmed" if c in confirmed else "owner_request",
+                        "id": str(c),
+                    }
+                    for c in sorted(asked)
+                ],
+            )
         services.remove_imported(company_id, record_ids)
 
 

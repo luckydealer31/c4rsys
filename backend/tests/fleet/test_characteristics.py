@@ -165,6 +165,8 @@ def test_managed_vehicle_owner_by_profile_does_not_reveal_it(
         "name": "",
         "contact": "",
         "confirmed": False,
+        "ownership_confirmed": False,
+        "conflict": False,
     }
     claim = VehicleOwnerClaim.objects.get(kind="profile")
     assert claim.owner_user_id is not None

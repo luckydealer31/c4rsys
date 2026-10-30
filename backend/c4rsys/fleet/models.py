@@ -324,3 +324,127 @@ class VehicleMove(models.Model):
 
     def __str__(self) -> str:
         return f"{self.vehicle_card_id}: {self.from_location_id} → {self.to_location_id}"
+
+
+class VehicleOwnerRequest(models.Model):
+    """A request to the declared owner of a managed vehicle (§ 8.3.1, § 8.3.5, § 8.3.13–8.3.14).
+
+    It is sent to the profile of the current declaration: a person by USR ID, email or phone, a
+    company by its CMP ID. The three answers are kept apart (`VehicleOwnerAnswer`). A new
+    request is allowed after a refusal or an incomplete answer and keeps the earlier answers;
+    the earlier request becomes «superseded»."""
+
+    class State(models.TextChoices):
+        OPEN = "open"  # waiting for all or for the rest of the answers
+        COMPLETE = "complete"
+        CANCELLED = "cancelled"
+        SUPERSEDED = "superseded"
+        EXPIRED = "expired"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    vehicle_card = models.ForeignKey(
+        VehicleCard, on_delete=models.PROTECT, related_name="owner_requests"
+    )
+    vehicle = models.ForeignKey(Vehicle, on_delete=models.PROTECT, related_name="+")
+    claim = models.ForeignKey(VehicleOwnerClaim, on_delete=models.PROTECT, related_name="+")
+    target_label = models.CharField(max_length=254)
+    target_user_id = models.UUIDField(null=True, blank=True)
+    target_company_id = models.UUIDField(null=True, blank=True)
+    target_email = models.CharField(max_length=254, blank=True, default="")
+    target_phone = models.CharField(max_length=40, blank=True, default="")
+    state = models.CharField(max_length=12, choices=State.choices, default=State.OPEN)
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+    expires_at = models.DateTimeField()
+    closed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "vehicle_owner_request"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(target_user_id__isnull=False)
+                | Q(target_company_id__isnull=False)
+                | ~Q(target_email="")
+                | ~Q(target_phone=""),
+                name="vehicle_owner_request_has_target",
+            ),
+            models.UniqueConstraint(
+                fields=["vehicle_card"],
+                condition=Q(state="open"),
+                name="vehicle_owner_request_one_open",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["target_user_id", "state"], name="owner_request_user_idx"),
+            models.Index(fields=["target_company_id", "state"], name="owner_request_company_idx"),
+            models.Index(fields=["target_email", "state"], name="owner_request_email_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"owner request {self.id}"
+
+
+class VehicleOwnerAnswer(models.Model):
+    """One of the three answers of § 8.3.1 with the profile that answered and the moment
+    (§ 8.3.14). An answer is never changed; a new decision is a new request."""
+
+    class Question(models.TextChoices):
+        LINK = "link"  # the link with the company
+        OWNERSHIP = "ownership"  # the vehicle belongs to the owner
+        MANAGEMENT = "management"  # consent to the management by this company
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    request = models.ForeignKey(
+        VehicleOwnerRequest, on_delete=models.PROTECT, related_name="answers"
+    )
+    question = models.CharField(max_length=12, choices=Question.choices)
+    answer = models.BooleanField()
+    user_id = models.UUIDField()
+    company_id = models.UUIDField(null=True, blank=True)
+    answered_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "vehicle_owner_answer"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["request", "question"], name="vehicle_owner_answer_once"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.question}={self.answer}"
+
+
+class VehicleOwnership(models.Model):
+    """A confirmed period of ownership of the global vehicle (§ 8.3.8, § 8.3.13, § 8.3.16). In
+    the MVP one current owner — a person or a company; the current period has no end."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    vehicle = models.ForeignKey(Vehicle, on_delete=models.PROTECT, related_name="ownerships")
+    owner_user_id = models.UUIDField(null=True, blank=True)
+    owner_company_id = models.UUIDField(null=True, blank=True)
+    started_at = models.DateTimeField()
+    ended_at = models.DateTimeField(null=True, blank=True)
+    request = models.ForeignKey(
+        VehicleOwnerRequest, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    created_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "vehicle_ownership"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(owner_user_id__isnull=False, owner_company_id__isnull=True)
+                | Q(owner_user_id__isnull=True, owner_company_id__isnull=False),
+                name="vehicle_ownership_one_owner",
+            ),
+            models.UniqueConstraint(
+                fields=["vehicle"],
+                condition=Q(ended_at__isnull=True),
+                name="vehicle_ownership_one_current",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"ownership {self.vehicle_id}"

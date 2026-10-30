@@ -2,8 +2,9 @@
 
 With «own» the company is the declared owner. With «managed» the owner is a profile looked up by
 c4rsys ID, email or phone, an owner described by hand (person or organization), or not given.
-Everything stays unconfirmed until the owner answers the request of § 8.3.1 — the request
-itself is a later task. The company never learns from a lookup whether a profile exists.
+A company profile is given by its CMP ID. Everything stays unconfirmed until the owner answers
+the request of § 8.3.1 (`owner_requests`). The company never learns from a lookup whether a
+profile exists.
 """
 
 import re
@@ -13,6 +14,7 @@ from uuid import UUID
 
 from c4rsys.accounts import services as accounts
 from c4rsys.companies.models import Company
+from c4rsys.fleet import owner_requests
 from c4rsys.fleet.models import VehicleCard, VehicleOwnerClaim
 from c4rsys.parties import services as parties
 from c4rsys.platform import errors
@@ -92,7 +94,7 @@ def parse(data: dict[str, Any], relation: str) -> Owner:
             raise errors.validation_error("owner_lookup", code="FIELD_REQUIRED")
         if "@" in lookup:
             lookup = accounts.normalize_email(lookup)
-        elif lookup.upper().startswith("USR-"):
+        elif lookup.upper().startswith(("USR-", "CMP-")):
             lookup = lookup.upper()
         elif not PHONE.match(lookup):
             raise errors.validation_error("owner_lookup", code="OWNER_LOOKUP_INVALID")
@@ -163,8 +165,8 @@ def describe(card: VehicleCard) -> dict[str, Any] | None:
         "lookup": claim.lookup,
         "name": claim.manual_name,
         "contact": claim.manual_contact,
-        # The request of § 8.3.1 is not sent yet: nothing is confirmed.
-        "confirmed": False,
+        # The answers to the request of § 8.3.1: three «yes» confirm the management.
+        **owner_requests.owner_status(card),
     }
     if claim.client is not None:
         body["client"] = {"id": str(claim.client_id), "name": parties.display_name(claim.client)}

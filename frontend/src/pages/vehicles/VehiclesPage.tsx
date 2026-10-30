@@ -14,6 +14,7 @@ import { useLocations } from "../settings/LocationsPage";
 import { LinkedTasks } from "../tasks/TasksPage";
 import { LinkedDocuments } from "../documents/DocumentsPage";
 import { VehicleService } from "../service/VehicleService";
+import { OwnerRequestCard } from "./OwnerRequestCard";
 import { VehicleMoves } from "./VehicleMoves";
 
 // Only operational contexts are switched for a vehicle — rental now (decision of 24.10.2026):
@@ -336,6 +337,7 @@ export function VehiclePage() {
       ) : null}
       {stored && data.state === "active" ? <ReturnToGarage vehicle={data} /> : null}
       {stored ? null : <VehicleService vehicle={data} />}
+      {data.relation === "managed" ? <OwnerRequestCard vehicle={data} /> : null}
       <LinkedDocuments objectType="vehicle" objectId={data.id} />
       <LinkedTasks objectType="vehicle" objectId={data.id} />
       {data.relation === "own" ? <Acquisition vehicle={data} /> : null}

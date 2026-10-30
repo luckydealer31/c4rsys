@@ -1,6 +1,6 @@
 from django.urls import path
 
-from c4rsys.fleet import views
+from c4rsys.fleet import owner_views, views
 
 urlpatterns = [
     path("catalog/vehicle-options", views.catalog_options),
@@ -15,4 +15,13 @@ urlpatterns = [
     path("c/<str:cmp>/vehicles/<uuid:card_id>/move", views.vehicle_move),
     path("c/<str:cmp>/vehicles/<uuid:card_id>/moves", views.vehicle_moves),
     path("c/<str:cmp>/drivers", views.drivers),
+    path("c/<str:cmp>/vehicles/<uuid:card_id>/owner-requests", owner_views.card_requests),
+    path("c/<str:cmp>/vehicles/<uuid:card_id>/owner-requests/cancel", owner_views.cancel),
+    path("c/<str:cmp>/incoming-owner-requests", owner_views.incoming),
+    path(
+        "c/<str:cmp>/incoming-owner-requests/<uuid:request_id>/answer",
+        owner_views.incoming_answer,
+    ),
+    path("owner-requests", owner_views.mine),
+    path("owner-requests/<uuid:request_id>/answer", owner_views.my_answer),
 ]

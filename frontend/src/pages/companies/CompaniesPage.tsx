@@ -9,6 +9,7 @@ import { useCommand } from "../../api/useCommand";
 import { Avatar, ImagePicker } from "../../components/images";
 import { InvitationsSection } from "../account/InvitationsPage";
 import { LinkRequests } from "../account/LinkRequests";
+import { OwnerRequests } from "../account/OwnerRequests";
 import { TimeZoneSelect } from "../../components/TimeZoneSelect";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { deviceTimeZone } from "../../time";
@@ -27,6 +28,7 @@ export function CompaniesPage({ user }: { user: User }) {
       <InvitationsSection user={user} />
       {/* § 6.3.8: a person answers in the personal area; it moves to the cabinet in К6. */}
       <LinkRequests base="/profile-links" title={t("links.my_title")} hideEmpty />
+      <OwnerRequests base="/owner-requests" title={t("owner_requests.my_title")} hideEmpty />
       <Card>
         {companies.isLoading ? <Loading /> : null}
         {companies.data?.length === 0 ? <p className="muted">{t("companies.none")}</p> : null}

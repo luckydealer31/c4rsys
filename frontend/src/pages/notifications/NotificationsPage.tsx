@@ -36,6 +36,7 @@ const OBJECT_PATHS: Record<string, string> = {
   client: "/clients/",
   counterparty: "/clients/counterparties/",
   profile_link: "/link-requests/",
+  owner_request: "/link-requests/",
   service_operation: "/service/operations/",
   delivery: "/trips/",
 };

@@ -117,6 +117,29 @@ export type RightSpec = {
   cash_accounts: Scope;
 };
 
+/** The request to the owner of a managed vehicle seen by the company (§ 8.3.1, § 8.3.14). */
+export type OwnerRequest = {
+  id: string;
+  state: "open" | "awaiting_rest" | "complete" | "cancelled" | "superseded" | "expired";
+  target: string;
+  by_phone: boolean;
+  created_at: string;
+  expires_at: string;
+  answers: { question: "link" | "ownership" | "management"; answer: boolean; at: string; by: string }[];
+  ownership_dispute: boolean;
+};
+
+/** The same request seen by the owner. */
+export type IncomingOwnerRequest = {
+  id: string;
+  state: "open" | "complete" | "cancelled" | "superseded" | "expired";
+  company: { public_id: string; display_name: string };
+  vehicle: { vehicle_id: string; make: string; model: string; year: number | null; plate: string; vin: string };
+  created_at: string;
+  expires_at: string;
+  answers: Partial<Record<"link" | "ownership" | "management", boolean>>;
+};
+
 /** A request to link a card with a c4rsys profile and the link it became (§ 6.2.5–6.3, К4). */
 export type ProfileLink = {
   id: string;
@@ -257,7 +280,11 @@ export type Vehicle = {
     lookup: string;
     name: string;
     contact: string;
+    /** Three «yes» to the request of § 8.3.1. */
     confirmed: boolean;
+    ownership_confirmed?: boolean;
+    /** A refusal of the link or the management (§ 8.3.3). */
+    conflict?: boolean;
     company?: { public_id: string; display_name: string; legal_name: string };
     client?: { id: string; name: string };
   } | null;
