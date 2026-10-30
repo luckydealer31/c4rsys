@@ -3,6 +3,15 @@
 {$C4R_SITE_ADDRESS::80} {
 	encode zstd gzip
 
+	# Uploads: an inspection video is limited by its duration (§ 10.4.2); the original from a
+	# phone may be large. The backend caps it (MAX_VIDEO_BYTES); this cap is a little above.
+	handle /api/files {
+		request_body {
+			max_size 1100MB
+		}
+		reverse_proxy backend:8000
+	}
+
 	handle /api/* {
 		reverse_proxy backend:8000
 	}

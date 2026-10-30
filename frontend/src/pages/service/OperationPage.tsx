@@ -13,6 +13,7 @@ import { useLocations } from "../settings/LocationsPage";
 import { LinkedTasks } from "../tasks/TasksPage";
 import { LinkedDocuments } from "../documents/DocumentsPage";
 import { StockAdder } from "../warehouse/Sales";
+import { FixedDamagesPicker, ServiceInspectionsCard, type FixedChoice } from "../inspections/Blocks";
 import {
   FINAL_STATES,
   HOLDING_STATES,
@@ -120,6 +121,7 @@ export function ServiceOperationPage() {
           </p>
         ))}
       </Card>
+      <ServiceInspectionsCard op={op} />
       <Jobs op={op} zone={zone} />
       <Handovers op={op} zone={zone} />
       <LinkedDocuments objectType="service_operation" objectId={op.id} />
@@ -501,7 +503,7 @@ function JobActions({ op, job, zone }: { op: ServiceOperation; job: ServiceJob; 
         )}
       </div>
       {job.editing_since ? <p className="badge warn">{t("service.job_editing")}</p> : null}
-      {mode ? <JobForm key={mode} mode={mode} job={job} zone={zone} onDone={() => setMode("")} /> : null}
+      {mode ? <JobForm key={mode} mode={mode} job={job} zone={zone} vehicleCardId={op.vehicle_card_id} onDone={() => setMode("")} /> : null}
     </>
   );
 }
@@ -546,7 +548,19 @@ function Take({ job }: { job: ServiceJob }) {
   );
 }
 
-function JobForm({ mode, job, zone, onDone }: { mode: Exclude<Mode, "">; job: ServiceJob; zone: string; onDone: () => void }) {
+function JobForm({
+  mode,
+  job,
+  zone,
+  vehicleCardId,
+  onDone,
+}: {
+  mode: Exclude<Mode, "">;
+  job: ServiceJob;
+  zone: string;
+  vehicleCardId: string;
+  onDone: () => void;
+}) {
   const { t } = useTranslation();
   const company = useCompany();
   const refresh = useRefresh();
@@ -567,6 +581,8 @@ function JobForm({ mode, job, zone, onDone }: { mode: Exclude<Mode, "">; job: Se
   const [amount, setAmount] = useState(job.price !== null ? String(Number(job.price)) : "");
   const [executor, setExecutor] = useState(job.executor_id ?? "");
   const [cost, setCost] = useState(job.contractor_cost !== null ? String(Number(job.contractor_cost)) : "");
+  // § 16.5.4: the damages fixed by the work are chosen explicitly, with photos of the result.
+  const [fixed, setFixed] = useState<FixedChoice[]>([]);
   const contractor = job.contractor_id !== null;
   const path = mode === "assign" ? "assign" : mode;
   const command = useCommand<Record<string, unknown>, Result>(`/c/${company.public_id}/service/jobs/${job.id}/${path}`);
@@ -581,6 +597,7 @@ function JobForm({ mode, job, zone, onDone }: { mode: Exclude<Mode, "">; job: Se
       body.comment = comment;
     }
     if (mode === "complete") body.odometer = number(odometer);
+    if (mode === "complete" && fixed.length) body.fixed_damages = fixed;
     if (contractor && (mode === "complete" || mode === "terminate" || mode === "contractor-cost")) {
       body.contractor_cost = number(cost);
     }
@@ -656,6 +673,7 @@ function JobForm({ mode, job, zone, onDone }: { mode: Exclude<Mode, "">; job: Se
     );
   }
   if (mode === "complete") {
+    fields.push(<FixedDamagesPicker key="fixed" vehicleCardId={vehicleCardId} value={fixed} onChange={setFixed} />);
     fields.push(
       <Field key="odometer" label={t("service.odometer")} hint={contractor ? t("service.odometer_optional") : undefined}>
         <input inputMode="decimal" value={odometer} onChange={(e) => setOdometer(e.target.value)} />

@@ -25,7 +25,7 @@ from django.http import HttpRequest, JsonResponse
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from c4rsys.accounts.middleware import require_user
-from c4rsys.companies import access
+from c4rsys.companies import access, history
 from c4rsys.companies import services as companies
 from c4rsys.companies.views import run_and_respond
 from c4rsys.fleet.models import VehicleCard
@@ -371,6 +371,20 @@ def inspection_invalidate(request: HttpRequest, cmp: str, inspection_id: UUID) -
         "inspection.invalidate",
         lambda ctx, i, data: services.invalidate(ctx, i, _reason(data)),
     )
+
+
+@require_GET
+def inspection_history(request: HttpRequest, cmp: str, inspection_id: UUID) -> JsonResponse:
+    """The journal of the inspection and of the damages it recorded (§ 10.6.3: all states,
+    reasons, authors and moments are kept)."""
+    context, actor = _actor(request, cmp)
+    inspection = _inspection(context.company.id, inspection_id, actor)
+    objects = [("inspection", str(inspection.id))] + [
+        ("damage", str(d))
+        for d in Damage.objects.filter(inspection=inspection).values_list("id", flat=True)
+    ]
+    events = history.object_history(context.company.id, objects)
+    return JsonResponse({"history": history.payload(events)})
 
 
 @require_GET

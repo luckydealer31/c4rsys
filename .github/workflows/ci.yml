@@ -32,6 +32,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+      # Decision В-8.1: the tests of inspection videos run ffprobe and ffmpeg.
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
       - run: pip install -r requirements-dev.txt
       - run: ruff check .
       - run: ruff format --check .

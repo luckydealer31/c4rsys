@@ -174,7 +174,9 @@ def test_required_photos_only_for_a_conducted_check(owner: Client, s: Scenario) 
     )
     saved = ok(act(owner, s, item, "complete", conducted=True))
     assert saved["check_status"] == "conducted"
-    assert saved["files"] == [{"file_id": file_id, "kind": "photo", "position": "front"}]
+    assert saved["files"] == [
+        {"file_id": file_id, "kind": "photo", "position": "front", "state": "ready"}
+    ]
     # The photo is read by employees who see the inspection.
     assert owner.get(f"/api/files/{file_id}").status_code == 200
 
@@ -337,3 +339,24 @@ def test_invalidated_conducted_check_is_missing_again(owner: Client, s: Scenario
     # § 10.6.3: an invalid required inspection counts as not done.
     detail = owner.get(f"/api/c/{s.cmp}/rentals/{rental['id']}").json()["rental"]
     assert detail["inspections"]["check_conflicts"] == ["issue"]
+
+
+def test_history_of_an_inspection_and_its_files_state(owner: Client, s: Scenario) -> None:
+    """The saved inspection shows its journal with its damages (§ 10.6.3) and the state of its
+    files (a video is compressed after the upload, decision В-8.1)."""
+    file_id = photo(owner)
+    item = created(owner, s, files=[{"file_id": file_id, "kind": "photo", "position": "front"}])
+    assert item["files"] == [
+        {"file_id": file_id, "kind": "photo", "position": "front", "state": "ready"}
+    ]
+    entry = {"zone_text": "Front bumper", "photo_file_ids": [file_id]}
+    item = ok(
+        change(owner, s, item, odometer="100", fuel="10", damages=[entry], files=item["files"])
+    )
+    ok(act(owner, s, item, "complete", conducted=True))
+
+    history = owner.get(f"/api/c/{s.cmp}/inspections/{item['id']}/history").json()["history"]
+
+    actions = [h["action"] for h in history]
+    assert actions[0] == "inspection.draft_created"
+    assert "inspection.saved" in actions and "damage.created" in actions

@@ -913,8 +913,16 @@ def payload(inspection: Inspection, *, detail: bool = True) -> dict[str, Any]:
         "version": inspection.version,
     }
     data["files"] = [
-        {"file_id": str(f.file_id), "kind": f.kind, "position": f.position or None}
-        for f in InspectionFile.objects.filter(inspection=inspection).order_by("added_at", "id")
+        {
+            "file_id": str(f.file_id),
+            "kind": f.kind,
+            "position": f.position or None,
+            # A video is compressed on the server after its upload (decision В-8.1).
+            "state": f.file.state,
+        }
+        for f in InspectionFile.objects.filter(inspection=inspection)
+        .select_related("file")
+        .order_by("added_at", "id")
     ]
     if detail:
         data["template"] = templates.version_payload(inspection.template_version)

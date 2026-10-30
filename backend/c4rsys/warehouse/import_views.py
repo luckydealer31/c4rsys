@@ -74,7 +74,10 @@ def _uploaded(request: HttpRequest) -> tuple[bytes, str]:
         raise errors.validation_error("file", code="FIELD_REQUIRED")
     if uploaded.size is not None and uploaded.size > imports.MAX_FILE_BYTES:
         raise errors.validation_error(
-            "file", code="FILE_TOO_LARGE", max_bytes=imports.MAX_FILE_BYTES
+            "file",
+            code="FILE_TOO_LARGE",
+            max_bytes=imports.MAX_FILE_BYTES,
+            max_mb=imports.MAX_FILE_BYTES // 2**20,
         )
     return uploaded.read(), uploaded.name or "import.xlsx"
 

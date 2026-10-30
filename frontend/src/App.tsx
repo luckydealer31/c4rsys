@@ -53,6 +53,11 @@ import { TariffPage, TariffsPage } from "./pages/tariffs/TariffsPage";
 import { EditVehiclePage, NewVehiclePage } from "./pages/vehicles/NewVehiclePage";
 import { VehiclePage, VehiclesPage } from "./pages/vehicles/VehiclesPage";
 import { SchedulePage } from "./pages/vehicles/SchedulePage";
+import { DamagePage } from "./pages/inspections/DamagePage";
+import { InspectionPage } from "./pages/inspections/InspectionPage";
+import { InspectionsPage } from "./pages/inspections/InspectionsPage";
+import { NewInspectionPage } from "./pages/inspections/NewInspection";
+import { InspectionPolicyPage, InspectionTemplatesPage } from "./pages/inspections/Settings";
 
 export function App() {
   const me = useMe();
@@ -133,6 +138,12 @@ export function App() {
         <Route path="vehicles/schedule" element={<SchedulePage />} />
         <Route path="vehicles/:id" element={<VehiclePage />} />
         <Route path="vehicles/:id/edit" element={<EditVehiclePage />} />
+        <Route path="inspections" element={<InspectionsPage />} />
+        <Route path="inspections/new" element={<NewInspectionPage />} />
+        <Route path="inspections/:id" element={<InspectionPage />} />
+        <Route path="damages/:id" element={<DamagePage />} />
+        <Route path="settings/inspection-templates" element={<InspectionTemplatesPage />} />
+        <Route path="settings/inspection-policy" element={<InspectionPolicyPage />} />
         <Route path="clients" element={<ClientsPage />} />
         <Route path="clients/counterparties/:id" element={<CounterpartyPage />} />
         <Route path="clients/:id" element={<ClientPage />} />

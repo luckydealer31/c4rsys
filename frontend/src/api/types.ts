@@ -1449,7 +1449,13 @@ export type InspectionState =
   | "terminated"
   | "invalid";
 
-export type InspectionFileItem = { file_id: string; kind: "photo" | "video"; position: string | null };
+export type InspectionFileItem = {
+  file_id: string;
+  kind: "photo" | "video";
+  position: string | null;
+  /** A video is compressed on the server after its upload (decision В-8.1). */
+  state?: "ready" | "processing" | "failed";
+};
 
 export type TemplatePosition = {
   code: string;

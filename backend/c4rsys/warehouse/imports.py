@@ -358,7 +358,9 @@ def check(
     """Step one: the file is stored with the operation, rows are checked; nothing is created."""
     found = adapter(kind)
     if len(content) > MAX_FILE_BYTES:
-        raise errors.validation_error("file", code="FILE_TOO_LARGE", max_bytes=MAX_FILE_BYTES)
+        raise errors.validation_error(
+            "file", code="FILE_TOO_LARGE", max_bytes=MAX_FILE_BYTES, max_mb=MAX_FILE_BYTES // 2**20
+        )
     parsed = parse(content, kind)
     digest = hashlib.sha256(content).hexdigest()
     warnings = list(parsed.warnings)
@@ -718,7 +720,9 @@ def reupload(
     if operation.state != ImportOperation.State.POSTED:
         raise errors.business_rule("IMPORT_NOT_POSTED")
     if len(content) > MAX_FILE_BYTES:
-        raise errors.validation_error("file", code="FILE_TOO_LARGE", max_bytes=MAX_FILE_BYTES)
+        raise errors.validation_error(
+            "file", code="FILE_TOO_LARGE", max_bytes=MAX_FILE_BYTES, max_mb=MAX_FILE_BYTES // 2**20
+        )
     found = adapter(operation.kind)
     parsed = parse(content, operation.kind, correction=True)
     # The files are kept six months from the first upload and a corrected file does not extend

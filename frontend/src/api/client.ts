@@ -86,7 +86,15 @@ export type RequestOptions = {
 
 /** Upload of one file as multipart (the browser sets the content type and its boundary). */
 export async function uploadFile(
-  purpose: "avatar" | "company_logo" | "item_photo" | "warehouse_document" | "company_document" | "task_attachment",
+  purpose:
+    | "avatar"
+    | "company_logo"
+    | "item_photo"
+    | "warehouse_document"
+    | "company_document"
+    | "task_attachment"
+    | "inspection_photo"
+    | "inspection_video",
   file: File,
   idempotencyKey: string = crypto.randomUUID(),
 ): Promise<{ id: string }> {
@@ -112,6 +120,53 @@ export async function uploadFile(
     throw new ApiError(response.status, (data as ErrorBody | null)?.error ?? null);
   }
   return (data as { file: { id: string } }).file;
+}
+
+export type UploadedFile = {
+  id: string;
+  content_type: string;
+  /** A video is compressed on the server after the upload (decision В-8.1). */
+  state?: "ready" | "processing" | "failed";
+  duration_seconds?: string | null;
+};
+
+/** Upload of an inspection photo or video with its progress (0..1): a phone may send a large
+ * original over a slow connection (§ 10.4.2). */
+export async function uploadWithProgress(
+  purpose: "inspection_photo" | "inspection_video",
+  file: File,
+  onProgress: (share: number) => void,
+  idempotencyKey: string = crypto.randomUUID(),
+): Promise<UploadedFile> {
+  const token = await csrfToken();
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open("POST", `/api/files?purpose=${purpose}`);
+    request.withCredentials = true;
+    request.setRequestHeader("Accept", "application/json");
+    request.setRequestHeader("X-CSRFToken", token);
+    request.setRequestHeader("Idempotency-Key", idempotencyKey);
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress(event.loaded / event.total);
+    };
+    request.onerror = () => reject(new ApiError(0, null));
+    request.onload = () => {
+      let data: unknown = null;
+      try {
+        data = JSON.parse(request.responseText);
+      } catch {
+        data = null;
+      }
+      if (request.status < 200 || request.status >= 300) {
+        reject(new ApiError(request.status, (data as ErrorBody | null)?.error ?? null));
+        return;
+      }
+      resolve((data as { file: UploadedFile }).file);
+    };
+    const body = new FormData();
+    body.append("file", file);
+    request.send(body);
+  });
 }
 
 /** Upload of an import file (§ 22.2.2): the server checks it and stores the operation. */

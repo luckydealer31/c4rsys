@@ -45,12 +45,19 @@ def _path(file_id: UUID) -> Path:
     return _root() / str(file_id)
 
 
+def too_large(limit: int) -> errors.ApiError:
+    """The limit in bytes and in whole megabytes, for the message."""
+    return errors.validation_error(
+        "file", code="FILE_TOO_LARGE", max_bytes=limit, max_mb=limit // (1024 * 1024)
+    )
+
+
 def image_type(content: bytes) -> str:
     """Content type by the file's own signature, not by the name or the browser's claim."""
     if not content:
         raise errors.validation_error("file", code="FIELD_REQUIRED")
     if len(content) > MAX_IMAGE_BYTES:
-        raise errors.validation_error("file", code="FILE_TOO_LARGE", max_bytes=MAX_IMAGE_BYTES)
+        raise too_large(MAX_IMAGE_BYTES)
     for content_type, matches in IMAGE_SIGNATURES.items():
         if matches(content[:16]):
             return content_type
@@ -68,7 +75,7 @@ def document_type(content: bytes) -> str:
     if not content:
         raise errors.validation_error("file", code="FIELD_REQUIRED")
     if len(content) > MAX_DOCUMENT_BYTES:
-        raise errors.validation_error("file", code="FILE_TOO_LARGE", max_bytes=MAX_DOCUMENT_BYTES)
+        raise too_large(MAX_DOCUMENT_BYTES)
     if content.startswith(b"%PDF-"):
         return "application/pdf"
     for content_type, matches in IMAGE_SIGNATURES.items():
@@ -111,23 +118,22 @@ def company_document_type(content: bytes) -> str:
     for content_type, matches in IMAGE_SIGNATURES.items():
         if matches(content[:16]):
             if len(content) > MAX_PHOTO_BYTES:
-                raise errors.validation_error(
-                    "file", code="FILE_TOO_LARGE", max_bytes=MAX_PHOTO_BYTES
-                )
+                raise too_large(MAX_PHOTO_BYTES)
             return content_type
     office = "application/pdf" if content.startswith(b"%PDF-") else _office_type(content)
     if office is None:
         raise errors.validation_error("file", code="FILE_TYPE_NOT_ALLOWED")
     if len(content) > MAX_OFFICE_BYTES:
-        raise errors.validation_error("file", code="FILE_TOO_LARGE", max_bytes=MAX_OFFICE_BYTES)
+        raise too_large(MAX_OFFICE_BYTES)
     return office
 
 
 INSPECTION_PHOTO = "inspection_photo"
 INSPECTION_VIDEO = "inspection_video"
-# PROPOSAL: § 10.4.2 limits a video by its duration (2 minutes), not by size; until the server
-# compression of part О4 checks the duration, the upload is capped by this size.
-MAX_VIDEO_BYTES = 200 * 1024 * 1024
+# § 10.4.2 limits a video by its duration (2 minutes, checked by `video.probe`), not by size. A
+# technical cap of the original only guards the server; PROPOSAL: 1 GB holds two minutes of 4K
+# from a phone.
+MAX_VIDEO_BYTES = 1024 * 1024 * 1024
 
 
 def inspection_photo_type(content: bytes) -> str:
@@ -135,23 +141,20 @@ def inspection_photo_type(content: bytes) -> str:
     if not content:
         raise errors.validation_error("file", code="FIELD_REQUIRED")
     if len(content) > MAX_PHOTO_BYTES:
-        raise errors.validation_error("file", code="FILE_TOO_LARGE", max_bytes=MAX_PHOTO_BYTES)
+        raise too_large(MAX_PHOTO_BYTES)
     for content_type, matches in IMAGE_SIGNATURES.items():
         if matches(content[:16]):
             return content_type
     raise errors.validation_error("file", code="FILE_TYPE_NOT_ALLOWED")
 
 
-def inspection_video_type(content: bytes) -> str:
-    """§ 10.4.2: MP4 and MOV, told by the brand of their `ftyp` box.
-    TODO(О4): the duration limit of 2 minutes and the compression to Full HD (decision В-8.1)."""
-    if not content:
+def inspection_video_type(head: bytes) -> str:
+    """§ 10.4.2: MP4 and MOV, told by the brand of their `ftyp` box (the first bytes)."""
+    if not head:
         raise errors.validation_error("file", code="FIELD_REQUIRED")
-    if len(content) > MAX_VIDEO_BYTES:
-        raise errors.validation_error("file", code="FILE_TOO_LARGE", max_bytes=MAX_VIDEO_BYTES)
-    if content[4:8] != b"ftyp":
+    if head[4:8] != b"ftyp":
         raise errors.validation_error("file", code="FILE_TYPE_NOT_ALLOWED")
-    return "video/quicktime" if content[8:10] == b"qt" else "video/mp4"
+    return "video/quicktime" if head[8:10] == b"qt" else "video/mp4"
 
 
 def store(*, purpose: str, uploaded_by: UUID, content: bytes, content_type: str) -> StoredFile:
@@ -197,15 +200,29 @@ def of_company(company_id: UUID, file_id: UUID) -> StoredFile | None:
     return StoredFile.objects.filter(pk=file_id, company_id=company_id).first()
 
 
-def content(item: StoredFile) -> bytes:
+def content_path(item: StoredFile) -> tuple[Path, str]:
+    """Where the content is and its type; a video may still be compressed (decision В-8.1)."""
+    from c4rsys.files import video
+
     if item.removed_at is not None:
         raise errors.business_rule("FILE_REMOVED")
-    return _path(item.id).read_bytes()
+    if item.purpose == INSPECTION_VIDEO:
+        return video.readable_path(item)
+    return _path(item.id), item.content_type
+
+
+def content(item: StoredFile) -> bytes:
+    return content_path(item)[0].read_bytes()
 
 
 def remove(file_id: UUID) -> None:
     """Removes the content by its retention period; the details of the file stay. Call inside
     the caller's transaction: the content is deleted after it commits."""
     StoredFile.objects.filter(pk=file_id, removed_at__isnull=True).update(removed_at=timezone.now())
-    path = _path(file_id)
-    transaction.on_commit(lambda: path.unlink(missing_ok=True))
+    paths = [_path(file_id), _root() / f"{file_id}.source"]
+
+    def unlink() -> None:
+        for path in paths:
+            path.unlink(missing_ok=True)
+
+    transaction.on_commit(unlink)

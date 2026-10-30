@@ -41,11 +41,12 @@ export function useServicePosts() {
   return useApi<{ posts: ServicePost[] }>(["service-posts", company.public_id], `/c/${company.public_id}/service/posts`);
 }
 
-export function useServiceOperations(query = "") {
+export function useServiceOperations(query = "", enabled = true) {
   const company = useCompany();
   return useApi<{ operations: ServiceOperation[] }>(
     ["service-operations", company.public_id, query],
     `/c/${company.public_id}/service/operations${query ? `?${query}` : ""}`,
+    enabled,
   );
 }
 

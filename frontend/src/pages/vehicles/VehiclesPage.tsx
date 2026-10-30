@@ -16,6 +16,7 @@ import { LinkedDocuments } from "../documents/DocumentsPage";
 import { VehicleService } from "../service/VehicleService";
 import { OwnerRequestCard } from "./OwnerRequestCard";
 import { VehicleMoves } from "./VehicleMoves";
+import { VehicleDamagesCard, VehicleInspectionsCard } from "../inspections/Blocks";
 
 // Only operational contexts are switched for a vehicle — rental now (decision of 24.10.2026):
 // service is implied, the warehouse is reached by a transfer of an own vehicle (§ 8.1.5).
@@ -340,6 +341,8 @@ export function VehiclePage() {
       ) : null}
       {stored && data.state === "active" ? <ReturnToGarage vehicle={data} /> : null}
       {stored ? null : <VehicleService vehicle={data} />}
+      {stored ? null : <VehicleInspectionsCard vehicle={data} />}
+      {stored ? null : <VehicleDamagesCard vehicle={data} />}
       {data.relation === "managed" ? <OwnerRequestCard vehicle={data} /> : null}
       <LinkedDocuments objectType="vehicle" objectId={data.id} />
       <LinkedTasks objectType="vehicle" objectId={data.id} />

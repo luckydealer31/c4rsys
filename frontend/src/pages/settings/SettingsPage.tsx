@@ -15,6 +15,9 @@ export function SettingsPage() {
     ["rental", "/settings/rental", can("company.settings")],
     ["notifications", "/settings/notifications", can("company.settings")],
     ["discounts", "/settings/discounts", can("company.settings")],
+    // § 10.3.1, § 10.3.5: templates and policy of inspections (§ 23.3.7).
+    ["inspection_templates", "/settings/inspection-templates", can("inspection.policy.manage") || can("inspection.conduct")],
+    ["inspection_policy", "/settings/inspection-policy", can("inspection.policy.manage") || can("inspection.conduct")],
     ["export", "/settings/export", can("data.export")],
   ] as const;
   return (

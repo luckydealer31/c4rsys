@@ -28,6 +28,14 @@ class StoredFile(models.Model):
         INSPECTION_PHOTO = "inspection_photo"
         INSPECTION_VIDEO = "inspection_video"
 
+    class State(models.TextChoices):
+        """Decision В-8.1: an inspection video is compressed on the server after its upload; until
+        then only its original is kept (`processing`). A failed compression keeps the original."""
+
+        READY = "ready"
+        PROCESSING = "processing"
+        FAILED = "failed"
+
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     purpose = models.CharField(max_length=30, choices=Purpose.choices)
     uploaded_by = models.UUIDField()
@@ -38,6 +46,11 @@ class StoredFile(models.Model):
     created_at = models.DateTimeField(default=timezone.now)
     # The content was removed by its retention period (§ 22.2.4); the details stay.
     removed_at = models.DateTimeField(null=True, blank=True)
+    state = models.CharField(max_length=12, choices=State.choices, default=State.READY)
+    # When a worker took the compression; a stale moment lets another worker take it again.
+    processing_started_at = models.DateTimeField(null=True, blank=True)
+    # Duration of a video in seconds, measured at the upload (§ 10.4.2).
+    duration_seconds = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
 
     class Meta:
         db_table = "stored_file"

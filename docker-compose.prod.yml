@@ -91,7 +91,12 @@ services:
     environment:
       DATABASE_URL: postgres://c4rsys:${POSTGRES_PASSWORD}@db:5432/c4rsys
       DJANGO_DEBUG: "0"
-    command: sh -c "while true; do python manage.py run_task_schedule; python manage.py run_notifications; python manage.py remove_import_files; sleep 300; done"
+      C4R_FILES_ROOT: /data/files
+    volumes:
+      - files_data:/data/files
+    # Decision В-8.1: inspection videos whose compression was interrupted are compressed again;
+    # the files volume is shared with the backend for that (and for the removal of imports).
+    command: sh -c "while true; do python manage.py run_task_schedule; python manage.py run_notifications; python manage.py remove_import_files; python manage.py process_videos; sleep 300; done"
     healthcheck:
       disable: true
     depends_on:

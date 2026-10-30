@@ -105,6 +105,15 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 # Content of uploaded files, outside the database (A10). On the server — a separate volume.
 C4R_FILES_ROOT = os.environ.get("C4R_FILES_ROOT", str(BASE_DIR / "var" / "files"))
 
+# Inspection videos (decision В-8.1): checked by ffprobe and compressed by ffmpeg on the server.
+# "thread" — the compression starts right after the upload is committed; "off" — only
+# `manage.py process_videos` compresses them. Uploads above FILE_UPLOAD_MAX_MEMORY_SIZE go to a
+# temporary file, so a large original is never held in memory; DATA_UPLOAD_MAX_MEMORY_SIZE does
+# not count file parts.
+C4R_FFMPEG = os.environ.get("C4R_FFMPEG", "ffmpeg")
+C4R_FFPROBE = os.environ.get("C4R_FFPROBE", "ffprobe")
+C4R_VIDEO_COMPRESSION = os.environ.get("C4R_VIDEO_COMPRESSION", "thread")
+
 # Cookies and transport security (A08). The session cookie is set by c4rsys.accounts.middleware.
 CSRF_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SECURE = not DEBUG

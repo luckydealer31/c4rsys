@@ -52,6 +52,14 @@ export function companyMenu(
     ["dashboards", "/dashboards", "dashboards", true],
     ["clients", "/clients", "people", true],
     ["garage", "/vehicles", "garage", has("rental") || has("service")],
+    // Block 8 (ТЗ гл. 10): inspections for whoever has a right of inspections in a company with
+    // a rental or a service context. PROPOSAL: the place of the item in the menu.
+    [
+      "inspections",
+      "/inspections",
+      "inspections",
+      (has("rental") || has("service")) && [...permissions].some((p) => p.startsWith("inspection.")),
+    ],
     ["finance", "/finance", "finance", true],
     ["orders", "/orders", "orders", company.setup_completed_at !== null],
     ["rentals", "/rentals", "rentals", has("rental")],

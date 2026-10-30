@@ -24,6 +24,7 @@ import { RentalServices } from "./Services";
 import { CalculationView, Warnings } from "./IssuePage";
 import { LinkedTasks } from "../tasks/TasksPage";
 import { LinkedDocuments } from "../documents/DocumentsPage";
+import { RentalInspectionsCard } from "../inspections/Blocks";
 
 type RentalResponse = { rental: Rental };
 
@@ -208,6 +209,8 @@ export function RentalPage() {
         )}
         <Readings rental={current} onDone={refresh} />
       </Card>
+
+      <RentalInspectionsCard rental={current} />
 
       {unfinished && current.state === "returned" && current.reopened_at && can("rental.reopen") ? (
         <Card title={t("changes.correct_title")}>

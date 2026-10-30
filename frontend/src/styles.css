@@ -273,3 +273,62 @@ button.link { background: none; border: none; padding: 0; color: var(--accent); 
 .vehicle-scheme .scheme-caption { fill: var(--muted); font-size: 11px; }
 .vehicle-scheme .scheme-mark { fill: var(--danger); stroke: var(--surface); stroke-width: 2; }
 .vehicle-scheme .scheme-mark-text { fill: #fff; font-size: 11px; font-weight: 600; pointer-events: none; }
+
+/* Inspections on a phone (§ 10.4.1): large touch targets, photos in rows, a sticky save bar. */
+.page-head { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  flex-wrap: wrap; margin-bottom: var(--gap); }
+.page-head h1 { margin: 0; }
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.list-link-head { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.inspection-page .card { padding: 16px; }
+.inspection-page button, .inspection-page .button { min-height: 44px; }
+.inspection-page input, .inspection-page select, .inspection-page textarea { min-height: 44px; font-size: 16px; }
+.inspection-page input[type="checkbox"], .inspection-page input[type="radio"] { min-height: 0; width: 22px; height: 22px;
+  vertical-align: middle; }
+.position { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.position:last-child { border-bottom: 0; }
+.position-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.media-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; }
+.media-thumb { position: relative; display: inline-block; flex: none; border-radius: 8px; overflow: hidden;
+  border: 1px solid var(--border); background: var(--bg); }
+.media-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.media-remove { position: absolute; top: 2px; right: 2px; min-height: 0 !important; width: 28px; height: 28px;
+  padding: 0; justify-content: center; border-radius: 50%; background: rgb(0 0 0 / 0.6); border: 0;
+  color: #fff; font-size: 18px; line-height: 1; }
+.media-input { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.media-input .alert { flex-basis: 100%; }
+.media-video { margin: 8px 0 12px; }
+.media-video video { width: 100%; max-width: 640px; max-height: 360px; border-radius: 8px; background: #000;
+  display: block; margin-bottom: 6px; }
+.media-video-wait { display: flex; align-items: center; justify-content: center; max-width: 640px; height: 120px;
+  border: 1px dashed var(--border); border-radius: 8px; margin-bottom: 6px; }
+.scheme-box { overflow-x: auto; }
+.scheme-box .vehicle-scheme { min-width: 480px; }
+.vehicle-scheme .scheme-mark { fill: var(--danger); stroke: var(--surface); stroke-width: 2; }
+.vehicle-scheme .scheme-mark-text { fill: #fff; font-size: 11px; font-weight: 700; pointer-events: none; }
+.vehicle-scheme .scheme-caption { fill: var(--muted); font-size: 10px; }
+.damage-entry { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; margin: 8px 0; }
+.damage-entry .field { margin-bottom: 8px; }
+.damage-number { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px;
+  border-radius: 50%; background: var(--danger); color: #fff; font-size: 12px; font-weight: 700; margin-right: 6px; }
+.damage-list { list-style: none; padding: 0; margin: 0; }
+.damage-list li { padding: 6px 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.damage-known { align-items: center; }
+.small-button { margin-left: auto; padding: 4px 10px; min-height: 0 !important; font-size: 0.85rem; }
+.photo-choice { position: relative; display: inline-block; cursor: pointer; }
+.photo-choice input { position: absolute; top: 4px; left: 4px; z-index: 1; }
+.photo-choice.chosen .media-thumb { outline: 3px solid var(--accent); }
+.sticky-actions { position: sticky; bottom: 0; z-index: 5; background: var(--bg); padding: 8px 0;
+  border-top: 1px solid var(--border); margin-bottom: var(--gap); }
+fieldset.choice { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+fieldset.choice legend { margin-bottom: 8px; font-weight: 600; }
+.previous-item { padding: 8px 0; border-bottom: 1px solid var(--border); }
+.previous-item summary, .previous-angle summary { cursor: pointer; }
+.compact-form > * { flex: 1 1 120px; }
+@media (max-width: 760px) {
+  .page { padding: 16px 12px 40px; }
+  .card { padding: 14px; }
+  .inspection-page dl.facts { grid-template-columns: 1fr; gap: 2px; }
+  .inspection-page dl.facts dd { margin-bottom: 8px; }
+  .filters > * { flex-basis: 100%; }
+}
