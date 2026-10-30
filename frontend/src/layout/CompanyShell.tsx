@@ -8,6 +8,7 @@ import type { Company, ContextType, User } from "../api/types";
 import type { IconName } from "../components/icons";
 import { Avatar } from "../components/images";
 import { ErrorMessage, Loading } from "../components/ui";
+import { BlockedNotice } from "../pages/auth/LoginPage";
 import { contextAvailable } from "../contexts";
 import { ScopeContext, useAutoSync, useOfflineDatasets } from "../offline/hooks";
 import { rememberCompany } from "../offline/profile";
@@ -136,6 +137,8 @@ export function CompanyShell({ user }: { user: User }) {
       ) : company.error ? (
         <div className="page">
           <ErrorMessage error={company.error as ApiError} />
+          {/* § 24.2.2: a company blocked by c4rsys — the support contact. */}
+          <BlockedNotice error={company.error as ApiError} />
         </div>
       ) : company.data ? (
         <CompanyContext.Provider value={company.data}>

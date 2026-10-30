@@ -41,6 +41,8 @@ export function SettingsPage() {
     ["owners", "/settings/owners", Boolean(owner || top)],
     ["holdings", "/settings/holdings", Boolean(company.employment?.has_full_rights)],
     ["state", "/settings/state", Boolean(owner || can("company.deactivate"))],
+    // § 24.3.2: the journal of privileged sessions of the c4rsys staff.
+    ["staff_access", "/settings/staff-access", can("company.security")],
   ] as const;
   return (
     <div className="page">

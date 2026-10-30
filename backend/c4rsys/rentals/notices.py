@@ -29,6 +29,10 @@ def _condition(event: str, rental_id: UUID) -> str:
     return f"{event}:{rental_id}"
 
 
+def params_of(r: Rental) -> dict[str, Any]:
+    return _params(r)
+
+
 def _params(r: Rental) -> dict[str, Any]:
     return {
         "booking_number": r.booking_number,
@@ -263,7 +267,25 @@ def run(now: datetime) -> int:
             + _inspections(now)
             + _check_conflicts(now)
             + _cancelled(now)
+            + _missed_auto_cancel(now)
         )
+
+
+def _missed_auto_cancel(now: datetime) -> int:
+    """§ 24.2.3: the conflict of an auto-cancel missed during a system block ends once the
+    booking is no longer waiting (issued or cancelled) or got a new auto-cancel moment."""
+    from c4rsys.tasks import services as tasks
+
+    event = "rental.auto_cancel_missed"
+    changed = 0
+    for n in Notification.objects.filter(event=event, state=Notification.State.ACTIVE):
+        r = Rental.objects.filter(pk=str(n.object_id)).first()
+        if r is not None and r.state == Rental.State.BOOKED and r.auto_cancel_at is None:
+            continue
+        result = "booking_decided" if r is not None else "rental_gone"
+        notifications.resolve(n.company_id, n.condition, result, now)
+        changed += 1 + tasks.close_system(n.company_id, n.condition, done=True, result=result)
+    return changed
 
 
 def _cancelled(now: datetime) -> int:

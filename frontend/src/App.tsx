@@ -9,6 +9,8 @@ import { purgeExpired } from "./offline/drafts";
 import { offlineProfile, rememberUser } from "./offline/profile";
 import { OnlineDraftPage } from "./pages/inspections/OfflineDrafts";
 import { CabinetApp, useSite } from "./cabinet/CabinetApp";
+import { StaffApp } from "./staff/StaffApp";
+import { StaffAccessPage } from "./pages/settings/StaffAccessPage";
 import { Loading } from "./components/ui";
 import { AppShell } from "./layout/AppShell";
 import { CompanyShell } from "./layout/CompanyShell";
@@ -71,8 +73,22 @@ import { NewInspectionPage } from "./pages/inspections/NewInspection";
 import { InspectionPolicyPage, InspectionTemplatesPage } from "./pages/inspections/Settings";
 
 export function App() {
-  const me = useMe();
   const site = useSite();
+  if (site.isLoading) {
+    return (
+      <div className="narrow">
+        <Loading />
+      </div>
+    );
+  }
+  // The internal interface of the system staff: its own subdomain with its own sign-in
+  // (decision В-11.1). Without an answer (no connection) the ordinary interface opens.
+  if (site.data?.staff) return <StaffApp />;
+  return <MainApp cabinet={site.data?.cabinet ?? false} />;
+}
+
+function MainApp({ cabinet }: { cabinet: boolean }) {
+  const me = useMe();
   useProfilePreferences(me.data);
 
   // Local drafts kept longer than 7 days after their last change are deleted (§ 10.4.4).
@@ -89,7 +105,7 @@ export function App() {
     return () => window.removeEventListener("online", online);
   }, [refetch]);
 
-  if (me.isLoading || site.isLoading) {
+  if (me.isLoading) {
     return (
       <div className="narrow">
         <Loading />
@@ -116,7 +132,7 @@ export function App() {
   }
 
   // The domain of the personal cabinet shows only the cabinet (decision of 30.10.2026).
-  if (site.data?.cabinet) return <CabinetApp user={user} />;
+  if (cabinet) return <CabinetApp user={user} />;
 
   return (
     <Routes>
@@ -220,6 +236,7 @@ export function App() {
         <Route path="settings/rental" element={<RentalPolicyPage />} />
         <Route path="settings/notifications" element={<NotificationRulesPage />} />
         <Route path="settings/export" element={<ExportPage />} />
+        <Route path="settings/staff-access" element={<StaffAccessPage />} />
         <Route path="settings/discounts" element={<DiscountCatalogPage />} />
         <Route path="settings/locations" element={<Navigate to="../company" replace />} />
         <Route path="rentals/tariffs" element={<TariffsPage />} />

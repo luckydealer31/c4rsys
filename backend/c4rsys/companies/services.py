@@ -202,6 +202,14 @@ def resolve_company(user: UserAccount, public_id: str, session_id: UUID | None) 
         )
     if employment is not None and employment.state == Employment.State.BLOCKED:
         raise errors.ApiError("EMPLOYMENT_BLOCKED", status=403)
+    if employment is not None:
+        # § 24.2.2: a system block of the company stops the access of its employees at once;
+        # their accounts and other companies stay.
+        from c4rsys.platform import suspension
+
+        block = suspension.company_block(employment.company_id)
+        if block is not None:
+            raise errors.ApiError("COMPANY_BLOCKED", status=403, params=block)
     if employment is None:
         AuditEvent.objects.create(
             actor_user_id=user.id,
@@ -319,6 +327,21 @@ def profile_snapshot(company: Company) -> dict[str, Any]:
         **{key: getattr(company, key) for key in REQUISITES},
         "identifiers": company.identifiers,
     }
+
+
+def lock_company(company_id: UUID) -> Company | None:
+    """Locks the row of the company for a change of its state by another module (a system
+    block, § 24.2.2): commands in flight hold FOR KEY SHARE on it (the command guards)."""
+    return Company.objects.select_for_update().filter(pk=company_id).first()
+
+
+def share_lock_company(company_id: UUID) -> None:
+    """FOR KEY SHARE on the row of the company: a command waits for a change of its state in
+    flight and sees it after (the guards of commands)."""
+    from django.db import connection
+
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT 1 FROM company WHERE id = %s FOR KEY SHARE", [company_id])
 
 
 def find_company(public_id: str) -> Company | None:

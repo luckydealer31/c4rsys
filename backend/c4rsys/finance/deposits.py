@@ -24,10 +24,10 @@ from c4rsys.finance import charges, rates
 from c4rsys.finance.models import CashAccount, DepositEntry, MoneyMovement
 from c4rsys.orders import services as orders
 from c4rsys.orders.models import Order
-from c4rsys.platform import errors
+from c4rsys.platform import errors, suspension
 from c4rsys.platform.commands import CommandContext
 from c4rsys.platform.counters import next_number
-from c4rsys.platform.models import Currency
+from c4rsys.platform.models import AuditEvent, Currency
 from c4rsys.platform.money import round_money
 
 ZERO = Decimal(0)
@@ -497,7 +497,12 @@ def release_expired(now: datetime | None = None) -> int:
     return has passed. Run on a schedule; returns how many deposits were moved."""
     moment = now or timezone.now()
     moved = 0
+    # § 24.2.2: a company blocked by the system moves nothing automatically; after the block
+    # the deposits whose term passed meanwhile are moved by the next run (§ 24.2.3).
+    blocked = suspension.suspended_company_ids()
     for candidate in _rentals().returned_with_deposit_term(moment):
+        if candidate.company_id in blocked:
+            continue
         with transaction.atomic():
             moved += _release_one(candidate.company_id, candidate.id, moment)
     return moved
@@ -517,5 +522,14 @@ def _release_one(company_id: UUID, rental_id: UUID, moment: datetime) -> int:
         currency_id=data.currency,
         automatic=True,
         created_at=data.release_at,
+    )
+    # § 24.2.3: the move is recorded in the journal; a held claim stays with the rental.
+    AuditEvent.objects.create(
+        company_id=rental.company_id,
+        system_process="deposit_release",
+        action="deposit.moved_to_balance",
+        object_type="rental",
+        object_id=str(rental.id),
+        after={"amount": str(data.free), "currency": data.currency, "term": data.release_at},
     )
     return 1

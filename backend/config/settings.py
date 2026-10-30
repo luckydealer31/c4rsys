@@ -61,12 +61,14 @@ INSTALLED_APPS = [
     "c4rsys.notifications",
     "c4rsys.reports",
     "c4rsys.documents",
+    "c4rsys.backoffice",
 ]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "c4rsys.platform.middleware.ApiMiddleware",
     "c4rsys.cabinet.middleware.CabinetHostMiddleware",
+    "c4rsys.backoffice.middleware.StaffHostMiddleware",
     "c4rsys.accounts.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -172,6 +174,16 @@ C4R_CABINET_HOSTS = [
     if h.strip()
 ]
 C4R_CABINET_URL = os.environ.get("C4R_CABINET_URL", C4R_PUBLIC_URL)
+# The internal interface of the system staff on its own subdomain with its own sign-in
+# (decision В-11.1; the test one is staff.test.c4rsys.com). Its API answers only there.
+C4R_STAFF_HOSTS = [
+    h.strip().lower()
+    for h in os.environ.get("C4R_STAFF_HOSTS", "staff.localhost").split(",")
+    if h.strip()
+]
+C4R_STAFF_URL = os.environ.get("C4R_STAFF_URL", "http://staff.localhost:5173")
+# TODO(spec): the support contact given in a block notice (§ 24.2.2); set on the server.
+C4R_SUPPORT_CONTACT = os.environ.get("C4R_SUPPORT_CONTACT", "")
 
 LOGGING = {
     "version": 1,

@@ -16,11 +16,12 @@ import { ProfilePage } from "../pages/account/ProfilePage";
 import { deviceTimeZone, formatMoment } from "../time";
 
 /** Whether this address serves the personal cabinet (customer's decision of 30.10.2026: its
- * own domain with its own sign-in; the B2B domain keeps the company interface). */
+ * own domain with its own sign-in; the B2B domain keeps the company interface) or the internal
+ * interface of the system staff (decision В-11.1). */
 export function useSite() {
   return useQuery({
     queryKey: ["site"],
-    queryFn: () => api<{ cabinet: boolean }>("/site"),
+    queryFn: () => api<{ cabinet: boolean; staff?: boolean }>("/site"),
     staleTime: Infinity,
     retry: false,
     networkMode: "always",

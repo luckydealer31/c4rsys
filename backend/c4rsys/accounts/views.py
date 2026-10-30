@@ -28,7 +28,7 @@ from c4rsys.accounts.models import (
 )
 from c4rsys.files import services as files
 from c4rsys.files.models import StoredFile
-from c4rsys.platform import errors
+from c4rsys.platform import errors, sites
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult, Handler, run_command
 from c4rsys.platform.http import (
     client_ip,
@@ -49,7 +49,9 @@ PHONE_RE = re.compile(r"^\+?[0-9 ()\-]{5,40}$")
 
 
 def _client(request: HttpRequest) -> services.Client:
-    return services.Client(ip=client_ip(request), user_agent=user_agent(request))
+    return services.Client(
+        ip=client_ip(request), user_agent=user_agent(request), host=sites.host_of(request)
+    )
 
 
 def _user_payload(user: UserAccount) -> dict[str, Any]:

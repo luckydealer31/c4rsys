@@ -38,8 +38,13 @@ def is_cabinet_host(request: HttpRequest) -> bool:
 
 @require_GET
 def site(request: HttpRequest) -> JsonResponse:
-    """Which interface this address serves: the personal cabinet or the B2B one."""
-    return JsonResponse({"cabinet": is_cabinet_host(request)})
+    """Which interface this address serves: the personal cabinet, the internal interface of the
+    system staff (decision В-11.1) or the B2B one."""
+    from c4rsys.platform import sites
+
+    return JsonResponse(
+        {"cabinet": is_cabinet_host(request), "staff": sites.is_staff_host(request)}
+    )
 
 
 @require_GET

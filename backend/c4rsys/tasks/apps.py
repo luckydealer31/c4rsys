@@ -23,3 +23,7 @@ class TasksConfig(AppConfig):
 
         # § 3.6.4: repetitions are paused while the company is deactivated.
         deactivation.register_restored(series.resume_after_restore)
+        from c4rsys.platform import suspension
+
+        # § 24.2.3: after a system block the missed repetitions are not made.
+        suspension.register_resumed(series.resume_after_unblock)

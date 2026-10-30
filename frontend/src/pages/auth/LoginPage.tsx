@@ -10,8 +10,13 @@ import { Card, ErrorMessage, Field } from "../../components/ui";
 import { CodeStep } from "./CodeStep";
 
 /** Two-step login: code to the contact, then the cloud password (§ 2.1.1). Answers do not
- * reveal whether an account exists (§ 24.4.2). */
-export function LoginPage() {
+ * reveal whether an account exists (§ 24.4.2). The internal interface of the system staff uses
+ * the same steps on its own subdomain, without registration (decision В-11.1). */
+export function LoginPage({
+  onSignedIn,
+  title,
+  allowRegister = true,
+}: { onSignedIn?: () => void; title?: string; allowRegister?: boolean } = {}) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const client = useQueryClient();
@@ -45,6 +50,10 @@ export function LoginPage() {
         method: "POST",
         body: { flow: flow.flow, password },
       });
+      if (onSignedIn) {
+        onSignedIn();
+        return;
+      }
       client.setQueryData(ME_KEY, result.user);
       navigate("/");
     } catch (caught) {
@@ -56,7 +65,7 @@ export function LoginPage() {
 
   return (
     <div className="narrow">
-      <h1>{t("auth.login_title")}</h1>
+      <h1>{title ?? t("auth.login_title")}</h1>
       <Card>
         {!flow ? (
           <form className="stack" onSubmit={start}>
@@ -95,6 +104,7 @@ export function LoginPage() {
               />
             </Field>
             <ErrorMessage error={error} />
+            <BlockedNotice error={error} />
             <div className="actions">
               <button type="submit" disabled={pending || !password}>
                 {t("auth.sign_in")}
@@ -103,9 +113,26 @@ export function LoginPage() {
           </form>
         )}
       </Card>
-      <p className="muted">
-        {t("auth.no_account")} <Link to="/register">{t("auth.register_link")}</Link>
-      </p>
+      {allowRegister ? (
+        <p className="muted">
+          {t("auth.no_account")} <Link to="/register">{t("auth.register_link")}</Link>
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** § 24.2.2: a blocked account learns the reason that may be disclosed and how to reach the
+ * support. */
+export function BlockedNotice({ error }: { error: ApiError | null }) {
+  const { t } = useTranslation();
+  if (!error || (error.code !== "USER_BLOCKED" && error.code !== "COMPANY_BLOCKED")) return null;
+  const params = error.params as { support?: string; category?: string; reason?: string };
+  const reason = params.reason || (params.category ? t(`staff.block_category_${params.category}`) : "");
+  return (
+    <div className="alert warn" role="status">
+      {reason ? <div>{t("blocked.reason", { reason })}</div> : null}
+      <div>{params.support ? t("blocked.support", { support: params.support }) : t("blocked.support_generic")}</div>
     </div>
   );
 }

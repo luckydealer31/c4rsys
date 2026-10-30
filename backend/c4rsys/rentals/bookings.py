@@ -24,7 +24,7 @@ from c4rsys.fleet import services as fleet
 from c4rsys.fleet.models import VehicleCard
 from c4rsys.orders import services as orders
 from c4rsys.parties import services as parties
-from c4rsys.platform import errors
+from c4rsys.platform import errors, suspension
 from c4rsys.platform.commands import CommandContext
 from c4rsys.platform.counters import next_number
 from c4rsys.rentals import billing, extra_lines, places, tariffs
@@ -529,8 +529,13 @@ def cancel_no_shows(now: datetime | None = None) -> int:
     with deliveries (part А7)."""
     moment = now or timezone.now()
     cancelled = 0
-    for booking in Rental.objects.filter(state=BOOKED, auto_cancel_at__lte=moment).only(
-        "id", "company_id"
+    # § 24.2.2: a company blocked by the system cancels nothing automatically; after the block
+    # the bookings whose moment passed meanwhile get a conflict instead (`after_unblock`).
+    blocked = suspension.suspended_company_ids()
+    for booking in (
+        Rental.objects.filter(state=BOOKED, auto_cancel_at__lte=moment)
+        .exclude(company_id__in=blocked)
+        .only("id", "company_id")
     ):
         with transaction.atomic():
             locked = Rental.objects.select_for_update().filter(pk=booking.id, state=BOOKED).first()
@@ -539,3 +544,55 @@ def cancel_no_shows(now: datetime | None = None) -> int:
             cancel(None, locked.company_id, locked.id, "no_show", None, automatic=True)
             cancelled += 1
     return cancelled
+
+
+AUTO_CANCEL_MISSED = "rental.auto_cancel_missed"
+
+
+def after_unblock(company_id: UUID, _blocked_at: datetime, unblocked_at: datetime) -> None:
+    """§ 24.2.3: a booking whose auto-cancel moment passed while the company was blocked is not
+    cancelled retroactively: its automatic cancel is taken off and a conflict with a task asks an
+    employee to decide. Runs in the transaction that ends the block."""
+    from c4rsys.notifications import rules
+    from c4rsys.platform.models import AuditEvent
+    from c4rsys.rentals import notices
+    from c4rsys.tasks import services as tasks
+
+    for rental in Rental.objects.select_for_update().filter(
+        company_id=company_id, state=BOOKED, auto_cancel_at__lte=unblocked_at
+    ):
+        before = snapshot(rental)
+        missed = rental.auto_cancel_at
+        rental.auto_cancel_at = None
+        rental.version += 1
+        rental.save(update_fields=["auto_cancel_at", "version"])
+        AuditEvent.objects.create(
+            company_id=company_id,
+            system_process="system_unblock",
+            action=AUTO_CANCEL_MISSED,
+            object_type="rental",
+            object_id=str(rental.id),
+            before=before,
+            after={"auto_cancel_at": None, "missed_at": missed},
+        )
+        condition = f"{AUTO_CANCEL_MISSED}:{rental.id}"
+        params = {**notices.params_of(rental), "missed_at": missed.isoformat() if missed else None}
+        rules.raise_event(
+            company_id,
+            AUTO_CANCEL_MISSED,
+            condition=condition,
+            location_id=rental.issue_location_id,
+            object_type="rental",
+            object_id=rental.id,
+            params=params,
+            now=unblocked_at,
+        )
+        tasks.ensure_system(
+            company_id,
+            event=AUTO_CANCEL_MISSED,
+            condition=condition,
+            location_id=rental.issue_location_id,
+            object_type="rental",
+            object_id=rental.id,
+            params=params,
+        )

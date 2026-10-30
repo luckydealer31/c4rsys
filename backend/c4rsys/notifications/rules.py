@@ -66,6 +66,13 @@ EVENTS: dict[str, Event] = {
     "rental.inspection_check_missing": Event(
         Kind.ACTION, "rental.complete_formalization", mandatory=True
     ),
+    # § 24.2.3: the auto-cancel moment of a booking passed while the company was blocked by the
+    # system; the booking waits for an employee's decision. PROPOSAL: mandatory, to those who
+    # change bookings.
+    "rental.auto_cancel_missed": Event(Kind.ACTION, "rental.book", mandatory=True),
+    # § 24.3.2: a privileged session of the c4rsys staff in the company has ended; to the
+    # top-authority director and the employees with the security right (recipients are given).
+    "security.privileged_session": Event(Kind.INFO, "company.security", mandatory=True),
     # Working, by the company (§ 20.3.5; defaults of decision З-7).
     "rental.issue_upcoming": Event(Kind.REMINDER, "rental.issue", lead_minutes=HOUR, has_lead=True),
     "rental.return_upcoming": Event(

@@ -40,7 +40,7 @@ from c4rsys.documents.models import (
     SigningInvitation,
 )
 from c4rsys.files import services as files
-from c4rsys.platform import errors
+from c4rsys.platform import errors, suspension
 from c4rsys.platform.commands import CommandContext
 from c4rsys.platform.models import AuditEvent
 
@@ -616,6 +616,10 @@ def by_token(token: str, *, lock: bool = False) -> SigningInvitation:
         raise errors.business_rule("SIGNING_LINK_REVOKED")
     if timezone.now() > invitation.expires_at:
         raise errors.business_rule("SIGNING_LINK_EXPIRED")
+    # § 24.2.2: external links of a company blocked by the system are suspended; the term is not
+    # extended by the block (§ 24.2.3).
+    if suspension.company_suspended(invitation.company_id):
+        raise errors.business_rule("SIGNING_LINK_SUSPENDED")
     return invitation
 
 

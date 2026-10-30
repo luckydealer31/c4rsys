@@ -218,6 +218,8 @@ class UserSession(models.Model):
         TOTAL_EXPIRED = "total_expired"
         PASSWORD_CHANGED = "password_changed"  # noqa: S105
         CONTACT_CHANGED = "contact_changed"
+        # § 24.2.2: a system block of the user ends all his sessions at once.
+        BLOCKED = "blocked"
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     user = models.ForeignKey(UserAccount, on_delete=models.PROTECT, related_name="sessions")
@@ -228,6 +230,10 @@ class UserSession(models.Model):
     end_reason = models.CharField(max_length=20, choices=EndReason.choices, blank=True, default="")
     ip = models.GenericIPAddressField(null=True, blank=True)
     user_agent = models.CharField(max_length=300, blank=True, default="")
+    # The interface the session was opened on (c4rsys.platform.sites): a session of the internal
+    # interface of the system staff works only there, and only such a session works there
+    # (decision В-11.1). Empty — the B2B interface or the personal cabinet.
+    site = models.CharField(max_length=20, blank=True, default="")
 
     class Meta:
         db_table = "user_session"

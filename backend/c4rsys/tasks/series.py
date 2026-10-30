@@ -23,7 +23,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from c4rsys.companies.models import Company
-from c4rsys.platform import errors
+from c4rsys.platform import errors, suspension
 from c4rsys.platform.commands import CommandContext
 from c4rsys.platform.counters import next_number
 from c4rsys.platform.models import AuditEvent
@@ -207,9 +207,10 @@ def _run_one(series_id: UUID, moment: datetime) -> int:
     if series.state != TaskSeries.State.ACTIVE or series.next_on is None:
         return 0
     company = series.company
-    if company.deactivated_at is not None:
-        # § 3.6.4: no new repetitions while the company is deactivated; after the restoration
-        # the repetition goes on from the nearest future date (`resume_after_restore`).
+    if company.deactivated_at is not None or suspension.company_suspended(company.id):
+        # § 3.6.4: no new repetitions while the company is deactivated; § 24.2.2: nor while it
+        # is blocked by the system. After the restoration or the unblocking the repetition goes
+        # on from the nearest future date (`resume_after_restore`, § 24.2.3).
         return 0
     today = moment.astimezone(_zone(company, series.location_id)).date()
     if series.next_on > today:
@@ -256,6 +257,15 @@ def resume_after_restore(company_id: UUID) -> None:
         if nearest != series.next_on:
             series.next_on = nearest
             series.save(update_fields=["next_on"])
+
+
+def resume_after_unblock(company_id: UUID, _blocked_at: datetime, _unblocked_at: datetime) -> None:
+    """§ 24.2.3: after a system block the repetitions of the block period are not made. A company
+    still deactivated keeps its pause (§ 24.2.4); its restoration resumes it."""
+    from c4rsys.companies import deactivation
+
+    if not deactivation.is_deactivated(company_id):
+        resume_after_restore(company_id)
 
 
 def locked(company_id: UUID, series_id: UUID, expected: int | None) -> TaskSeries:

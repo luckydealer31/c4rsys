@@ -12,7 +12,7 @@ from django.utils import timezone
 
 from c4rsys.accounts import security, services
 from c4rsys.accounts.models import UserAccount, UserSession
-from c4rsys.platform import errors
+from c4rsys.platform import errors, sites
 
 SESSION_COOKIE = "c4r_session"
 BACKGROUND_HEADER = "HTTP_X_C4R_BACKGROUND"
@@ -77,6 +77,11 @@ class SessionMiddleware:
             return
         if session.user.state != UserAccount.State.ACTIVE:
             request.META[_CLEAR_COOKIE_KEY] = True
+            return
+        # A session of the internal interface of the system staff works only on its subdomain,
+        # and only such a session works there (decision В-11.1). The cookie is not cleared: it
+        # belongs to the other interface's host.
+        if (session.site == sites.STAFF) != sites.is_staff_host(request):
             return
         if request.META.get(BACKGROUND_HEADER) != "1":
             UserSession.objects.filter(pk=session.pk).update(last_activity_at=now)

@@ -132,7 +132,11 @@ def run_command(
     payload: dict[str, Any],
     handler: Handler,
     request_id: str = "",
+    journal_writer: Callable[[CommandContext], int] | None = None,
 ) -> CommandResult:
+    """`journal_writer` writes the entries of a journal kept apart from `audit_event` (the
+    system journal of the system staff, § 24.4.5) in the same transaction and returns how many
+    it wrote; a command must still leave at least one journal entry."""
     key = idempotency_key.strip()
     if not key or len(key) > MAX_IDEMPOTENCY_KEY_LENGTH:
         raise errors.validation_error("Idempotency-Key", code="IDEMPOTENCY_KEY_REQUIRED")
@@ -163,7 +167,8 @@ def run_command(
             result = handler(context)
 
             entries = context.audit_entries
-            if not entries:
+            written = journal_writer(context) if journal_writer is not None else 0
+            if not entries and not written:
                 raise RuntimeError(f"Command {command} produced no journal entry")
             AuditEvent.objects.bulk_create(entries)
 

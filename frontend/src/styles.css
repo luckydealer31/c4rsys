@@ -358,3 +358,16 @@ fieldset.choice legend { margin-bottom: 8px; font-weight: 600; }
 .org-node { padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; overflow-wrap: anywhere; }
 ul.plain { list-style: none; margin: 0 0 8px; padding: 0; }
 ul.plain li { margin: 4px 0; }
+
+/* The internal interface of the system staff (block 11). */
+.staff-topbar { flex-wrap: wrap; position: static; }
+.staff-nav { display: flex; gap: 12px; flex-wrap: wrap; }
+.staff-nav a { color: var(--text); text-decoration: none; padding: 4px 0; border-bottom: 2px solid transparent; }
+.staff-nav a.active { color: var(--accent); border-bottom-color: var(--accent); }
+.privileged-banner { position: sticky; top: 0; z-index: 9; margin: 0; border-radius: 0; text-align: center; }
+.staff-json { max-height: 320px; overflow: auto; background: var(--surface); border: 1px solid var(--border); padding: 8px; border-radius: 6px; }
+dl.facts > div { display: contents; }
+label.check { display: inline-flex; gap: 6px; align-items: center; margin-right: 12px; }
+.page.wide { max-width: 1400px; }
+.staff-tabs { flex-wrap: wrap; }
+.link-button { background: transparent; border: 0; color: var(--text); padding: 0; min-height: 0; text-align: left; cursor: pointer; }

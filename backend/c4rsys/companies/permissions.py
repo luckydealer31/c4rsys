@@ -17,6 +17,9 @@ PERMISSIONS: dict[str, str] = {
     # § 3.6.1: deactivation and restoration of the company with the owners' approval. One right
     # for both and only in «Company administrator» (PROPOSAL).
     "company.deactivate": "company",
+    # § 24.3.2: the separate security right — notices of finished privileged sessions of the
+    # c4rsys staff and their journal. Only in «Company administrator» (PROPOSAL).
+    "company.security": "company",
     "employee.invite": "employee",
     "employee.rights.manage": "employee",
     "employee.journal.view": "employee",

@@ -51,3 +51,8 @@ class RentalsConfig(AppConfig):
         inspection_links.register_rental_reader(rentals.inspection_link)
         inspection_links.register_on_saved(returns.on_inspection_saved)
         inspection_policy.register_rental_check(issue_policies.inspection_required)
+        # § 24.2.3: an auto-cancel missed during a system block becomes a conflict and a task.
+        from c4rsys.platform import suspension
+        from c4rsys.rentals import bookings
+
+        suspension.register_resumed(bookings.after_unblock)

@@ -114,3 +114,34 @@ def send_signing_link(email: str, company_name: str, title: str, url: str) -> No
         return
     body = BODY_SIGNING.format(company=company_name, title=title, url=url)
     _deliver(email, SUBJECT_SIGNING, body, "signing link")
+
+
+SUBJECT_BLOCK = "c4rsys: блокировка / block"
+BODY_BLOCK = (
+    "{what_ru} заблокирован администрацией c4rsys.\n"
+    "Причина: {reason}\n"
+    "Обращение в поддержку: {support}\n\n"
+    "{what_en} has been blocked by the c4rsys administration.\n"
+    "Reason: {reason}\n"
+    "Contact support: {support}\n"
+)
+# PROPOSAL: the texts of the categories of § 24.2.2 when no reason to disclose is written.
+BLOCK_CATEGORY_TEXT = {
+    "violation": "нарушение правил / violation of the rules",
+    "security_threat": "угроза безопасности / security threat",
+}
+
+
+def send_block_notice(email: str, *, company_name: str | None, reason: str, support: str) -> None:
+    """The notice of a system block with the reason that may be disclosed and the way to reach
+    the support (§ 24.2.2)."""
+    if settings.C4R_MAIL_MODE == "console":
+        logger.warning("DEV MAIL to %s: block notice (%s)", email, company_name or "account")
+        return
+    body = BODY_BLOCK.format(
+        what_ru=f"Компания «{company_name}»" if company_name else "Ваш аккаунт",
+        what_en=f"The company «{company_name}»" if company_name else "Your account",
+        reason=BLOCK_CATEGORY_TEXT.get(reason, reason),
+        support=support or settings.C4R_PUBLIC_URL,
+    )
+    _deliver(email, SUBJECT_BLOCK, body, "block notice")

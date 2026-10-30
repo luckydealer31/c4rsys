@@ -6,6 +6,7 @@ Login events, code requests, confirmation results and ended sessions are journal
 The journal entry is written in the same transaction as the change.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
@@ -45,6 +46,33 @@ CRITICAL_ACTIONS = {
 class Client:
     ip: str | None
     user_agent: str
+    # The host the request came to, without the port (c4rsys.platform.sites).
+    host: str = ""
+
+    @property
+    def site(self) -> str:
+        from c4rsys.platform.sites import site_of_host
+
+        return site_of_host(self.host)
+
+
+# Checks of other modules run after the password is verified and before the session is created;
+# a check refuses the login by raising an ApiError (a system block of the user, § 24.2.2; the
+# membership in the system staff on its own subdomain, § 24.1.1). After the password, so the
+# answer tells nothing to someone who does not know it (§ 24.4.2).
+LoginCheck = Callable[[UserAccount, Client], None]
+SignedInHandler = Callable[[UserAccount, UserSession, Client], None]
+_login_checks: list[LoginCheck] = []
+_signed_in: list[SignedInHandler] = []
+
+
+def register_login_check(check: LoginCheck) -> None:
+    _login_checks.append(check)
+
+
+def register_signed_in(handler: SignedInHandler) -> None:
+    """Called in the transaction of a completed login."""
+    _signed_in.append(handler)
 
 
 @dataclass(frozen=True)
@@ -298,36 +326,58 @@ def verify_login_code(token: str, code: str) -> None:
 
 def complete_login(token: str, password: str, client: Client) -> SignedIn:
     now = timezone.now()
+    refused: errors.ApiError | None = None
     with transaction.atomic():
         flow = _locked_flow(token, AuthFlow.Purpose.LOGIN, now)
         if flow.code_verified_at is None or flow.user is None:
             raise errors.business_rule("CODE_NOT_CONFIRMED")
-        user = flow.user
+        # The row of the account is locked: a system block taken meanwhile waits for the login
+        # and then ends its session, or the login sees the block (§ 24.2.2).
+        user = UserAccount.objects.select_for_update().get(pk=flow.user.pk)
         if check_password(password, user.password_hash) and user.state == UserAccount.State.ACTIVE:
             flow.completed_at = now
             flow.save(update_fields=["completed_at"])
-            session, session_token = _create_session(user, client, now)
+            try:
+                for check in _login_checks:
+                    check(user, client)
+            except errors.ApiError as exc:
+                refused = exc
+                journal(
+                    "auth.login",
+                    object_type="auth_flow",
+                    object_id=flow.id,
+                    user=user,
+                    result="refused",
+                    after={"code": exc.code},
+                )
+            if refused is None:
+                session, session_token = _create_session(user, client, now)
+                journal(
+                    "auth.login",
+                    object_type="user_session",
+                    object_id=session.id,
+                    user=user,
+                    session=session,
+                )
+                for handler in _signed_in:
+                    handler(user, session, client)
+                return SignedIn(user, session, session_token)
+        else:
+            flow.password_attempts_left = max(flow.password_attempts_left - 1, 0)
+            if flow.password_attempts_left == 0:
+                flow.completed_at = now  # the flow is closed; a new code is required
+            flow.save(update_fields=["password_attempts_left", "completed_at"])
             journal(
                 "auth.login",
-                object_type="user_session",
-                object_id=session.id,
+                object_type="auth_flow",
+                object_id=flow.id,
                 user=user,
-                session=session,
+                result="wrong_password",
             )
-            return SignedIn(user, session, session_token)
-        flow.password_attempts_left = max(flow.password_attempts_left - 1, 0)
-        if flow.password_attempts_left == 0:
-            flow.completed_at = now  # the flow is closed; a new code is required
-        flow.save(update_fields=["password_attempts_left", "completed_at"])
-        journal(
-            "auth.login",
-            object_type="auth_flow",
-            object_id=flow.id,
-            user=user,
-            result="wrong_password",
-        )
-        attempts_left = flow.password_attempts_left
-    # Raised after commit, so the failed attempt stays counted.
+            attempts_left = flow.password_attempts_left
+    # Raised after commit, so the failed attempt (or the refusal) stays recorded.
+    if refused is not None:
+        raise refused
     raise errors.business_rule("LOGIN_FAILED", field="password", attempts_left=attempts_left)
 
 
@@ -343,6 +393,7 @@ def _create_session(user: UserAccount, client: Client, now: datetime) -> tuple[U
         last_activity_at=now,
         ip=client.ip,
         user_agent=client.user_agent,
+        site=client.site if client.site == "staff" else "",
     )
     return session, token
 
@@ -371,6 +422,23 @@ def end_session(session: UserSession, reason: str, now: datetime) -> None:
                 session=session,
                 after={"reason": reason},
             )
+
+
+def end_all_sessions(user_id: UUID, reason: str, now: datetime) -> int:
+    """Ends every open session of the account in the caller's transaction (a system block,
+    § 24.2.2); each end is journaled."""
+    ended = 0
+    for session in UserSession.objects.select_related("user").filter(
+        user_id=user_id, ended_at__isnull=True
+    ):
+        end_session(session, reason, now)
+        ended += 1
+    return ended
+
+
+def lock_user(user_id: UUID) -> UserAccount | None:
+    """Locks the row of the account for a change made by another module (a system block)."""
+    return UserAccount.objects.select_for_update().filter(pk=user_id).first()
 
 
 def active_sessions(user: UserAccount, now: datetime) -> list[UserSession]:

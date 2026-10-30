@@ -129,8 +129,8 @@ def test_garage_and_the_cabinet_domain(owner: Client, s: Scenario) -> None:
     assert [v["vehicle_id"] for v in garage] == [card.vehicle.public_id]
 
     # Decision of 30.10.2026: the cabinet domain serves only the personal interface.
-    assert ivan.get("/api/site", HTTP_HOST=CABINET).json() == {"cabinet": True}
-    assert ivan.get("/api/site").json() == {"cabinet": False}
+    assert ivan.get("/api/site", HTTP_HOST=CABINET).json() == {"cabinet": True, "staff": False}
+    assert ivan.get("/api/site").json() == {"cabinet": False, "staff": False}
     blocked: Any = owner.get(f"/api/c/{s.cmp}/orders", HTTP_HOST=CABINET)
     assert blocked.status_code == 404 and blocked.json()["error"]["code"] == "CABINET_HOST"
     assert owner.get("/api/cabinet/companies", HTTP_HOST=CABINET).status_code == 200
@@ -221,7 +221,7 @@ def test_the_cabinet_domain_serves_only_the_cabinet(owner: Client, s: Scenario) 
     opened = ivan.get(f"/api/cabinet/documents/{signed['id']}/file", HTTP_HOST=CABINET)
     assert opened.status_code == 200
     # The host is compared without the port, the case and the trailing dot.
-    assert ivan.get("/api/site", HTTP_HOST="Cabinet.Localhost.:8000").json() == {"cabinet": True}
+    assert ivan.get("/api/site", HTTP_HOST="Cabinet.Localhost.:8000").json()["cabinet"] is True
 
     # Employees' notifications, company files and the B2B API are not served there.
     assert _blocked(owner.get("/api/notifications", HTTP_HOST=CABINET))
