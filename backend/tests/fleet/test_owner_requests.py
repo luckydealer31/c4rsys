@@ -12,6 +12,7 @@ from c4rsys.fleet import owner_notices, owner_requests
 from c4rsys.fleet.imports import ADAPTER
 from c4rsys.fleet.models import VehicleOwnerRequest, VehicleOwnership
 from c4rsys.notifications.models import Notification
+from c4rsys.parties.models import ClientCard
 from c4rsys.platform.errors import ApiError
 from c4rsys.platform.models import AuditEvent
 from tests.accounts.helpers import post
@@ -92,7 +93,15 @@ def test_three_answers_one_by_one(owner: Client, cmp: str, location: str) -> Non
     # § 8.3.14: an answer is never changed.
     again = answer(somchai, request["id"], ownership=False)
     assert again.json()["error"]["code"] == "OWNER_ANSWER_GIVEN"
+    assert not ClientCard.objects.exists()
     assert answer(somchai, request["id"], link=True, management=True).status_code == 200
+    # «Yes» to the link: the owner becomes a client — a card linked to the profile.
+    client = ClientCard.objects.get()
+    assert client.linked_user_id == somchai_id(usr)
+    assert (client.first_name, client.last_name) == ("Anna", "Petrova")
+    assert [c.value for c in client.contacts.all()] == ["somchai@example.com"]
+    shown = owner.get(f"/api/c/{cmp}/profile-links?card_type=client&card_id={client.id}").json()
+    assert shown["links"][0]["state"] == "accepted"
     status = owner.get(url).json()["vehicle"]["owner"]
     assert status["confirmed"] and not status["conflict"]
     assert owner.get(f"{url}/owner-requests").json()["requests"][0]["state"] == "complete"
@@ -129,6 +138,7 @@ def test_refusal_is_a_conflict_and_a_new_request_keeps_answers(
     assert status["conflict"] and not status["ownership_confirmed"]
     assert not VehicleOwnership.objects.exists()
 
+    assert not ClientCard.objects.exists()
     second = ask(owner, cmp, card["id"])
     assert second.status_code == 201, second.content
     history = owner.get(f"{url}/owner-requests").json()["requests"]
@@ -137,6 +147,7 @@ def test_refusal_is_a_conflict_and_a_new_request_keeps_answers(
 
     # An incomplete answer: the next request supersedes it and keeps its answer.
     answer(somchai, second.json()["request"]["id"], link=True)
+    assert ClientCard.objects.count() == 1
     third = ask(owner, cmp, card["id"])
     assert third.status_code == 201
     states = [r["state"] for r in owner.get(f"{url}/owner-requests").json()["requests"]]
@@ -206,6 +217,9 @@ def test_company_owner_and_a_dispute(owner: Client, cmp: str, location: str) -> 
     )
     assert given.status_code == 200, given.content
     ownership = VehicleOwnership.objects.get()
+    client = ClientCard.objects.get()
+    assert client.kind == "company" and client.company_name == "Fleet Owner"
+    assert client.linked_company_id == ownership.owner_company_id
     assert ownership.owner_company_id is not None and ownership.ended_at is None
     owner_notices.requests(timezone.now())
     assert Notification.objects.get(event="vehicle.owner_requested").state == "done"

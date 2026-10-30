@@ -403,6 +403,115 @@ def _answered(ctx: CommandContext, link: ProfileLink, company_id: UUID, *, accep
     )
 
 
+# --- A vehicle owner who confirmed the link (§ 8.3.1) ------------------------------------------
+
+
+def _owner_contacts(values: list[tuple[str, str]]) -> list[services.Contact]:
+    found: list[services.Contact] = []
+    for kind, value in values:
+        if not value:
+            continue
+        try:
+            found.append(services.normalize_contact(kind, value))
+        except errors.ApiError:
+            continue  # a free-text contact of a company profile that is not valid is left out
+    return found
+
+
+def client_from_owner(
+    ctx: CommandContext,
+    requester: Company,
+    *,
+    owner_user: UserAccount | None,
+    owner_company: Company | None,
+    requested_by: UUID,
+) -> ClientCard:
+    """«Yes» to the link of § 8.3.1 makes the owner a client of the company (customer's decision
+    of 30.10.2026). A client card already linked to the profile is kept; otherwise a new card is
+    created and linked at once. It holds the minimum of § 6.2.7–6.2.8 taken from the profile:
+    names (or the company name) and the confirmed email (PROPOSAL). A card with the same contact
+    is not merged; the new card is marked as a possible duplicate (§ 6.5.1)."""
+    user_id = owner_user.id if owner_user is not None else None
+    company_id = owner_company.id if owner_company is not None else None
+    linked = ClientCard.objects.select_for_update().filter(company=requester)
+    existing = (
+        linked.filter(linked_user_id=user_id).first()
+        if user_id is not None
+        else linked.filter(linked_company_id=company_id).first()
+    )
+    if existing is not None:
+        return existing
+    now = timezone.now()
+    if owner_user is not None:
+        data = accounts.shareable_profile(owner_user)
+        if not data["first_name"] or not data["last_name"]:
+            raise errors.business_rule("NAME_REQUIRED")
+        shared = {
+            k: data[k] for k in ("first_name", "last_name", "middle_name", "email") if data[k]
+        }
+        fields: dict[str, Any] = {
+            "kind": ClientCard.Kind.PERSON,
+            "first_name": data["first_name"],
+            "last_name": data["last_name"],
+            "middle_name": data["middle_name"],
+        }
+        contacts = _owner_contacts([("email", data["email"])])
+        profile, label = Profile.PERSON, owner_user.public_id
+    elif owner_company is not None:
+        data = companies.shareable_profile(owner_company)
+        shared = {k: data[k] for k in ("display_name", "email", "phone") if data[k]}
+        fields = {"kind": ClientCard.Kind.COMPANY, "company_name": data["display_name"]}
+        contacts = _owner_contacts([("email", data["email"]), ("phone", data["phone"])])
+        profile, label = Profile.COMPANY, owner_company.public_id
+    else:
+        raise RuntimeError("An owner is a person or a company")
+    duplicates = any(
+        services.matches(
+            requester.id,
+            services.MatchQuery(
+                first_name=fields.get("first_name", ""),
+                last_name=fields.get("last_name", ""),
+                birth_date=None,
+                company_name=fields.get("company_name", ""),
+                contacts=tuple(contacts),
+            ),
+        )
+    )
+    card = ClientCard.objects.create(
+        company=requester,
+        **fields,
+        possible_duplicate=duplicates,
+        linked_user_id=user_id,
+        linked_company_id=company_id,
+        created_by_user_id=ctx.actor.user_id,
+        created_at=now,
+    )
+    services.write_contacts(card, contacts)
+    link = ProfileLink.objects.create(
+        company=requester,
+        client=card,
+        profile=profile,
+        target_label=label,
+        target_user_id=user_id,
+        target_company_id=company_id,
+        state=State.ACCEPTED,
+        created_by_user_id=requested_by,
+        created_at=now,
+        expires_at=now,
+        decided_at=now,
+        decided_by_user_id=ctx.actor.user_id,
+        shared={"data": shared, "at": now.isoformat(), "source": "vehicle_owner"},
+    )
+    ctx.audit(
+        "client.created",
+        object_type="client_card",
+        object_id=card.id,
+        after={**services.snapshot(card), "source": "vehicle_owner", "link": str(link.id)},
+        company_id=requester.id,
+    )
+    return card
+
+
 # --- Working data from the snapshot (§ 6.4.1–6.4.2) -------------------------------------------
 
 

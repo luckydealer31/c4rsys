@@ -155,7 +155,7 @@ def snapshot(card: ClientCard) -> dict[str, Any]:
     }
 
 
-def _write_contacts(card: ClientCard, contacts: list[Contact]) -> None:
+def write_contacts(card: ClientCard, contacts: list[Contact]) -> None:
     ClientContact.objects.filter(client=card).delete()
     ClientContact.objects.bulk_create(
         ClientContact(
@@ -198,7 +198,7 @@ def create_client(
         created_by_user_id=ctx.actor.user_id,
         created_at=timezone.now(),
     )
-    _write_contacts(card, contacts)
+    write_contacts(card, contacts)
     ctx.audit("client.created", object_type="client_card", object_id=card.id, after=snapshot(card))
     return card
 
@@ -234,7 +234,7 @@ def update_client(
     if contacts is not None:
         if not contacts:
             raise errors.validation_error("contacts", code="CONTACT_REQUIRED")
-        _write_contacts(card, contacts)
+        write_contacts(card, contacts)
     card.version += 1
     card.save()
     after = snapshot(card)

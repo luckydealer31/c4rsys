@@ -201,14 +201,14 @@ def _parse(value: Any) -> dict[str, bool]:
 def answer_as_user(
     ctx: CommandContext, user: UserAccount, request_id: UUID, given: Any
 ) -> VehicleOwnerRequest:
-    return _answer(ctx, for_user(user), request_id, _parse(given), user_id=user.id, company=None)
+    return _answer(ctx, for_user(user), request_id, _parse(given), user=user, company=None)
 
 
 def answer_as_company(
     ctx: CommandContext, company: Company, request_id: UUID, given: Any
 ) -> VehicleOwnerRequest:
     return _answer(
-        ctx, for_company(company.id), request_id, _parse(given), user_id=None, company=company
+        ctx, for_company(company.id), request_id, _parse(given), user=None, company=company
     )
 
 
@@ -218,9 +218,10 @@ def _answer(
     request_id: UUID,
     given: dict[str, bool],
     *,
-    user_id: UUID | None,
+    user: UserAccount | None,
     company: Company | None,
 ) -> VehicleOwnerRequest:
+    user_id = user.id if user is not None else None
     request = query.select_for_update().filter(pk=request_id).first()
     if request is None:
         raise errors.not_found()
@@ -257,6 +258,17 @@ def _answer(
     after = {"request": str(request.id), "answers": given, "complete": complete}
     if ownership:
         after["ownership"] = ownership
+    if given.get(Question.LINK) is True:
+        # «Yes» to the link makes the owner a client of the company: a client card linked to
+        # the profile (customer's decision of 30.10.2026).
+        card = links.client_from_owner(
+            ctx,
+            request.company,
+            owner_user=user,
+            owner_company=company,
+            requested_by=request.created_by_user_id,
+        )
+        after["client"] = str(card.id)
     # Journaled in the company that asked: its vehicle card is concerned (§ 20.3.4).
     ctx.audit(
         "vehicle.owner_answered",

@@ -3603,7 +3603,7 @@
     "my_title": "Vehicles: requests to the owner",
     "incoming_title": "Vehicles: requests to the owner",
     "asks": "The company named you the owner of this vehicle. Each answer is separate:",
-    "ask_link": "Do you confirm the link with this company?",
+    "ask_link": "Do you confirm the link with this company? «Yes» makes you its client: the company gets your name and email.",
     "ask_ownership": "Is this vehicle yours? «Yes» adds it to your personal garage.",
     "ask_management": "Do you agree that this company manages the vehicle?",
     "final": "An answer cannot be changed later: a new decision needs a new request of the company. You may answer some questions now and the rest later.",
