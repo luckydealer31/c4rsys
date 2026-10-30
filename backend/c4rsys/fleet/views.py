@@ -485,3 +485,71 @@ def vehicle_acquisition(request: HttpRequest, cmp: str, card_id: UUID) -> JsonRe
         "expected_version": expected_version,
     }
     return run_and_respond(request, "vehicle.acquisition", actor, payload, handler)
+
+
+# Kinds on the schedule and the right that shows each of them in the vehicle's location.
+SCHEDULE_RIGHTS = {
+    "rental": "rental.view",
+    "service": "service.view",
+    "delivery": "delivery.view",
+}
+SCHEDULE_MAX_DAYS = 62
+
+
+@require_http_methods(["GET"])
+def vehicle_schedule(request: HttpRequest, cmp: str) -> JsonResponse:
+    """The schedule of vehicles (decision Б3, В-4): own and managed vehicles in the garage with
+    their bookings, rentals, service and moves over [from, to), optionally of one location.
+    Vehicles by the right to view them; each kind only with its own right in the vehicle's
+    location."""
+    context, actor = _actor(request, cmp)
+
+    def moment(key: str) -> datetime:
+        try:
+            value = datetime.fromisoformat(request.GET.get(key, ""))
+        except ValueError as exc:
+            raise errors.validation_error(key, code="DATETIME_INVALID") from exc
+        if value.tzinfo is None:
+            raise errors.validation_error(key, code="DATETIME_WITHOUT_OFFSET")
+        return value
+
+    start, end = moment("from"), moment("to")
+    if end <= start or (end - start).days > SCHEDULE_MAX_DAYS:
+        raise errors.validation_error("to", code="PERIOD_INVALID")
+    location = request.GET.get("location", "")
+    cards = [
+        c
+        for c in services.cards_of(context.company.id).filter(
+            relation__in=(VehicleCard.Relation.OWN, VehicleCard.Relation.MANAGED),
+            state=VehicleCard.State.ACTIVE,
+            storage_context__isnull=True,
+        )
+        if _allowed(actor, "vehicle.view", c)
+        and (not location or str(c.accounting_location_id) == location)
+    ]
+    by_card = {str(c.id): c for c in cards}
+    kinds = set(SCHEDULE_RIGHTS)
+    items = [
+        item
+        for item in services.schedule(context.company.id, [c.id for c in cards], start, end, kinds)
+        if _allowed(
+            actor,
+            SCHEDULE_RIGHTS["rental" if item["kind"] == "booking" else item["kind"]],
+            by_card[item["card_id"]],
+        )
+    ]
+    return JsonResponse(
+        {
+            "vehicles": [
+                {
+                    "id": str(c.id),
+                    "name": c.name,
+                    "location_id": str(c.accounting_location_id)
+                    if c.accounting_location_id
+                    else None,
+                }
+                for c in cards
+            ],
+            "items": items,
+        }
+    )

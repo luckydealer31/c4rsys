@@ -7,6 +7,7 @@ urlpatterns = [
     path("catalog/vehicle-makes", views.catalog_makes),
     path("catalog/vehicle-makes/<str:make>/models", views.catalog_models),
     path("c/<str:cmp>/vehicles", views.vehicle_list),
+    path("c/<str:cmp>/vehicles/schedule", views.vehicle_schedule),
     path("c/<str:cmp>/vehicles/<uuid:card_id>", views.vehicle_detail),
     path("c/<str:cmp>/vehicles/<uuid:card_id>/details", views.vehicle_details),
     path("c/<str:cmp>/vehicles/<uuid:card_id>/acquisition", views.vehicle_acquisition),

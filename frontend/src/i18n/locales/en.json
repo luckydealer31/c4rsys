@@ -3807,5 +3807,21 @@
     "none": "No groups yet.",
     "new": "New group",
     "create": "Create"
+  },
+  "schedule": {
+    "title": "Schedule",
+    "span": "Period",
+    "span_day": "Day",
+    "span_week": "Week",
+    "span_month": "Month",
+    "location": "Location",
+    "all_locations": "All locations",
+    "today": "Today",
+    "kind_booking": "Booking",
+    "kind_rental": "Rental",
+    "kind_service": "Service",
+    "kind_delivery": "Move",
+    "no_vehicles": "No vehicles.",
+    "hint": "Own and managed vehicles in the garage. Planned ones are pale; the red line is now. Bookings and rentals, service and moves are shown by the rights to them in the vehicle's location."
   }
 }

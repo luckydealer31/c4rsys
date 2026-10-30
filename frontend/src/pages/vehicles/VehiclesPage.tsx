@@ -78,13 +78,16 @@ export function VehiclesPage() {
   return (
     <div className="page">
       <h1>{t("nav.garage")}</h1>
-      {can("vehicle.create") ? (
-        <div className="actions" style={{ marginTop: 0, marginBottom: 16 }}>
+      <div className="actions" style={{ marginTop: 0, marginBottom: 16 }}>
+        {can("vehicle.create") ? (
           <Link className="button" to={companyPath(company, `/vehicles/new?relation=${tab}`)}>
             <Icon name="plus" size={18} /> {t("vehicles.create_button")}
           </Link>
-        </div>
-      ) : null}
+        ) : null}
+        <Link className="button secondary" to={companyPath(company, "/vehicles/schedule")}>
+          {t("schedule.title")}
+        </Link>
+      </div>
       <div className="tabs" role="tablist">
         {RELATIONS.map((key) => (
           <button

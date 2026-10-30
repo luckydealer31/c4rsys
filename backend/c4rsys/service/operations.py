@@ -1335,3 +1335,36 @@ def correct_job(
     )
     _bump(op)
     return job
+
+
+def schedule(
+    company_id: UUID, card_ids: list[UUID], start: datetime, end: datetime
+) -> list[dict[str, Any]]:
+    """Service operations on the schedule of vehicles (decision В-4): a planned one over its
+    plan, an accepted one from the acceptance to the finish (to the planned end or now while it
+    lasts)."""
+    now = timezone.now()
+    result: list[dict[str, Any]] = []
+    for op in ServiceOperation.objects.filter(
+        company_id=company_id, vehicle_card_id__in=card_ids
+    ).exclude(state=Op.CANCELLED):
+        if op.state == Op.PLANNED:
+            begin, finish = op.planned_start, op.planned_end
+        else:
+            begin = op.accepted_at
+            finish = op.finished_at or max(op.planned_end or now, now)
+        if begin is None or finish is None or begin >= end or finish <= start:
+            continue
+        result.append(
+            {
+                "card_id": str(op.vehicle_card_id),
+                "kind": "service",
+                "id": str(op.id),
+                "start": begin.isoformat(),
+                "end": finish.isoformat(),
+                "state": op.state,
+                "label": f"№ {op.number}",
+                "planned": op.state == Op.PLANNED,
+            }
+        )
+    return result

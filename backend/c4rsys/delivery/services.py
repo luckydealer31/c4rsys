@@ -788,3 +788,37 @@ def annul(ctx: CommandContext, d: Delivery, reason: str) -> Delivery:
         fleet.move_to_location(ctx, card, d.from_location_id, f"delivery {d.number} annulled")
     money.recharge(ctx, d, "delivery_annulled")
     return d
+
+
+def schedule(
+    company_id: UUID, card_ids: list[UUID], start: datetime, end: datetime
+) -> list[dict[str, Any]]:
+    """Moves and deliveries on the schedule of vehicles (decision В-4): a planned one over its
+    plan, a started one over its actual period (to now while in transit)."""
+    now = timezone.now()
+    result: list[dict[str, Any]] = []
+    for d in (
+        deliveries_of(company_id)
+        .filter(vehicle_card_id__in=card_ids)
+        .exclude(state=State.CANCELLED)
+    ):
+        if d.state == State.PLANNED:
+            begin, finish = d.planned_start, d.planned_end
+        else:
+            begin = d.actual_start
+            finish = d.actual_end or max(d.planned_end or now, now)
+        if begin is None or finish is None or begin >= end or finish <= start:
+            continue
+        result.append(
+            {
+                "card_id": str(d.vehicle_card_id),
+                "kind": "delivery",
+                "id": str(d.id),
+                "start": begin.isoformat(),
+                "end": finish.isoformat(),
+                "state": d.state,
+                "label": f"№ {d.number}",
+                "planned": d.state == State.PLANNED,
+            }
+        )
+    return result

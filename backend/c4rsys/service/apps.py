@@ -26,6 +26,9 @@ class ServiceConfig(AppConfig):
         fleet.register_later_operations(operations.started_after)
         orders.register_operations(operations.operations_for_order)
         orders.register_client_view(operations.client_view_for_order)
+        from c4rsys.fleet import services as fleet_services
+
+        fleet_services.register_schedule("service", operations.schedule)
         orders.register_estimated(operations.estimated_for_order)
         orders.register_on_client_assigned(operations.on_client_assigned)
         orders.register_on_cancel(operations.on_order_cancel)

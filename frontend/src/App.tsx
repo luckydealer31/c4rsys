@@ -52,6 +52,7 @@ import { SetupPage } from "./pages/setup/SetupPage";
 import { TariffPage, TariffsPage } from "./pages/tariffs/TariffsPage";
 import { EditVehiclePage, NewVehiclePage } from "./pages/vehicles/NewVehiclePage";
 import { VehiclePage, VehiclesPage } from "./pages/vehicles/VehiclesPage";
+import { SchedulePage } from "./pages/vehicles/SchedulePage";
 
 export function App() {
   const me = useMe();
@@ -129,6 +130,7 @@ export function App() {
         <Route path="orders/:id" element={<OrderPage />} />
         <Route path="vehicles" element={<VehiclesPage />} />
         <Route path="vehicles/new" element={<NewVehiclePage />} />
+        <Route path="vehicles/schedule" element={<SchedulePage />} />
         <Route path="vehicles/:id" element={<VehiclePage />} />
         <Route path="vehicles/:id/edit" element={<EditVehiclePage />} />
         <Route path="clients" element={<ClientsPage />} />

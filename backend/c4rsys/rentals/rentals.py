@@ -372,3 +372,42 @@ def client_view_for_order(company_id: UUID, order_id: UUID) -> list[dict[str, An
             }
         )
     return result
+
+
+def schedule(
+    company_id: UUID, card_ids: list[UUID], start: datetime, end: datetime
+) -> list[dict[str, Any]]:
+    """Bookings and rentals on the schedule of vehicles (decision В-4): a booking over its plan,
+    a rental from the issue to the return (to the planned end while it lasts)."""
+    from c4rsys.parties import services as parties
+
+    now = timezone.now()
+    result: list[dict[str, Any]] = []
+    rentals = Rental.objects.select_related("client").filter(
+        company_id=company_id,
+        vehicle_card_id__in=card_ids,
+        state__in=(Rental.State.BOOKED, Rental.State.ACTIVE, Rental.State.RETURNED),
+    )
+    for r in rentals:
+        if r.state == Rental.State.BOOKED:
+            begin, finish = r.planned_start, r.planned_end
+        elif r.state == Rental.State.ACTIVE:
+            begin = r.actual_start
+            finish = max(r.planned_end or now, now)
+        else:
+            begin, finish = r.actual_start, r.actual_end
+        if begin is None or finish is None or begin >= end or finish <= start:
+            continue
+        result.append(
+            {
+                "card_id": str(r.vehicle_card_id),
+                "kind": "booking" if r.state == Rental.State.BOOKED else "rental",
+                "id": str(r.id),
+                "start": begin.isoformat(),
+                "end": finish.isoformat(),
+                "state": r.state,
+                "label": parties.display_name(r.client) if r.client else "",
+                "planned": r.state == Rental.State.BOOKED,
+            }
+        )
+    return result

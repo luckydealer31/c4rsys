@@ -66,6 +66,27 @@ def occupancy(
     return [item for p in _occupancy for item in p(company_id, card_id, start, end)]
 
 
+# The schedule of vehicles (decision Б3, В-4): (company_id, card_ids, start, end) -> intervals
+# {"card_id", "kind", "id", "start", "end", "state", "label", "planned"} of each module.
+Schedule = Callable[[UUID, list[UUID], datetime, datetime], list[dict[str, Any]]]
+_schedule: dict[str, Schedule] = {}
+
+
+def register_schedule(kind: str, provider: Schedule) -> None:
+    _schedule[kind] = provider
+
+
+def schedule(
+    company_id: UUID, card_ids: list[UUID], start: datetime, end: datetime, kinds: set[str]
+) -> list[dict[str, Any]]:
+    return [
+        item
+        for kind, provider in _schedule.items()
+        if kind in kinds
+        for item in provider(company_id, card_ids, start, end)
+    ]
+
+
 # (company_id, vehicle_card_id, moment) -> operations of the vehicle that began at or after the
 # moment, as {"kind", "id", ...}: what depends on an earlier move (§ 15.1.4, § 15.3.4; decision
 # Д-11).

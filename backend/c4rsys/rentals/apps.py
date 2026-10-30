@@ -23,6 +23,9 @@ class RentalsConfig(AppConfig):
         fleet.register_context_blockers(rentals.vehicle_context_blockers)
         orders.register_operations(rentals.operations_for_order)
         orders.register_client_view(rentals.client_view_for_order)
+        from c4rsys.fleet import services as fleet_services
+
+        fleet_services.register_schedule("rental", rentals.schedule)
         orders.register_control_version(rentals.record_control_versions)
         # Decisions Р16, Р25: charged by the known period; estimated without a client.
         orders.register_estimated(billing.estimated_for_order)
