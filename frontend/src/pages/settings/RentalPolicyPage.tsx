@@ -9,6 +9,7 @@ import { useCan, useCompany } from "../../layout/CompanyShell";
 import { DocumentRequirementsCard } from "../documents/Requirements";
 import { IssuePolicyForm } from "../rentals/IssueRules";
 import { useLocations } from "./LocationsPage";
+import { ApprovalPolicyCard } from "../orders/Approvals";
 
 type Policy = {
   location_id: string | null;
@@ -30,6 +31,7 @@ export function RentalPolicyPage() {
   return (
     <div className="page">
       <h1>{t("settings.rental")}</h1>
+      <ApprovalPolicyCard />
       <p className="muted">{t("issue_rules.page_hint")}</p>
       {sections.map(([id, name]) => (
         <Card key={id ?? "company"} title={name}>

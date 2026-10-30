@@ -656,6 +656,9 @@ def _add_job(
         object_id=job.id,
         after=job_snapshot(job),
     )
+    from c4rsys.orders import approvals
+
+    approvals.on_added(ctx, op.order_id, "service_job", job.id, str(terms.snapshot.get("name", "")))
     return job
 
 
@@ -753,6 +756,9 @@ def start(ctx: CommandContext, job: ServiceJob, at: datetime) -> ServiceJob:
     if job.contractor_id is None and op.state not in HOLDING:
         raise errors.business_rule("SERVICE_VEHICLE_NOT_ACCEPTED", state=op.state)
     orders.ensure_open(op.company_id, op.order_id)
+    from c4rsys.orders import approvals
+
+    approvals.ensure_startable("service_job", job.id)
     _not_future(at, "actual_start")
     if op.accepted_at is not None and at < op.accepted_at:
         raise errors.validation_error("actual_start", code="START_BEFORE_ACCEPTANCE")

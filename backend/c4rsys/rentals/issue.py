@@ -289,6 +289,9 @@ def _issue_booking(
         raise errors.business_rule("BOOKING_NOT_ACTIVE")
     if booking.vehicle_card_id != card.id:
         raise errors.business_rule("BOOKING_VEHICLE_MISMATCH", field="vehicle_card_id")
+    from c4rsys.orders import approvals
+
+    approvals.ensure_startable("rental", booking.id)
     order = orders.lock_open_order(card.company_id, booking.order_id)
     if booking.tariff_id != tariff.id or not booking.tariff_snapshot:
         booking.tariff_snapshot = tariffs.rental_snapshot(tariff, terms)

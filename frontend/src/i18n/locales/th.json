@@ -921,7 +921,10 @@
     "service_operation_not_finished": "บริการยังไม่เสร็จ",
     "service_job_not_finished": "แก้ไขได้เฉพาะงานที่เสร็จหรือหยุดแล้ว",
     "service_job_not_open": "เปิดงานเพื่อแก้ไขก่อน",
-    "service_job_already_open": "งานเปิดเพื่อแก้ไขอยู่แล้ว"
+    "service_job_already_open": "งานเปิดเพื่อแก้ไขอยู่แล้ว",
+    "approval_pending": "รายการรอคำตอบลูกค้า",
+    "approval_declined": "ลูกค้าปฏิเสธรายการนี้",
+    "approval_answered": "บันทึกคำตอบแล้ว"
   },
   "history": {
     "action": "Action",
@@ -1145,7 +1148,9 @@
     "condition_service_act_missing_service_work": "ไม่มีใบรับรองงานที่เสร็จของงานบริการ",
     "condition_service_act_not_signed_service_work": "ลูกค้ายังไม่ลงนามใบรับรองงานที่เสร็จ",
     "condition_service_job_editing_service": "งานบริการเปิดเพื่อแก้ไขอยู่",
-    "condition_service_job_editing_service_work": "งานบริการเปิดเพื่อแก้ไขอยู่"
+    "condition_service_job_editing_service_work": "งานบริการเปิดเพื่อแก้ไขอยู่",
+    "operation_approval": "รายการที่รอลูกค้า",
+    "condition_awaiting_client": "รายการรอคำตอบลูกค้า"
   },
   "payments": {
     "account": "Cash desk or account",
@@ -3690,7 +3695,11 @@
     "state_done": "เสร็จสิ้น",
     "state_completed": "เสร็จสิ้น",
     "state_planned": "วางแผน",
-    "state_in_progress": "กำลังดำเนินการ"
+    "state_in_progress": "กำลังดำเนินการ",
+    "cost_changed": "ราคาคำสั่งซื้อเปลี่ยน:",
+    "added_position": "เพิ่มในคำสั่งซื้อ",
+    "approve": "ตกลง",
+    "decline_position": "ปฏิเสธ"
   },
   "exports": {
     "title": "ส่งออกข้อมูลทั้งหมด",
@@ -3703,5 +3712,37 @@
     "download": "ดาวน์โหลด ZIP",
     "until": "ใช้ได้ถึง {{at}}",
     "expired": "ลิงก์หมดอายุแล้ว"
+  },
+  "approvals": {
+    "title": "การยืนยันกับลูกค้า",
+    "state_pending": "รอลูกค้า",
+    "state_approved": "ตกลงแล้ว",
+    "state_declined": "ปฏิเสธ",
+    "proceeding": "ดำเนินการโดยไม่รอการยืนยัน",
+    "requested": "เพิ่มเมื่อ {{at}}",
+    "source_client": "ลูกค้าตอบ",
+    "source_employee": "พนักงานบันทึก",
+    "source_": "",
+    "item_service_job": "งานบริการ",
+    "item_extra_service": "บริการ",
+    "item_sale": "สินค้า",
+    "item_rental": "การเช่า",
+    "item_delivery": "การจัดส่ง",
+    "record_answer": "บันทึกคำตอบลูกค้า",
+    "proceed": "ดำเนินการโดยไม่รอการยืนยัน",
+    "decision": "คำตอบ",
+    "method": "ช่องทางติดต่อ",
+    "method_phone": "โทรศัพท์",
+    "method_messenger": "แชท",
+    "method_email": "อีเมล",
+    "method_in_person": "พบตัว",
+    "method_document": "เอกสารลงนาม",
+    "method_other": "อื่นๆ",
+    "answered_at": "ได้รับคำตอบ",
+    "comment": "ความคิดเห็น",
+    "decline_hint": "รายการที่ยังไม่เริ่มจะถูกยกเลิก",
+    "policy_title": "คำสั่งซื้อ: การยืนยันกับลูกค้า",
+    "policy_label": "ยืนยันรายการเพิ่มกับลูกค้า",
+    "policy_hint": "รายการที่เพิ่มในคำสั่งซื้อที่ดำเนินการแล้วจะรอคำตอบลูกค้า"
   }
 }

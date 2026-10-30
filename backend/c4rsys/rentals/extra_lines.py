@@ -470,7 +470,17 @@ def add_linked(
     _bump(rental)
     _audit(ctx, line, "service_line.added", None)
     charge_line(ctx, line, "added")
+    _approval(ctx, line)
     return line
+
+
+def _approval(ctx: CommandContext, line: ExtraServiceLine) -> None:
+    """A service added to an order in work may wait for the client (§ 12.3.5; decision З9)."""
+    from c4rsys.orders import approvals
+
+    approvals.on_added(
+        ctx, line.order_id, "extra_service", line.id, str(line.snapshot.get("name", ""))
+    )
 
 
 @dataclass(frozen=True)
@@ -525,6 +535,7 @@ def add_standalone(ctx: CommandContext, company_id: UUID, data: Standalone) -> E
     )
     _audit(ctx, line, "service_line.added", None)
     charge_line(ctx, line, "added")
+    _approval(ctx, line)
     return line
 
 
@@ -617,6 +628,9 @@ def start(
     start it by itself."""
     line = _locked_line(company_id, line_id, expected_version)
     orders.ensure_open(company_id, line.order_id)
+    from c4rsys.orders import approvals
+
+    approvals.ensure_startable("extra_service", line.id)
     if line.rental_id is not None:
         raise errors.business_rule("SERVICE_FOLLOWS_RENTAL")
     if line.state != State.PLANNED:

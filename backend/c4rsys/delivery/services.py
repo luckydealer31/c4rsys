@@ -325,6 +325,9 @@ def create(ctx: CommandContext, company: Company, data: NewDelivery) -> Delivery
     d.created_at = timezone.now()
     d.save()
     ctx.audit("delivery.created", object_type="delivery", object_id=d.id, after=snapshot(d))
+    from c4rsys.orders import approvals
+
+    approvals.on_added(ctx, d.order_id, "delivery", d.id, f"№ {d.number}")
     return d
 
 
@@ -412,6 +415,9 @@ def start(ctx: CommandContext, d: Delivery, at: datetime) -> Delivery:
     if d.driver_id is None:
         raise errors.business_rule("DELIVERY_DRIVER_REQUIRED", field="driver_id")
     orders.ensure_open(d.company_id, d.order_id)
+    from c4rsys.orders import approvals
+
+    approvals.ensure_startable("delivery", d.id)
     _not_future(at, "actual_start")
     card = VehicleCard.objects.get(pk=d.vehicle_card_id)
     _check_vehicle(card)

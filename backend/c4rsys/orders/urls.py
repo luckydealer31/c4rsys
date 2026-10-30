@@ -1,6 +1,6 @@
 from django.urls import path
 
-from c4rsys.orders import views
+from c4rsys.orders import approval_views, views
 
 urlpatterns = [
     path("c/<str:cmp>/orders", views.order_list),
@@ -11,4 +11,14 @@ urlpatterns = [
     path("c/<str:cmp>/orders/<uuid:order_id>/responsible", views.order_responsible),
     path("c/<str:cmp>/orders/<uuid:order_id>/cancel", views.order_cancel),
     path("c/<str:cmp>/orders/<uuid:order_id>/history", views.order_history),
+    path("c/<str:cmp>/order-policy", approval_views.policy),
+    path("c/<str:cmp>/orders/<uuid:order_id>/approvals", approval_views.order_approvals),
+    path(
+        "c/<str:cmp>/orders/<uuid:order_id>/approvals/<uuid:approval_id>/proceed",
+        approval_views.approval_proceed,
+    ),
+    path(
+        "c/<str:cmp>/orders/<uuid:order_id>/approvals/<uuid:approval_id>/answer",
+        approval_views.approval_answer,
+    ),
 ]

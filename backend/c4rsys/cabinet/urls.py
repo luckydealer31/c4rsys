@@ -11,4 +11,5 @@ urlpatterns = [
     path("cabinet/documents/<uuid:document_id>/code", views.document_code),
     path("cabinet/documents/<uuid:document_id>/decide", views.document_decide),
     path("cabinet/garage", views.garage),
+    path("cabinet/approvals/<uuid:approval_id>/answer", views.approval_answer),
 ]

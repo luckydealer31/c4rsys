@@ -1,4 +1,5 @@
 import { ReopenOrder, SaleGoods } from "../warehouse/Sales";
+import { OrderApprovals } from "./Approvals";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -62,7 +63,7 @@ export function OrderAmountsText({ order }: { order: Order }) {
 
 // Goods and services have cards of their own; rental proposals are listed apart (decision З2).
 const isLine = (op: Order["operations"][number]) =>
-  op.type !== "sale" && op.type !== "service" && op.state !== "proposed";
+  op.type !== "sale" && op.type !== "service" && op.type !== "approval" && op.state !== "proposed";
 
 /** Orders of the company (§ 12.2.3). */
 export function OrdersPage() {
@@ -253,6 +254,7 @@ export function OrderPage() {
       </Card>
       ) : null}
 
+      <OrderApprovals orderId={current.id} onChange={refresh} />
       <FormOrder order={current} onDone={refresh} />
       <RentalProposals order={current} onDone={refresh} />
       <OrderServices order={current} onChange={refresh} />

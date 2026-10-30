@@ -55,6 +55,9 @@ AmountProvider = Callable[[UUID, UUID], dict[str, Decimal]]
 ClientViewProvider = Callable[[UUID, UUID], list[dict[str, Any]]]
 # (company_id, order_id) -> charges by source: (source type, source id, currency, amount)
 ChargeLinesProvider = Callable[[UUID, UUID], list[tuple[str, UUID, str, Decimal]]]
+# (company_id, order_id) -> changes of the cost the client is told about (decision В-1):
+# (moment, source type, source id, currency, difference, reason)
+CostChangesProvider = Callable[[UUID, UUID], list[tuple[datetime, str, UUID, str, Decimal, str]]]
 
 
 @dataclass
@@ -65,6 +68,7 @@ class _Registry:
     estimated: list[AmountProvider] = field(default_factory=list)
     client_view: list[ClientViewProvider] = field(default_factory=list)
     charge_lines: list[ChargeLinesProvider] = field(default_factory=list)
+    cost_changes: list[CostChangesProvider] = field(default_factory=list)
 
 
 registry = _Registry()
@@ -93,6 +97,10 @@ def register_client_view(provider: ClientViewProvider) -> None:
 
 def register_charge_lines(provider: ChargeLinesProvider) -> None:
     registry.charge_lines.append(provider)
+
+
+def register_cost_changes(provider: CostChangesProvider) -> None:
+    registry.cost_changes.append(provider)
 
 
 def chargeable_client(order_id: UUID) -> UUID | None:
@@ -672,13 +680,32 @@ def client_view(order: Order) -> dict[str, Any]:
         for p in registry.charge_lines
         for source_type, source_id, currency, amount in p(order.company_id, order.id)
     ]
+    from c4rsys.orders import approvals
+
+    # Decision В-1: the cost changes without the client's consent; the client is told.
+    changes = [
+        {
+            "at": at.isoformat(),
+            "source": source_type,
+            "name": names.get(str(source_id), ""),
+            "currency": currency,
+            "difference": difference,
+            "reason": reason,
+        }
+        for p in registry.cost_changes
+        for at, source_type, source_id, currency, difference, reason in p(
+            order.company_id, order.id
+        )
+    ]
     return {
         "id": str(order.id),
         "number": order.number,
         "state": display_state(order, operations_of(order)),
         "created_at": order.created_at.isoformat(),
         "closed_at": order.closed_at.isoformat() if order.closed_at else None,
-        "operations": operations,
+        "operations": [op for op in operations if op.get("type") != "approval"],
         "lines": lines,
+        "cost_changes": sorted(changes, key=lambda c: c["at"]),
+        "approvals": [approvals.client_payload(a) for a in approvals.of_order(order.id)],
         "amounts": amounts_of(order),
     }

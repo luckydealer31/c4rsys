@@ -16,3 +16,11 @@ class OrdersConfig(AppConfig):
         # § 20.3.5: an order closed with debt (decision З-7).
         rules.on_journal("order.closed", notices.on_order_closed)
         notifications.register_check(notices.run)
+        # § 12.3.1: a position waiting for the client keeps the order open until answered.
+        from c4rsys.orders import approvals
+        from c4rsys.orders import services as orders
+
+        orders.register_operations(approvals.operations_for_order)
+        from c4rsys.orders import cancellers
+
+        cancellers.register()

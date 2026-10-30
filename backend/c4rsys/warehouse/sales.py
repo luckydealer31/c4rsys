@@ -183,6 +183,11 @@ def add(ctx: CommandContext, company: Company, order_id: UUID, data: SaleData) -
         object_id=order.id,
         after={"lines": [str(c.id) for c in created], **data.as_dict()},
     )
+    from c4rsys.orders import approvals
+
+    for c in created:
+        name = c.item.name if c.item_id and c.item else (c.vehicle.name if c.vehicle else "")
+        approvals.on_added(ctx, order.id, "sale", c.id, name)
     return created
 
 

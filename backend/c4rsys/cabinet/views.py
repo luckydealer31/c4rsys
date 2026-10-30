@@ -69,6 +69,10 @@ def _money(currency: str, value: Decimal, places: dict[str, int]) -> str:
 
 def _order(order: Any, places: dict[str, int]) -> dict[str, Any]:
     view = orders.client_view(order)
+    view["cost_changes"] = [
+        {**c, "difference": _money(c["currency"], c["difference"], places)}
+        for c in view["cost_changes"]
+    ]
     view["lines"] = [
         {**line, "amount": _money(line["currency"], line["amount"], places)}
         for line in view["lines"]
@@ -98,6 +102,27 @@ def history(request: HttpRequest, link_id: UUID) -> JsonResponse:
     places: dict[str, int] = {}
     found = orders.client_orders(link.company_id, [link.client_id], link.broken_at)
     return JsonResponse({"orders": [_order(o, places) for o in found[:HISTORY_LIMIT]]})
+
+
+@require_POST
+def approval_answer(request: HttpRequest, approval_id: UUID) -> JsonResponse:
+    """The client's own answer to a position added to the order (§ 12.3.4), while the link
+    with the company is confirmed."""
+    from c4rsys.orders import approvals
+
+    user, session = require_user(request)
+    decision = get_str(parse_json(request), "decision", max_length=10)
+    if decision not in ("approved", "declined"):
+        raise errors.validation_error("decision")
+    cards = [card for _, card, until in links.client_cards_of_user(user.id) if until is None]
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        found = approvals.answer_by_client(ctx, cards, approval_id, decision == "approved")
+        return CommandResult(200, {"approval": approvals.client_payload(found)})
+
+    actor = Actor(user_id=user.id, session_id=session.id)
+    payload = {"approval_id": str(approval_id), "decision": decision}
+    return run_and_respond(request, "cabinet.approval_answer", actor, payload, handler)
 
 
 @require_GET

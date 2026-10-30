@@ -921,7 +921,10 @@
     "service_operation_not_finished": "The service is not finished.",
     "service_job_not_finished": "Only a done or terminated work is corrected.",
     "service_job_not_open": "Open the work for editing first.",
-    "service_job_already_open": "The work is already open for editing."
+    "service_job_already_open": "The work is already open for editing.",
+    "approval_pending": "The position awaits the client's answer: record the answer or choose «Do without the client's confirmation».",
+    "approval_declined": "The client refused this position.",
+    "approval_answered": "The answer is already recorded."
   },
   "history": {
     "action": "Action",
@@ -1145,7 +1148,9 @@
     "condition_service_act_missing_service_work": "No act of completed works for the service",
     "condition_service_act_not_signed_service_work": "The act of completed works is not signed by the client",
     "condition_service_job_editing_service": "A work of the service is open for editing",
-    "condition_service_job_editing_service_work": "A work of the service is open for editing"
+    "condition_service_job_editing_service_work": "A work of the service is open for editing",
+    "operation_approval": "a position awaiting the client",
+    "condition_awaiting_client": "A position awaits the client's answer"
   },
   "payments": {
     "account": "Cash desk or account",
@@ -3690,7 +3695,11 @@
     "state_done": "done",
     "state_completed": "completed",
     "state_planned": "planned",
-    "state_in_progress": "in progress"
+    "state_in_progress": "in progress",
+    "cost_changed": "The cost of the order changed:",
+    "added_position": "Added to the order",
+    "approve": "Agree",
+    "decline_position": "Refuse"
   },
   "exports": {
     "title": "Full data export",
@@ -3703,5 +3712,37 @@
     "download": "Download ZIP",
     "until": "available until {{at}}",
     "expired": "The link has expired; prepare a new export."
+  },
+  "approvals": {
+    "title": "Agreement with the client",
+    "state_pending": "Awaiting the client",
+    "state_approved": "Agreed",
+    "state_declined": "Refused",
+    "proceeding": "Done without the client's confirmation",
+    "requested": "added {{at}}",
+    "source_client": "answered by the client",
+    "source_employee": "recorded by an employee",
+    "source_": "",
+    "item_service_job": "Service work",
+    "item_extra_service": "Service",
+    "item_sale": "Goods",
+    "item_rental": "Rental",
+    "item_delivery": "Delivery",
+    "record_answer": "Record the client's answer",
+    "proceed": "Do without the client's confirmation",
+    "decision": "Answer",
+    "method": "Way of contact",
+    "method_phone": "phone",
+    "method_messenger": "messenger",
+    "method_email": "email",
+    "method_in_person": "in person",
+    "method_document": "signed document",
+    "method_other": "other",
+    "answered_at": "Answer received",
+    "comment": "Comment",
+    "decline_hint": "A refused position that has not started is cancelled; a started one keeps what was done, the payment is settled separately.",
+    "policy_title": "Orders: agreement with the client",
+    "policy_label": "Agree additions with the client",
+    "policy_hint": "A position added to an order already in work waits for the client's answer; it starts only after the answer or with «Do without the client's confirmation». A change of the cost is not agreed: the client sees a notice in the order."
   }
 }

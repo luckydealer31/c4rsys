@@ -190,3 +190,31 @@ def lines_for_order(company_id: UUID, order_id: UUID) -> list[tuple[str, UUID, s
         for r in rows
         if r["total"] != 0
     ]
+
+
+# Recalculations that change the agreed cost of a position; the client is told of them in the
+# order (decision В-1). Charges at the start, at the return and by the terms are not changes.
+CHANGE_REASONS = {
+    "planned_end_changed",
+    "tariff_changed",
+    "booking_changed",
+    "booking_vehicle_replaced",
+    "corrected",
+    "service_job_price_changed",
+    "service_material_price_changed",
+}
+
+
+def changes_for_order(
+    company_id: UUID, order_id: UUID
+) -> list[tuple[Any, str, UUID, str, Decimal, str]]:
+    """Changes of the cost of an order for the client: recalculations of the agreed cost and the
+    manual charges of a rental (decision В-1)."""
+    return [
+        (e.created_at, e.source_type, e.source_id, e.currency_id, e.amount, e.reason)
+        for e in ChargeEntry.objects.filter(company_id=company_id, order_id=order_id).order_by(
+            "created_at"
+        )
+        if e.amount != 0
+        and (e.reason in CHANGE_REASONS or e.source_type == ChargeEntry.SourceType.RENTAL_MANUAL)
+    ]

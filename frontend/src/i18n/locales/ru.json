@@ -921,7 +921,10 @@
     "service_operation_not_finished": "Сервис не завершён.",
     "service_job_not_finished": "Исправляется только выполненная или прерванная работа.",
     "service_job_not_open": "Сначала откройте работу для редактирования.",
-    "service_job_already_open": "Работа уже открыта для редактирования."
+    "service_job_already_open": "Работа уже открыта для редактирования.",
+    "approval_pending": "Позиция ожидает ответа клиента: запишите ответ или выберите «Выполнять без подтверждения клиента».",
+    "approval_declined": "Клиент отказался от этой позиции.",
+    "approval_answered": "Ответ уже записан."
   },
   "history": {
     "action": "Действие",
@@ -1145,7 +1148,9 @@
     "condition_service_act_missing_service_work": "Нет акта выполненных работ по сервису",
     "condition_service_act_not_signed_service_work": "Акт выполненных работ не подписан клиентом",
     "condition_service_job_editing_service": "Работа сервиса открыта для редактирования",
-    "condition_service_job_editing_service_work": "Работа сервиса открыта для редактирования"
+    "condition_service_job_editing_service_work": "Работа сервиса открыта для редактирования",
+    "operation_approval": "позиция, ожидающая ответа клиента",
+    "condition_awaiting_client": "Позиция ожидает ответа клиента"
   },
   "payments": {
     "account": "Касса или счёт",
@@ -3690,7 +3695,11 @@
     "state_done": "выполнено",
     "state_completed": "завершено",
     "state_planned": "запланировано",
-    "state_in_progress": "в работе"
+    "state_in_progress": "в работе",
+    "cost_changed": "Стоимость заказа изменилась:",
+    "added_position": "Добавлено в заказ",
+    "approve": "Согласовать",
+    "decline_position": "Отказаться"
   },
   "exports": {
     "title": "Полная выгрузка данных",
@@ -3703,5 +3712,37 @@
     "download": "Скачать ZIP",
     "until": "доступна до {{at}}",
     "expired": "Срок ссылки истёк, подготовьте новую выгрузку."
+  },
+  "approvals": {
+    "title": "Согласование с клиентом",
+    "state_pending": "Ожидает ответа клиента",
+    "state_approved": "Согласовано",
+    "state_declined": "Отказ",
+    "proceeding": "Выполняется без подтверждения клиента",
+    "requested": "добавлено {{at}}",
+    "source_client": "ответ клиента",
+    "source_employee": "записано сотрудником",
+    "source_": "",
+    "item_service_job": "Сервисная работа",
+    "item_extra_service": "Услуга",
+    "item_sale": "Товар",
+    "item_rental": "Аренда",
+    "item_delivery": "Доставка",
+    "record_answer": "Записать ответ клиента",
+    "proceed": "Выполнять без подтверждения клиента",
+    "decision": "Ответ",
+    "method": "Способ связи",
+    "method_phone": "телефон",
+    "method_messenger": "мессенджер",
+    "method_email": "email",
+    "method_in_person": "лично",
+    "method_document": "подписанный документ",
+    "method_other": "другое",
+    "answered_at": "Ответ получен",
+    "comment": "Комментарий",
+    "decline_hint": "Неначатая позиция при отказе отменяется; начатая сохраняет выполненное, оплата решается отдельно.",
+    "policy_title": "Заказы: согласование с клиентом",
+    "policy_label": "Согласовывать добавления с клиентом",
+    "policy_hint": "Позиция, добавленная в заказ, который уже в работе, ждёт ответа клиента; начать её можно после ответа или с отметкой «Выполнять без подтверждения клиента». Изменение стоимости не согласуется: клиент видит уведомление в заказе."
   }
 }

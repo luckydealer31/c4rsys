@@ -61,6 +61,8 @@ type HistoryOrder = {
   operations: Operation[];
   lines: { source: string; name: string; currency: string; amount: string }[];
   amounts: Record<string, { charged: string; paid: string; to_pay: string; overpaid: string }>;
+  cost_changes: { at: string; source: string; name: string; currency: string; difference: string; reason: string }[];
+  approvals: { id: string; item_type: string; title: string; state: string; answered_at: string | null }[];
 };
 
 type CabinetDocument = {
@@ -241,6 +243,21 @@ function CompanyHistory() {
               </tbody>
             </table>
           ) : null}
+          {o.cost_changes.length ? (
+            <div className="alert warn small">
+              <strong>{t("cabinet.cost_changed")}</strong>
+              {o.cost_changes.map((c, i) => (
+                <div key={i}>
+                  {when(c.at)} · {t(`cabinet.source_${c.source}`)}
+                  {c.name ? `: ${c.name}` : ""} · {Number(c.difference) > 0 ? "+" : ""}
+                  {c.difference} {c.currency}
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {o.approvals.map((a) => (
+            <ClientApproval key={a.id} approval={a} linkId={linkId} />
+          ))}
           {Object.entries(o.amounts).map(([currency, m]) => (
             <p key={currency} className="small">
               {t("cabinet.amounts", { charged: m.charged, paid: m.paid, to_pay: m.to_pay, currency })}
@@ -249,6 +266,42 @@ function CompanyHistory() {
           ))}
         </Card>
       ))}
+    </div>
+  );
+}
+
+function ClientApproval({
+  approval,
+  linkId,
+}: {
+  approval: HistoryOrder["approvals"][number];
+  linkId: string;
+}) {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const answer = useCommand<{ decision: string }, unknown>(`/cabinet/approvals/${approval.id}/answer`);
+  async function reply(decision: string) {
+    if ((await answer.run({ decision })) !== null) {
+      await queryClient.invalidateQueries({ queryKey: ["cabinet-history", linkId] });
+    }
+  }
+  return (
+    <div className="small" style={{ margin: "8px 0" }}>
+      {t("cabinet.added_position")}: <strong>{approval.title}</strong>{" "}
+      <span className={`badge ${approval.state === "pending" ? "warn" : approval.state === "approved" ? "ok" : ""}`}>
+        {t(`approvals.state_${approval.state}`)}
+      </span>
+      {approval.state === "pending" ? (
+        <div className="actions">
+          <button type="button" disabled={answer.pending} onClick={() => void reply("approved")}>
+            {t("cabinet.approve")}
+          </button>
+          <button type="button" className="secondary" disabled={answer.pending} onClick={() => void reply("declined")}>
+            {t("cabinet.decline_position")}
+          </button>
+        </div>
+      ) : null}
+      <ErrorMessage error={answer.error} />
     </div>
   );
 }

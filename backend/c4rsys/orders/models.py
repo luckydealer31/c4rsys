@@ -68,3 +68,70 @@ class Order(models.Model):
 
     def __str__(self) -> str:
         return f"order {self.number}"
+
+
+class OrderPolicy(models.Model):
+    """«Agree additions with the client» of the company (§ 12.3.5; decision З9): off by default.
+    A change of the cost needs no agreement; the client is only told (decision В-1)."""
+
+    company = models.OneToOneField(Company, on_delete=models.PROTECT, primary_key=True)
+    require_approval = models.BooleanField(default=False)
+    updated_by_user_id = models.UUIDField()
+    updated_at = models.DateTimeField(default=now)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "order_policy"
+
+    def __str__(self) -> str:
+        return f"order policy {self.company_id}"
+
+
+class OrderApproval(models.Model):
+    """A position added to an order in work that waits for the client's answer (§ 12.3.1–12.3.5;
+    decisions З9, З10). The answer is the client's own (in the cabinet) or recorded by an employee
+    with the date, the way of contact and a comment; the history tells them apart (§ 12.3.4).
+    «Do without the client's confirmation» lets the position start; it is not the client's
+    consent (§ 12.3.2)."""
+
+    class State(models.TextChoices):
+        PENDING = "pending"
+        APPROVED = "approved"
+        DECLINED = "declined"
+
+    class Source(models.TextChoices):
+        CLIENT = "client"
+        EMPLOYEE = "employee"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    order = models.ForeignKey(Order, on_delete=models.PROTECT, related_name="approvals")
+    item_type = models.CharField(max_length=20)
+    item_id = models.UUIDField()
+    title = models.CharField(max_length=300, blank=True, default="")
+    state = models.CharField(max_length=10, choices=State.choices, default=State.PENDING)
+    requested_at = models.DateTimeField(default=now)
+    requested_by_user_id = models.UUIDField()
+    proceed_at = models.DateTimeField(null=True, blank=True)
+    proceed_by_user_id = models.UUIDField(null=True, blank=True)
+    answered_at = models.DateTimeField(null=True, blank=True)
+    answer_source = models.CharField(max_length=10, choices=Source.choices, blank=True, default="")
+    answered_by_user_id = models.UUIDField(null=True, blank=True)
+    contact_method = models.CharField(max_length=20, blank=True, default="")
+    comment = models.CharField(max_length=2000, blank=True, default="")
+    document_id = models.UUIDField(null=True, blank=True)
+
+    class Meta:
+        db_table = "order_approval"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["item_type", "item_id"], name="order_approval_item_uniq"
+            ),
+            models.CheckConstraint(
+                condition=Q(state="pending") | Q(answered_at__isnull=False),
+                name="order_approval_answer_has_time",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"approval {self.item_type}:{self.item_id}"

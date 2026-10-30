@@ -301,6 +301,9 @@ def create(ctx: CommandContext, company_id: UUID, data: BookingData) -> Rental:
         after={**snapshot(rental), "order": str(order.id), "order_number": order.number},
     )
     billing.sync(ctx, rental, "booked")
+    from c4rsys.orders import approvals
+
+    approvals.on_added(ctx, order.id, "rental", rental.id, rental.vehicle_card.name)
     return rental
 
 
