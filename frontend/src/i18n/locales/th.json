@@ -916,7 +916,8 @@
     "owner_request_not_open": "คำขอปิดแล้ว",
     "owner_request_expired": "คำขอหมดอายุ",
     "owner_answer_given": "ตอบคำถามนี้แล้ว",
-    "cabinet_host": "นี่คือบัญชีส่วนตัว"
+    "cabinet_host": "นี่คือบัญชีส่วนตัว",
+    "export_expired": "ลิงก์หมดอายุแล้ว"
   },
   "history": {
     "action": "Action",
@@ -1288,7 +1289,8 @@
     "section_reports": "รายงาน",
     "reports_view": "ดูรายงาน",
     "reports_export": "ส่งออกรายงาน",
-    "company_link_answer": "ตอบคำขอเชื่อมกับบริษัท"
+    "company_link_answer": "ตอบคำขอเชื่อมกับบริษัท",
+    "data_export": "ส่งออกข้อมูลทั้งหมด"
   },
   "positions": {
     "director": "Director"
@@ -1480,7 +1482,9 @@
     "rental": "การเช่า: การจองและการส่งมอบ",
     "rental_hint": "นโยบายการส่งมอบและการยกเลิกอัตโนมัติเมื่อไม่มา",
     "notifications": "การแจ้งเตือนและงาน",
-    "notifications_hint": "แจ้งเหตุการณ์ใด ให้ใคร เมื่อไร และทำซ้ำอย่างไร"
+    "notifications_hint": "แจ้งเหตุการณ์ใด ให้ใคร เมื่อไร และทำซ้ำอย่างไร",
+    "export": "ส่งออกข้อมูลทั้งหมด",
+    "export_hint": "ตารางและเอกสารทั้งหมดในไฟล์เดียว"
   },
   "setup": {
     "back": "Back",
@@ -3668,5 +3672,17 @@
     "state_completed": "เสร็จสิ้น",
     "state_planned": "วางแผน",
     "state_in_progress": "กำลังดำเนินการ"
+  },
+  "exports": {
+    "title": "ส่งออกข้อมูลทั้งหมด",
+    "hint": "ไฟล์ ZIP: ตาราง CSV สำหรับแต่ละประเภทข้อมูลพร้อม ID และไฟล์เอกสารที่คุณดูได้ ลิงก์ใช้ได้ 24 ชั่วโมง",
+    "create": "เตรียมการส่งออก",
+    "preparing": "กำลังเตรียม…",
+    "list": "การส่งออก",
+    "none": "ยังไม่มีการส่งออก",
+    "summary": "{{tables}} ตาราง {{rows}} แถว {{documents}} ไฟล์ {{size}}",
+    "download": "ดาวน์โหลด ZIP",
+    "until": "ใช้ได้ถึง {{at}}",
+    "expired": "ลิงก์หมดอายุแล้ว"
   }
 }

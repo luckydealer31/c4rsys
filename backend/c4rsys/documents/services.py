@@ -511,3 +511,25 @@ def can(actor: Any, permission: str, d: Document, resolver: Any = None) -> bool:
     if d.all_locations:
         return bool(resolver.has_permission(actor, permission, whole_company=True))
     return any(resolver.has_permission(actor, permission, location_id=x) for x in location_ids(d))
+
+
+def files_for_export(actor: Any, company_id: UUID) -> list[tuple[str, bytes]]:
+    """Files of the documents the employee may view, for the full export (§ 22.6.1, § 18.5.4):
+    every version and the scans of paper signatures, named by the document number."""
+    from c4rsys.documents.models import DocumentSigner
+    from c4rsys.files.models import StoredFile
+
+    result: list[tuple[str, bytes]] = []
+    for d in Document.objects.filter(company_id=company_id).order_by("number"):
+        if not can(actor, "documents.view", d):
+            continue
+        for v in d.versions.filter(file__isnull=False).order_by("number"):
+            item = StoredFile.objects.filter(pk=str(v.file_id)).first()
+            if item is not None:
+                name = v.file_name or str(item.id)
+                result.append((f"{d.number}/v{v.number}_{name}", files.content(item)))
+        for signer in DocumentSigner.objects.filter(document=d, paper_file__isnull=False):
+            item = StoredFile.objects.filter(pk=str(signer.paper_file_id)).first()
+            if item is not None:
+                result.append((f"{d.number}/paper_signature_{signer.id}", files.content(item)))
+    return result

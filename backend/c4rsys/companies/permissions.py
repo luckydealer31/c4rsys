@@ -11,6 +11,9 @@ PERMISSIONS: dict[str, str] = {
     # § 6.3.8: answering another company's request to link with this company's profile. The
     # top-authority director answers without it; only in «Company administrator» (PROPOSAL).
     "company.link.answer": "company",
+    # § 22.6.1 (decision Б-6): the full export of the company's data; only in «Company
+    # administrator».
+    "data.export": "company",
     "employee.invite": "employee",
     "employee.rights.manage": "employee",
     "employee.journal.view": "employee",

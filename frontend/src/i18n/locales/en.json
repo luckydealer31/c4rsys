@@ -916,7 +916,8 @@
     "owner_request_not_open": "The request is closed.",
     "owner_request_expired": "The request has expired.",
     "owner_answer_given": "This question has already been answered; the answer is not changed.",
-    "cabinet_host": "This is the personal cabinet; the company interface is on the business site."
+    "cabinet_host": "This is the personal cabinet; the company interface is on the business site.",
+    "export_expired": "The link has expired; prepare a new export."
   },
   "history": {
     "action": "Action",
@@ -1288,7 +1289,8 @@
     "section_reports": "Reports",
     "reports_view": "View reports",
     "reports_export": "Export reports",
-    "company_link_answer": "Answer requests to link with the company"
+    "company_link_answer": "Answer requests to link with the company",
+    "data_export": "Full data export"
   },
   "positions": {
     "director": "Director"
@@ -1480,7 +1482,9 @@
     "rental": "Rental: bookings and issue",
     "rental_hint": "Issue policies and auto-cancel at no-show",
     "notifications": "Notifications and tasks",
-    "notifications_hint": "Which working events notify whom, when and with which repetition"
+    "notifications_hint": "Which working events notify whom, when and with which repetition",
+    "export": "Full data export",
+    "export_hint": "All the company's tables and documents in one archive"
   },
   "setup": {
     "back": "Back",
@@ -3668,5 +3672,17 @@
     "state_completed": "completed",
     "state_planned": "planned",
     "state_in_progress": "in progress"
+  },
+  "exports": {
+    "title": "Full data export",
+    "hint": "A ZIP archive: a CSV table for each kind of records with their IDs and the IDs of related records, and the files of the documents you may view. The download link works 24 hours and needs your sign-in and the right to export.",
+    "create": "Prepare an export",
+    "preparing": "Preparing…",
+    "list": "Exports",
+    "none": "No exports yet.",
+    "summary": "{{tables}} tables, {{rows}} rows, {{documents}} document files, {{size}}",
+    "download": "Download ZIP",
+    "until": "available until {{at}}",
+    "expired": "The link has expired; prepare a new export."
   }
 }

@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     "c4rsys.accounts",
     "c4rsys.files",
     "c4rsys.cabinet",
+    "c4rsys.exports",
     "c4rsys.companies",
     "c4rsys.finance",
     "c4rsys.fleet",

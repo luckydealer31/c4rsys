@@ -14,6 +14,7 @@ export function SettingsPage() {
     ["company", "/settings/company", can("company.settings")],
     ["rental", "/settings/rental", can("company.settings")],
     ["notifications", "/settings/notifications", can("company.settings")],
+    ["export", "/settings/export", can("data.export")],
   ] as const;
   return (
     <div className="page">
