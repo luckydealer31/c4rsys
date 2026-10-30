@@ -15,6 +15,10 @@ urlpatterns = [
     path("c/<str:cmp>/documents/<uuid:document_id>/links", views.document_link),
     path("c/<str:cmp>/documents/<uuid:document_id>/unlink", views.document_unlink),
     path("c/<str:cmp>/documents/<uuid:document_id>/archive", views.document_archive),
+    path(
+        "c/<str:cmp>/documents/<uuid:document_id>/client-visibility",
+        views.document_client_visibility,
+    ),
     path("c/<str:cmp>/documents/<uuid:document_id>/remake", views.document_remake),
     path("c/<str:cmp>/document-kinds/signing", views.kind_signing),
     path("c/<str:cmp>/documents/<uuid:document_id>/signing", views.document_signing),

@@ -465,3 +465,28 @@ def lines_of_order(company_id: UUID, order_id: UUID) -> list[SaleLine]:
         .filter(company_id=company_id, order_id=order_id)
         .order_by("created_at")
     )
+
+
+def client_view_for_order(company_id: UUID, order_id: UUID) -> list[dict[str, Any]]:
+    """Purchases of an order for the client: the goods, the quantity and the amount (decision
+    Б-1). A removed line was never sold and is not shown."""
+    result: list[dict[str, Any]] = []
+    for line in (
+        SaleLine.objects.select_related("item", "vehicle")
+        .filter(company_id=company_id, order_id=order_id)
+        .exclude(state=SaleLine.State.REMOVED)
+        .order_by("created_at")
+    ):
+        name = line.item.name if line.item else (line.vehicle.name if line.vehicle else "")
+        result.append(
+            {
+                "type": "sale",
+                "id": str(line.id),
+                "state": line.state,
+                "title": name,
+                "quantity": str(line.quantity),
+                "amount": str(line.amount),
+                "currency": line.currency,
+            }
+        )
+    return result

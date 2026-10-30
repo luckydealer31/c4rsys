@@ -15,6 +15,7 @@ class FinanceConfig(AppConfig):
 
         companies.register_created(articles.create_starting)
         orders.register_charged(charges.charged_for_order)
+        orders.register_charge_lines(charges.lines_for_order)
         orders.register_paid(payments.paid_for_order)
         orders.register_paid(offsets.paid_for_order)
         orders.register_paid(deposits.paid_for_order)

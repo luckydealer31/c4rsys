@@ -400,6 +400,23 @@ def add_version(
     return version
 
 
+def set_client_visible(ctx: CommandContext, d: Document, visible: bool) -> Document:
+    """«Show to the client» of decision Б-2."""
+    if d.show_to_client == visible:
+        return d
+    d.show_to_client = visible
+    d.version += 1
+    d.save(update_fields=["show_to_client", "version", "updated_at"])
+    ctx.audit(
+        "document.client_visibility_changed",
+        object_type="document",
+        object_id=d.id,
+        before={"show_to_client": not visible},
+        after={"show_to_client": visible},
+    )
+    return d
+
+
 def archive(ctx: CommandContext, d: Document, reason: str) -> Document:
     """No longer needed: with a reason; the term control and its warning end; the document,
     its links and history stay (§ 18.1.14)."""
@@ -470,6 +487,12 @@ def file_reader(user_id: UUID, item: Any) -> bool:
     if holder is None:
         return False
     d = holder.document
+    if version is not None:
+        from c4rsys.documents import cabinet
+
+        # The client reads the file of a document shown in the personal cabinet (Б-2).
+        if cabinet.visible_to(user_id, d):
+            return True
     employment = Employment.objects.filter(
         company_id=d.company_id, user_id=user_id, state=Employment.State.ACTIVE
     ).first()

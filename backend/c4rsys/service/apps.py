@@ -25,6 +25,7 @@ class ServiceConfig(AppConfig):
         moves.register_busy(operations.vehicle_busy)
         fleet.register_later_operations(operations.started_after)
         orders.register_operations(operations.operations_for_order)
+        orders.register_client_view(operations.client_view_for_order)
         orders.register_estimated(operations.estimated_for_order)
         orders.register_on_client_assigned(operations.on_client_assigned)
         orders.register_on_cancel(operations.on_order_cancel)

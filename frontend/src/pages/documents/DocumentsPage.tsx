@@ -248,6 +248,7 @@ export function DocumentPage() {
   const archive = useCommand<Record<string, unknown>, Result>(`${base}/archive`);
   const unlink = useCommand<Record<string, unknown>, Result>(`${base}/unlink`);
   const remake = useCommand<Record<string, unknown>, Result>(`${base}/remake`);
+  const visibility = useCommand<Record<string, unknown>, Result>(`${base}/client-visibility`);
   if (query.isLoading) return <Loading />;
   if (!d) return <ErrorMessage error={query.error instanceof ApiError ? query.error : null} />;
   const active = d.state === "active";
@@ -292,6 +293,24 @@ export function DocumentPage() {
           <dd>
             {d.valid_until ?? "—"}
             {d.warning ? <span className="badge warn"> {t(`documents.warning_${d.warning}`, { date: d.valid_until })}</span> : null}
+          </dd>
+          <dt>{t("documents.show_to_client")}</dt>
+          <dd>
+            {/* Decision Б-2: a document linked to the client is shown in the cabinet by this mark. */}
+            <label className="small">
+              <input
+                type="checkbox"
+                checked={d.show_to_client}
+                disabled={!active || !can("documents.upload") || visibility.pending}
+                onChange={() =>
+                  void visibility
+                    .run({ expected_version: d.version, visible: !d.show_to_client })
+                    .then((r) => (r ? refresh() : undefined))
+                }
+              />{" "}
+              {t("documents.show_to_client_hint")}
+            </label>
+            <ErrorMessage error={visibility.error} />
           </dd>
           {d.archive_reason ? (
             <>

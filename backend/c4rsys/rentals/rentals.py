@@ -341,3 +341,34 @@ def vehicle_busy(company_id: UUID, card_id: UUID) -> list[str]:
         company_id=company_id, vehicle_card_id=card_id, state=Rental.State.ACTIVE
     ).exists()
     return ["in_rental"] if active else []
+
+
+def client_view_for_order(company_id: UUID, order_id: UUID) -> list[dict[str, Any]]:
+    """Rentals of an order for the client: the vehicle, the period, the places of issue and
+    return (decision Б-1). An annulled rental was a mistake and is not shown (PROPOSAL)."""
+    result: list[dict[str, Any]] = []
+    for r in (
+        Rental.objects.select_related(
+            "vehicle_card", "issue_location", "return_location", "planned_return_location"
+        )
+        .filter(company_id=company_id, order_id=order_id)
+        .exclude(state=Rental.State.ANNULLED)
+        .order_by("created_at")
+    ):
+        start = r.actual_start or r.planned_start
+        end = r.actual_end or r.planned_end
+        back = r.return_location or r.planned_return_location
+        result.append(
+            {
+                "type": "rental",
+                "id": str(r.id),
+                "state": r.state,
+                "vehicle": r.vehicle_card.name,
+                "start": start.isoformat() if start else None,
+                "end": end.isoformat() if end else None,
+                "issue_place": r.issue_location.name if r.issue_location else r.issue_place_note,
+                "return_place": back.name if back else r.return_place_note,
+                "names": {str(r.id): r.vehicle_card.name},
+            }
+        )
+    return result

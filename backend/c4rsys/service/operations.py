@@ -1137,3 +1137,47 @@ def unassigned_jobs(company_id: UUID, location_ids: set[UUID] | None) -> QuerySe
     if location_ids is not None:
         query = query.filter(operation__location_id__in=location_ids)
     return query
+
+
+def client_view_for_order(company_id: UUID, order_id: UUID) -> list[dict[str, Any]]:
+    """Service operations of an order for the client: the vehicle, the works and the parts with
+    their dates (decision Б-1); no executors, posts, contractors or internal comments."""
+    result: list[dict[str, Any]] = []
+    for op in (
+        ServiceOperation.objects.select_related("vehicle_card")
+        .filter(company_id=company_id, order_id=order_id)
+        .order_by("number")
+    ):
+        names: dict[str, str] = {}
+        works = []
+        materials = []
+        for job in op.jobs.prefetch_related("materials").order_by("created_at"):
+            name = str(job.snapshot.get("name", ""))
+            names[str(job.id)] = name
+            works.append(
+                {
+                    "name": name,
+                    "state": job.state,
+                    "start": job.actual_start.isoformat() if job.actual_start else None,
+                    "end": job.actual_end.isoformat() if job.actual_end else None,
+                }
+            )
+            for m in job.materials.all():
+                names[str(m.id)] = m.item_name
+                materials.append({"name": m.item_name, "quantity": str(m.quantity), "unit": m.unit})
+        start = op.accepted_at or op.planned_start
+        result.append(
+            {
+                "type": "service",
+                "id": str(op.id),
+                "number": op.number,
+                "state": op.state,
+                "vehicle": op.vehicle_card.name,
+                "start": start.isoformat() if start else None,
+                "end": op.finished_at.isoformat() if op.finished_at else None,
+                "works": works,
+                "materials": materials,
+                "names": names,
+            }
+        )
+    return result

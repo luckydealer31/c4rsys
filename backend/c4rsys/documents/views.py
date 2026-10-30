@@ -136,6 +136,7 @@ def _document_payload(d: Document, *, detail: bool = False) -> dict[str, Any]:
         "kind_id": str(d.kind_id),
         "document_date": d.document_date.isoformat(),
         "all_locations": d.all_locations,
+        "show_to_client": d.show_to_client,
         "locations": sorted(str(x) for x in services.location_ids(d)),
         "valid_until": _iso(d.valid_until),
         "warn_days": d.warn_days,
@@ -403,6 +404,28 @@ def document_archive(request: HttpRequest, cmp: str, document_id: UUID) -> JsonR
 
     return _command(
         request, cmp, document_id, "documents.archive", "document.archive", action, ("reason",)
+    )
+
+
+@require_POST
+def document_client_visibility(request: HttpRequest, cmp: str, document_id: UUID) -> JsonResponse:
+    """«Show to the client» (decision Б-2); the same right as changing the document."""
+
+    def action(ctx: CommandContext | None, d: Any, data: dict[str, Any]) -> None:
+        visible = data.get("visible")
+        if not isinstance(visible, bool):
+            raise errors.validation_error("visible")
+        if ctx is not None:
+            services.set_client_visible(ctx, d, visible)
+
+    return _command(
+        request,
+        cmp,
+        document_id,
+        "documents.upload",
+        "document.client_visibility",
+        action,
+        ("visible",),
     )
 
 

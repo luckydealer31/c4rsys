@@ -13,7 +13,18 @@ import { orderedFields, sharedValue } from "../clients/ProfileLinkCard";
  * § 6.3.8). Before accepting the recipient chooses which data to give; nothing else of the
  * profile is opened (§ 6.2.5). `base` is `/profile-links` for a person or
  * `/c/<CMP>/incoming-links` for a company. */
-export function LinkRequests({ base, title, hideEmpty }: { base: string; title: string; hideEmpty?: boolean }) {
+export function LinkRequests({
+  base,
+  title,
+  hideEmpty,
+  pendingOnly,
+}: {
+  base: string;
+  title: string;
+  hideEmpty?: boolean;
+  /** Only the requests waiting for an answer: the cabinet lists the linked companies itself. */
+  pendingOnly?: boolean;
+}) {
   const { t } = useTranslation();
   const links = useQuery({
     queryKey: ["incoming-links", base],
@@ -21,9 +32,9 @@ export function LinkRequests({ base, title, hideEmpty }: { base: string; title: 
   });
   if (links.isLoading) return <Loading />;
   const items = links.data ?? [];
-  if (!items.length && hideEmpty) return null;
   const pending = items.filter((l) => l.state === "pending");
-  const linked = items.filter((l) => l.state === "accepted" || l.state === "broken");
+  const linked = pendingOnly ? [] : items.filter((l) => l.state === "accepted" || l.state === "broken");
+  if (!pending.length && !linked.length && hideEmpty) return null;
   return (
     <>
       <h2>{title}</h2>

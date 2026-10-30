@@ -7,6 +7,7 @@ They register providers here, so this module does not read their tables (A04, DE
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -50,6 +51,10 @@ class Money:
 OperationsProvider = Callable[[UUID, UUID], list[OperationSummary]]
 # (company_id, order_id) -> {currency: amount}
 AmountProvider = Callable[[UUID, UUID], dict[str, Decimal]]
+# (company_id, order_id) -> what the client is shown of the operations (§ 7.1.1; decision Б-1)
+ClientViewProvider = Callable[[UUID, UUID], list[dict[str, Any]]]
+# (company_id, order_id) -> charges by source: (source type, source id, currency, amount)
+ChargeLinesProvider = Callable[[UUID, UUID], list[tuple[str, UUID, str, Decimal]]]
 
 
 @dataclass
@@ -58,6 +63,8 @@ class _Registry:
     charged: list[AmountProvider] = field(default_factory=list)
     paid: list[AmountProvider] = field(default_factory=list)
     estimated: list[AmountProvider] = field(default_factory=list)
+    client_view: list[ClientViewProvider] = field(default_factory=list)
+    charge_lines: list[ChargeLinesProvider] = field(default_factory=list)
 
 
 registry = _Registry()
@@ -78,6 +85,14 @@ def register_paid(provider: AmountProvider) -> None:
 def register_estimated(provider: AmountProvider) -> None:
     """The cost of operations not charged because the order has no client (decision Р25)."""
     registry.estimated.append(provider)
+
+
+def register_client_view(provider: ClientViewProvider) -> None:
+    registry.client_view.append(provider)
+
+
+def register_charge_lines(provider: ChargeLinesProvider) -> None:
+    registry.charge_lines.append(provider)
 
 
 def chargeable_client(order_id: UUID) -> UUID | None:
@@ -620,3 +635,50 @@ def history_objects(order: Order) -> list[tuple[str, str]]:
     for provider in _history_providers:
         objects.extend(provider(order.company_id, order.id))
     return objects
+
+
+# --- The client's history (§ 6.1.14, § 7.1.1; decision Б-1) -----------------------------------
+
+
+def client_orders(
+    company_id: UUID, client_ids: list[UUID], until: datetime | None = None
+) -> QuerySet[Order]:
+    """Orders of the client cards, newest first. A preliminary order is only discussed and is
+    not history (PROPOSAL). After a broken link only the orders created before the break stay
+    (§ 6.6.3)."""
+    query = Order.objects.filter(company_id=company_id, client_id__in=client_ids).exclude(
+        state=Order.State.PRELIMINARY
+    )
+    if until is not None:
+        query = query.filter(created_at__lte=until)
+    return query.order_by("-created_at")
+
+
+def client_view(order: Order) -> dict[str, Any]:
+    """What the client sees of an order: its operations as the modules describe them for the
+    client, the charges by source and the amounts. No employees, internal comments, costs or
+    expenses of the company (decision Б-1)."""
+    operations = [item for p in registry.client_view for item in p(order.company_id, order.id)]
+    names: dict[str, str] = {}
+    for item in operations:
+        names.update(item.pop("names", {}))
+    lines = [
+        {
+            "source": source_type,
+            "name": names.get(str(source_id), ""),
+            "currency": currency,
+            "amount": amount,
+        }
+        for p in registry.charge_lines
+        for source_type, source_id, currency, amount in p(order.company_id, order.id)
+    ]
+    return {
+        "id": str(order.id),
+        "number": order.number,
+        "state": display_state(order, operations_of(order)),
+        "created_at": order.created_at.isoformat(),
+        "closed_at": order.closed_at.isoformat() if order.closed_at else None,
+        "operations": operations,
+        "lines": lines,
+        "amounts": amounts_of(order),
+    }

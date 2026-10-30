@@ -320,6 +320,26 @@ def garage_of_user(user_id: UUID) -> QuerySet[VehicleOwnership]:
     return VehicleOwnership.objects.filter(owner_user_id=user_id, ended_at__isnull=True)
 
 
+def garage_payload(user_id: UUID) -> list[dict[str, Any]]:
+    """The minimal personal garage: the name, make, model and plate (§ 7.1.2). The name is the
+    make and model, or the VHL ID without them (PROPOSAL)."""
+    result = []
+    for ownership in garage_of_user(user_id).select_related("vehicle").order_by("-started_at"):
+        facts = characteristics.describe(ownership.vehicle)
+        make, model = facts["make_name"] or "", facts["model_name"] or ""
+        result.append(
+            {
+                "vehicle_id": ownership.vehicle.public_id,
+                "name": " ".join(p for p in (make, model) if p) or ownership.vehicle.public_id,
+                "make": make,
+                "model": model,
+                "plate": facts["plate"],
+                "since": ownership.started_at.isoformat(),
+            }
+        )
+    return result
+
+
 def has_confirmed_ownership(card_ids: list[UUID]) -> set[UUID]:
     """Cards whose requests recorded a confirmed ownership; they stop the cancel of an import."""
     return set(

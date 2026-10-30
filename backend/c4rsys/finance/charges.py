@@ -174,3 +174,19 @@ def charge_ids_for_source(source_type: str, source_id: UUID) -> list[UUID]:
             "id", flat=True
         )
     )
+
+
+def lines_for_order(company_id: UUID, order_id: UUID) -> list[tuple[str, UUID, str, Decimal]]:
+    """The current charge of each source of an order, for the client's history (decision Б-1).
+    Sources brought to zero are left out."""
+    rows = (
+        ChargeEntry.objects.filter(company_id=company_id, order_id=order_id)
+        .values("source_type", "source_id", "currency_id")
+        .annotate(total=Sum("amount"))
+        .order_by("source_type", "source_id")
+    )
+    return [
+        (r["source_type"], r["source_id"], r["currency_id"], r["total"])
+        for r in rows
+        if r["total"] != 0
+    ]

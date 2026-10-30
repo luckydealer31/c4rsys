@@ -94,7 +94,7 @@ def send_link_request(email: str, company_name: str) -> None:
     if settings.C4R_MAIL_MODE == "console":
         logger.warning("DEV MAIL to %s: link request from %s", email, company_name)
         return
-    body = BODY_LINK.format(company=company_name, url=settings.C4R_PUBLIC_URL)
+    body = BODY_LINK.format(company=company_name, url=settings.C4R_CABINET_URL)
     _deliver(email, SUBJECT_LINK, body, "link request")
 
 
@@ -103,7 +103,7 @@ def send_owner_request(email: str, company_name: str) -> None:
     if settings.C4R_MAIL_MODE == "console":
         logger.warning("DEV MAIL to %s: owner request from %s", email, company_name)
         return
-    body = BODY_OWNER.format(company=company_name, url=settings.C4R_PUBLIC_URL)
+    body = BODY_OWNER.format(company=company_name, url=settings.C4R_CABINET_URL)
     _deliver(email, SUBJECT_OWNER, body, "owner request")
 
 

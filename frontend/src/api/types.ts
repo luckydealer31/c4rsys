@@ -1289,6 +1289,8 @@ export type CompanyDocument = {
   kind_id: string;
   document_date: string;
   all_locations: boolean;
+  /** «Show to the client» in the personal cabinet (decision Б-2). */
+  show_to_client: boolean;
   locations: string[];
   valid_until: string | null;
   warn_days: number | null;

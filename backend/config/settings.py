@@ -30,7 +30,9 @@ if not SECRET_KEY:
 
 ALLOWED_HOSTS = [
     h.strip()
-    for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,backend").split(",")
+    for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,.localhost,127.0.0.1,backend").split(
+        ","
+    )
     if h.strip()
 ]
 
@@ -43,6 +45,7 @@ INSTALLED_APPS = [
     "c4rsys.platform",
     "c4rsys.accounts",
     "c4rsys.files",
+    "c4rsys.cabinet",
     "c4rsys.companies",
     "c4rsys.finance",
     "c4rsys.fleet",
@@ -62,6 +65,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "c4rsys.platform.middleware.ApiMiddleware",
+    "c4rsys.cabinet.middleware.CabinetHostMiddleware",
     "c4rsys.accounts.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -150,6 +154,14 @@ ANYMAIL = {
 }
 # Address of the interface in invitation messages.
 C4R_PUBLIC_URL = os.environ.get("C4R_PUBLIC_URL", "http://localhost:5173")
+# The personal cabinet works on its own domain (customer's decisions of 30.10.2026; the test one
+# is system4rent.com). Requests of companies to a person lead there.
+C4R_CABINET_HOSTS = [
+    h.strip().lower()
+    for h in os.environ.get("C4R_CABINET_HOSTS", "cabinet.localhost").split(",")
+    if h.strip()
+]
+C4R_CABINET_URL = os.environ.get("C4R_CABINET_URL", C4R_PUBLIC_URL)
 
 LOGGING = {
     "version": 1,

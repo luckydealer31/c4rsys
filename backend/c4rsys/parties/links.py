@@ -288,6 +288,30 @@ def for_user(user: UserAccount) -> QuerySet[ProfileLink]:
     )
 
 
+def links_of_user(user_id: UUID) -> QuerySet[ProfileLink]:
+    """Confirmed and broken links of a person: the companies of the personal cabinet."""
+    return (
+        ProfileLink.objects.filter(
+            profile=Profile.PERSON,
+            target_user_id=user_id,
+            state__in=(State.ACCEPTED, State.BROKEN),
+        )
+        .select_related("company")
+        .order_by("-decided_at")
+    )
+
+
+def client_cards_of_user(user_id: UUID) -> list[tuple[UUID, UUID, datetime | None]]:
+    """(company, client card, end of the shared history) of a person. A confirmed link shares
+    the whole history of the card; after a break only what was shared before stays (§ 6.3.6,
+    § 6.6.3)."""
+    return [
+        (link.company_id, link.client_id, link.broken_at)
+        for link in links_of_user(user_id).filter(client__isnull=False)
+        if link.client_id is not None
+    ]
+
+
 def for_company(company_id: UUID) -> QuerySet[ProfileLink]:
     return ProfileLink.objects.filter(profile=Profile.COMPANY, target_company_id=company_id)
 

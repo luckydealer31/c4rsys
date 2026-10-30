@@ -66,6 +66,9 @@ class Document(models.Model):
     state = models.CharField(max_length=10, choices=State.choices, default=State.ACTIVE)
     archive_reason = models.CharField(max_length=1000, blank=True, default="")
     archived_at = models.DateTimeField(null=True, blank=True)
+    # «Show to the client»: a document linked to the client's card or operations appears in the
+    # personal cabinet (decision Б-2). A document the client signs is shown without it.
+    show_to_client = models.BooleanField(default=False)
     # Made by a template: which one and which version of it (§ 18.5.2).
     template = models.ForeignKey(
         "documents.DocumentTemplate",

@@ -902,3 +902,25 @@ def time_lines(rental: Rental) -> list[ExtraServiceLine]:
     return list(
         ExtraServiceLine.objects.filter(rental_id=rental.id, pricing=TIME).order_by("created_at")
     )
+
+
+def client_view_for_order(company_id: UUID, order_id: UUID) -> list[dict[str, Any]]:
+    """Additional services of an order for the client (decision Б-1)."""
+    result: list[dict[str, Any]] = []
+    for line in ExtraServiceLine.objects.filter(company_id=company_id, order_id=order_id).order_by(
+        "created_at"
+    ):
+        name = str((line.snapshot or {}).get("name", ""))
+        result.append(
+            {
+                "type": "extra_service",
+                "id": str(line.id),
+                "state": line.state,
+                "title": name,
+                "quantity": line.quantity,
+                "start": line.period_start.isoformat() if line.period_start else None,
+                "end": line.period_end.isoformat() if line.period_end else None,
+                "names": {str(line.id): name},
+            }
+        )
+    return result

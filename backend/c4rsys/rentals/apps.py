@@ -22,6 +22,7 @@ class RentalsConfig(AppConfig):
         fleet.register_later_operations(rentals.started_after)
         fleet.register_context_blockers(rentals.vehicle_context_blockers)
         orders.register_operations(rentals.operations_for_order)
+        orders.register_client_view(rentals.client_view_for_order)
         orders.register_control_version(rentals.record_control_versions)
         # Decisions Р16, Р25: charged by the known period; estimated without a client.
         orders.register_estimated(billing.estimated_for_order)
@@ -29,6 +30,7 @@ class RentalsConfig(AppConfig):
         orders.register_history(rentals.history_for_order)
         # § 12.1.4, § 13.4.11: additional services are lines of the order of their own.
         orders.register_operations(extra_lines.operations_for_order)
+        orders.register_client_view(extra_lines.client_view_for_order)
         orders.register_history(extra_lines.history_for_order)
         # § 12.2.1–12.2.2: proposals become bookings; the cancelled order takes its positions.
         orders.register_on_formed(order_links.on_order_formed)

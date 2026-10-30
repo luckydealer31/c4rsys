@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router";
 
 import { useMe, useProfilePreferences } from "./auth";
+import { CabinetApp, useSite } from "./cabinet/CabinetApp";
 import { Loading } from "./components/ui";
 import { AppShell } from "./layout/AppShell";
 import { CompanyShell } from "./layout/CompanyShell";
@@ -52,9 +53,10 @@ import { VehiclePage, VehiclesPage } from "./pages/vehicles/VehiclesPage";
 
 export function App() {
   const me = useMe();
+  const site = useSite();
   useProfilePreferences(me.data);
 
-  if (me.isLoading) {
+  if (me.isLoading || site.isLoading) {
     return (
       <div className="narrow">
         <Loading />
@@ -72,6 +74,9 @@ export function App() {
       </Routes>
     );
   }
+
+  // The domain of the personal cabinet shows only the cabinet (decision of 30.10.2026).
+  if (site.data?.cabinet) return <CabinetApp user={user} />;
 
   return (
     <Routes>
