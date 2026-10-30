@@ -106,6 +106,13 @@ PERMISSIONS: dict[str, str] = {
     "rental.transfer": "rental",
     "inspection.create": "inspection",
     "inspection.conduct": "inspection",
+    # § 23.4.1–23.4.2: cancelling before the start, terminating a started one and recognising a
+    # saved one invalid are separate rights; § 23.3.7: the policies (and the templates with their
+    # photo requirements, § 10.3.1) are managed by a right of their own.
+    "inspection.cancel": "inspection",
+    "inspection.terminate": "inspection",
+    "inspection.invalidate": "inspection",
+    "inspection.policy.manage": "inspection",
     "order.view": "order",
     "order.create": "order",
     "order.edit": "order",

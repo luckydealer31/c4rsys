@@ -342,9 +342,10 @@ def _optional_reading(data: dict[str, Any], key: str, places: int) -> Decimal | 
 
 def _inspections_payload(rental: Rental) -> dict[str, Any]:
     """Issue and return readings with the fuel comparison of § 13.5.1: the values and whether
-    they differ, without converting the difference into money."""
-    by_kind = {i.kind: i for i in inspections.of_rental(rental.id)}
-    issued, returned = by_kind.get("issue"), by_kind.get("return")
+    they differ, without converting the difference into money; a required check not done
+    (§ 10.3.3) and the recorded reasons."""
+    issued = inspections.readings_of_rental(rental.id, Inspection.Kind.ISSUE)
+    returned = inspections.readings_of_rental(rental.id, Inspection.Kind.RETURN)
 
     def view(item: Any) -> dict[str, Any] | None:
         if item is None:
@@ -360,7 +361,13 @@ def _inspections_payload(rental: Rental) -> dict[str, Any]:
     fuel_differs = None
     if issued and returned and issued.fuel_value is not None and returned.fuel_value is not None:
         fuel_differs = issued.fuel_value != returned.fuel_value
-    return {"issue": view(issued), "return": view(returned), "fuel_differs": fuel_differs}
+    return {
+        "issue": view(issued),
+        "return": view(returned),
+        "fuel_differs": fuel_differs,
+        "check_conflicts": inspections.check_conflicts(rental.id),
+        "missing_reasons": inspections.missing_reasons(rental.id),
+    }
 
 
 def _mileage_payload(rental: Rental) -> dict[str, Any] | None:
@@ -643,7 +650,11 @@ def inspection_save(request: HttpRequest, cmp: str, inspection_id: UUID) -> Json
     """Readings of a return entered later into the draft (§ 14.5.5)."""
     context, actor = _actor(request, cmp)
     inspection = Inspection.objects.filter(company=context.company, pk=inspection_id).first()
-    if inspection is None or inspection.rental_id is None:
+    if (
+        inspection is None
+        or inspection.rental_id is None
+        or inspection.origin != Inspection.Origin.RENTAL
+    ):
         raise errors.not_found()
     rental = rentals.get_rental(context.company.id, inspection.rental_id)
     data = parse_json(request)

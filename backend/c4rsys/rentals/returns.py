@@ -133,6 +133,7 @@ def accept_return(ctx: CommandContext, request: ReturnRequest) -> tuple[Rental, 
         check_status=_check_status(rental.company_id, location_id, request.inspection_conducted),
         odometer=request.odometer,
         fuel=request.fuel,
+        check_required=issue_policies.inspection_required(rental.company_id, location_id),
     )
     create = inspections.create_saved if complete else inspections.create_draft
     inspection = create(
@@ -205,6 +206,9 @@ def save_return_readings(
         odometer=odometer,
         fuel=fuel,
         check_status=_check_status(rental.company_id, rental.return_location_id, conducted),
+        check_required=issue_policies.inspection_required(
+            rental.company_id, rental.return_location_id
+        ),
     )
     fleet.record_reading(
         ctx,
@@ -218,3 +222,14 @@ def save_return_readings(
     if rental.client_id is not None:
         _charge_mileage(ctx, rental, rental.client_id, "readings")
     return saved
+
+
+def on_inspection_saved(ctx: CommandContext, inspection: Inspection) -> None:
+    """An inspection of a returned rental saved through its own form completes the readings:
+    the mileage overage can be charged now (customer's decision Т5)."""
+    if inspection.rental_id is None or inspection.odometer_value is None:
+        return
+    rental = Rental.objects.select_for_update().filter(pk=inspection.rental_id).first()
+    if rental is None or rental.state != Rental.State.RETURNED or rental.client_id is None:
+        return
+    _charge_mileage(ctx, rental, rental.client_id, "readings")

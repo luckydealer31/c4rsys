@@ -89,6 +89,7 @@ LABELS = {
     "service_job": {"en": "Service work", "ru": "Сервисная работа", "th": "งานบริการ"},
     "service_material": {"en": "Part", "ru": "Запчасть", "th": "อะไหล่"},
     "delivery": {"en": "Delivery", "ru": "Доставка", "th": "การส่งรถ"},
+    "damage": {"en": "Damage", "ru": "Повреждение", "th": "ความเสียหาย"},
 }
 DISCOUNT = {"en": "Discount", "ru": "Скидка", "th": "ส่วนลด"}
 
@@ -255,10 +256,11 @@ def _rental(values: Values, company_id: UUID, rental_id: UUID, language: str) ->
     issue_place = rental.issue_place_note or rental.issue_place_address
     _set(values, "rental.issue_place", issue_place or values.fields.get("location.name"))
     _set(values, "rental.return_place", rental.return_place_note)
-    for inspection in inspections.of_rental(rental.id):
-        prefix = "inspection.issue" if inspection.kind == "issue" else "inspection.return"
-        if inspection.kind not in ("issue", "return"):
+    for kind in ("issue", "return"):
+        inspection = inspections.readings_of_rental(rental.id, kind)
+        if inspection is None:
             continue
+        prefix = f"inspection.{kind}"
         if inspection.odometer_value is not None:
             _set(
                 values,

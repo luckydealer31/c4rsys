@@ -58,6 +58,11 @@ EVENTS: dict[str, Event] = {
     "rental.inspection_missing": Event(
         Kind.ACTION, "rental.complete_formalization", mandatory=True
     ),
+    # § 10.3.3: a required check not done is a conflict and a notification. PROPOSAL: mandatory
+    # like the missing inspection of decision З-11, to the employees who close the rental.
+    "rental.inspection_check_missing": Event(
+        Kind.ACTION, "rental.complete_formalization", mandatory=True
+    ),
     # Working, by the company (§ 20.3.5; defaults of decision З-7).
     "rental.issue_upcoming": Event(Kind.REMINDER, "rental.issue", lead_minutes=HOUR, has_lead=True),
     "rental.return_upcoming": Event(

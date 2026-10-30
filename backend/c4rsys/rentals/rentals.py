@@ -155,13 +155,10 @@ def mileage(rental: Rental) -> dict[str, Any] | None:
     terms = snapshot.get("vehicle_terms", {}).get("mileage") or {}
     if not terms or rental.actual_start is None:
         return None
-    by_kind = {
-        i.kind: i
-        for i in Inspection.objects.filter(rental_id=rental.id).exclude(
-            state=Inspection.State.INVALID
-        )
-    }
-    issued, returned = by_kind.get("issue"), by_kind.get("return")
+    from c4rsys.inspections import services as inspections
+
+    issued = inspections.readings_of_rental(rental.id, Inspection.Kind.ISSUE)
+    returned = inspections.readings_of_rental(rental.id, Inspection.Kind.RETURN)
     if (
         issued is None
         or returned is None
@@ -419,3 +416,23 @@ def schedule(
             }
         )
     return result
+
+
+def inspection_link(company_id: UUID, rental_id: UUID) -> Any:
+    """What inspections know of a rental (module inspections, links.RentalLink)."""
+    from c4rsys.inspections.links import RentalLink
+
+    rental = Rental.objects.filter(company_id=company_id, pk=rental_id).first()
+    if rental is None:
+        return None
+    return RentalLink(
+        id=rental.id,
+        vehicle_card_id=rental.vehicle_card_id,
+        state=rental.state,
+        order_id=rental.order_id,
+        client_id=rental.client_id,
+        issue_location_id=rental.issue_location_id,
+        return_location_id=rental.return_location_id,
+        issued=rental.state in (Rental.State.ACTIVE, Rental.State.RETURNED),
+        closed=rental.formalization_completed_at is not None,
+    )

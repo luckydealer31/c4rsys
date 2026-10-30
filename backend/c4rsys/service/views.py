@@ -19,6 +19,7 @@ from c4rsys.companies import access, locations, staff
 from c4rsys.companies import services as companies
 from c4rsys.companies.views import run_and_respond
 from c4rsys.fleet import services as fleet
+from c4rsys.inspections import damages
 from c4rsys.orders import services as orders
 from c4rsys.parties import counterparties
 from c4rsys.platform import errors
@@ -882,8 +883,10 @@ def job_complete(request: HttpRequest, cmp: str, job_id: UUID) -> JsonResponse:
         odometer = _amount(data, "odometer", places=1)
         comment = _text(data, "comment", required=False)
         cost = _amount(data, "contractor_cost")
+        # § 16.5.4: the damages fixed by this work, chosen explicitly, with result photos.
+        fixed = damages.parse_fixes(data.get("fixed_damages"))
         if ctx is not None and at is not None:
-            operations.complete(ctx, job, at, odometer, comment, cost)
+            operations.complete(ctx, job, at, odometer, comment, cost, fixed)
 
     return _job_command(
         request,
@@ -892,7 +895,7 @@ def job_complete(request: HttpRequest, cmp: str, job_id: UUID) -> JsonResponse:
         "service.work",
         "service_job.complete",
         action,
-        ("actual_end", "odometer", "comment", "contractor_cost"),
+        ("actual_end", "odometer", "comment", "contractor_cost", "fixed_damages"),
         own_or_others=True,
     )
 

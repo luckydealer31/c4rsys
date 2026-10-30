@@ -376,6 +376,7 @@ def _after_issue(
             else Inspection.CheckStatus.NOT_REQUIRED,
             odometer=request.odometer,
             fuel=request.fuel,
+            check_required=assessment.inspection_required,
         ),
     )
     fleet.record_reading(

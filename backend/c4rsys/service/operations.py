@@ -38,6 +38,7 @@ from c4rsys.finance.models import ChargeEntry
 from c4rsys.fleet import moves
 from c4rsys.fleet import services as fleet
 from c4rsys.fleet.models import VehicleCard
+from c4rsys.inspections import damages
 from c4rsys.orders import services as orders
 from c4rsys.orders.models import Order
 from c4rsys.orders.services import OperationSummary
@@ -803,11 +804,13 @@ def complete(
     odometer: Decimal | None,
     comment: str,
     contractor_cost: Decimal | None = None,
+    fixed_damages: list[damages.Fix] | None = None,
 ) -> ServiceJob:
     """«Done» with the actual time and odometer; the author is kept apart from the executor
     (§ 16.4.2–16.4.3). The odometer reading goes to the vehicle (§ 8.2.12). A contractor's work
     is done when an employee of the company accepts it; the contractor's word is not the
-    acceptance, and the odometer may be unknown (§ 16.6.8)."""
+    acceptance, and the odometer may be unknown (§ 16.6.8). The damages fixed by the work are
+    chosen explicitly; finishing it fixes nothing by itself (§ 16.5.4, § 10.5.1)."""
     if odometer is None and job.contractor_id is None:
         raise errors.validation_error("odometer", code="FIELD_REQUIRED")
     before = job_snapshot(job)
@@ -823,6 +826,16 @@ def complete(
     _save_job(ctx, job, "service_job.completed", before)
     _charge(ctx, job, "service_job_done")
     materials.consume_for_done_job(ctx, job)
+    if fixed_damages:
+        damages.fix_by_job(
+            ctx,
+            company_id=job.company_id,
+            vehicle_card_id=job.operation.vehicle_card_id,
+            job_id=job.id,
+            at=at,
+            odometer=odometer,
+            fixes=fixed_damages,
+        )
     return job
 
 
@@ -1449,3 +1462,15 @@ def schedule(
             }
         )
     return result
+
+
+def inspection_link(company_id: UUID, operation_id: UUID) -> Any:
+    """What inspections know of a service operation (module inspections, links.ServiceLink)."""
+    from c4rsys.inspections.links import ServiceLink
+
+    op = ServiceOperation.objects.filter(company_id=company_id, pk=operation_id).first()
+    if op is None:
+        return None
+    return ServiceLink(
+        id=op.id, vehicle_card_id=op.vehicle_card_id, state=op.state, location_id=op.location_id
+    )

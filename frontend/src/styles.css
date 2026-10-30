@@ -260,3 +260,16 @@ button.link { background: none; border: none; padding: 0; color: var(--accent); 
   .metric-grid { display: block; }
   .metric-grid > * { break-inside: avoid; }
 }
+
+/* Schemes of vehicles for damages (§ 10.3.6). */
+.vehicle-scheme { max-width: 720px; display: block; }
+.vehicle-scheme .scheme-body { fill: var(--surface); stroke: var(--text); stroke-width: 2; }
+.vehicle-scheme .scheme-glass { fill: var(--bg); stroke: var(--muted); stroke-width: 1.5; }
+.vehicle-scheme .scheme-roof { fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 4 3; }
+.vehicle-scheme .scheme-wheel { fill: var(--muted); stroke: var(--text); stroke-width: 1.5; }
+.vehicle-scheme .scheme-line { stroke: var(--text); stroke-width: 3; stroke-linecap: round; }
+.vehicle-scheme .scheme-light { fill: var(--warn-bg); stroke: var(--muted); }
+.vehicle-scheme .scheme-light-rear { fill: var(--danger-bg); stroke: var(--muted); }
+.vehicle-scheme .scheme-caption { fill: var(--muted); font-size: 11px; }
+.vehicle-scheme .scheme-mark { fill: var(--danger); stroke: var(--surface); stroke-width: 2; }
+.vehicle-scheme .scheme-mark-text { fill: #fff; font-size: 11px; font-weight: 600; pointer-events: none; }

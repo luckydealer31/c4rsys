@@ -66,6 +66,14 @@ def policy_for(company_id: UUID, location_id: UUID | None) -> dict[str, Any]:
     return {**{f: getattr(chosen, f) for f in FIELDS}, "source": source}
 
 
+def inspection_required(company_id: UUID, location_id: UUID | None) -> bool:
+    """Provider for inspections: the condition check of an issue or a return is required by the
+    policy of the location (§ 14.3.6, § 10.3.3)."""
+    return bool(
+        policy_for(company_id, location_id)["inspection"] == IssuePolicy.Inspection.REQUIRED
+    )
+
+
 def policy_payload(company_id: UUID, location_id: UUID | None) -> dict[str, Any]:
     stored = _stored(company_id, location_id)
     return {

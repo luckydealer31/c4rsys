@@ -205,7 +205,22 @@
     "report_dashboard_created": "Создан дашборд",
     "report_dashboard_changed": "Изменён дашборд",
     "report_dashboard_removed": "Удалён дашборд",
-    "company_setup_choice": "Ответ мастера настройки"
+    "company_setup_choice": "Ответ мастера настройки",
+    "inspection_planned": "Осмотр запланирован",
+    "inspection_changed": "Осмотр изменён",
+    "inspection_started": "Осмотр начат",
+    "inspection_cancelled": "Осмотр отменён",
+    "inspection_terminated": "Осмотр прекращён",
+    "inspection_invalidated": "Осмотр признан недействительным",
+    "inspection_draft_deleted": "Черновик осмотра удалён",
+    "inspection_missing_reason_recorded": "Оформлена причина отсутствия осмотра",
+    "inspection_template_changed": "Шаблон осмотра изменён",
+    "inspection_policy_changed": "Политика осмотров изменена",
+    "damage_created": "Повреждение зафиксировано",
+    "damage_estimated": "Повреждение оценено",
+    "damage_fixed": "Повреждение устранено",
+    "damage_returned": "Повреждение возвращено",
+    "damage_erroneous": "Повреждение признано ошибочным"
   },
   "finance_articles": {
     "archive": "В архив",
@@ -937,7 +952,37 @@
     "client_group_unknown": "Неизвестная группа.",
     "cabinet_not_signer": "Этот документ не ждёт вашей подписи: вы не подписант его текущей версии или связь с компанией разорвана.",
     "approval_withdrawn": "Позиция отменена, ответ не нужен.",
-    "service_reopen_post_taken": "Сервис нельзя открыть повторно: его пост теперь запланирован для другого сервиса (№ {{operation}})."
+    "service_reopen_post_taken": "Сервис нельзя открыть повторно: его пост теперь запланирован для другого сервиса (№ {{operation}}).",
+    "inspection_not_editable": "Осмотр больше нельзя изменить.",
+    "inspection_not_started": "Осмотр не начат.",
+    "inspection_not_planned": "Начать или отменить можно только запланированный и не начатый осмотр.",
+    "inspection_not_saved": "Признать недействительным можно только сохранённый осмотр.",
+    "inspection_required_missing": "Не заполнены обязательные показатели или фотографии.",
+    "inspection_draft_used": "Этот черновик относится к аренде и не удаляется.",
+    "inspection_not_missing": "Этот осмотр не отсутствует: причина не нужна.",
+    "inspection_vehicle_mismatch": "Операция относится к другому ТС.",
+    "inspection_application_invalid": "Этот вид осмотра здесь не применяется.",
+    "rental_unknown": "Аренда не найдена.",
+    "service_operation_unknown": "Сервисная операция не найдена.",
+    "positions_invalid": "Неверный список позиций фотографий.",
+    "position_repeated": "Позиция указана дважды.",
+    "position_not_applicable": "Этот ракурс не применяется к этому виду транспорта.",
+    "position_required_disabled": "Отключённая позиция не может быть обязательной.",
+    "video_without_position": "Видео не привязывается к позиции фотографии.",
+    "file_repeated": "Файл прикреплён дважды.",
+    "employee_unknown": "Сотрудник не найден.",
+    "scheme_unknown": "Неизвестная схема ТС.",
+    "zone_point_invalid": "Неверная отметка на схеме.",
+    "damage_not_described": "Опишите повреждение или укажите зону.",
+    "damage_not_in_rental": "Начислить в аренде можно только повреждение из осмотра аренды.",
+    "currency_unknown": "Неизвестная валюта.",
+    "damage_photo_not_in_inspection": "Выберите фотографии этого осмотра.",
+    "damage_unknown": "Повреждение этого ТС не найдено.",
+    "damage_not_fixed": "Вернуть можно только устранённое повреждение.",
+    "damage_erroneous": "Повреждение признано ошибочным.",
+    "damage_currency_changed": "Оценка сохраняет валюту своего начисления.",
+    "damage_not_actual": "Отметить устранённым можно только актуальное повреждение.",
+    "damage_repeated": "Повреждение указано дважды."
   },
   "history": {
     "action": "Действие",
@@ -1316,7 +1361,11 @@
     "company_link_answer": "Отвечать на запросы связи с компанией",
     "data_export": "Полная выгрузка данных",
     "service_reopen": "Повторно открывать сервис и исправлять выполненные работы",
-    "order_discount": "Применение скидок"
+    "order_discount": "Применение скидок",
+    "inspection_cancel": "Отменять осмотры до начала",
+    "inspection_terminate": "Прекращать начатые осмотры",
+    "inspection_invalidate": "Признавать сохранённые осмотры недействительными",
+    "inspection_policy_manage": "Управлять политиками и шаблонами осмотров"
   },
   "positions": {
     "director": "Директор"
@@ -1466,7 +1515,10 @@
     "vehicle": "ТС",
     "vehicle_and_client": "ТС, тариф и клиент",
     "state_proposed": "Предложена",
-    "missing_return_documents_missing": "Нет документов, обязательных при возврате"
+    "missing_return_documents_missing": "Нет документов, обязательных при возврате",
+    "missing_issue_inspection_check_missing": "Обязательная проверка при выдаче не выполнена: оформите причину",
+    "missing_return_inspection_check_missing": "Обязательная проверка при приёме не выполнена: оформите причину",
+    "missing_damage_estimate_missing": "У нового повреждения нет оценки или начисления"
   },
   "rights": {
     "add": "Добавить права",
@@ -3366,7 +3418,9 @@
     "event_link_requested": "«{{company}}» просит связь с профилем компании",
     "event_link_answered": "Ответ на запрос связи ({{target}})",
     "event_vehicle_owner_requested": "«{{company}}» просит подтвердить владение ТС",
-    "event_vehicle_owner_answered": "Владелец ответил на запрос ({{target}})"
+    "event_vehicle_owner_answered": "Владелец ответил на запрос ({{target}})",
+    "event_rental_inspection_check_missing": "Обязательная проверка при осмотре не выполнена: {{vehicle}}",
+    "rule_rental_inspection_check_missing": "Невыполненная обязательная проверка осмотра"
   },
   "reports": {
     "metric_rental_issues_today": "Ожидаемые сегодня выдачи (брони на сегодня)",
@@ -3733,7 +3787,9 @@
     "state_started": "начато",
     "state_accepted": "принято в сервис",
     "state_works_done": "работы выполнены",
-    "state_terminated": "прекращено"
+    "state_terminated": "прекращено",
+    "source_damage": "Повреждение",
+    "source_discount_damage": "Скидка"
   },
   "exports": {
     "title": "Полная выгрузка данных",

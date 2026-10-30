@@ -523,7 +523,14 @@ export type Rental = RentalSummary & {
   return_place_kind: "location" | "other" | null;
   return_place_note: string;
   overdue: boolean;
-  inspections: { issue: InspectionView | null; return: InspectionView | null; fuel_differs: boolean | null };
+  inspections: {
+    issue: InspectionView | null;
+    return: InspectionView | null;
+    fuel_differs: boolean | null;
+    // § 10.3.3: kinds whose required check was not done and has no recorded reason.
+    check_conflicts: ("issue" | "return")[];
+    missing_reasons: { kind: "issue" | "return"; reason: string; created_by_user_id: string; created_at: string }[];
+  };
   formalization: { completed_at: string | null; missing: string[] };
   tariff_snapshot: { name: string; currency: string; ranges: PriceRange[] } | null;
   calculation: Calculation | null;
@@ -1428,4 +1435,147 @@ export type WorkTask = {
   history: { id: string; occurred_at: string; actor: { name: string }; action: string; reason: string }[];
   can: { manage: boolean; own: boolean; queue: boolean };
   policy: { executor_may_release: boolean; executor_may_change_due: boolean; overdue_repeat_hours: number; version: number };
+};
+
+// Block 8 (ТЗ гл. 10): inspections, templates, policies and damages.
+export type InspectionKind = "issue" | "return" | "out_of_rental" | "intermediate";
+export type InspectionApplication = "rental" | "service" | "standalone";
+export type InspectionState =
+  | "draft"
+  | "planned"
+  | "in_progress"
+  | "saved"
+  | "cancelled"
+  | "terminated"
+  | "invalid";
+
+export type InspectionFileItem = { file_id: string; kind: "photo" | "video"; position: string | null };
+
+export type TemplatePosition = {
+  code: string;
+  name?: string;
+  enabled: boolean;
+  required: boolean;
+  count: number;
+};
+
+export type DamageEstimate = { amount: string; currency: string };
+
+export type DamageDraftEntry = {
+  zone_scheme?: string;
+  zone_x?: string | null;
+  zone_y?: string | null;
+  zone_text?: string;
+  description?: string;
+  photo_file_ids: string[];
+  estimate?: DamageEstimate | null;
+  attributed_to_rental?: boolean;
+  returns_damage_id?: string | null;
+};
+
+export type DamageEvent = {
+  id: string;
+  kind: "created" | "estimated" | "fixed" | "returned" | "erroneous";
+  state_before: string | null;
+  state_after: string;
+  occurred_at: string;
+  odometer: string | null;
+  basis_type: "inspection" | "service_job" | null;
+  basis_id: string | null;
+  estimate: DamageEstimate | null;
+  comment: string;
+  created_by_user_id: string;
+  created_at: string;
+  files: { file_id: string; role: "selected" | "fix_result" }[];
+};
+
+export type Damage = {
+  id: string;
+  vehicle_card_id: string;
+  inspection_id: string;
+  rental_id: string | null;
+  attributed_to_rental: boolean;
+  performed_at: string;
+  odometer: string | null;
+  odometer_unit: string;
+  zone_scheme: string | null;
+  zone_x: string | null;
+  zone_y: string | null;
+  zone_text: string;
+  description: string;
+  state: "actual" | "fixed" | "erroneous";
+  estimate: DamageEstimate | null;
+  charged: string | null;
+  version: number;
+  history?: DamageEvent[];
+};
+
+export type Inspection = {
+  id: string;
+  vehicle_card_id: string;
+  kind: InspectionKind;
+  application: InspectionApplication;
+  rental_id: string | null;
+  service_operation_id: string | null;
+  origin: "rental" | "form";
+  state: InspectionState;
+  check_status: "conducted" | "not_required" | "required_not_done";
+  check_required: boolean;
+  performed_at: string;
+  planned_at: string | null;
+  started_at: string | null;
+  saved_at: string | null;
+  place: {
+    kind: "location" | "other";
+    location_id: string | null;
+    note: string;
+    address: string;
+    lat: string | null;
+    lng: string | null;
+  };
+  participant: {
+    kind: "client" | "counterparty" | "employee" | "other" | null;
+    client_id: string | null;
+    counterparty_id: string | null;
+    employment_id: string | null;
+    text: string;
+  };
+  performer_employment_id: string;
+  author_user_id: string;
+  entered_at: string;
+  odometer: string | null;
+  odometer_unit: string;
+  fuel: string | null;
+  cleanliness: string;
+  end_reason: string;
+  ended_at: string | null;
+  invalidated_reason: string;
+  invalidated_at: string | null;
+  version: number;
+  files: InspectionFileItem[];
+  // Detail only.
+  template?: { id: string; template_id: string; number: number; positions: TemplatePosition[] } | null;
+  damages_draft?: DamageDraftEntry[];
+  damages?: Damage[];
+};
+
+export type InspectionTemplate = {
+  id: string;
+  transport: "car" | "motorcycle";
+  version: number;
+  version_id: string;
+  positions: TemplatePosition[];
+  base_positions: string[];
+  updated_at: string;
+};
+
+export type InspectionPolicy = {
+  kind: InspectionKind;
+  application: InspectionApplication;
+  // Null for an issue and a return of a rental: set by the issue policy (§ 14.3.6).
+  check_required: boolean | null;
+  odometer_required: boolean;
+  fuel_required: boolean;
+  cleanliness_required: boolean;
+  version: number;
 };

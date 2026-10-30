@@ -123,6 +123,37 @@ def company_document_type(content: bytes) -> str:
     return office
 
 
+INSPECTION_PHOTO = "inspection_photo"
+INSPECTION_VIDEO = "inspection_video"
+# PROPOSAL: § 10.4.2 limits a video by its duration (2 minutes), not by size; until the server
+# compression of part О4 checks the duration, the upload is capped by this size.
+MAX_VIDEO_BYTES = 200 * 1024 * 1024
+
+
+def inspection_photo_type(content: bytes) -> str:
+    """§ 10.4.2: JPEG, PNG and WebP up to 5 MB."""
+    if not content:
+        raise errors.validation_error("file", code="FIELD_REQUIRED")
+    if len(content) > MAX_PHOTO_BYTES:
+        raise errors.validation_error("file", code="FILE_TOO_LARGE", max_bytes=MAX_PHOTO_BYTES)
+    for content_type, matches in IMAGE_SIGNATURES.items():
+        if matches(content[:16]):
+            return content_type
+    raise errors.validation_error("file", code="FILE_TYPE_NOT_ALLOWED")
+
+
+def inspection_video_type(content: bytes) -> str:
+    """§ 10.4.2: MP4 and MOV, told by the brand of their `ftyp` box.
+    TODO(О4): the duration limit of 2 minutes and the compression to Full HD (decision В-8.1)."""
+    if not content:
+        raise errors.validation_error("file", code="FIELD_REQUIRED")
+    if len(content) > MAX_VIDEO_BYTES:
+        raise errors.validation_error("file", code="FILE_TOO_LARGE", max_bytes=MAX_VIDEO_BYTES)
+    if content[4:8] != b"ftyp":
+        raise errors.validation_error("file", code="FILE_TYPE_NOT_ALLOWED")
+    return "video/quicktime" if content[8:10] == b"qt" else "video/mp4"
+
+
 def store(*, purpose: str, uploaded_by: UUID, content: bytes, content_type: str) -> StoredFile:
     """Writes the content, then the details. Call inside the command's transaction: if it is
     rolled back, an unreferenced file may remain on disk, but no record points to it."""

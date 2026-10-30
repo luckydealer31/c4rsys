@@ -387,6 +387,11 @@ def _vehicle_of_charges(company: Company) -> dict[tuple[str, UUID], UUID]:
     for did, vid in Delivery.objects.filter(company=company).values_list("id", "vehicle_card_id"):
         if vid is not None:
             found[("delivery", did)] = vid
+    # § 10.5.4: charges of damages keep the link with the vehicle for its financial result.
+    from c4rsys.inspections.models import Damage
+
+    for gid, vid in Damage.objects.filter(company=company).values_list("id", "vehicle_card_id"):
+        found[("damage", gid)] = vid
     return found
 
 

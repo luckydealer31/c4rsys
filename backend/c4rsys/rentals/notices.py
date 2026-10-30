@@ -9,6 +9,8 @@
   reject it; the decision ends both, keeping the result (§ 14.3.7, § 19.2.1).
 * A returned rental without the saved readings of an inspection: «action required» and a system
   task; a saved inspection ends both (decision З-11).
+* A required condition check not done in an issued rental: a conflict and a notification; a
+  conducted inspection or a recorded reason ends it (§ 10.3.3).
 """
 
 from datetime import datetime, timedelta
@@ -224,9 +226,44 @@ def _inspections(now: datetime) -> int:
     return changed
 
 
+def _check_conflicts(now: datetime) -> int:
+    """§ 10.3.3: the required check of an issue or a return was not done."""
+    from c4rsys.inspections import services as inspections
+
+    event = "rental.inspection_check_missing"
+    changed = 0
+    active: set[str] = set()
+    for r in Rental.objects.select_related("vehicle_card").filter(
+        state__in=(Rental.State.ACTIVE, Rental.State.RETURNED),
+        formalization_completed_at__isnull=True,
+    ):
+        kinds = inspections.check_conflicts(r.id)
+        if not kinds:
+            continue
+        condition = _condition(event, r.id)
+        active.add(condition)
+        changed += rules.raise_event(
+            r.company_id,
+            event,
+            condition=condition,
+            location_id=r.return_location_id or r.issue_location_id,
+            object_type="rental",
+            object_id=r.id,
+            params={**_params(r), "kinds": kinds},
+            now=now,
+        )
+    return changed + _close_stale(event, active, "inspection_check_settled", now)
+
+
 def run(now: datetime) -> int:
     with transaction.atomic():
-        return _upcoming(now) + _exceptions(now) + _inspections(now) + _cancelled(now)
+        return (
+            _upcoming(now)
+            + _exceptions(now)
+            + _inspections(now)
+            + _check_conflicts(now)
+            + _cancelled(now)
+        )
 
 
 def _cancelled(now: datetime) -> int:

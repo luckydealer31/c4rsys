@@ -107,6 +107,7 @@ class ChargeEntry(models.Model):
         SERVICE_JOB = "service_job"  # § 16.1.3: a work of a service operation
         SERVICE_MATERIAL = "service_material"  # § 16.5.1: a part used in a service work
         DELIVERY = "delivery"  # § 15.2.2: a delivery of a client order
+        DAMAGE = "damage"  # § 10.5.3: the estimate of a damage charged in a rental
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")

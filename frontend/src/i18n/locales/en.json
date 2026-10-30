@@ -205,7 +205,22 @@
     "report_dashboard_created": "Dashboard created",
     "report_dashboard_changed": "Dashboard changed",
     "report_dashboard_removed": "Dashboard deleted",
-    "company_setup_choice": "Setup answer"
+    "company_setup_choice": "Setup answer",
+    "inspection_planned": "Inspection planned",
+    "inspection_changed": "Inspection changed",
+    "inspection_started": "Inspection started",
+    "inspection_cancelled": "Inspection cancelled",
+    "inspection_terminated": "Inspection terminated",
+    "inspection_invalidated": "Inspection recognised as invalid",
+    "inspection_draft_deleted": "Inspection draft deleted",
+    "inspection_missing_reason_recorded": "Reason of a missing inspection recorded",
+    "inspection_template_changed": "Inspection template changed",
+    "inspection_policy_changed": "Inspection policy changed",
+    "damage_created": "Damage recorded",
+    "damage_estimated": "Damage estimated",
+    "damage_fixed": "Damage fixed",
+    "damage_returned": "Damage returned",
+    "damage_erroneous": "Damage recognised as erroneous"
   },
   "finance_articles": {
     "archive": "Archive",
@@ -937,7 +952,37 @@
     "client_group_unknown": "Unknown group.",
     "cabinet_not_signer": "This document is not waiting for your signature: you are not a signer of its current version, or the link with the company is broken.",
     "approval_withdrawn": "The position was cancelled; no answer is needed.",
-    "service_reopen_post_taken": "The service cannot be reopened: its post is now planned for another service (No. {{operation}})."
+    "service_reopen_post_taken": "The service cannot be reopened: its post is now planned for another service (No. {{operation}}).",
+    "inspection_not_editable": "The inspection can no longer be changed.",
+    "inspection_not_started": "The inspection has not been started.",
+    "inspection_not_planned": "Only a planned inspection that has not started can be started or cancelled.",
+    "inspection_not_saved": "Only a saved inspection can be recognised as invalid.",
+    "inspection_required_missing": "Required readings or photos are missing.",
+    "inspection_draft_used": "This draft belongs to the rental and cannot be deleted.",
+    "inspection_not_missing": "This inspection is not missing: no reason is needed.",
+    "inspection_vehicle_mismatch": "The operation is for another vehicle.",
+    "inspection_application_invalid": "This kind of inspection does not apply here.",
+    "rental_unknown": "Rental not found.",
+    "service_operation_unknown": "Service operation not found.",
+    "positions_invalid": "The list of photo positions is not valid.",
+    "position_repeated": "A position is listed twice.",
+    "position_not_applicable": "This angle does not apply to this transport.",
+    "position_required_disabled": "A disabled position cannot be required.",
+    "video_without_position": "A video is not attached to a photo position.",
+    "file_repeated": "The file is attached twice.",
+    "employee_unknown": "Employee not found.",
+    "scheme_unknown": "Unknown vehicle scheme.",
+    "zone_point_invalid": "The mark on the scheme is not valid.",
+    "damage_not_described": "Describe the damage or mark its zone.",
+    "damage_not_in_rental": "Only a damage of a rental inspection is charged in the rental.",
+    "currency_unknown": "Unknown currency.",
+    "damage_photo_not_in_inspection": "Choose photos of this inspection.",
+    "damage_unknown": "Damage not found for this vehicle.",
+    "damage_not_fixed": "Only a fixed damage can be returned.",
+    "damage_erroneous": "The damage is recognised as erroneous.",
+    "damage_currency_changed": "The estimate keeps the currency of its charge.",
+    "damage_not_actual": "Only an actual damage can be marked fixed.",
+    "damage_repeated": "A damage is listed twice."
   },
   "history": {
     "action": "Action",
@@ -1316,7 +1361,11 @@
     "company_link_answer": "Answer requests to link with the company",
     "data_export": "Full data export",
     "service_reopen": "Open a finished service again and correct finished works",
-    "order_discount": "Apply discounts"
+    "order_discount": "Apply discounts",
+    "inspection_cancel": "Cancel inspections before the start",
+    "inspection_terminate": "Terminate started inspections",
+    "inspection_invalidate": "Recognise saved inspections as invalid",
+    "inspection_policy_manage": "Manage inspection policies and templates"
   },
   "positions": {
     "director": "Director"
@@ -1466,7 +1515,10 @@
     "vehicle": "Vehicle",
     "vehicle_and_client": "Vehicle, tariff and client",
     "state_proposed": "Proposed",
-    "missing_return_documents_missing": "No documents required at the return"
+    "missing_return_documents_missing": "No documents required at the return",
+    "missing_issue_inspection_check_missing": "The required issue check was not done: record the reason",
+    "missing_return_inspection_check_missing": "The required acceptance check was not done: record the reason",
+    "missing_damage_estimate_missing": "A new damage has no estimate or no charge"
   },
   "rights": {
     "add": "Add rights",
@@ -3366,7 +3418,9 @@
     "event_link_requested": "«{{company}}» asks to link with the company's profile",
     "event_link_answered": "Answer to the link request ({{target}})",
     "event_vehicle_owner_requested": "«{{company}}» asks the company as the owner of a vehicle",
-    "event_vehicle_owner_answered": "The owner answered the request ({{target}})"
+    "event_vehicle_owner_answered": "The owner answered the request ({{target}})",
+    "event_rental_inspection_check_missing": "The required inspection check was not done: {{vehicle}}",
+    "rule_rental_inspection_check_missing": "Required inspection check not done"
   },
   "reports": {
     "metric_rental_issues_today": "Issues expected today",
@@ -3733,7 +3787,9 @@
     "state_started": "started",
     "state_accepted": "accepted for service",
     "state_works_done": "works done",
-    "state_terminated": "terminated"
+    "state_terminated": "terminated",
+    "source_damage": "Damage",
+    "source_discount_damage": "Discount"
   },
   "exports": {
     "title": "Full data export",

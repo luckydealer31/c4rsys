@@ -310,6 +310,10 @@ def transfer(
             "id", flat=True
         )
     ]
+    # Damages charged in the rental go with it (§ 10.5.3).
+    from c4rsys.inspections import damages
+
+    sources += damages.charge_sources(rental.id)
     for source_type, source_id in sources:
         charges.move_source(
             ctx,

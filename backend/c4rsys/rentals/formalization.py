@@ -1,9 +1,9 @@
 """Completion of the rental formalization (ТЗ § 14.5.6–14.5.7, § 10.3.3, § 14.3.6).
 
 Formalization is complete when the vehicle is returned, the return inspection is saved with the
-odometer and fuel, the required documents are present and inspection conflicts are settled.
-At stage 1 a new company requires no documents (§ 14.3.6) and no inspections, so no document or
-inspection conflict can arise. Debt does not prevent completion (§ 14.5.7).
+odometer and fuel, the required documents are present and inspection conflicts are settled: a
+required check not done has a recorded reason (§ 10.3.3) and every new damage attributed to the
+rental has its estimate charged (§ 10.5.5). Debt does not prevent completion (§ 14.5.7).
 """
 
 from uuid import UUID
@@ -23,9 +23,8 @@ from c4rsys.rentals.models import Rental
 def missing_conditions(rental: Rental) -> list[str]:
     """Unmet conditions of the formalization of a returned rental."""
     missing = []
-    by_kind = {i.kind: i for i in inspections.of_rental(rental.id)}
     for kind in (Inspection.Kind.ISSUE, Inspection.Kind.RETURN):
-        record = by_kind.get(kind)
+        record = inspections.readings_of_rental(rental.id, kind)
         if (
             record is None
             or record.state != Inspection.State.SAVED
@@ -37,6 +36,7 @@ def missing_conditions(rental: Rental) -> list[str]:
     stage = (document_requirements.Stage.AT_RETURN,)
     if document_requirements.unmet_for_rental(rental.company_id, rental.id, stage):
         missing.append("return_documents_missing")
+    missing += inspections.closing_conditions(rental.id)
     return missing
 
 

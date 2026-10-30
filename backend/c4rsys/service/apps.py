@@ -40,3 +40,7 @@ class ServiceConfig(AppConfig):
         # § 20.3.5: maintenance due and works done in the notification centre.
         notifications.register_check(notices.run)
         rules.on_journal("service_operation.works_done", notices.on_works_done)
+        # Chapter 10: inspections of a service operation (§ 10.1.1).
+        from c4rsys.inspections import links as inspection_links
+
+        inspection_links.register_service_reader(operations.inspection_link)

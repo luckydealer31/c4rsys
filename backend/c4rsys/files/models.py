@@ -24,6 +24,9 @@ class StoredFile(models.Model):
         COMPANY_DOCUMENT = "company_document"
         # An attachment of a work task (§ 19.1.8; decision З-10).
         TASK_ATTACHMENT = "task_attachment"
+        # Photos and videos of an inspection (§ 10.4.2).
+        INSPECTION_PHOTO = "inspection_photo"
+        INSPECTION_VIDEO = "inspection_video"
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     purpose = models.CharField(max_length=30, choices=Purpose.choices)

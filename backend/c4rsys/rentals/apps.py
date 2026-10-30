@@ -40,3 +40,11 @@ class RentalsConfig(AppConfig):
         orders.register_on_cancel(order_links.on_order_cancel)
         # § 20.3.5, § 14.3.7, decision З-11: notifications and system tasks of rentals.
         notifications.register_check(notices.run)
+        # Chapter 10: inspections know of rentals through these readers and handlers.
+        from c4rsys.inspections import links as inspection_links
+        from c4rsys.inspections import policy as inspection_policy
+        from c4rsys.rentals import issue_policies, returns
+
+        inspection_links.register_rental_reader(rentals.inspection_link)
+        inspection_links.register_on_saved(returns.on_inspection_saved)
+        inspection_policy.register_rental_check(issue_policies.inspection_required)

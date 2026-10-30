@@ -205,7 +205,22 @@
     "report_dashboard_created": "สร้างแดชบอร์ด",
     "report_dashboard_changed": "แก้ไขแดชบอร์ด",
     "report_dashboard_removed": "ลบแดชบอร์ด",
-    "company_setup_choice": "คำตอบการตั้งค่า"
+    "company_setup_choice": "คำตอบการตั้งค่า",
+    "inspection_planned": "วางแผนการตรวจสภาพ",
+    "inspection_changed": "แก้ไขการตรวจสภาพ",
+    "inspection_started": "เริ่มการตรวจสภาพ",
+    "inspection_cancelled": "ยกเลิกการตรวจสภาพ",
+    "inspection_terminated": "ยุติการตรวจสภาพ",
+    "inspection_invalidated": "การตรวจสภาพเป็นโมฆะ",
+    "inspection_draft_deleted": "ลบแบบร่างการตรวจสภาพ",
+    "inspection_missing_reason_recorded": "บันทึกเหตุผลที่ไม่มีการตรวจสภาพ",
+    "inspection_template_changed": "แก้ไขแม่แบบการตรวจสภาพ",
+    "inspection_policy_changed": "แก้ไขนโยบายการตรวจสภาพ",
+    "damage_created": "บันทึกความเสียหาย",
+    "damage_estimated": "ประเมินความเสียหาย",
+    "damage_fixed": "ซ่อมความเสียหายแล้ว",
+    "damage_returned": "ความเสียหายกลับมา",
+    "damage_erroneous": "ความเสียหายถูกระบุว่าผิดพลาด"
   },
   "finance_articles": {
     "archive": "เก็บเข้าคลัง",
@@ -937,7 +952,37 @@
     "client_group_unknown": "ไม่รู้จักกลุ่ม",
     "cabinet_not_signer": "เอกสารนี้ไม่ได้รอการลงนามของคุณ: คุณไม่ใช่ผู้ลงนามในฉบับปัจจุบัน หรือการเชื่อมโยงกับบริษัทถูกยกเลิกแล้ว",
     "approval_withdrawn": "รายการถูกยกเลิกแล้ว ไม่ต้องตอบ",
-    "service_reopen_post_taken": "เปิดงานบริการอีกครั้งไม่ได้: ช่องซ่อมถูกวางแผนให้งานบริการอื่นแล้ว ({{operation}})"
+    "service_reopen_post_taken": "เปิดงานบริการอีกครั้งไม่ได้: ช่องซ่อมถูกวางแผนให้งานบริการอื่นแล้ว ({{operation}})",
+    "inspection_not_editable": "ไม่สามารถแก้ไขการตรวจสภาพได้อีก",
+    "inspection_not_started": "ยังไม่ได้เริ่มการตรวจสภาพ",
+    "inspection_not_planned": "เริ่มหรือยกเลิกได้เฉพาะการตรวจสภาพที่วางแผนไว้และยังไม่เริ่ม",
+    "inspection_not_saved": "ทำให้เป็นโมฆะได้เฉพาะการตรวจสภาพที่บันทึกแล้ว",
+    "inspection_required_missing": "ยังไม่ได้กรอกค่าที่บังคับหรือรูปถ่าย",
+    "inspection_draft_used": "แบบร่างนี้เป็นของการเช่าและไม่สามารถลบได้",
+    "inspection_not_missing": "การตรวจสภาพนี้ไม่ได้ขาดหาย ไม่ต้องระบุเหตุผล",
+    "inspection_vehicle_mismatch": "การดำเนินการเป็นของยานพาหนะคันอื่น",
+    "inspection_application_invalid": "การตรวจสภาพประเภทนี้ใช้ที่นี่ไม่ได้",
+    "rental_unknown": "ไม่พบการเช่า",
+    "service_operation_unknown": "ไม่พบงานบริการ",
+    "positions_invalid": "รายการตำแหน่งรูปถ่ายไม่ถูกต้อง",
+    "position_repeated": "มีตำแหน่งซ้ำกัน",
+    "position_not_applicable": "มุมนี้ใช้กับยานพาหนะประเภทนี้ไม่ได้",
+    "position_required_disabled": "ตำแหน่งที่ปิดใช้งานไม่สามารถเป็นข้อบังคับได้",
+    "video_without_position": "วิดีโอไม่ผูกกับตำแหน่งรูปถ่าย",
+    "file_repeated": "แนบไฟล์ซ้ำ",
+    "employee_unknown": "ไม่พบพนักงาน",
+    "scheme_unknown": "ไม่รู้จักแผนผังยานพาหนะ",
+    "zone_point_invalid": "เครื่องหมายบนแผนผังไม่ถูกต้อง",
+    "damage_not_described": "อธิบายความเสียหายหรือระบุบริเวณ",
+    "damage_not_in_rental": "เรียกเก็บในการเช่าได้เฉพาะความเสียหายจากการตรวจสภาพของการเช่า",
+    "currency_unknown": "ไม่รู้จักสกุลเงิน",
+    "damage_photo_not_in_inspection": "เลือกรูปถ่ายของการตรวจสภาพนี้",
+    "damage_unknown": "ไม่พบความเสียหายของยานพาหนะคันนี้",
+    "damage_not_fixed": "นำกลับได้เฉพาะความเสียหายที่ซ่อมแล้ว",
+    "damage_erroneous": "ความเสียหายถูกระบุว่าผิดพลาด",
+    "damage_currency_changed": "การประเมินต้องใช้สกุลเงินเดียวกับการเรียกเก็บ",
+    "damage_not_actual": "ระบุว่าซ่อมแล้วได้เฉพาะความเสียหายที่ยังมีอยู่",
+    "damage_repeated": "มีความเสียหายซ้ำกัน"
   },
   "history": {
     "action": "Action",
@@ -1316,7 +1361,11 @@
     "company_link_answer": "ตอบคำขอเชื่อมกับบริษัท",
     "data_export": "ส่งออกข้อมูลทั้งหมด",
     "service_reopen": "เปิดบริการอีกครั้งและแก้ไขงานที่เสร็จแล้ว",
-    "order_discount": "ใช้ส่วนลด"
+    "order_discount": "ใช้ส่วนลด",
+    "inspection_cancel": "ยกเลิกการตรวจสภาพก่อนเริ่ม",
+    "inspection_terminate": "ยุติการตรวจสภาพที่เริ่มแล้ว",
+    "inspection_invalidate": "ทำให้การตรวจสภาพที่บันทึกแล้วเป็นโมฆะ",
+    "inspection_policy_manage": "จัดการนโยบายและแม่แบบการตรวจสภาพ"
   },
   "positions": {
     "director": "Director"
@@ -1466,7 +1515,10 @@
     "vehicle": "Vehicle",
     "vehicle_and_client": "Vehicle, tariff and client",
     "state_proposed": "เสนอแล้ว",
-    "missing_return_documents_missing": "ไม่มีเอกสารที่ต้องมีเมื่อคืน"
+    "missing_return_documents_missing": "ไม่มีเอกสารที่ต้องมีเมื่อคืน",
+    "missing_issue_inspection_check_missing": "ไม่ได้ตรวจสภาพตอนส่งมอบตามที่บังคับ: ระบุเหตุผล",
+    "missing_return_inspection_check_missing": "ไม่ได้ตรวจสภาพตอนรับคืนตามที่บังคับ: ระบุเหตุผล",
+    "missing_damage_estimate_missing": "ความเสียหายใหม่ยังไม่มีการประเมินหรือการเรียกเก็บ"
   },
   "rights": {
     "add": "Add rights",
@@ -3366,7 +3418,9 @@
     "event_link_requested": "«{{company}}» ขอเชื่อมกับโปรไฟล์บริษัท",
     "event_link_answered": "คำตอบคำขอเชื่อม ({{target}})",
     "event_vehicle_owner_requested": "«{{company}}» ขอให้ยืนยันความเป็นเจ้าของยานพาหนะ",
-    "event_vehicle_owner_answered": "เจ้าของตอบคำขอแล้ว ({{target}})"
+    "event_vehicle_owner_answered": "เจ้าของตอบคำขอแล้ว ({{target}})",
+    "event_rental_inspection_check_missing": "ไม่ได้ตรวจสภาพตามที่บังคับ: {{vehicle}}",
+    "rule_rental_inspection_check_missing": "ไม่ได้ตรวจสภาพตามที่บังคับ"
   },
   "reports": {
     "metric_rental_issues_today": "การส่งมอบที่คาดว่าจะมีวันนี้",
@@ -3733,7 +3787,9 @@
     "state_started": "เริ่มแล้ว",
     "state_accepted": "รับเข้าซ่อมแล้ว",
     "state_works_done": "งานเสร็จแล้ว",
-    "state_terminated": "ยุติแล้ว"
+    "state_terminated": "ยุติแล้ว",
+    "source_damage": "ความเสียหาย",
+    "source_discount_damage": "ส่วนลด"
   },
   "exports": {
     "title": "ส่งออกข้อมูลทั้งหมด",

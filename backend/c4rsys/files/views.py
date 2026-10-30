@@ -28,9 +28,13 @@ def upload(request: HttpRequest) -> JsonResponse:
         raise errors.validation_error("file", code="FIELD_REQUIRED")
     document = purpose in services.DOCUMENT_PURPOSES
     company_document = purpose in services.OFFICE_PURPOSES
+    photo = purpose == services.INSPECTION_PHOTO
+    video = purpose == services.INSPECTION_VIDEO
     limit = (
         services.MAX_PHOTO_BYTES
-        if company_document
+        if company_document or photo
+        else services.MAX_VIDEO_BYTES
+        if video
         else services.MAX_DOCUMENT_BYTES
         if document
         else services.MAX_IMAGE_BYTES
@@ -41,6 +45,10 @@ def upload(request: HttpRequest) -> JsonResponse:
     content_type = (
         services.company_document_type(data)
         if company_document
+        else services.inspection_photo_type(data)
+        if photo
+        else services.inspection_video_type(data)
+        if video
         else services.document_type(data)
         if document
         else services.image_type(data)
