@@ -23,6 +23,26 @@ urlpatterns = [
     ),
     path("c/<str:cmp>/employees", staff_views.employee_list),
     path("c/<str:cmp>/permission-catalog", staff_views.permission_catalog),
+    # Own permission sets, applying an updated set, broad rights confirmation (block 14).
+    path("c/<str:cmp>/permission-sets", staff_views.permission_sets),
+    path("c/<str:cmp>/permission-sets/<uuid:set_id>", staff_views.permission_set_detail),
+    path("c/<str:cmp>/permission-sets/<uuid:set_id>/archive", staff_views.permission_set_archive),
+    path("c/<str:cmp>/permission-sets/<uuid:set_id>/restore", staff_views.permission_set_restore),
+    path("c/<str:cmp>/permission-sets/<str:ref>/holders", staff_views.permission_set_holders),
+    path("c/<str:cmp>/permission-sets/<str:ref>/apply", staff_views.permission_set_apply),
+    path("c/<str:cmp>/rights-requests", staff_views.rights_requests),
+    path(
+        "c/<str:cmp>/rights-requests/<uuid:request_id>/confirm",
+        staff_views.rights_request_confirm,
+    ),
+    path(
+        "c/<str:cmp>/rights-requests/<uuid:request_id>/decline",
+        staff_views.rights_request_decline,
+    ),
+    path(
+        "c/<str:cmp>/rights-requests/<uuid:request_id>/cancel",
+        staff_views.rights_request_cancel,
+    ),
     path("c/<str:cmp>/employees/invitations", staff_views.invitation_create),
     path(
         "c/<str:cmp>/employees/invitations/<uuid:invitation_id>/cancel",

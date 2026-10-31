@@ -12,6 +12,7 @@ urlpatterns = [
     path(f"{V}merges", identity_views.merge_list),
     path(f"{V}merges/<uuid:merge_id>/split", identity_views.split),
     path(f"{V}merges/<uuid:merge_id>/split/preview", identity_views.split_preview),
+    path(f"{V}merges/<uuid:merge_id>/split/code", identity_views.split_code),
     path(f"{V}proposals", identity_views.propose),
     # Block 12, part Б: lifecycle of the card (§ 8.1.6, § 8.2.10–8.2.13, § 8.3, § 8.4.2, § 8.7,
     # § 8.8).

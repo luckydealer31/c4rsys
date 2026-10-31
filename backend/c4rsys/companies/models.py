@@ -7,6 +7,7 @@ owner rights (§ 3.3.4), working authority comes from a position through employm
 from django.contrib.postgres.fields import ArrayField
 from django.db import models
 from django.db.models import Q
+from django.db.models.functions import Lower
 from django.utils.timezone import now
 
 from c4rsys.accounts.models import UserAccount
@@ -439,7 +440,9 @@ class Permission(models.Model):
 
 
 class PermissionSet(models.Model):
-    """Ready-made set of permissions. System sets have no company (§ 23.1.5, § 23.1.14)."""
+    """Ready-made set of permissions. System sets have no company (§ 23.1.5, § 23.1.14); a
+    company's own set belongs to it, may be based on another set and is archived, not deleted
+    (block 14). Changing a set does not change the copies held by assignments (§ 23.1.3)."""
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     company = models.ForeignKey(
@@ -449,10 +452,28 @@ class PermissionSet(models.Model):
     name = models.CharField(max_length=150, blank=True, default="")
     is_system = models.BooleanField(default=False)
     permissions = models.ManyToManyField(Permission, through="PermissionSetItem", related_name="+")
+    based_on = models.ForeignKey(
+        "self", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    created_by_user_id = models.UUIDField(null=True, blank=True)
+    created_at = models.DateTimeField(default=now)
+    updated_at = models.DateTimeField(null=True, blank=True)
+    archived_at = models.DateTimeField(null=True, blank=True)
+    version = models.PositiveIntegerField(default=1)
 
     class Meta:
         db_table = "permission_set"
         constraints = [
+            models.CheckConstraint(
+                condition=Q(is_system=True) | Q(company__isnull=False),
+                name="permission_set_own_has_company",
+            ),
+            models.UniqueConstraint(
+                "company",
+                Lower("name"),
+                condition=Q(is_system=False, archived_at__isnull=True),
+                name="permission_set_own_name_uniq",
+            ),
             models.UniqueConstraint(
                 fields=["code"],
                 condition=Q(is_system=True),
@@ -543,6 +564,46 @@ class PermissionAssignment(models.Model):
 
     def __str__(self) -> str:
         return f"{self.kind} {self.id}"
+
+
+class RightsRequest(models.Model):
+    """Especially broad rights initiated by an employee, waiting for the confirmation of the
+    top-authority director (§ 23.3.5, block 14).
+
+    `rights` — the requested assignments as RightSpec dicts; `codes` — the codes of each at the
+    request, so a set changed meanwhile makes the request outdated; `replaces` — assignments the
+    request revokes when confirmed (applying an updated set, § 23.1.3).
+    """
+
+    class State(models.TextChoices):
+        PENDING = "pending"
+        CONFIRMED = "confirmed"
+        DECLINED = "declined"
+        CANCELLED = "cancelled"
+        OUTDATED = "outdated"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    employment = models.ForeignKey(Employment, on_delete=models.PROTECT, related_name="+")
+    state = models.CharField(max_length=20, choices=State.choices, default=State.PENDING)
+    rights = models.JSONField(default=list)
+    codes = models.JSONField(default=list)
+    replaces = ArrayField(models.UUIDField(), default=list, blank=True)
+    initiated_by_user_id = models.UUIDField()
+    initiated_by_employment_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+    decided_by_user_id = models.UUIDField(null=True, blank=True)
+    decided_at = models.DateTimeField(null=True, blank=True)
+    decision_note = models.CharField(max_length=500, blank=True, default="")
+
+    class Meta:
+        db_table = "rights_request"
+        indexes = [
+            models.Index(fields=["company", "state"], name="rights_request_state_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"rights request {self.id}"
 
 
 class AssignmentLocation(models.Model):

@@ -312,7 +312,7 @@ def accept(
         ownership.on_representative_accepted(ctx, invitation, card)
     else:
         rights = access.parse_rights(invitation.offered.get("rights", []))
-        if any(s.is_broad for s in rights):
+        if any(access.is_broad(invitation.company_id, s) for s in rights):
             # § 2.3.1: no highest rights within 72 hours after a recovery through the support.
             accounts.require_not_recently_recovered(user.id)
         access.assign(card, rights, invitation.created_by_user_id)

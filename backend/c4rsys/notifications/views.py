@@ -214,8 +214,8 @@ def _rule_payload(r: Any) -> dict[str, Any]:
 def _settings(actor: Actor) -> None:
     from c4rsys.companies import access
 
-    if not access.RightsResolver().has_permission(actor, "company.settings"):
-        raise errors.permission_denied("company.settings")
+    if not access.RightsResolver().has_permission(actor, "notifications.policy.manage"):
+        raise errors.permission_denied("notifications.policy.manage")
 
 
 @require_GET

@@ -502,8 +502,8 @@ def policy(request: HttpRequest, cmp: str) -> JsonResponse:
     context, actor = _actor(request, cmp)
     if request.method == "GET":
         return JsonResponse({"policy": _policy_payload(services.policy_of(context.company.id))})
-    if not access.RightsResolver().has_permission(actor, "company.settings"):
-        raise errors.permission_denied("company.settings")
+    if not access.RightsResolver().has_permission(actor, "tasks.policy.manage"):
+        raise errors.permission_denied("tasks.policy.manage")
     data = parse_json(request)
     release = data.get("executor_may_release")
     change_due = data.get("executor_may_change_due")

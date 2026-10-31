@@ -408,6 +408,10 @@ function SplitForm({ vehicle, merge, onDone }: { vehicle: Vehicle; merge: Merge;
   const [assignments, setAssignments] = useState<Record<string, string>>({});
   const [reason, setReason] = useState("");
   const split = useCommand<Record<string, unknown>, unknown>(path);
+  // § 23.5.4 (block 14): the split is confirmed by the repeated one-time code too.
+  const sendCode = useCommand<Record<string, never>, unknown>(`${path}/code`);
+  const [sent, setSent] = useState(false);
+  const [code, setCode] = useState("");
   const top = (preview.data?.records ?? []).filter((r) => !r.follows);
   const complete = top.every((r) => assignments[r.key]);
   return (
@@ -446,14 +450,29 @@ function SplitForm({ vehicle, merge, onDone }: { vehicle: Vehicle; merge: Merge;
       <Field label={t("vehicles.split_reason")}>
         <input value={reason} onChange={(e) => setReason(e.target.value)} />
       </Field>
-      <ErrorMessage error={split.error} />
+      {sent ? (
+        <Field label={t("vehicles.merge_code")} hint={t("vehicles.merge_code_hint")}>
+          <input inputMode="numeric" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} />
+        </Field>
+      ) : null}
+      <ErrorMessage error={sendCode.error ?? split.error} />
       <div className="actions">
         <button
           type="button"
-          className="danger"
-          disabled={!complete || !reason.trim() || split.pending}
+          className="secondary"
+          disabled={!complete || !reason.trim() || sendCode.pending}
           onClick={async () => {
-            if ((await split.run({ assignments, reason })) !== null) {
+            if ((await sendCode.run({})) !== null) setSent(true);
+          }}
+        >
+          {t("vehicles.merge_send_code")}
+        </button>
+        <button
+          type="button"
+          className="danger"
+          disabled={!sent || !complete || !reason.trim() || code.length < 4 || split.pending}
+          onClick={async () => {
+            if ((await split.run({ assignments, reason, code })) !== null) {
               await refresh();
               onDone();
             }

@@ -910,7 +910,7 @@ def set_limit(
     revoked: list[str] = []
     if seat.holder_id is not None:
         for assignment in access.seat_assignments(seat.holder_id, seat.id):
-            if not access.within_limit([access.spec_of(assignment)], specs):
+            if not access.within_limit([access.spec_of(assignment)], specs, company_id):
                 access.revoke([assignment], ctx.actor.user_id)
                 revoked.append(str(assignment.id))
     ctx.audit(
@@ -950,7 +950,7 @@ def assign_representative(
     seat = held_seat(owner_company_id, seat_id)
     limit = access.parse_rights(seat.rights_limit)
     access.validate_rights(seat.company_id, specs)
-    if not access.within_limit(specs, limit):
+    if not access.within_limit(specs, limit, seat.company_id):
         raise errors.business_rule("REPRESENTATIVE_RIGHTS_EXCEED_LIMIT", field="rights")
     now = timezone.now()
     holder = seat.holder
@@ -1033,7 +1033,7 @@ def on_representative_accepted(
     if seat is None or seat.position_id != card.position_id:
         raise errors.business_rule("INVITATION_NOT_PENDING")
     specs = access.parse_rights(invitation.offered.get("rights", []))
-    if not access.within_limit(specs, access.parse_rights(seat.rights_limit)):
+    if not access.within_limit(specs, access.parse_rights(seat.rights_limit), seat.company_id):
         raise errors.business_rule("REPRESENTATIVE_RIGHTS_EXCEED_LIMIT")
     _release_holder(ctx, seat, "representative_replaced")
     before = str(seat.holder_id) if seat.holder_id else None

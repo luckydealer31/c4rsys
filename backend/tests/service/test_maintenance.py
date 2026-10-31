@@ -143,3 +143,36 @@ def test_rules_need_rights(owner: Client, s: Scenario) -> None:
     assert len(_rules(viewer, s)["rules"]) == 1
     assert _add_rule(viewer, s).status_code == 403
     assert viewer.get(f"/api/c/{s.cmp}/service/vehicles/{s.vehicle}/history").status_code == 403
+
+
+def test_rules_and_records_are_separate_rights(owner: Client, s: Scenario) -> None:
+    # § 23.5.1 (block 14): the rule and a recorded done work are separate from vehicle.edit.
+    def grant(code: str) -> dict[str, str]:
+        return {"type": "grant", "permission": code}
+
+    editor, _ = hire(owner, s.cmp, "ed@example.com", [grant("vehicle.edit")])
+    assert _add_rule(editor, s).status_code == 403
+    rules, _ = hire(owner, s.cmp, "ru@example.com", [grant("vehicle.maintenance.rules")])
+    recorder, _ = hire(owner, s.cmp, "re@example.com", [grant("vehicle.maintenance.record")])
+    created = _add_rule(rules, s)
+    assert created.status_code == 201, created.content
+    rule = created.json()["rules"][0]
+    base = {"name": "Oil", "system_work": "engine_oil", "interval_days": 180}
+
+    def change(client: Client, version: int, **body: Any) -> Any:
+        return client.patch(
+            f"/api/c/{s.cmp}/service/maintenance/{rule['id']}",
+            data={**base, "expected_version": version, **body},
+            content_type="application/json",
+            headers=key(),
+        )
+
+    # A recorded done work restarts the countdown; the right of the rules does not give it.
+    assert change(rules, rule["version"], last_done_on="2026-10-01").status_code == 403
+    assert change(recorder, rule["version"], interval_days=90).status_code == 403
+    recorded = change(recorder, rule["version"], last_done_on="2026-10-01")
+    assert recorded.status_code == 200, recorded.content
+    version = recorded.json()["rules"][0]["version"]
+    kept = {"last_done_on": "2026-10-01"}
+    assert change(rules, version, interval_days=90, **kept).status_code == 200
+    assert change(editor, version + 1, interval_days=60, **kept).status_code == 403

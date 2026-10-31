@@ -121,6 +121,8 @@ export function ProfileLinkCard({
   const [target, setTarget] = useState("");
   const [initiator, setInitiator] = useState("company");
   const editable = can(cardType === "client" ? "client.edit" : "counterparty.edit");
+  // § 23.8.2 (block 14): sending an invitation or a request to link is a right of its own.
+  const requestable = can(cardType === "client" ? "client.link.request" : "counterparty.link.request");
 
   async function refresh() {
     await queryClient.invalidateQueries({ queryKey: key });
@@ -260,7 +262,7 @@ export function ProfileLinkCard({
           ) : null}
         </div>
       ) : null}
-      {!open && editable ? (
+      {!open && requestable ? (
         <form className="stack" onSubmit={submit}>
           <Field label={t(cardKind === "company" ? "links.target_company" : "links.target_person")}>
             <input value={target} onChange={(e) => setTarget(e.target.value)} />

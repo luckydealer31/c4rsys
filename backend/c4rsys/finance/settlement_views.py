@@ -557,7 +557,8 @@ def allocation_relink(request: HttpRequest, cmp: str, allocation_id: UUID) -> Js
     )
     if allocation is None:
         raise errors.not_found()
-    _require(actor, CORRECT, allocation.money_movement.cash_account_id)
+    # § 23.7.7 (block 14): changing the binding of a record is a right of its own.
+    _require(actor, "finance.record.relink", allocation.money_movement.cash_account_id)
     data = parse_json(request)
     order_id = _optional_uuid(data, "order_id")
     reason = get_str(data, "reason", max_length=NOTE_MAX)
@@ -645,12 +646,13 @@ def record_shares(request: HttpRequest, cmp: str, movement_id: UUID) -> JsonResp
 
 @require_POST
 def record_client(request: HttpRequest, cmp: str, movement_id: UUID) -> JsonResponse:
-    """Corrects the mistakenly named client of a payment with a reason (§ 17.2.12)."""
+    """Corrects the mistakenly named client of a payment with a reason (§ 17.2.12); § 23.7.7
+    (block 14): a right of its own."""
     context, actor = _actor(request, cmp)
     movement = MoneyMovement.objects.filter(company_id=context.company.id, pk=movement_id).first()
     if movement is None:
         raise errors.not_found()
-    _require(actor, CORRECT, movement.cash_account_id)
+    _require(actor, "finance.record.client", movement.cash_account_id)
     data = parse_json(request)
     client_id = _uuid(data.get("client_id"), "client_id")
     reason = get_str(data, "reason", max_length=NOTE_MAX)

@@ -39,6 +39,9 @@ CRITICAL_ACTIONS = {
     "change_email",  # § 2.3.2
     "transfer_share",  # § 2.1.1, § 3.4.3: transfer of company ownership
     "deactivate_company",  # § 3.6.1
+    # § 2.1.1, § 23.3.5 (block 14): granting especially broad rights by the top-authority
+    # director and his confirmation of an employee's request.
+    "grant_broad_rights",
 }
 
 

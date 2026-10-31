@@ -794,7 +794,7 @@ export function RepackPage() {
 }
 
 /** Settings of the warehouse: the policy for expired lots (§ 11.2.15) and the reasons of a
- * write-off (§ 11.3.4). PROPOSAL: changed with the right of company settings. */
+ * write-off (§ 11.3.4). § 23.3.7: changed with the warehouse policy right. */
 export function WarehouseSettingsCard() {
   const { t } = useTranslation();
   const company = useCompany();
@@ -813,7 +813,7 @@ export function WarehouseSettingsCard() {
     "PATCH",
   );
   const [name, setName] = useState("");
-  const manage = can("company.settings");
+  const manage = can("warehouse.policy.manage");
   const refresh = () =>
     Promise.all([
       client.invalidateQueries({ queryKey: ["warehouse-settings", company.public_id] }),

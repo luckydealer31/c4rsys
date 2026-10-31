@@ -14,9 +14,9 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 
 from c4rsys.accounts import services as accounts
 from c4rsys.accounts.middleware import require_user
-from c4rsys.companies import access, history, orgstructure, services, staff
-from c4rsys.companies.models import Employment, Invitation, Position
-from c4rsys.companies.permissions import PERMISSIONS, SYSTEM_SETS
+from c4rsys.companies import access, history, orgstructure, rightsets, services, staff
+from c4rsys.companies.models import Employment, Invitation, Position, RightsRequest
+from c4rsys.companies.permissions import BROAD_PERMISSIONS, BROAD_SETS, PERMISSIONS
 from c4rsys.companies.views import run_and_respond
 from c4rsys.platform import audit, errors
 from c4rsys.platform.access import require_permission
@@ -37,8 +37,10 @@ EMPLOYEE_VIEW_PERMISSIONS = (
     "employee.card.edit",
     "employee.positions.manage",
     "org.manage",
+    "employee.sets.manage",
 )
 REASON_MAX = 500
+BROAD_ACTION = "grant_broad_rights"
 
 
 def _company_actor(
@@ -113,6 +115,12 @@ def _employee_payload(employment: Employment, *, masked: bool = False) -> dict[s
         "version": employment.version,
         "rights": access.rights_of(employment.id),
         "owner_seat_rights": access.rights_of(employment.id, owner_seat=True),
+        # § 23.3.5: especially broad rights waiting for the director's confirmation.
+        "rights_requests": [
+            rightsets.request_payload(r)
+            for r in rightsets.requests_of(employment.company_id, employment_id=employment.id)
+            if r.state == RightsRequest.State.PENDING
+        ],
         "invitation": staff.invitation_payload(last_invitation, timezone.now())
         if last_invitation
         else None,
@@ -277,13 +285,25 @@ def position_detail(request: HttpRequest, cmp: str, position_id: UUID) -> JsonRe
 def invitation_create(request: HttpRequest, cmp: str) -> JsonResponse:
     """Invitation by user ID or email (§ 5.1.3). Offering rights additionally needs the right to
     manage rights (§ 23.3.1)."""
+    user, _session = require_user(request)
     context, actor = _company_actor(request, cmp, "employee.invite")
     data = parse_json(request)
     rights = access.parse_rights(data.get("rights", []))
     if rights:
         require_permission(access.RightsResolver(), actor, "employee.rights.manage")
     access.validate_rights(context.company.id, rights)
-    access.require_broad_rights_authority(rights, is_top_authority=context.is_top_authority)
+    access.require_not_archived(context.company.id, rights)
+    confirmed = (
+        _broad_code(user, data, context.is_top_authority)
+        if any(access.is_broad(context.company.id, s) for s in rights)
+        else False
+    )
+    access.require_broad_rights_authority(
+        context.company.id,
+        rights,
+        is_top_authority=context.is_top_authority,
+        code_confirmed=confirmed,
+    )
 
     raw_position = data.get("position_id")
     if raw_position:
@@ -329,33 +349,279 @@ def invitation_cancel(request: HttpRequest, cmp: str, invitation_id: UUID) -> Js
     )
 
 
+def _broad_code(user: Any, data: dict[str, Any], is_top_authority: bool) -> bool:
+    """The director's own assignment of especially broad rights is confirmed by a one-time code
+    (§ 2.1.1, block 14). Without `flow` and `code` the answer asks for them before any command;
+    an employee's assignment goes to the confirmation instead (§ 23.3.5)."""
+    if not is_top_authority:
+        return False
+    if not data.get("flow"):
+        raise errors.business_rule("BROAD_RIGHTS_CODE_REQUIRED", field="rights")
+    accounts.confirm_critical(
+        user, BROAD_ACTION, get_str(data, "flow"), get_str(data, "code", max_length=20)
+    )
+    return True
+
+
 @require_http_methods(["PUT"])
 def employee_rights(request: HttpRequest, cmp: str, employment_id: UUID) -> JsonResponse:
-    """Replaces the rights of an employee (§ 23.1.2, § 23.1.13, § 23.3.2–23.3.5)."""
+    """Replaces the rights of an employee (§ 23.1.2, § 23.1.13, § 23.3.2–23.3.5). Especially
+    broad additions need the director's one-time code or wait for his confirmation."""
+    user, _session = require_user(request)
     context, actor = _company_actor(request, cmp, "employee.rights.manage")
     data = parse_json(request)
     rights = access.parse_rights(data.get("rights"))
     expected_version = get_int(data, "expected_version")
     access.validate_rights(context.company.id, rights)
+    confirmed = (
+        _broad_code(user, data, context.is_top_authority)
+        if access.broad_added(context.company.id, employment_id, rights)
+        else False
+    )
 
     def handler(ctx: CommandContext) -> CommandResult:
-        access.replace_rights(
+        _employment, pending = access.replace_rights(
             ctx,
             company_id=context.company.id,
             employment_id=employment_id,
             specs=rights,
             expected_version=expected_version,
             is_top_authority=context.is_top_authority,
+            code_confirmed=confirmed,
         )
         employment = staff.get_employment(context.company.id, employment_id)
-        return CommandResult(200, {"employee": _employee_payload(employment)})
+        return CommandResult(
+            200,
+            {
+                "employee": _employee_payload(employment),
+                "rights_request": rightsets.request_payload(pending) if pending else None,
+            },
+        )
 
     payload = {
         "employment_id": str(employment_id),
         "rights": [r.as_dict() for r in rights],
         "expected_version": expected_version,
+        "flow": data.get("flow") if confirmed else None,
     }
     return run_and_respond(request, "employee.change_rights", actor, payload, handler)
+
+
+# --- Permission sets (§ 23.1.3, § 23.1.5, § 23.3.9; block 14) -----------------------------------
+
+
+def _codes(data: dict[str, Any], key: str = "permissions") -> list[str] | None:
+    if key not in data:
+        return None
+    value = data[key]
+    if (
+        not isinstance(value, list)
+        or len(value) > len(PERMISSIONS)
+        or not all(isinstance(x, str) for x in value)
+    ):
+        raise errors.validation_error(key)
+    return [str(x) for x in value]
+
+
+def _sets_body(company_id: UUID) -> dict[str, Any]:
+    return {"sets": [rightsets.set_payload(s) for s in rightsets.sets_of(company_id)]}
+
+
+@require_http_methods(["GET", "POST"])
+def permission_sets(request: HttpRequest, cmp: str) -> JsonResponse:
+    """GET: system and own sets. POST: a new own set — empty, from codes or based on another
+    set (§ 23.1.5); it is assigned to nobody (§ 23.1.15)."""
+    if request.method == "GET":
+        context, _actor = _company_actor(request, cmp, *EMPLOYEE_VIEW_PERMISSIONS)
+        return JsonResponse(_sets_body(context.company.id))
+    context, actor = _company_actor(request, cmp, "employee.sets.manage")
+    data = parse_json(request)
+    name = get_str(data, "name", max_length=rightsets.NAME_MAX)
+    based_on = get_str(data, "based_on", max_length=40, required=False) or None
+    codes = _codes(data)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        created = rightsets.create_set(
+            ctx, context.company.id, name=name, based_on=based_on, codes=codes
+        )
+        return CommandResult(201, {"set": rightsets.set_payload(created)})
+
+    payload = {"name": name, "based_on": based_on, "permissions": codes}
+    return run_and_respond(request, "permission_set.create", actor, payload, handler)
+
+
+@require_http_methods(["PATCH"])
+def permission_set_detail(request: HttpRequest, cmp: str, set_id: UUID) -> JsonResponse:
+    """Renames an own set or changes its codes; holders keep their copies (§ 23.1.3)."""
+    context, actor = _company_actor(request, cmp, "employee.sets.manage")
+    data = parse_json(request)
+    expected_version = get_int(data, "expected_version")
+    name = get_str(data, "name", max_length=rightsets.NAME_MAX) if "name" in data else None
+    codes = _codes(data)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        changed = rightsets.change_set(
+            ctx,
+            context.company.id,
+            set_id,
+            name=name,
+            codes=codes,
+            expected_version=expected_version,
+        )
+        return CommandResult(200, {"set": rightsets.set_payload(changed)})
+
+    payload = {
+        "set_id": str(set_id),
+        "name": name,
+        "permissions": codes,
+        "expected_version": expected_version,
+    }
+    return run_and_respond(request, "permission_set.change", actor, payload, handler)
+
+
+def _set_state(request: HttpRequest, cmp: str, set_id: UUID, *, archived: bool) -> JsonResponse:
+    context, actor = _company_actor(request, cmp, "employee.sets.manage")
+    expected_version = get_int(parse_json(request), "expected_version")
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        found = rightsets.set_archived(
+            ctx, context.company.id, set_id, archived=archived, expected_version=expected_version
+        )
+        return CommandResult(200, {"set": rightsets.set_payload(found)})
+
+    command = "permission_set.archive" if archived else "permission_set.restore"
+    payload = {"set_id": str(set_id), "expected_version": expected_version}
+    return run_and_respond(request, command, actor, payload, handler)
+
+
+@require_POST
+def permission_set_archive(request: HttpRequest, cmp: str, set_id: UUID) -> JsonResponse:
+    return _set_state(request, cmp, set_id, archived=True)
+
+
+@require_POST
+def permission_set_restore(request: HttpRequest, cmp: str, set_id: UUID) -> JsonResponse:
+    return _set_state(request, cmp, set_id, archived=False)
+
+
+@require_GET
+def permission_set_holders(request: HttpRequest, cmp: str, ref: str) -> JsonResponse:
+    """The holders of a set and what applying the current set would add and remove (§ 23.1.3)."""
+    context, actor = _company_actor(request, cmp, "employee.rights.manage")
+    return JsonResponse(rightsets.holders(context.company.id, ref[:40], actor.employment_id))
+
+
+@require_POST
+def permission_set_apply(request: HttpRequest, cmp: str, ref: str) -> JsonResponse:
+    """Applies the updated set to the chosen holders (§ 23.1.3, § 23.1.15)."""
+    user, _session = require_user(request)
+    context, actor = _company_actor(request, cmp, "employee.rights.manage")
+    data = parse_json(request)
+    raw = data.get("employment_ids")
+    if not isinstance(raw, list) or not raw or len(raw) > 500:
+        raise errors.validation_error("employment_ids")
+    try:
+        employment_ids = [UUID(str(x)) for x in raw]
+    except ValueError as exc:
+        raise errors.validation_error("employment_ids") from exc
+    ref = ref[:40]
+    confirmed = (
+        _broad_code(user, data, context.is_top_authority)
+        if rightsets.broad_apply(context.company.id, ref, employment_ids)
+        else False
+    )
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        done = rightsets.apply_set(
+            ctx,
+            context.company.id,
+            ref,
+            employment_ids,
+            is_top_authority=context.is_top_authority,
+            code_confirmed=confirmed,
+        )
+        return CommandResult(
+            200,
+            {
+                "applied": done.applied,
+                "rights_requests": [rightsets.request_payload(r) for r in done.requests],
+                **rightsets.holders(context.company.id, ref, actor.employment_id),
+            },
+        )
+
+    payload = {
+        "set": ref,
+        "employment_ids": sorted(map(str, employment_ids)),
+        "flow": data.get("flow") if confirmed else None,
+    }
+    return run_and_respond(request, "permission_set.apply", actor, payload, handler)
+
+
+# --- Confirmation of especially broad rights (§ 23.3.5) -----------------------------------------
+
+
+@require_GET
+def rights_requests(request: HttpRequest, cmp: str) -> JsonResponse:
+    """Requests of especially broad rights; `?state=pending` for the waiting ones."""
+    context, _actor = _company_actor(request, cmp, *EMPLOYEE_VIEW_PERMISSIONS)
+    state = request.GET.get("state", "")
+    items = [
+        rightsets.request_payload(r)
+        for r in rightsets.requests_of(context.company.id)
+        if not state or r.state == state
+    ]
+    return JsonResponse({"requests": items})
+
+
+def _top_actor(request: HttpRequest, cmp: str) -> tuple[Any, services.CompanyContext, Actor]:
+    """Only the acting top-authority director confirms or declines (§ 23.3.5)."""
+    user, session = require_user(request)
+    context = services.resolve_company(user, cmp, session.id)
+    actor = services.company_actor(user, context, session.id)
+    if not context.is_top_authority:
+        raise errors.business_rule("RIGHTS_CONFIRMATION_REQUIRES_TOP_AUTHORITY")
+    return user, context, actor
+
+
+@require_POST
+def rights_request_confirm(request: HttpRequest, cmp: str, request_id: UUID) -> JsonResponse:
+    user, context, actor = _top_actor(request, cmp)
+    data = parse_json(request)
+    accounts.confirm_critical(
+        user, BROAD_ACTION, get_str(data, "flow"), get_str(data, "code", max_length=20)
+    )
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        found = rightsets.confirm(ctx, context.company.id, request_id)
+        return CommandResult(200, {"request": rightsets.request_payload(found)})
+
+    payload = {"request_id": str(request_id), "flow": get_str(data, "flow")}
+    return run_and_respond(request, "employee.confirm_rights", actor, payload, handler)
+
+
+@require_POST
+def rights_request_decline(request: HttpRequest, cmp: str, request_id: UUID) -> JsonResponse:
+    _user, context, actor = _top_actor(request, cmp)
+    note = get_str(parse_json(request), "reason", max_length=REASON_MAX, required=False)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        found = rightsets.decline(ctx, context.company.id, request_id, note)
+        return CommandResult(200, {"request": rightsets.request_payload(found)})
+
+    payload = {"request_id": str(request_id), "reason": note}
+    return run_and_respond(request, "employee.decline_rights", actor, payload, handler)
+
+
+@require_POST
+def rights_request_cancel(request: HttpRequest, cmp: str, request_id: UUID) -> JsonResponse:
+    context, actor = _company_actor(request, cmp, "employee.rights.manage")
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        found = rightsets.cancel(ctx, context.company.id, request_id)
+        return CommandResult(200, {"request": rightsets.request_payload(found)})
+
+    payload = {"request_id": str(request_id)}
+    return run_and_respond(request, "employee.cancel_rights_request", actor, payload, handler)
 
 
 def _set_blocked(
@@ -549,13 +815,15 @@ def employee_journal_export(request: HttpRequest, cmp: str, employment_id: UUID)
 
 @require_GET
 def permission_catalog(request: HttpRequest, cmp: str) -> JsonResponse:
-    """System sets and permissions of the stage, for the rights editor (§ 23.1.14)."""
-    _company_actor(request, cmp, *EMPLOYEE_VIEW_PERMISSIONS)
+    """System and own sets with their current codes and the permissions by section, for the
+    rights editor (§ 23.1.5, § 23.1.14). `broad` — the codes of especially broad rights."""
+    context, _actor = _company_actor(request, cmp, *EMPLOYEE_VIEW_PERMISSIONS)
     return JsonResponse(
         {
-            "sets": [
-                {"code": code, "permissions": list(codes)} for code, codes in SYSTEM_SETS.items()
-            ],
+            **_sets_body(context.company.id),
             "permissions": list(PERMISSIONS),
+            "sections": PERMISSIONS,
+            "broad": sorted(BROAD_PERMISSIONS),
+            "broad_sets": sorted(BROAD_SETS),
         }
     )

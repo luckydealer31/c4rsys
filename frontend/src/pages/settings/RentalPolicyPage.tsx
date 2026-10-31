@@ -84,7 +84,7 @@ function PolicyFields({ policy, path, queryKey }: { policy: Policy; path: string
           : t("bookings.policy_effective_off", { source: t(`bookings.policy_source_${effective.source}`) })}
       </p>
       <label className="small">
-        <input type="checkbox" checked={enabled} disabled={!can("company.settings")} onChange={() => setEnabled(!enabled)} />{" "}
+        <input type="checkbox" checked={enabled} disabled={!can("rental.policy.manage")} onChange={() => setEnabled(!enabled)} />{" "}
         {t("bookings.policy_enabled")}
       </label>
       {enabled ? (
@@ -95,7 +95,7 @@ function PolicyFields({ policy, path, queryKey }: { policy: Policy; path: string
         </div>
       ) : null}
       <ErrorMessage error={save.error} />
-      {can("company.settings") ? (
+      {can("rental.policy.manage") ? (
         <div className="actions">
           <button type="submit" disabled={save.pending || (enabled && after === "")}>
             {t("common.save")}

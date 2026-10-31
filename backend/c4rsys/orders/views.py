@@ -260,10 +260,10 @@ def _create(request: HttpRequest, context: companies.CompanyContext, actor: Acto
 
 @require_POST
 def order_form(request: HttpRequest, cmp: str, order_id: UUID) -> JsonResponse:
-    """§ 12.2.2: «Form the order» with «Change orders»; its rental proposals become bookings and
-    need «Book» there."""
+    """§ 12.2.2: «Form the order»; § 23.6.5 (block 14): a right of its own. Its rental proposals
+    become bookings and need «Book» there."""
     context, actor = _actor(request, cmp)
-    _order_for(actor, context.company.id, order_id, "order.edit")
+    _order_for(actor, context.company.id, order_id, "order.form")
     expected_version = get_int(parse_json(request), "expected_version")
 
     def handler(ctx: CommandContext) -> CommandResult:
@@ -275,9 +275,10 @@ def order_form(request: HttpRequest, cmp: str, order_id: UUID) -> JsonResponse:
 
 @require_POST
 def order_responsible(request: HttpRequest, cmp: str, order_id: UUID) -> JsonResponse:
-    """§ 12.1.10: the responsible employee is changed with «Change orders» (decision З7)."""
+    """§ 12.1.10: the responsible employee; § 23.6.5 (block 14): «Assign the responsible» is a
+    right of its own (it was «Change orders» by З7, see BLOCK14_PLAN)."""
     context, actor = _actor(request, cmp)
-    _order_for(actor, context.company.id, order_id, "order.edit")
+    _order_for(actor, context.company.id, order_id, "order.assign_responsible")
     data = parse_json(request)
     employment_id = _uuid(data, "employment_id")
     if employment_id is None:

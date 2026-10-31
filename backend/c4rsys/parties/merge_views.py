@@ -14,7 +14,15 @@ from c4rsys.accounts.middleware import require_user
 from c4rsys.companies import services as companies
 from c4rsys.companies.views import run_and_respond
 from c4rsys.parties import counterparties, data_requests, history, links, merges
-from c4rsys.parties.link_views import VIEW, _actor, _answerer, _fields, _has, _own_link
+from c4rsys.parties.link_views import (
+    REQUEST,
+    VIEW,
+    _actor,
+    _answerer,
+    _fields,
+    _has,
+    _own_link,
+)
 from c4rsys.parties.models import CardMerge, ProfileDataRequest, ProfileLink
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
@@ -178,7 +186,7 @@ def link_data_requests(request: HttpRequest, cmp: str, link_id: UUID) -> JsonRes
         ]
         return JsonResponse({"requests": items})
 
-    _own_link(context.company.id, link_id, actor)
+    _own_link(context.company.id, link_id, actor, REQUEST)  # § 23.8.2, block 14
     occasion = get_str(parse_json(request), "occasion", max_length=500)
 
     def handler(ctx: CommandContext) -> CommandResult:

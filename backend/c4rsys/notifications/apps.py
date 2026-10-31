@@ -15,5 +15,7 @@ class NotificationsConfig(AppConfig):
         services.register_check(rules.read_journal)
         # § 20.3.4: a change of an employee's access is told to the employee.
         rules.on_journal("employee.rights_changed", rules.on_access_changed)
+        rules.on_journal("employee.rights_set_applied", rules.on_access_changed)
+        rules.on_journal("employee.rights_confirmed", rules.on_access_changed)
         rules.on_journal("employee.access_blocked", rules.on_access_changed)
         rules.on_journal("employee.access_restored", rules.on_access_changed)

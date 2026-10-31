@@ -32,8 +32,9 @@ export function RecordActions({ record }: { record: Payment }) {
   const [mode, setMode] = useState<"" | "reverse" | "split" | "client">("");
   const reversible =
     can("finance.correct") && REVERSIBLE.has(record.kind) && !record.reversed_by_id && record.allocations.every((a) => a.state !== "active");
+  // § 23.7.7 (block 14): correcting the client and the binding of a record are separate rights.
   const clientFixable =
-    can("finance.correct") &&
+    can("finance.record.client") &&
     record.kind === "payment" &&
     !record.reversed_by_id &&
     record.allocations.every((a) => a.state !== "active");
@@ -245,7 +246,7 @@ export function RelinkAllocation({ record, allocationId }: { record: Payment; al
   const targetOrder = (orders.data?.orders ?? []).find((o) => o.id === target);
   const targetCurrency = targetOrder ? Object.keys(targetOrder.amounts)[0] : undefined;
   const exchange = Boolean(targetCurrency && targetCurrency !== record.currency);
-  if (!can("finance.correct")) return null;
+  if (!can("finance.record.relink")) return null;
   if (!open)
     return (
       <button type="button" className="link" onClick={() => setOpen(true)}>

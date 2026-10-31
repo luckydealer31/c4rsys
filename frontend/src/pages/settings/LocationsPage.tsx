@@ -41,7 +41,7 @@ export function LocationsEditor({ createOpen = false }: { createOpen?: boolean }
       {locations.data?.locations.length === 0 ? (
         <p className="muted">{t("locations.none")}</p>
       ) : null}
-      {can("company.settings") ? <CreateLocation initiallyOpen={createOpen} /> : null}
+      {can("location.create") ? <CreateLocation initiallyOpen={createOpen} /> : null}
     </>
   );
 }
@@ -205,12 +205,23 @@ export function LocationPage() {
       </p>
       {locations.isLoading ? <Loading /> : null}
       {locations.data && !location ? <p className="muted">{t("locations.not_found")}</p> : null}
-      {location ? <LocationCard location={location} editable={can("company.settings")} /> : null}
+      {location ? (
+        // § 23.5.3 (block 14): changing the location and managing its contexts are separate rights.
+        <LocationCard location={location} editable={can("location.edit")} contexts={can("location.contexts.manage")} />
+      ) : null}
     </div>
   );
 }
 
-function LocationCard({ location, editable }: { location: Location; editable: boolean }) {
+function LocationCard({
+  location,
+  editable,
+  contexts,
+}: {
+  location: Location;
+  editable: boolean;
+  contexts: boolean;
+}) {
   const { t } = useTranslation();
   const company = useCompany();
   const navigate = useNavigate();
@@ -286,7 +297,7 @@ function LocationCard({ location, editable }: { location: Location; editable: bo
                     : "—"}
               </td>
               <td>
-                {editable && !(deactivated && c.state === "disabled") ? (
+                {contexts && !(deactivated && c.state === "disabled") ? (
                   <button
                     type="button"
                     className="secondary"
@@ -303,6 +314,16 @@ function LocationCard({ location, editable }: { location: Location; editable: bo
           ))}
         </tbody>
       </table>
+      {contexts && !deactivated && missingTypes.length ? (
+        <div className="actions">
+          {missingTypes.map((type) => (
+            <button key={type} type="button" className="secondary" onClick={() => void run(addContext, { type })}>
+              {t("locations.add_context", { context: t(`contexts.${type}`) })}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {!editable && (contexts || error) ? <Refusal error={error} /> : null}
       {editable ? (
         <form className="stack" onSubmit={save}>
           <div className="row">
@@ -328,13 +349,6 @@ function LocationCard({ location, editable }: { location: Location; editable: bo
             <button type="submit" disabled={update.pending}>
               {t("common.save")}
             </button>
-            {deactivated
-              ? null
-              : missingTypes.map((type) => (
-                  <button key={type} type="button" className="secondary" onClick={() => void run(addContext, { type })}>
-                    {t("locations.add_context", { context: t(`contexts.${type}`) })}
-                  </button>
-                ))}
           </div>
           <div className="actions">
             <button

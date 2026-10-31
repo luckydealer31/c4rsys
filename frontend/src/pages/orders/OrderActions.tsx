@@ -76,7 +76,8 @@ export function FormOrder({ order, onDone }: { order: Order; onDone: Done }) {
   const company = useCompany();
   const can = useCan();
   const form = useCommand<Record<string, unknown>, OrderResponse>(`/c/${company.public_id}/orders/${order.id}/form`);
-  if (order.state !== "preliminary" || !can("order.edit")) return null;
+  // § 23.6.5 (block 14): forming the order is a right of its own.
+  if (order.state !== "preliminary" || !can("order.form")) return null;
   return (
     <Card title={t("orders.preliminary_title")}>
       <p className="muted small">{t("orders.preliminary_hint")}</p>
@@ -108,11 +109,11 @@ export function ResponsibleField({ order, onDone }: { order: Order; onDone: Done
   const list = employees.data?.employees ?? [];
   const current = list.find((e) => e.id === order.responsible_employment_id);
   const name = current ? employeeName(current, t) : "—";
-  if (!editing || !editable(order) || !can("order.edit")) {
+  if (!editing || !editable(order) || !can("order.assign_responsible")) {
     return (
       <>
         {name}{" "}
-        {editable(order) && can("order.edit") ? (
+        {editable(order) && can("order.assign_responsible") ? (
           <button type="button" className="secondary" onClick={() => setEditing(true)}>
             {t("orders.change_responsible")}
           </button>

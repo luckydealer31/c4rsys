@@ -20,7 +20,7 @@ from c4rsys.companies.permissions import PERMISSIONS
 from c4rsys.platform.commands import Actor
 from c4rsys.platform.models import AuditEvent
 from tests.accounts.helpers import post, register
-from tests.companies.helpers import create_company, named_user
+from tests.companies.helpers import broad_code, create_company, is_broad, named_user
 
 pytestmark = pytest.mark.django_db
 
@@ -68,7 +68,8 @@ def _accept(client: Client, invitation_id: str, **flags: bool) -> Any:
 def _hire(owner: Client, cmp: str, email: str, rights: list[dict[str, Any]]) -> tuple[Client, str]:
     """Invites and accepts; returns the employee's client and employment ID."""
     client, public_id = _user(email)
-    invitation = _invite(owner, cmp, public_id, rights).json()["invitation"]
+    extra = broad_code(owner) if is_broad(rights) else {}
+    invitation = _invite(owner, cmp, public_id, rights, **extra).json()["invitation"]
     assert _accept(client, invitation["id"]).status_code == 200
     return client, invitation["employment_id"]
 
@@ -364,15 +365,17 @@ def test_rights_change_keeps_unchanged_assignments(owner: Client, cmp: str) -> N
 
 
 def test_admin_manages_rights_but_not_broad_ones_nor_own(owner: Client, cmp: str) -> None:
-    # § 23.3.2, § 23.3.5 with the stage 1 decision: broad rights only by the director.
+    # § 23.3.2, § 23.3.5 (block 14): broad rights from an employee wait for the director.
     admin, admin_employment = _hire(owner, cmp, "admin@example.com", [SET_ADMIN])
     _client, worker = _hire(owner, cmp, "worker@example.com", [])
 
     assert _rights(admin, cmp, worker, [SET_RENTAL]).status_code == 200
     broad = _rights(admin, cmp, worker, [SET_ADMIN])
-    assert broad.json()["error"]["code"] == "BROAD_RIGHTS_REQUIRE_TOP_AUTHORITY"
+    assert broad.status_code == 200, broad.content
+    assert broad.json()["rights_request"]["state"] == "pending"
+    assert [r["set"] for r in broad.json()["employee"]["rights"]] == []
     grant = _rights(admin, cmp, worker, [{"type": "grant", "permission": "employee.rights.manage"}])
-    assert grant.json()["error"]["code"] == "BROAD_RIGHTS_REQUIRE_TOP_AUTHORITY"
+    assert grant.json()["rights_request"]["rights"][0]["permission"] == "employee.rights.manage"
     own = _rights(admin, cmp, admin_employment, [])
     assert own.json()["error"]["code"] == "SELF_RIGHTS_CHANGE_FORBIDDEN"
     assert _invite(admin, cmp, "third@example.com", [SET_ADMIN]).status_code == 422
@@ -447,6 +450,8 @@ def test_company_answer_lists_own_permissions(owner: Client, cmp: str) -> None:
         "finance.offset",
         "finance.payment.receive",
         "finance.payout",
+        "finance.record.client",
+        "finance.record.relink",
         "finance.settlement.manage",
         "finance.transfer",
         "order.view",

@@ -91,7 +91,7 @@ export function CounterpartiesList() {
         <p className="muted">{t("counterparties.list_not_allowed")}</p>
       )}
       {can("counterparty.create") ? <CounterpartyForm /> : null}
-      {can("counterparty.create") && can("counterparty.edit") ? <ProvisionalForm cardType="counterparty" /> : null}
+      {can("counterparty.create") && can("counterparty.link.request") ? <ProvisionalForm cardType="counterparty" /> : null}
     </>
   );
 }

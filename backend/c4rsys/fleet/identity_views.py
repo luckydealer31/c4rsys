@@ -143,11 +143,33 @@ def split_preview(request: HttpRequest, cmp: str, card_id: UUID, merge_id: UUID)
     return JsonResponse(found)
 
 
+def _split_subject(card_id: UUID, merge_id: UUID) -> str:
+    return f"{card_id}:split:{merge_id}"
+
+
+@require_POST
+def split_code(request: HttpRequest, cmp: str, card_id: UUID, merge_id: UUID) -> JsonResponse:
+    """§ 23.5.4 (block 14): the split also needs the repeated one-time code."""
+    context, actor, card = _card(request, cmp, card_id)
+    _require(actor, "vehicle.split", card)
+    found = merges.split_preview(context.company.id, merge_id)
+    if found["merge"]["primary"]["id"] != str(card.id):
+        raise errors.not_found()
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        merges.request_code(ctx, context.company.id, _split_subject(card.id, merge_id))
+        return CommandResult(200, {"sent": True})
+
+    payload = {"card_id": str(card.id), "merge_id": str(merge_id)}
+    return run_and_respond(request, "vehicle.split_code", actor, payload, handler)
+
+
 @require_POST
 def split(request: HttpRequest, cmp: str, card_id: UUID, merge_id: UUID) -> JsonResponse:
     context, actor, card = _card(request, cmp, card_id)
     _require(actor, "vehicle.split", card)
     data = parse_json(request)
+    code = get_str(data, "code", max_length=12)
     reason = get_str(data, "reason", max_length=REASON_MAX)
     raw = data.get("assignments") or {}
     if not isinstance(raw, dict) or not all(
@@ -160,6 +182,16 @@ def split(request: HttpRequest, cmp: str, card_id: UUID, merge_id: UUID) -> Json
         raise errors.not_found()
 
     def handler(ctx: CommandContext) -> CommandResult:
+        subject = _split_subject(card.id, merge_id)
+        failed = merges.check_code(ctx, context.company.id, subject, code)
+        if failed is not None:
+            ctx.audit(
+                "vehicle.split_code_rejected",
+                object_type="vehicle_card",
+                object_id=card.id,
+                after={"error": failed.code},
+            )
+            return CommandResult(failed.status, failed.payload(ctx.request_id))
         record = merges.split(
             ctx, context.company.id, merge_id, assignments=assignments, reason=reason
         )
@@ -170,6 +202,7 @@ def split(request: HttpRequest, cmp: str, card_id: UUID, merge_id: UUID) -> Json
         "merge_id": str(merge_id),
         "assignments": assignments,
         "reason": reason,
+        "code": code,
     }
     return run_and_respond(request, "vehicle.split", actor, payload, handler)
 

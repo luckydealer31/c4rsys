@@ -25,12 +25,12 @@ def _actor(request: HttpRequest, cmp: str) -> tuple[companies.CompanyContext, Ac
 
 @require_http_methods(["GET", "PUT"])
 def policy(request: HttpRequest, cmp: str) -> JsonResponse:
-    """«Agree additions with the client»: seen by all, changed in the company settings."""
+    """«Agree additions with the client»: seen by all, changed with the order policy right."""
     context, actor = _actor(request, cmp)
     if request.method == "GET":
         return JsonResponse({"require_approval": approvals.policy_of(context.company.id)})
-    if not access.RightsResolver().has_permission(actor, "company.settings", whole_company=True):
-        raise errors.permission_denied("company.settings")
+    if not access.RightsResolver().has_permission(actor, "order.policy.manage", whole_company=True):
+        raise errors.permission_denied("order.policy.manage")
     value = parse_json(request).get("require_approval")
     if not isinstance(value, bool):
         raise errors.validation_error("require_approval")

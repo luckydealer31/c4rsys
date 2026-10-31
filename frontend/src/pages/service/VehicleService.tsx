@@ -93,19 +93,18 @@ function Maintenance({ vehicle }: { vehicle: Vehicle }) {
             {" · "}
             {t("service.due", { when: dueText(rule, unit, t) })}
           </div>
-          {can("vehicle.edit") ? (
+          {can("vehicle.maintenance.rules") || can("vehicle.maintenance.record") ? (
             <button type="button" className="secondary small" onClick={() => setEditing(rule)}>
               {t("common.edit")}
             </button>
           ) : null}
         </div>
       ))}
-      {can("vehicle.edit") ? (
-        <>
-          <RuleForm key={editing?.id ?? "new"} vehicleId={vehicle.id} unit={unit} rule={editing ?? undefined} onDone={() => setEditing(null)} />
-          <CopyRules vehicleId={vehicle.id} />
-        </>
+      {/* § 23.5.1 (block 14): the rules and a recorded done work are separate rights. */}
+      {can("vehicle.maintenance.rules") || (editing && can("vehicle.maintenance.record")) ? (
+        <RuleForm key={editing?.id ?? "new"} vehicleId={vehicle.id} unit={unit} rule={editing ?? undefined} onDone={() => setEditing(null)} />
       ) : null}
+      {can("vehicle.maintenance.rules") ? <CopyRules vehicleId={vehicle.id} /> : null}
     </Card>
   );
 }

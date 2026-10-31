@@ -41,6 +41,7 @@ const OBJECT_PATHS: Record<string, string> = {
   owner_request: "/link-requests/",
   service_operation: "/service/operations/",
   delivery: "/trips/",
+  employment: "/clients/employees/",
 };
 
 /** The mark in the header: unread active notifications (§ 20.1.5; З3). */

@@ -1078,8 +1078,8 @@ def _requirement_payload(r: Any) -> dict[str, Any]:
 
 
 def _settings_reader(actor: Actor) -> None:
-    if not any(_anywhere(actor, p) for p in ("company.settings", "documents.view")):
-        raise errors.permission_denied("company.settings")
+    if not any(_anywhere(actor, p) for p in ("documents.policy.manage", "documents.view")):
+        raise errors.permission_denied("documents.policy.manage")
 
 
 @require_http_methods(["GET", "POST"])
@@ -1090,8 +1090,8 @@ def requirement_list(request: HttpRequest, cmp: str) -> JsonResponse:
         _settings_reader(actor)
         items = requirements.of_company(context.company.id)
         return JsonResponse({"requirements": [_requirement_payload(r) for r in items]})
-    if not _anywhere(actor, "company.settings"):
-        raise errors.permission_denied("company.settings")
+    if not _anywhere(actor, "documents.policy.manage"):
+        raise errors.permission_denied("documents.policy.manage")
     data = parse_json(request)
     stage = get_str(data, "stage", max_length=15)
     need = get_str(data, "need", max_length=10)
@@ -1111,8 +1111,8 @@ def requirement_list(request: HttpRequest, cmp: str) -> JsonResponse:
 @require_POST
 def requirement_remove(request: HttpRequest, cmp: str, requirement_id: UUID) -> JsonResponse:
     context, actor = _actor(request, cmp)
-    if not _anywhere(actor, "company.settings"):
-        raise errors.permission_denied("company.settings")
+    if not _anywhere(actor, "documents.policy.manage"):
+        raise errors.permission_denied("documents.policy.manage")
 
     def handler(ctx: CommandContext) -> CommandResult:
         requirements.remove(ctx, context.company, requirement_id)
@@ -1135,11 +1135,11 @@ def service_act_setting(request: HttpRequest, cmp: str) -> JsonResponse:
     """The act of completed works of a client's service: required, signed by the client."""
     context, actor = _actor(request, cmp)
     if request.method == "GET":
-        if not any(_anywhere(actor, p) for p in ("company.settings", "service.view")):
-            raise errors.permission_denied("company.settings")
+        if not any(_anywhere(actor, p) for p in ("service.policy.manage", "service.view")):
+            raise errors.permission_denied("service.policy.manage")
         return JsonResponse({"setting": _act_payload(requirements.service_act(context.company.id))})
-    if not _anywhere(actor, "company.settings"):
-        raise errors.permission_denied("company.settings")
+    if not _anywhere(actor, "service.policy.manage"):
+        raise errors.permission_denied("service.policy.manage")
     data = parse_json(request)
     act_required = data.get("act_required")
     act_signed = data.get("act_signed")

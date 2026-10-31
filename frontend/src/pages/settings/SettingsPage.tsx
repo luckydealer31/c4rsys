@@ -13,6 +13,7 @@ const EMPLOYEE_VIEW = [
   "employee.card.edit",
   "employee.positions.manage",
   "org.manage",
+  "employee.sets.manage",
 ];
 
 /** Settings of the company: its profile and the setup wizard. Employees are a tab of «Contacts»,
@@ -29,9 +30,12 @@ export function SettingsPage() {
     // § 5.2, § 5.1.5: the organisation structure and the positions handbook.
     ["org", "/settings/org", EMPLOYEE_VIEW.some(can)],
     ["positions", "/settings/positions", EMPLOYEE_VIEW.some(can)],
-    ["rental", "/settings/rental", can("company.settings")],
-    ["notifications", "/settings/notifications", can("company.settings")],
-    ["discounts", "/settings/discounts", can("company.settings")],
+    // § 23.1.5, § 23.3.9: system and own permission sets (block 14).
+    ["permission_sets", "/settings/permission-sets", EMPLOYEE_VIEW.some(can)],
+    // § 23.3.7: the policies of the sections have rights of their own (block 14).
+    ["rental", "/settings/rental", can("rental.policy.manage")],
+    ["notifications", "/settings/notifications", can("notifications.policy.manage")],
+    ["discounts", "/settings/discounts", can("order.policy.manage")],
     // § 10.3.1, § 10.3.5: templates and policy of inspections (§ 23.3.7).
     ["inspection_templates", "/settings/inspection-templates", can("inspection.policy.manage") || can("inspection.conduct")],
     ["inspection_policy", "/settings/inspection-policy", can("inspection.policy.manage") || can("inspection.conduct")],

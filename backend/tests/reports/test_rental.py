@@ -10,6 +10,7 @@ from unittest import mock
 import pytest
 from django.test import Client
 
+from c4rsys.fleet.models import VehicleCard
 from c4rsys.reports import rental as rental_report
 from tests.orders.test_close import _finished_rental, _pay, desk, frozen_clock  # noqa: F401
 from tests.rentals.scenario import NOW, Scenario, add_location, add_vehicle
@@ -36,6 +37,9 @@ def _blocks(client: Client, s: Scenario, query: str = PERIOD) -> dict[str, dict[
 
 def test_rental_time_utilisation_and_days(owner: Client, s: Scenario) -> None:
     _finished_rental(owner, s)  # 1 Nov 10:00 → 3 Nov 10:00, Bangkok
+    # The card is created by the real clock: put its creation before the period so the test does
+    # not depend on the day it runs.
+    VehicleCard.objects.filter(company__public_id=s.cmp).update(created_at=NOW - timedelta(days=30))
     blocks = _blocks(owner, s)
     assert blocks["rental.started"]["value"] == 1 and blocks["rental.finished"]["value"] == 1
     assert blocks["rental.hours"]["value"] == "48.0"

@@ -172,7 +172,7 @@ export function ApprovalPolicyCard() {
         <input
           type="checkbox"
           checked={value}
-          disabled={!can("company.settings") || save.pending}
+          disabled={!can("order.policy.manage") || save.pending}
           onChange={async () => {
             if ((await save.run({ require_approval: !value })) !== null) {
               await client.invalidateQueries({ queryKey: key });

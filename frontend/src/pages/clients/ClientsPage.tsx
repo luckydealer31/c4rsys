@@ -145,7 +145,7 @@ function ClientsList() {
         <p className="muted">{t("clients.list_not_allowed")}</p>
       )}
       {can("client.create") ? <ClientForm /> : null}
-      {can("client.create") && can("client.edit") ? <ProvisionalForm cardType="client" /> : null}
+      {can("client.create") && can("client.link.request") ? <ProvisionalForm cardType="client" /> : null}
     </>
   );
 }

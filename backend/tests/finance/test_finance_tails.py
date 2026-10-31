@@ -15,7 +15,7 @@ from c4rsys.finance.models import PaymentClientChange
 from c4rsys.rentals import issue as issue_module
 from c4rsys.rentals import returns as returns_module
 from tests.accounts.helpers import post
-from tests.companies.helpers import key
+from tests.companies.helpers import hire, key
 from tests.finance.test_settlements import _purchase_and_receipt
 from tests.rentals.scenario import NOW, Scenario, add_client, build, issue
 from tests.warehouse.test_receipts import supplier
@@ -77,6 +77,10 @@ def _available(client: Client, cmp: str, client_id: str) -> dict[str, str]:
     return data
 
 
+def _grant(code: str) -> dict[str, str]:
+    return {"type": "grant", "permission": code}
+
+
 # --- § 17.2.12 ------------------------------------------------------------------------------
 
 
@@ -85,6 +89,13 @@ def test_client_of_a_payment_is_corrected_with_history(owner: Client, s: Scenari
     account = _account(owner, s.cmp)
     payment = _pay(owner, s, account, "1000").json()["payment"]
     url = f"/api/c/{s.cmp}/money-records/{payment['id']}/client"
+    # § 23.7.7 (block 14): a right of its own, not the ordinary correction.
+    corrector, _ = hire(
+        owner, s.cmp, "fc@example.com", [_grant("finance.correct"), _grant("finance.account.view")]
+    )
+    refused = post(corrector, url, {"client_id": other, "reason": "Wrong card"}, key())
+    assert refused.status_code == 403
+    assert refused.json()["error"]["params"]["permission"] == "finance.record.client"
 
     without_reason = post(owner, url, {"client_id": other}, key())
     changed = post(owner, url, {"client_id": other, "reason": "Wrong card"}, key())
@@ -187,6 +198,13 @@ def test_payment_in_another_currency_is_moved_off_the_order(
         "allocations": [{"order_id": rental["order_id"], "amount": "50"}],
     }
     payment = post(owner, f"/api/c/{s.cmp}/payments/cash", body, key()).json()["payment"]
+    # § 23.7.7 (block 14): changing the binding of a record is a right of its own.
+    corrector, _ = hire(
+        owner, s.cmp, "fr@example.com", [_grant("finance.correct"), _grant("finance.account.view")]
+    )
+    relink = f"/api/c/{s.cmp}/payment-allocations/{payment['allocations'][0]['id']}/relink"
+    refused = post(corrector, relink, {"order_id": None, "reason": "x"}, key())
+    assert refused.json()["error"]["params"]["permission"] == "finance.record.relink"
 
     moved = post(
         owner,

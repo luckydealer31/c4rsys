@@ -31,7 +31,9 @@ from c4rsys.rentals.views import (
 
 BOOK = "rental.book"
 DEPOSIT = "finance.deposit.manage"
-SETTINGS = "company.settings"
+# § 23.3.7 (block 14): the rules of the rental have a right of their own, checked in the location
+# of a location policy.
+SETTINGS = "rental.policy.manage"
 
 
 def _require(actor: Actor, permission: str, location_id: UUID | None = None) -> None:
@@ -260,7 +262,7 @@ def policy(request: HttpRequest, cmp: str) -> JsonResponse:
     location_id = _optional_uuid(dict(request.GET.items()), "location_id")
     if request.method == "GET":
         return JsonResponse({"policy": _policy_payload(context.company.id, location_id)})
-    _require(actor, SETTINGS)
+    _require(actor, SETTINGS, location_id)
     data = parse_json(request)
     enabled = data.get("enabled")
     if not isinstance(enabled, bool):
@@ -296,7 +298,7 @@ def issue_policy(request: HttpRequest, cmp: str) -> JsonResponse:
         return JsonResponse(
             {"policy": issue_policies.policy_payload(context.company.id, location_id)}
         )
-    _require(actor, SETTINGS)
+    _require(actor, SETTINGS, location_id)
     data = parse_json(request)
     values = {name: str(data.get(name, "")) for name in issue_policies.FIELDS}
 

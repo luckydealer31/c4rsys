@@ -59,6 +59,7 @@ import { OrgPage, PositionsPage } from "./pages/settings/OrgPage";
 import { ExportPage } from "./pages/settings/ExportPage";
 import { DiscountCatalogPage } from "./pages/orders/Discounts";
 import { SettingsPage } from "./pages/settings/SettingsPage";
+import { PermissionSetsPage } from "./pages/settings/PermissionSetsPage";
 import { OwnersPage } from "./pages/ownership/OwnersPage";
 import { HoldingsPage } from "./pages/ownership/HoldingsPage";
 import { CompanyStatePage } from "./pages/ownership/CompanyStatePage";
@@ -233,6 +234,7 @@ function MainApp({ cabinet }: { cabinet: boolean }) {
         <Route path="settings/company" element={<CompanyProfilePage />} />
         <Route path="settings/org" element={<OrgPage />} />
         <Route path="settings/positions" element={<PositionsPage />} />
+        <Route path="settings/permission-sets" element={<PermissionSetsPage />} />
         <Route path="settings/owners" element={<OwnersPage />} />
         <Route path="settings/holdings" element={<HoldingsPage />} />
         <Route path="settings/state" element={<CompanyStatePage />} />

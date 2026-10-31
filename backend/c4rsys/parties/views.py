@@ -330,9 +330,9 @@ def _provisional(request: HttpRequest, cmp: str, card_type: str) -> JsonResponse
 
     context, actor = _actor(request, cmp)
     create, link = (
-        ("client.create", "client.edit")
+        ("client.create", "client.link.request")
         if card_type == "client"
-        else ("counterparty.create", "counterparty.edit")
+        else ("counterparty.create", "counterparty.link.request")
     )
     _require(actor, create)
     _require(actor, link)

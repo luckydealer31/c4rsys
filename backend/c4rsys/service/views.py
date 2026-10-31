@@ -1,8 +1,8 @@
 """HTTP API of service works (ТЗ гл. 16, § 23.6.4; customer's decisions С-1…С-7 of 29.10.2026).
 
 Rights are checked in the service location and its context (§ 23.6.4): the catalog and rates by
-«Service catalog», posts by the company settings (§ 16.3.1: posts are added in the settings of
-the location). A new order made by a service operation needs no «Create orders» (§ 23.6.5); an
+«Service catalog», posts by the service policy right (§ 16.3.1, § 23.3.7; block 14). A new order
+made by a service operation needs no «Create orders» (§ 23.6.5); an
 existing one needs «Change orders».
 """
 
@@ -293,13 +293,13 @@ def _post_payload(post: ServicePost) -> dict[str, Any]:
 def post_list(request: HttpRequest, cmp: str) -> JsonResponse:
     context, actor = _actor(request, cmp)
     if request.method == "GET":
-        _require_any(actor, "service.view", "company.settings")
+        _require_any(actor, "service.view", "service.policy.manage")
         posts = catalog.posts_of(context.company.id)
         return JsonResponse({"posts": [_post_payload(p) for p in posts]})
     data = parse_json(request)
     location_id = _required_uuid(data, "location_id")
     name = get_str(data, "name", max_length=100).strip()
-    _require(actor, "company.settings", location_id)
+    _require(actor, "service.policy.manage", location_id)
 
     def handler(ctx: CommandContext) -> CommandResult:
         post = catalog.create_post(ctx, context.company, location_id, name)
@@ -315,7 +315,7 @@ def post_detail(request: HttpRequest, cmp: str, post_id: UUID) -> JsonResponse:
     post = ServicePost.objects.filter(company=context.company, pk=post_id).first()
     if post is None:
         raise errors.not_found()
-    _require(actor, "company.settings", post.location_id)
+    _require(actor, "service.policy.manage", post.location_id)
     data = parse_json(request)
     name = get_str(data, "name", max_length=100, required=False).strip() or None
     archived = data.get("archived")
@@ -1328,13 +1328,13 @@ def _rules_response(company_id: UUID, card_id: UUID) -> dict[str, Any]:
 @require_http_methods(["GET", "POST"])
 def vehicle_rules(request: HttpRequest, cmp: str, card_id: UUID) -> JsonResponse:
     """Reminders belong to the vehicle and are seen with the right to view vehicles, without the
-    internal data of the service (9.1.13); rules are kept with the right to change vehicles
-    (PROPOSAL)."""
+    internal data of the service (9.1.13); rules are kept with «Maintenance rules» (§ 23.5.1,
+    block 14). The initial last work of a new rule goes with the rule (PROPOSAL)."""
     context, actor = _actor(request, cmp)
     if request.method == "GET":
         _require(actor, "vehicle.view")
         return JsonResponse(_rules_response(context.company.id, card_id))
-    _require(actor, "vehicle.edit")
+    _require(actor, RULES)
     data = parse_json(request)
     rule_data = _rule_data(data)
 
@@ -1346,10 +1346,34 @@ def vehicle_rules(request: HttpRequest, cmp: str, card_id: UUID) -> JsonResponse
     return run_and_respond(request, "maintenance_rule.create", actor, payload, handler)
 
 
+RULES = "vehicle.maintenance.rules"
+RECORD = "vehicle.maintenance.record"
+# The fields of a rule that only «Record a done maintenance» changes (§ 23.5.1).
+DONE_FIELDS = ("last_done_on", "last_done_odometer")
+
+
+def _require_rule_change(actor: Actor, rule: Any, data: maintenance.RuleData | None) -> None:
+    """§ 23.5.1 (block 14): the rule (intervals, warnings, archive) needs «Maintenance rules»;
+    a new last done work, from which the countdown starts again, needs «Record a done
+    maintenance». Checked on the locked rule."""
+    if data is None:
+        _require(actor, RULES)
+        return
+    stored = {"system_work": "system_work_id"}
+    changed = {
+        name for name in RULE_KEYS if getattr(data, name) != getattr(rule, stored.get(name, name))
+    }
+    if changed & set(DONE_FIELDS):
+        _require(actor, RECORD)
+    if changed - set(DONE_FIELDS):
+        _require(actor, RULES)
+
+
 @require_http_methods(["PATCH"])
 def rule_detail(request: HttpRequest, cmp: str, rule_id: UUID) -> JsonResponse:
     context, actor = _actor(request, cmp)
-    _require(actor, "vehicle.edit")
+    if not any(access.RightsResolver().has_permission(actor, p) for p in (RULES, RECORD)):
+        raise errors.permission_denied(RULES)
     data = parse_json(request)
     expected_version = get_int(data, "expected_version")
     archived = data.get("archived")
@@ -1359,6 +1383,7 @@ def rule_detail(request: HttpRequest, cmp: str, rule_id: UUID) -> JsonResponse:
 
     def handler(ctx: CommandContext) -> CommandResult:
         rule = maintenance.locked_rule(context.company.id, rule_id, expected_version)
+        _require_rule_change(actor, rule, rule_data)
         if rule_data is not None:
             maintenance.change_rule(ctx, rule, rule_data)
         else:
@@ -1378,7 +1403,7 @@ def rule_detail(request: HttpRequest, cmp: str, rule_id: UUID) -> JsonResponse:
 def vehicle_rules_copy(request: HttpRequest, cmp: str, card_id: UUID) -> JsonResponse:
     """9.1.12: `choices` maps a matching source rule to "keep" or "replace"."""
     context, actor = _actor(request, cmp)
-    _require(actor, "vehicle.edit")
+    _require(actor, RULES)
     data = parse_json(request)
     source = _required_uuid(data, "from_vehicle_id")
     raw = data.get("choices") or {}

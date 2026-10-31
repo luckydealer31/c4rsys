@@ -3,10 +3,14 @@
 Codes are the technical form of the rights of chapter 23 (docs/stage1/STAGE1_COMMANDS_API.md).
 The lists seed the `permission`, `permission_set` and `permission_set_item` tables; changes are
 made with a new data migration. An assignment keeps its own copy of the codes, so a changed set
-does not change the access of employees by itself (§ 23.1.3, § 23.1.15).
+does not change the access of employees by itself (§ 23.1.3, § 23.1.15); since block 14 the
+updated set is applied to its holders by a separate action (companies/rightsets.py). Companies
+also keep their own sets in the same tables.
 """
 
 PERMISSIONS: dict[str, str] = {
+    # The company profile, the main currency and the setup wizard. Since block 14 the locations
+    # and the policies of the sections have rights of their own (§ 23.3.7, § 23.5.3).
     "company.settings": "company",
     # § 6.3.8: answering another company's request to link with this company's profile. The
     # top-authority director answers without it; only in «Company administrator» (PROPOSAL).
@@ -35,6 +39,15 @@ PERMISSIONS: dict[str, str] = {
     "employee.positions.manage": "employee",
     "employee.access.terminate": "employee",
     "org.manage": "org",
+    # § 23.3.9 (block 14): managing the company's own permission sets; creating or changing a set
+    # does not change anybody's access (§ 23.1.3). Only in «Company administrator» (PROPOSAL).
+    "employee.sets.manage": "employee",
+    # § 23.5.3 (block 14): creating a location, changing its data (deactivation and restoration
+    # included, PROPOSAL) and managing its contexts. Viewing stays open to every employee by the
+    # decision of 22.10.2026 (see BLOCK14_PLAN, OPEN).
+    "location.create": "location",
+    "location.edit": "location",
+    "location.contexts.manage": "location",
     "finance.cash_account.manage": "finance",
     "finance.payment.receive": "finance",
     # Finance stage (§ 23.7.1, § 23.2.7): balances and records of accounts, payouts, articles.
@@ -53,6 +66,10 @@ PERMISSIONS: dict[str, str] = {
     "finance.settlement.manage": "finance",
     "finance.offset": "finance",
     "finance.correct": "finance",
+    # § 23.7.7 (block 14): changing the binding of a record to an order and correcting a wrongly
+    # indicated client of a record are separate from the ordinary correction.
+    "finance.record.relink": "finance",
+    "finance.record.client": "finance",
     # Deposits (§ 14.3.3, § 14.7): one right for all but the receipt (customer's decision of
     # 26.10.2026); the receipt is in finance.payment.receive.
     "finance.deposit.manage": "finance",
@@ -85,6 +102,10 @@ PERMISSIONS: dict[str, str] = {
     "vehicle.relation": "vehicle",
     "vehicle.disclosure": "vehicle",
     "vehicle.ownership_reversal": "vehicle",
+    # § 23.5.1 (block 14): the maintenance rules (intervals and warnings) and recording a done
+    # work from which a new countdown starts; viewing the reminders needs vehicle.view.
+    "vehicle.maintenance.rules": "vehicle",
+    "vehicle.maintenance.record": "vehicle",
     # Warehouse (§ 23.7.3–23.7.5, § 23.2.6). Scope — the warehouse of a location. `catalog.manage`
     # (creating and changing items) is a PROPOSAL: the ТЗ lets an item be created at receipt.
     "warehouse.view": "warehouse",
@@ -104,6 +125,8 @@ PERMISSIONS: dict[str, str] = {
     "warehouse.sale.correct": "warehouse",
     "warehouse.price.set": "warehouse",
     "warehouse.price.policy": "warehouse",
+    # § 23.3.7 (block 14): the warehouse policies — reasons and the settings of expired lots.
+    "warehouse.policy.manage": "warehouse",
     # Import (§ 22.5.1): running it, cancelling a posted one, seeing the history and files.
     "import.run": "import",
     "import.cancel": "import",
@@ -112,6 +135,9 @@ PERMISSIONS: dict[str, str] = {
     "client.list": "client",
     "client.create": "client",
     "client.edit": "client",
+    # § 23.8.2 (block 14): sending an invitation or a request to link, separately for the client
+    # base and the counterparties.
+    "client.link.request": "client",
     # Block 13 (companies/0035): § 6.6.4, § 23.8.2 — archiving and restoring a client card;
     # § 6.2.3 — merging duplicates; § 6.5.3, § 23.8.6 — splitting a merge, in «Company
     # administrator» (CONFIRMED); § 6.7.1, § 23.8.7 — setting and lifting the blacklist mark,
@@ -127,6 +153,7 @@ PERMISSIONS: dict[str, str] = {
     "counterparty.view": "counterparty",
     "counterparty.create": "counterparty",
     "counterparty.edit": "counterparty",
+    "counterparty.link.request": "counterparty",
     "counterparty.archive": "counterparty",
     "counterparty.restore": "counterparty",
     # § 6.1.13: merging duplicate counterparties and splitting a merge (PROPOSAL: the rights of
@@ -134,6 +161,9 @@ PERMISSIONS: dict[str, str] = {
     "counterparty.merge": "counterparty",
     "counterparty.split": "counterparty",
     "rental.view": "rental",
+    # § 23.3.7 (block 14): the rules of the rental — issue without payment, auto-cancel of a
+    # booking and the other issue rules.
+    "rental.policy.manage": "rental",
     # Bookings (§ 14.1, § 23.2.2): create, change, cancel, auto-cancel moment — one right
     # (customer's decision of 26.10.2026).
     "rental.book": "rental",
@@ -161,6 +191,9 @@ PERMISSIONS: dict[str, str] = {
     # photo requirements, § 10.3.1) are managed by a right of their own.
     "inspection.cancel": "inspection",
     "inspection.terminate": "inspection",
+    # TODO(spec): § 23.5.7 names a right to recognise a damage as erroneous; the function exists
+    # only as a result of invalidating its inspection (inspection.invalidate). Whether a separate
+    # action and right are needed is not decided (block 14, OPEN).
     "inspection.invalidate": "inspection",
     "inspection.policy.manage": "inspection",
     "order.view": "order",
@@ -175,6 +208,11 @@ PERMISSIONS: dict[str, str] = {
     # § 12.5.2, § 12.5.5 (decision З12): applying discounts within the employee's limit; the
     # catalog of discounts is kept with the company settings (PROPOSAL).
     "order.discount": "order",
+    # § 23.6.5 (block 14): forming an ordinary order from a preliminary one and assigning the
+    # responsible; § 23.3.7: the order policies — approvals and the catalog of discounts.
+    "order.form": "order",
+    "order.assign_responsible": "order",
+    "order.policy.manage": "order",
     # Service (§ 23.6.4; customer's decisions С-6, С-7 of 29.10.2026). `service.work` covers
     # starting and finishing one's own work and taking a free one; `service.complete` marks the
     # works of an operation done (the order then closes by «Close orders»); `service.price`
@@ -198,6 +236,8 @@ PERMISSIONS: dict[str, str] = {
     # contractor and the return (part С4).
     "service.external": "service",
     "service.handover": "service",
+    # § 23.3.7 (block 14): the service policies — posts and the service act setting (PROPOSAL).
+    "service.policy.manage": "service",
     # Delivery and internal move (§ 23.6.6; customer's decision Д-8 of 29.10.2026). `drive` —
     # the driver's own trips: seeing them and recording their start and end (§ 23.2.5).
     "delivery.view": "delivery",
@@ -221,12 +261,18 @@ PERMISSIONS: dict[str, str] = {
     "documents.templates": "documents",
     "documents.archive": "documents",
     "documents.sign": "documents",
+    # § 23.3.7 (block 14): the requirements to documents.
+    "documents.policy.manage": "documents",
     # Work tasks (§ 23.9; customer's decision З-3 of 29.10.2026).
     "tasks.own": "tasks",
     "tasks.queue": "tasks",
     "tasks.create": "tasks",
     "tasks.view_all": "tasks",
     "tasks.manage": "tasks",
+    # § 23.3.7 (block 14): the task policy of the company (PROPOSAL: a section policy).
+    "tasks.policy.manage": "tasks",
+    # § 23.3.7 (block 14): the company's notification rules (PROPOSAL: a section policy).
+    "notifications.policy.manage": "notifications",
     # Reports (§ 23.8.5; customer's decision О-1 of 29.10.2026): viewing and export are separate;
     # the data inside stays limited by the rights of each section (§ 21.1.1).
     "reports.view": "reports",
@@ -258,6 +304,7 @@ SYSTEM_SETS: dict[str, tuple[str, ...]] = {
         "client.list",
         "client.create",
         "client.edit",
+        "client.link.request",
         "rental.view",
         "rental.book",
         "rental.issue",
@@ -271,6 +318,8 @@ SYSTEM_SETS: dict[str, tuple[str, ...]] = {
         "order.view",
         "order.create",
         "order.edit",
+        "order.form",
+        "order.assign_responsible",
         "order.close",
         "order.cancel",
         "finance.payment.receive",
@@ -302,6 +351,8 @@ SYSTEM_SETS: dict[str, tuple[str, ...]] = {
         "finance.settlement.manage",
         "finance.offset",
         "finance.correct",
+        "finance.record.relink",
+        "finance.record.client",
         "finance.deposit.manage",
         "order.view",
         "rental.view",
@@ -338,12 +389,16 @@ SYSTEM_SETS: dict[str, tuple[str, ...]] = {
         "client.list",
         "client.create",
         "client.edit",
+        "client.link.request",
         "counterparty.view",
         "counterparty.create",
         "counterparty.edit",
+        "counterparty.link.request",
         "order.view",
         "order.create",
         "order.edit",
+        "order.form",
+        "order.assign_responsible",
         "finance.payment.receive",
         # § 23.2.3: «viewing the stock and adding materials from storage to service works»; the
         # issue right is the PROPOSAL for adding them (part С3).
@@ -387,6 +442,36 @@ SYSTEM_SETS: dict[str, tuple[str, ...]] = {
 }
 
 # Especially broad authority (§ 23.3.5): full access to the company and management of employee
-# rights. At stage 1 only the top-authority director assigns it (decision 22.10.2026).
+# rights. Block 14: an assignment is broad when it is «Company administrator» or a set or grant
+# that contains a code of BROAD_PERMISSIONS (PROPOSAL). An employee's assignment of it takes
+# effect after the confirmation of the top-authority director; the director's own assignment is
+# confirmed by a one-time code (§ 2.1.1 «maximum administrative rights», PROPOSAL).
 BROAD_SETS = frozenset({COMPANY_ADMIN})
 BROAD_PERMISSIONS = frozenset({"employee.rights.manage"})
+
+# Block 14: rights split into narrower ones (§ 23.3.7, § 23.5.1, § 23.5.3, § 23.6.5, § 23.7.7,
+# § 23.8.2). The data migration adds the narrower codes to every active assignment that holds the
+# broader one, so nobody gains or loses access through the split (PROPOSAL); the sets above list
+# both.
+SPLITS: dict[str, tuple[str, ...]] = {
+    "company.settings": (
+        "location.create",
+        "location.edit",
+        "location.contexts.manage",
+        "rental.policy.manage",
+        "documents.policy.manage",
+        "tasks.policy.manage",
+        "notifications.policy.manage",
+        "order.policy.manage",
+        "service.policy.manage",
+        "warehouse.policy.manage",
+    ),
+    "vehicle.edit": ("vehicle.maintenance.rules", "vehicle.maintenance.record"),
+    "client.edit": ("client.link.request",),
+    "counterparty.edit": ("counterparty.link.request",),
+    "order.edit": ("order.form", "order.assign_responsible"),
+    "finance.correct": ("finance.record.relink", "finance.record.client"),
+}
+
+# The new rights of block 14 that are not a split: only in «Company administrator» (PROPOSAL).
+BLOCK14_NEW = ("employee.sets.manage",)

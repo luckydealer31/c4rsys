@@ -40,7 +40,7 @@ export function DocumentRequirementsCard() {
   const [stage, setStage] = useState<Requirement["stage"]>("before_issue");
   const [need, setNeed] = useState<Requirement["need"]>("present");
   const [what, setWhat] = useState("");
-  const editable = can("company.settings");
+  const editable = can("documents.policy.manage");
   const lang = i18n.language.slice(0, 2);
   const choices = [
     ...(templates.data?.templates ?? [])
@@ -140,7 +140,7 @@ function ServiceActFields({ setting, path }: { setting: ActSetting; path: string
   const [required, setRequired] = useState(setting.act_required);
   const [signed, setSigned] = useState(setting.act_signed);
   const save = useCommand<Record<string, unknown>, { setting: ActSetting }>(path, "PUT");
-  const editable = can("company.settings");
+  const editable = can("documents.policy.manage");
 
   async function submit() {
     const result = await save.run({ act_required: required, act_signed: required && signed, expected_version: setting.version });

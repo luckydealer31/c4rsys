@@ -58,8 +58,8 @@ export function ServiceCatalogPage() {
         <WorkForm key={editing?.id ?? "new"} work={editing ?? undefined} onDone={() => setEditing(null)} />
       ) : null}
       {can("service.catalog") ? <Rates places={places} /> : null}
-      {can("company.settings") ? <Posts places={places} /> : null}
-      {can("company.settings") ? <ServiceActCard /> : null}
+      {can("service.policy.manage") ? <Posts places={places} /> : null}
+      {can("service.policy.manage") ? <ServiceActCard /> : null}
     </div>
   );
 }

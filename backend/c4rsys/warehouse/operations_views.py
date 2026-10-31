@@ -580,9 +580,9 @@ def correct_receipt_line(
 
 
 def _manager(actor: Actor) -> None:
-    """PROPOSAL: reasons and the expired-lot policy are set with the right of company settings."""
-    if not access.RightsResolver().has_permission(actor, "company.settings"):
-        raise errors.permission_denied("company.settings")
+    """§ 23.3.7 (block 14): reasons and the expired-lot policy are the warehouse policy."""
+    if not access.RightsResolver().has_permission(actor, "warehouse.policy.manage"):
+        raise errors.permission_denied("warehouse.policy.manage")
 
 
 @require_http_methods(["GET", "POST"])

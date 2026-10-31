@@ -46,6 +46,9 @@ HOUR = 60
 EVENTS: dict[str, Event] = {
     # Mandatory (§ 20.3.4).
     "employee.access_changed": Event(Kind.INFO, None, mandatory=True),
+    # § 23.3.5, § 20.3.4, § 19.1.9 (block 14): especially broad rights wait for the confirmation
+    # of the top-authority director; the recipients are given, the task is created by the module.
+    "employee.rights_confirmation": Event(Kind.ACTION, None, mandatory=True),
     "document.signing_requested": Event(Kind.ACTION, "documents.sign", mandatory=True),
     "document.signing_result": Event(Kind.INFO, "documents.view", mandatory=True),
     "rental.exception_pending": Event(Kind.ACTION, "rental.exception.decide", mandatory=True),

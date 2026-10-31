@@ -326,7 +326,7 @@ function IssuePolicyFields({ policy, path }: { policy: IssuePolicy; path: string
     inspection: source.inspection,
   });
   const save = useCommand<Record<string, unknown>, { policy: IssuePolicy }>(path, "PUT");
-  const editable = can("company.settings");
+  const editable = can("rental.policy.manage");
 
   async function submit(event: FormEvent) {
     event.preventDefault();

@@ -187,7 +187,7 @@ export function OrderDiscountsCard({ orderId, editable, onChange }: { orderId: s
 
 const SCOPES = ["order", "rental", "extra_service", "service", "goods"];
 
-/** The catalog of discounts (§ 12.5.2; decisions З11, В-2), kept with the company settings. */
+/** The catalog of discounts (§ 12.5.2; decisions З11, В-2), managed with the order policy right (§ 23.3.7). */
 export function DiscountCatalogPage() {
   const { t } = useTranslation();
   const company = useCompany();
@@ -202,7 +202,7 @@ export function DiscountCatalogPage() {
   const create = useCommand<Record<string, unknown>, unknown>(`/c/${company.public_id}/discounts`);
   const archive = useCommand<{ archived: boolean; id: string }, unknown>((b) => `/c/${company.public_id}/discounts/${b.id}/archive`);
   const [form, setForm] = useState({ name: "", kind: "percent", value: "", currency: company.main_currency ?? "", scope: "order", groups: [] as string[], categories: "" });
-  const editable = can("company.settings");
+  const editable = can("order.policy.manage");
 
   async function submit(event: FormEvent) {
     event.preventDefault();

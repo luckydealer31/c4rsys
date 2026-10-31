@@ -46,7 +46,7 @@ def catalog(request: HttpRequest, cmp: str) -> JsonResponse:
     if request.method == "GET":
         items = [discounts.catalog_payload(d) for d in discounts.catalog_of(context.company.id)]
         return JsonResponse({"discounts": items})
-    _require(actor, "company.settings")
+    _require(actor, "order.policy.manage")
     data = parse_json(request)
     kind = get_str(data, "kind", max_length=10)
     scope = get_str(data, "scope", max_length=20)
@@ -89,7 +89,7 @@ def catalog(request: HttpRequest, cmp: str) -> JsonResponse:
 @require_POST
 def catalog_archive(request: HttpRequest, cmp: str, discount_id: UUID) -> JsonResponse:
     context, actor = _actor(request, cmp)
-    _require(actor, "company.settings")
+    _require(actor, "order.policy.manage")
     archived = parse_json(request).get("archived")
     if not isinstance(archived, bool):
         raise errors.validation_error("archived")

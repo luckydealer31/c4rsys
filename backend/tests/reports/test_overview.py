@@ -3,6 +3,7 @@
 
 import io
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pytest
 from django.test import Client
@@ -81,7 +82,8 @@ def test_rights_period_and_export(owner: Client, s: Scenario) -> None:
     )
     data = _report(owner, s, "tz=Europe/Moscow").json()
     assert data["filters"]["zone"] == "Europe/Moscow"
-    today = timezone.now().date().replace(day=1).isoformat()
+    # The default period is the current month in the company's zone, not in UTC.
+    today = timezone.localdate(timezone.now(), ZoneInfo("Asia/Bangkok")).replace(day=1).isoformat()
     assert _report(owner, s).json()["filters"]["start"][:8] == today[:8]
 
     reader, _ = hire(

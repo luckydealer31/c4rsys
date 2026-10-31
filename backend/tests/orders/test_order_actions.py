@@ -221,6 +221,25 @@ def test_responsible_is_changed_with_order_edit(owner: Client, s: Scenario) -> N
     assert refused.status_code == 403
 
 
+def test_responsible_and_forming_have_rights_of_their_own(owner: Client, s: Scenario) -> None:
+    # § 23.6.5 (block 14): assigning the responsible and forming an ordinary order from a
+    # preliminary one are separate from «Change orders».
+    order = _create(owner, s, client_id=s.client, preliminary=True).json()["order"]
+
+    def rights(*codes: str) -> list[dict[str, str]]:
+        return [{"type": "grant", "permission": c} for c in ("order.view", *codes)]
+
+    editor, employment = hire(owner, s.cmp, "ed@example.com", rights("order.edit"))
+    assigner, _ = hire(owner, s.cmp, "as@example.com", rights("order.assign_responsible"))
+    former, _ = hire(owner, s.cmp, "fo@example.com", rights("order.form"))
+    assert _action(editor, s, order, "responsible", employment_id=employment).status_code == 403
+    assert _action(editor, s, order, "form").status_code == 403
+    changed = _action(assigner, s, order, "responsible", employment_id=employment)
+    assert changed.status_code == 200, changed.content
+    formed = _action(former, s, changed.json()["order"], "form")
+    assert formed.status_code == 200, formed.content
+
+
 # --- Cancellation of the order ---------------------------------------------------------------
 
 

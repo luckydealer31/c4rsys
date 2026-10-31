@@ -450,13 +450,17 @@ def test_split_without_new_records_restores_the_cards(owner: Client, pair: dict[
     _merge(owner, pair, choices={"name": "duplicate", "characteristic.color": "primary"})
     assert VehicleCard.objects.get(pk=first["id"]).name == "Yaris 2"
     merge_id = VehicleCardMerge.objects.get().id
+    path = f"/api/c/{cmp}/vehicles/{first['id']}/merges/{merge_id}/split"
+    # § 23.5.4 (block 14): the split needs the repeated one-time code too.
+    without = post(owner, path, {"reason": "Merged by mistake"}, key())
+    assert without.json()["error"]["code"] == "FIELD_REQUIRED"
+    expired = post(owner, path, {"reason": "Merged by mistake", "code": CODE}, key())
+    assert expired.json()["error"]["code"] == "CODE_EXPIRED"
+    assert post(owner, f"{path}/code", {}, key()).status_code == 200
+    wrong = post(owner, path, {"reason": "Merged by mistake", "code": "000000"}, key())
+    assert wrong.json()["error"]["code"] == "CODE_INVALID"
 
-    split = post(
-        owner,
-        f"/api/c/{cmp}/vehicles/{first['id']}/merges/{merge_id}/split",
-        {"reason": "Merged by mistake"},
-        key(),
-    )
+    split = post(owner, path, {"reason": "Merged by mistake", "code": CODE}, key())
 
     assert split.status_code == 200, split.content
     duplicate = VehicleCard.objects.get(pk=second["id"])
@@ -491,7 +495,8 @@ def test_new_records_are_assigned_by_hand(owner: Client, pair: dict[str, Any]) -
     preview = owner.get(f"{path}/preview").json()
     assert [r["key"] for r in preview["records"]] == [f"reading:{reading.id}"]
 
-    unassigned = post(owner, path, {"reason": "Mistake"}, key())
+    assert post(owner, f"{path}/code", {}, key()).status_code == 200
+    unassigned = post(owner, path, {"reason": "Mistake", "code": CODE}, key())
     assert unassigned.json()["error"]["code"] == "VEHICLE_SPLIT_UNASSIGNED"
     VehicleCard.objects.get(pk=second["id"])  # still merged
     assert VehicleCardMerge.objects.get().state == "merged"
@@ -499,7 +504,11 @@ def test_new_records_are_assigned_by_hand(owner: Client, pair: dict[str, Any]) -
     done = post(
         owner,
         path,
-        {"reason": "Mistake", "assignments": {f"reading:{reading.id}": "duplicate"}},
+        {
+            "reason": "Mistake",
+            "code": CODE,
+            "assignments": {f"reading:{reading.id}": "duplicate"},
+        },
         key(),
     )
 

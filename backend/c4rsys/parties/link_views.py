@@ -24,6 +24,9 @@ from c4rsys.platform.http import get_int, get_str, parse_json
 
 VIEW = {"client": ("client.find", "client.list"), "counterparty": ("counterparty.view",)}
 EDIT = {"client": "client.edit", "counterparty": "counterparty.edit"}
+# § 23.8.2 (block 14): sending an invitation or a request to link is a right of its own, separate
+# for the clients and the counterparties; cancelling, breaking and applying stay with «edit».
+REQUEST = {"client": "client.link.request", "counterparty": "counterparty.link.request"}
 REVOKE = {"client": "client.split", "counterparty": "counterparty.split"}
 
 
@@ -44,11 +47,13 @@ def _card_type(value: str) -> str:
     return value
 
 
-def _own_link(company_id: UUID, link_id: UUID, actor: Actor) -> ProfileLink:
+def _own_link(
+    company_id: UUID, link_id: UUID, actor: Actor, rights: dict[str, str] = EDIT
+) -> ProfileLink:
     link = ProfileLink.objects.filter(company_id=company_id, pk=link_id).first()
     if link is None:
         raise errors.not_found()
-    permission = EDIT[links.card_type_of(link)]
+    permission = rights[links.card_type_of(link)]
     if not _has(actor, permission):
         raise errors.permission_denied(permission)
     return link
@@ -84,8 +89,8 @@ def card_links(request: HttpRequest, cmp: str) -> JsonResponse:
 
     data = parse_json(request)
     card_type = _card_type(get_str(data, "card_type", max_length=20))
-    if not _has(actor, EDIT[card_type]):
-        raise errors.permission_denied(EDIT[card_type])
+    if not _has(actor, REQUEST[card_type]):
+        raise errors.permission_denied(REQUEST[card_type])
     try:
         card_id = UUID(get_str(data, "card_id", max_length=40))
     except ValueError as exc:

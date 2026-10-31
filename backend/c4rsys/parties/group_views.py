@@ -35,7 +35,7 @@ def _payload(g: ClientGroup) -> dict[str, object]:
 def group_list(request: HttpRequest, cmp: str) -> JsonResponse:
     context, actor = _actor(request, cmp)
     if request.method == "GET":
-        if not _has(actor, "client.find", "client.list", "order.discount", "company.settings"):
+        if not _has(actor, "client.find", "client.list", "order.discount", "order.policy.manage"):
             raise errors.permission_denied("client.find")
         return JsonResponse({"groups": [_payload(g) for g in groups.groups_of(context.company.id)]})
     if not _has(actor, "client.edit"):

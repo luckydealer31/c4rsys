@@ -294,11 +294,16 @@ def _location_payload(location: Location) -> dict[str, Any]:
     }
 
 
-def _settings_actor(request: HttpRequest, cmp: str) -> tuple[services.CompanyContext, Actor]:
+def _settings_actor(
+    request: HttpRequest, cmp: str, permission: str, location_id: UUID | None = None
+) -> tuple[services.CompanyContext, Actor]:
+    """Since block 14 the locations have rights of their own (§ 23.5.3): `location.create`,
+    `location.edit` (deactivation, restoration and deletion included, PROPOSAL) and
+    `location.contexts.manage`, checked in the location concerned."""
     user, session = require_user(request)
     context = services.resolve_company(user, cmp, session.id)
     actor = services.company_actor(user, context, session.id)
-    require_permission(access.RightsResolver(), actor, "company.settings")
+    require_permission(access.RightsResolver(), actor, permission, location_id=location_id)
     return context, actor
 
 
@@ -311,7 +316,7 @@ def location_list(request: HttpRequest, cmp: str) -> JsonResponse:
         items = [_location_payload(x) for x in locations.locations_of(context.company.id)]
         return JsonResponse({"locations": items})
 
-    context, actor = _settings_actor(request, cmp)
+    context, actor = _settings_actor(request, cmp, "location.create")
     data = parse_json(request)
     timezone = (
         services.validate_timezone(get_str(data, "timezone", max_length=64))
@@ -359,7 +364,7 @@ def location_detail(request: HttpRequest, cmp: str, location_id: UUID) -> JsonRe
 
     if request.method == "DELETE":
         # Only a location without history (decision 23.10.2026); otherwise LOCATION_HAS_HISTORY.
-        context, actor = _settings_actor(request, cmp)
+        context, actor = _settings_actor(request, cmp, "location.edit", location_id)
         locations.get_location(context.company.id, location_id)
 
         def delete(ctx: CommandContext) -> CommandResult:
@@ -369,7 +374,7 @@ def location_detail(request: HttpRequest, cmp: str, location_id: UUID) -> JsonRe
         target = {"location_id": str(location_id)}
         return run_and_respond(request, "location.delete", actor, target, delete)
 
-    context, actor = _settings_actor(request, cmp)
+    context, actor = _settings_actor(request, cmp, "location.edit", location_id)
     locations.get_location(context.company.id, location_id)
     data = parse_json(request)
     expected_version = get_int(data, "expected_version")
@@ -401,7 +406,7 @@ def location_detail(request: HttpRequest, cmp: str, location_id: UUID) -> JsonRe
 def location_contexts(request: HttpRequest, cmp: str, location_id: UUID) -> JsonResponse:
     """Adds a context of the system catalog: rental, service or warehouse (§ 4.1.6,
     decision 22.10.2026). A context of a module that is not implemented yet is never ready."""
-    context, actor = _settings_actor(request, cmp)
+    context, actor = _settings_actor(request, cmp, "location.contexts.manage", location_id)
     locations.get_location(context.company.id, location_id)
     data = parse_json(request)
     context_type = get_str(data, "type", max_length=20)
@@ -421,7 +426,7 @@ def _location_state_command(
     request: HttpRequest, cmp: str, location_id: UUID, deactivate: bool
 ) -> JsonResponse:
     """§ 4.4.1: deactivation and restoration of a location, each journaled."""
-    context, actor = _settings_actor(request, cmp)
+    context, actor = _settings_actor(request, cmp, "location.edit", location_id)
     locations.get_location(context.company.id, location_id)
     expected_version = get_int(parse_json(request), "expected_version")
     action = locations.deactivate_location if deactivate else locations.restore_location
@@ -450,7 +455,7 @@ def _context_state_command(
     request: HttpRequest, cmp: str, location_id: UUID, context_id: UUID, enabled: bool
 ) -> JsonResponse:
     """§ 4.4.2: a context is switched off without deletion and switched on again."""
-    context, actor = _settings_actor(request, cmp)
+    context, actor = _settings_actor(request, cmp, "location.contexts.manage", location_id)
     locations.get_location(context.company.id, location_id)
 
     def handler(ctx: CommandContext) -> CommandResult:

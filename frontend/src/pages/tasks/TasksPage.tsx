@@ -26,6 +26,7 @@ const OBJECT_PATHS: Record<string, string> = {
   delivery: "/trips/",
   document: "/documents/",
   counterparty: "/clients/counterparties/",
+  employment: "/clients/employees/",
 };
 
 function useRefresh() {
@@ -166,7 +167,7 @@ export function TasksPage() {
       </Card>
       {can("tasks.create") ? <NewTask /> : null}
       <GroupsTagsAdmin />
-      {can("company.settings") ? <TaskPolicyCard /> : null}
+      {can("tasks.policy.manage") ? <TaskPolicyCard /> : null}
     </div>
   );
 }

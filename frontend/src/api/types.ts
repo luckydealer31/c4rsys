@@ -370,8 +370,60 @@ export type Employee = {
   departments: { id: string; name: string }[];
   termination: { at: string; reason: string } | null;
   version: number;
-  rights: (RightSpec & { id: string; permissions: string[]; granted_at: string })[];
+  rights: (RightSpec & {
+    id: string;
+    permissions: string[];
+    granted_at: string;
+    /** § 23.1.3: the set changed since the assignment; applied only by a separate action. */
+    set_update?: { added: string[]; removed: string[] } | null;
+  })[];
   invitation: Invitation | null;
+  /** § 23.3.5: especially broad rights waiting for the director's confirmation. */
+  rights_requests?: RightsRequest[];
+};
+
+/** A request of especially broad rights (§ 23.3.5, block 14). */
+export type RightsRequest = {
+  id: string;
+  state: "pending" | "confirmed" | "declined" | "cancelled" | "outdated";
+  employee: { employment_id: string; name: string; public_id: string | null; state: string };
+  rights: (RightSpec & { permissions: string[] })[];
+  replaces: string[];
+  initiated_by: { name: string; employment_id: string };
+  created_at: string;
+  decided_by: string | null;
+  decided_at: string | null;
+  note: string;
+};
+
+/** A system or own permission set (§ 23.1.5, § 23.1.14). `code` is the code of a system set or
+ * the id of an own one. */
+export type PermissionSetEntry = {
+  code: string;
+  id: string;
+  is_system: boolean;
+  name: string;
+  based_on: string | null;
+  archived: boolean;
+  permissions: string[];
+  version: number;
+};
+
+/** Holders of a set and what applying the current set would change (§ 23.1.3). */
+export type SetHolders = {
+  set: PermissionSetEntry;
+  holders: {
+    employment_id: string;
+    name: string;
+    public_id: string | null;
+    state: string;
+    assignment_id: string;
+    scope: RightSpec;
+    added: string[];
+    removed: string[];
+    broad: boolean;
+    own: boolean;
+  }[];
 };
 
 /** An entry of the positions handbook (§ 5.1.5). */
@@ -399,8 +451,13 @@ export type OrgStructure = {
 };
 
 export type PermissionCatalog = {
-  sets: { code: string; permissions: string[] }[];
+  sets: PermissionSetEntry[];
   permissions: string[];
+  /** The section of each permission, to group them in the editors. */
+  sections: Record<string, string>;
+  /** Codes and system sets of especially broad rights (§ 23.3.5). */
+  broad: string[];
+  broad_sets: string[];
 };
 
 export type Readiness = {

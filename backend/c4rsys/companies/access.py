@@ -38,16 +38,12 @@ class RightSpec:
     (§ 23.1.9–23.1.11)."""
 
     kind: str
-    code: str  # set code for kind=set, permission code otherwise
+    # For kind=set: the code of a system set or the id of a company's own set (block 14);
+    # otherwise a permission code.
+    code: str
     locations: frozenset[UUID] | None = None
     contexts: frozenset[UUID] | None = None
     cash_accounts: frozenset[UUID] | None = None
-
-    @property
-    def is_broad(self) -> bool:
-        if self.kind == Kind.SET:
-            return self.code in BROAD_SETS
-        return self.kind == Kind.GRANT and self.code in BROAD_PERMISSIONS
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -101,14 +97,60 @@ def parse_rights(value: Any, field: str = "rights") -> list[RightSpec]:
     return specs
 
 
+# --- Permission sets: system and the company's own (§ 23.1.5, block 14) ------------------------
+
+
+def resolve_set(company_id: UUID, ref: str) -> PermissionSet | None:
+    """A system set by its code or an own set of the company by its id."""
+    try:
+        own = UUID(ref)
+    except ValueError:
+        return PermissionSet.objects.filter(is_system=True, code=ref).first()
+    return PermissionSet.objects.filter(is_system=False, company_id=company_id, pk=own).first()
+
+
+def set_ref(permission_set: PermissionSet) -> str:
+    return permission_set.code if permission_set.is_system else str(permission_set.id)
+
+
+def set_codes(permission_set: PermissionSet) -> list[str]:
+    return sorted(
+        PermissionSetItem.objects.filter(permission_set=permission_set).values_list(
+            "permission_id", flat=True
+        )
+    )
+
+
+def codes_of(company_id: UUID, spec: RightSpec) -> list[str]:
+    """The codes a requested assignment gives now."""
+    if spec.kind != Kind.SET:
+        return [spec.code]
+    found = resolve_set(company_id, spec.code)
+    return set_codes(found) if found is not None else []
+
+
+def is_broad_codes(kind: str, ref: str, codes: list[str] | set[str]) -> bool:
+    """Especially broad authority (§ 23.3.5): «Company administrator» or anything that gives a
+    code of BROAD_PERMISSIONS (PROPOSAL)."""
+    if kind == Kind.DENY:
+        return False
+    if kind == Kind.SET and ref in BROAD_SETS:
+        return True
+    return bool(set(codes) & BROAD_PERMISSIONS)
+
+
+def is_broad(company_id: UUID, spec: RightSpec) -> bool:
+    return is_broad_codes(spec.kind, spec.code, codes_of(company_id, spec))
+
+
 def validate_rights(company_id: UUID, specs: list[RightSpec]) -> None:
     """Codes exist; selected locations, contexts and cash accounts belong to the company. Listed
     contexts belong to the listed locations. Cash accounts are not bound to locations, so any
-    account of the company may be listed (§ 23.1.11–23.1.12, clarification of 23.10.2026)."""
-    sets = {s.code for s in specs if s.kind == Kind.SET}
-    known_sets = set(PermissionSet.objects.filter(is_system=True).values_list("code", flat=True))
-    if sets - known_sets:
-        raise errors.validation_error("rights", code="PERMISSION_SET_UNKNOWN")
+    account of the company may be listed (§ 23.1.11–23.1.12, clarification of 23.10.2026). A set
+    is a system set or an own set of this company (block 14)."""
+    for spec in specs:
+        if spec.kind == Kind.SET and resolve_set(company_id, spec.code) is None:
+            raise errors.validation_error("rights", code="PERMISSION_SET_UNKNOWN")
     perms = {s.code for s in specs if s.kind != Kind.SET}
     if perms - set(Permission.objects.filter(code__in=perms).values_list("code", flat=True)):
         raise errors.validation_error("rights", code="PERMISSION_UNKNOWN")
@@ -128,11 +170,29 @@ def validate_rights(company_id: UUID, specs: list[RightSpec]) -> None:
                 raise errors.validation_error("rights", code="SCOPE_INVALID")
 
 
-def require_broad_rights_authority(specs: list[RightSpec], *, is_top_authority: bool) -> None:
-    """At stage 1 especially broad rights are assigned only by the director with top authority
-    (§ 23.3.5, decision 22.10.2026); the confirmation procedure comes later."""
-    if not is_top_authority and any(s.is_broad for s in specs):
+def require_not_archived(company_id: UUID, specs: list[RightSpec]) -> None:
+    """An archived own set is not assigned anew; the assignments made before keep working
+    (PROPOSAL)."""
+    for spec in specs:
+        if spec.kind != Kind.SET:
+            continue
+        found = resolve_set(company_id, spec.code)
+        if found is not None and found.archived_at is not None:
+            raise errors.business_rule("PERMISSION_SET_ARCHIVED", field="rights")
+
+
+def require_broad_rights_authority(
+    company_id: UUID, specs: list[RightSpec], *, is_top_authority: bool, code_confirmed: bool
+) -> None:
+    """For an invitation (block 14, PROPOSAL): especially broad rights are offered only by the
+    top-authority director, confirmed by a one-time code (§ 2.1.1); an employee who manages rights
+    assigns them after the acceptance, through the confirmation of § 23.3.5."""
+    if not any(is_broad(company_id, s) for s in specs):
+        return
+    if not is_top_authority:
         raise errors.business_rule("BROAD_RIGHTS_REQUIRE_TOP_AUTHORITY", field="rights")
+    if not code_confirmed:
+        raise errors.business_rule("BROAD_RIGHTS_CODE_REQUIRED", field="rights")
 
 
 # --- Stored assignments -----------------------------------------------------------------------
@@ -163,7 +223,7 @@ def _spec_of(assignment: PermissionAssignment) -> RightSpec:
     set_ = assignment.permission_set
     return RightSpec(
         kind=assignment.kind,
-        code=set_.code if set_ is not None else assignment.permissions[0],
+        code=set_ref(set_) if set_ is not None else assignment.permissions[0],
         locations=None
         if assignment.all_locations
         else frozenset(x.id for x in assignment.locations.all()),
@@ -180,17 +240,28 @@ def rights_of(employment_id: UUID, *, owner_seat: bool = False) -> list[dict[str
     """Each assignment with its source, codes and scope (§ 23.1.13). `owner_seat` — the rights a
     representative has through the dedicated position of an owner company (§ 3.4.1), shown apart
     from the ordinary rights the editor changes."""
-    return [
-        {
-            "id": str(a.id),
-            **_spec_of(a).as_dict(),
-            "permissions": sorted(a.permissions),
-            "granted_at": a.granted_at.isoformat(),
-            "owner_seat": str(a.owner_seat_id) if a.owner_seat_id else None,
-        }
-        for a in _active_assignments(employment_id)
-        if (a.owner_seat_id is not None) == owner_seat
-    ]
+    result = []
+    for a in _active_assignments(employment_id):
+        if (a.owner_seat_id is not None) != owner_seat:
+            continue
+        update = None
+        if a.permission_set is not None:
+            # § 23.1.3: the set changed since the assignment; applied only by a separate action.
+            current = set(set_codes(a.permission_set))
+            held = set(a.permissions)
+            if current != held:
+                update = {"added": sorted(current - held), "removed": sorted(held - current)}
+        result.append(
+            {
+                "id": str(a.id),
+                **_spec_of(a).as_dict(),
+                "permissions": sorted(a.permissions),
+                "granted_at": a.granted_at.isoformat(),
+                "owner_seat": str(a.owner_seat_id) if a.owner_seat_id else None,
+                "set_update": update,
+            }
+        )
+    return result
 
 
 def assign(
@@ -204,12 +275,10 @@ def assign(
     for spec in specs:
         permission_set = None
         if spec.kind == Kind.SET:
-            permission_set = PermissionSet.objects.get(is_system=True, code=spec.code)
-            codes = sorted(
-                PermissionSetItem.objects.filter(permission_set=permission_set).values_list(
-                    "permission_id", flat=True
-                )
-            )
+            permission_set = resolve_set(employment.company_id, spec.code)
+            if permission_set is None:
+                raise errors.validation_error("rights", code="PERMISSION_SET_UNKNOWN")
+            codes = set_codes(permission_set)
         else:
             codes = [spec.code]
         assignment = PermissionAssignment.objects.create(
@@ -245,17 +314,8 @@ def assign(
     return created
 
 
-def replace_rights(
-    ctx: CommandContext,
-    *,
-    company_id: UUID,
-    employment_id: UUID,
-    specs: list[RightSpec],
-    expected_version: int,
-    is_top_authority: bool,
-) -> Employment:
-    """Sets the employee's rights to exactly `specs`. Unchanged assignments are kept; removed ones
-    are revoked with history (§ 23.3.3). Own rights cannot be changed (§ 23.3.2)."""
+def locked_target(ctx: CommandContext, company_id: UUID, employment_id: UUID) -> Employment:
+    """The employee whose rights change, locked; never the actor himself (§ 23.3.2)."""
     employment = (
         Employment.objects.select_for_update()
         .filter(company_id=company_id, pk=employment_id)
@@ -267,6 +327,46 @@ def replace_rights(
         raise errors.business_rule("SELF_RIGHTS_CHANGE_FORBIDDEN")
     if employment.state not in (Employment.State.ACTIVE, Employment.State.BLOCKED):
         raise errors.business_rule("EMPLOYMENT_NOT_ACTIVE")
+    return employment
+
+
+def require_broad_allowed(actor_user_id: UUID, employment: Employment) -> None:
+    """§ 2.3.1: the highest rights are not granted within 72 hours after a recovery through the
+    support, neither by the recovered person nor to him (PROPOSAL: both directions)."""
+    from c4rsys.accounts import services as accounts
+
+    accounts.require_not_recently_recovered(actor_user_id)
+    if employment.user_id is not None:
+        accounts.require_not_recently_recovered(employment.user_id)
+
+
+def broad_added(company_id: UUID, employment_id: UUID, specs: list[RightSpec]) -> bool:
+    """Whether saving `specs` adds especially broad rights (read without locks, to ask for the
+    one-time code before the command; the command checks again)."""
+    current = {_spec_of(a) for a in _active_assignments(employment_id, ordinary_only=True)}
+    return any(is_broad(company_id, s) for s in specs if s not in current)
+
+
+def replace_rights(
+    ctx: CommandContext,
+    *,
+    company_id: UUID,
+    employment_id: UUID,
+    specs: list[RightSpec],
+    expected_version: int,
+    is_top_authority: bool,
+    code_confirmed: bool = False,
+) -> tuple[Employment, Any]:
+    """Sets the employee's rights to `specs`. Unchanged assignments are kept; removed ones are
+    revoked with history (§ 23.3.3). Own rights cannot be changed (§ 23.3.2).
+
+    Especially broad additions (§ 23.3.5): the top-authority director assigns them himself with a
+    one-time code (§ 2.1.1); from another employee they wait for his confirmation as a rights
+    request, while the rest of the change takes effect at once (PROPOSAL). Returns the employment
+    and the request, if any."""
+    from c4rsys.companies import rightsets
+
+    employment = locked_target(ctx, company_id, employment_id)
     if employment.version != expected_version:
         raise errors.version_conflict()
 
@@ -274,15 +374,17 @@ def replace_rights(
     wanted = set(specs)
     added = [s for s in specs if s not in current]
     removed = [a for s, a in current.items() if s not in wanted]
-    require_broad_rights_authority(added, is_top_authority=is_top_authority)
-    if any(s.is_broad for s in added):
-        # § 2.3.1: the highest rights are not granted within 72 hours after a recovery through
-        # the support, neither by the recovered person nor to him (PROPOSAL: both directions).
-        from c4rsys.accounts import services as accounts
-
-        accounts.require_not_recently_recovered(ctx.actor.user_id)
-        if employment.user_id is not None:
-            accounts.require_not_recently_recovered(employment.user_id)
+    require_not_archived(company_id, added)
+    broad = [s for s in added if is_broad(company_id, s)]
+    request = None
+    if broad:
+        require_broad_allowed(ctx.actor.user_id, employment)
+        if is_top_authority:
+            if not code_confirmed:
+                raise errors.business_rule("BROAD_RIGHTS_CODE_REQUIRED", field="rights")
+        else:
+            request = rightsets.open_request(ctx, employment, broad, replaces=[])
+            added = [s for s in added if s not in broad]
 
     now = timezone.now()
     for assignment in removed:
@@ -298,12 +400,14 @@ def replace_rights(
         object_id=employment.id,
         before={"rights": [s.as_dict() for s in current]},
         after={
-            "rights": [s.as_dict() for s in specs],
+            "rights": [s.as_dict() for s in specs if s not in broad or is_top_authority],
             "added": [s.as_dict() for s in added],
             "revoked": [str(a.id) for a in removed],
+            "awaiting_confirmation": str(request.id) if request is not None else None,
+            "code_confirmed": bool(broad) and is_top_authority,
         },
     )
-    return employment
+    return employment, request
 
 
 # --- Permission check (A08, § 23.3.8) --------------------------------------------------------
@@ -415,23 +519,21 @@ def _scope_within(inner: frozenset[UUID] | None, outer: frozenset[UUID] | None) 
     return inner is not None and inner <= outer
 
 
-def within_limit(specs: list[RightSpec], limit: list[RightSpec]) -> bool:
+def within_limit(
+    specs: list[RightSpec], limit: list[RightSpec], company_id: UUID | None = None
+) -> bool:
     """Every requested set or permission is in the limit with no wider scope (§ 3.4.1). A
     permission inside a set of the limit counts as in the limit."""
-    set_codes = {spec.code: spec for spec in limit if spec.kind == Kind.SET}
+    limit_sets = {spec.code: spec for spec in limit if spec.kind == Kind.SET}
     members: dict[str, set[str]] = {}
-    for code in set_codes:
-        members[code] = set(
-            PermissionSetItem.objects.filter(
-                permission_set__is_system=True, permission_set__code=code
-            ).values_list("permission_id", flat=True)
-        )
+    for code, spec in limit_sets.items():
+        members[code] = set(codes_of(company_id, spec)) if company_id else set()
     for spec in specs:
         if spec.kind == Kind.DENY:
             return False
         candidates = [x for x in limit if x.kind == spec.kind and x.code == spec.code]
         if spec.kind == Kind.GRANT:
-            candidates += [set_codes[c] for c, codes in members.items() if spec.code in codes]
+            candidates += [limit_sets[c] for c, codes in members.items() if spec.code in codes]
         if not any(
             _scope_within(spec.locations, x.locations)
             and _scope_within(spec.contexts, x.contexts)
