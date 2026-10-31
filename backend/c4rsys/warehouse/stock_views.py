@@ -22,7 +22,7 @@ from c4rsys.parties import counterparties
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
-from c4rsys.warehouse import catalog, operations, prices, stock
+from c4rsys.warehouse import catalog, operations, prices, reserves, stock
 from c4rsys.warehouse.models import Item, LotLayer, PurchaseOrder, Receipt
 
 LIST_LIMIT = 200
@@ -181,9 +181,17 @@ def _lines(data: dict[str, Any], minor_units: int) -> tuple[stock.LineData, ...]
                 ),
                 lot_expiry_date=_date(line.get("lot_expiry_date"), f"{where}.lot_expiry_date"),
                 purchase_line_id=_uuid(line.get("purchase_line_id"), f"{where}.purchase_line_id"),
+                sale_price=stock.money(line.get("sale_price"), f"{where}.sale_price", minor_units),
             )
         )
     return tuple(parsed)
+
+
+def _require_price_right(actor: Actor, data: stock.ReceiptData, context: ActivityContext) -> None:
+    """§ 23.7.4: a selling price in a receipt needs the right to set selling prices; without it
+    the earlier price stays or the goods come without one (PROPOSAL: refused with the right)."""
+    if any(line.sale_price is not None for line in data.lines):
+        _require_in(actor, "warehouse.price.set", context)
 
 
 def _receipt_data(data: dict[str, Any], minor_units: int) -> stock.ReceiptData:
@@ -255,6 +263,7 @@ def _receipt_payload(receipt: Receipt, suppliers: dict[UUID, str]) -> dict[str, 
                 if line.expected_quantity is not None
                 else None,
                 "unit_cost": stock.money_text(line.unit_cost, receipt.currency),
+                "sale_price": stock.money_text(line.sale_price, receipt.currency),
                 "total_cost": stock.money_text(cost, receipt.currency),
                 "tags": line.tags,
                 "serial_numbers": line.serial_numbers,
@@ -413,9 +422,9 @@ def receipt_list(request: HttpRequest, cmp: str) -> JsonResponse:
     receipt_data = _receipt_data(data, _minor_units(context))
     if receipt_data.context_id is None:
         raise errors.validation_error("context_id", code="FIELD_REQUIRED")
-    _require_in(
-        actor, "warehouse.receive", _context_of(context.company.id, receipt_data.context_id)
-    )
+    warehouse = _context_of(context.company.id, receipt_data.context_id)
+    _require_in(actor, "warehouse.receive", warehouse)
+    _require_price_right(actor, receipt_data, warehouse)
 
     def handler(ctx: CommandContext) -> CommandResult:
         receipt = stock.create_receipt(ctx, context.company, receipt_data)
@@ -453,6 +462,13 @@ def receipt_detail(request: HttpRequest, cmp: str, receipt_id: UUID) -> JsonResp
         _require_in(
             actor, "warehouse.receive", _context_of(context.company.id, receipt_data.context_id)
         )
+    _require_price_right(
+        actor,
+        receipt_data,
+        _context_of(context.company.id, receipt_data.context_id)
+        if receipt_data.context_id
+        else receipt.context,
+    )
 
     def handler(ctx: CommandContext) -> CommandResult:
         stock.update_receipt(ctx, context.company, receipt_id, receipt_data, expected_version)
@@ -471,6 +487,9 @@ def receipt_post(request: HttpRequest, cmp: str, receipt_id: UUID) -> JsonRespon
     context, actor = _actor(request, cmp)
     receipt = stock.get_receipt(context.company.id, receipt_id)
     _require_in(actor, "warehouse.receive", receipt.context)
+    if stock.has_sale_prices(receipt):
+        # The prices are saved at posting: the poster needs the right too (PROPOSAL).
+        _require_in(actor, "warehouse.price.set", receipt.context)
     expected_version = get_int(parse_json(request), "expected_version")
 
     def handler(ctx: CommandContext) -> CommandResult:
@@ -617,12 +636,14 @@ def stock_list(request: HttpRequest, cmp: str) -> JsonResponse:
     items = catalog.search(context.company.id, request.GET.get("q", "")[:100], "").filter(
         pk__in=found
     )
+    held = reserves.reserved_totals(context.company.id, set(visible))
     rows = []
     for item in items[:LIST_LIMIT]:
         places = found[item.id]
         quantity = sum((p["quantity"] for p in places.values()), stock.ZERO)
+        # § 11.7.8: the threshold is compared with the available quantity — less the reserves.
         below = any(
-            p["quantity"] < thresholds[(item.id, cid)]
+            p["quantity"] - held.get((item.id, cid), stock.ZERO) < thresholds[(item.id, cid)]
             for cid, p in places.items()
             if (item.id, cid) in thresholds
         )
@@ -637,6 +658,7 @@ def stock_list(request: HttpRequest, cmp: str) -> JsonResponse:
                         "context_id": str(cid),
                         "location_name": visible[cid].location.name,
                         "quantity": str(p["quantity"]),
+                        "reserved": str(held.get((item.id, cid), stock.ZERO)),
                         "tags": sorted(p["tags"]),
                         "minimum": str(thresholds[(item.id, cid)])
                         if (item.id, cid) in thresholds

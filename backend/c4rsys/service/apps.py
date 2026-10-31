@@ -67,3 +67,8 @@ class ServiceConfig(AppConfig):
         disclosure.register_provider("service", vehicle_links.works_for_owner)
         owner_view.register_work_history(vehicle_links.works_for_buyer)
         owner_view.register_rules(vehicle_links.rules_for_buyer)
+        # Block 15 (§ 11.6.2): a warehouse line of a work's material is corrected in the work.
+        from c4rsys.service import materials
+        from c4rsys.warehouse import corrections
+
+        corrections.register_line_guard(materials.line_guard)

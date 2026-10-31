@@ -142,9 +142,12 @@ class LineData:
     lot_production_date: date | None = None
     lot_expiry_date: date | None = None
     purchase_line_id: UUID | None = None
+    # The selling price for the item's price level (§ 11.2.7, § 11.7.6); empty — unchanged.
+    sale_price: Decimal | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
+            "sale_price": str(self.sale_price) if self.sale_price is not None else None,
             "item_id": str(self.item_id),
             "quantity": str(self.quantity) if self.quantity is not None else None,
             "packaging_id": str(self.packaging_id) if self.packaging_id else None,
@@ -302,6 +305,7 @@ def _write_lines(
             lot_external_number=line.lot_external_number,
             lot_production_date=line.lot_production_date,
             lot_expiry_date=line.lot_expiry_date,
+            sale_price=line.sale_price,
             position=index,
         )
         for index, (line, item, amount, packaging) in enumerate(checked)
@@ -595,6 +599,7 @@ def post_receipt(
             actor_user_id=ctx.actor.user_id,
             created_at=now,
         )
+    _apply_sale_prices(ctx, company_id, lines)
     receipt.state = Receipt.State.POSTED
     receipt.posted_at = now
     receipt.posted_by_user_id = ctx.actor.user_id
@@ -607,6 +612,27 @@ def post_receipt(
         after={**receipt_snapshot(receipt), "assets": created_assets, "lots": created_lots},
     )
     return receipt
+
+
+def _apply_sale_prices(ctx: CommandContext, company_id: UUID, lines: list[ReceiptLine]) -> None:
+    """§ 11.2.7, § 11.7.6: a selling price given in the receipt is saved at posting on the level
+    of the item's price mode — of the item, or of the line's lot in the lot mode; for the
+    packaging of the line, or the base unit sold loose without one; a piece — per piece. It then
+    applies to later additions to orders (PROPOSAL)."""
+    from c4rsys.warehouse import prices
+
+    priced = [line for line in lines if line.sale_price is not None]
+    if not priced:
+        return
+    company = Company.objects.get(pk=company_id)
+    for line in priced:
+        item = Item.objects.get(pk=line.item_id)
+        lot_id = line.lot_id if item.price_mode == prices.LOT_MODE else None
+        prices.set_price(ctx, company, item.id, lot_id, line.packaging_id, line.sale_price)
+
+
+def has_sale_prices(receipt: Receipt) -> bool:
+    return receipt.lines.filter(sale_price__isnull=False).exists()
 
 
 def set_line_cost(
@@ -638,7 +664,11 @@ def set_line_cost(
 def propagate_line_cost(line: ReceiptLine, unit_cost: Decimal | None) -> None:
     """The cost of the units of a receipt line, of its layer, of what was already taken from it
     and of child layers made from it (§ 11.2.5, § 11.3.3). Prices for clients do not change."""
-    Asset.objects.filter(receipt_line=line).update(purchase_cost=unit_cost)
+    # A unit valued anew after its removal from a vehicle keeps that valuation (§ 11.4.7); its
+    # earlier consumption counts by the receipt line's cost.
+    Asset.objects.filter(receipt_line=line).exclude(installations__disposition="warehouse").update(
+        purchase_cost=unit_cost
+    )
     layers = list(LotLayer.objects.filter(receipt_line=line))
     while layers:
         ids = [layer.id for layer in layers]

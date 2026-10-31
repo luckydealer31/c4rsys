@@ -13,7 +13,7 @@ from c4rsys.companies.views import run_and_respond
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
-from c4rsys.warehouse import catalog
+from c4rsys.warehouse import catalog, dictionaries
 from c4rsys.warehouse import categories as part_catalog
 from c4rsys.warehouse.models import Item, Manufacturer
 
@@ -102,6 +102,7 @@ def _item_data(data: dict[str, Any]) -> catalog.ItemData:
         part_category_id=_uuid(data.get("part_category"), "part_category"),
         part_subcategory_id=_uuid(data.get("part_subcategory"), "part_subcategory"),
         applicability=tuple(pairs),
+        extra_attributes=data["extra_attributes"] if "extra_attributes" in data else None,
     )
 
 
@@ -116,6 +117,7 @@ def _data_payload(data: catalog.ItemData) -> dict[str, Any]:
         "part_category": str(data.part_category_id) if data.part_category_id else None,
         "part_subcategory": str(data.part_subcategory_id) if data.part_subcategory_id else None,
         "applicability": [list(p) for p in data.applicability],
+        "extra_attributes": data.extra_attributes,
     }
 
 
@@ -128,6 +130,12 @@ def item_list(request: HttpRequest, cmp: str) -> JsonResponse:
         if state not in ("", *Item.State.values):
             raise errors.validation_error("state")
         found = catalog.search(context.company.id, request.GET.get("q", "")[:100], state)
+        # § 11.1.13: filtering by a system attribute, «code:value».
+        for wanted in request.GET.getlist("attr")[:10]:
+            code, _, value = wanted.partition(":")
+            if not code or not value:
+                raise errors.validation_error("attr")
+            found = found.filter(extra_attributes__contains={code: [value]})
         return JsonResponse({"items": [_item_payload(i) for i in found[:LIST_LIMIT]]})
 
     _require(actor, "warehouse.catalog.manage")
@@ -339,6 +347,10 @@ def options(request: HttpRequest) -> JsonResponse:
                 {"code": u, "accounting": catalog.accounting_for(u)} for u in Item.Unit.values
             ],
             "attributes": catalog.ATTRIBUTES,
+            # System attributes of the platform administrator (§ 11.1.13).
+            "extra_attributes": [
+                dictionaries.attribute_payload(a) for a in dictionaries.attributes()
+            ],
         }
     )
 

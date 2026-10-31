@@ -27,6 +27,7 @@ from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
 from c4rsys.service import catalog, maintenance, materials, operations
 from c4rsys.service.models import (
+    ContractorMaterial,
     MaintenanceRule,
     ServiceHandover,
     ServiceJob,
@@ -36,6 +37,7 @@ from c4rsys.service.models import (
     ServiceWork,
     SystemWork,
 )
+from c4rsys.warehouse import parts as work_issues_parts
 from c4rsys.warehouse import work_issues
 
 NAME_MAX = 200
@@ -374,14 +376,33 @@ def _job_payload(
 
 def _materials_payload(job_ids: list[UUID]) -> list[dict[str, Any]]:
     result = []
-    for state in materials.states_of(materials.of_jobs(job_ids)):
+    found = materials.of_jobs(job_ids)
+    costs = materials.costs_of(found)
+    installed = {
+        i.operation_line_id: i
+        for i in (work_issues_parts.of_jobs(found[0].company_id, job_ids) if found else [])
+    }
+    for state in materials.states_of(found):
         m = state.material
         amount = materials.amount_of(state)
+        cost = costs.get(m.id)
+        installation = installed.get(m.warehouse_line_id) if m.warehouse_line_id else None
         result.append(
             {
                 "id": str(m.id),
                 "version": m.version,
                 "job_id": str(m.job_id),
+                # Block 15: planned (added to the work, maybe reserved), issued or taken off.
+                "state": state.state,
+                "reserve_id": str(m.reserve_id) if m.reserve_id else None,
+                "reserve_state": work_issues.reserve_state(m.reserve_id) if m.reserve_id else None,
+                "context_id": m.planned.get("context_id"),
+                "individual": m.unit == "piece",
+                "replaces_id": str(m.replaces_id) if m.replaces_id else None,
+                "installation_id": str(installation.id) if installation else None,
+                # § 11.2.9, § 11.4.4: the purchase cost of the consumed; unknown — incomplete.
+                "cost": catalog.amount_text(cost.cost) if cost else None,
+                "cost_known": cost.known if cost else True,
                 "item_name": m.item_name,
                 "label": m.label,
                 "unit": m.unit,
@@ -459,6 +480,7 @@ def _operation_payload(op: ServiceOperation, *, detail: bool = True) -> dict[str
             for h in handovers
         ],
         "materials": _materials_payload([j.id for j in jobs]),
+        **_parts_payload(op, [j.id for j in jobs]),
     }
     if detail:
         result["blockers"] = list(operations.blockers(op, order.is_internal))
@@ -1020,10 +1042,23 @@ def executors(request: HttpRequest, cmp: str) -> JsonResponse:
 # --- Materials (§ 16.5.1, § 16.7.3) --------------------------------------------------------------
 
 
+def _in_warehouse(actor: Actor, company_id: UUID, context_id: UUID, *permissions: str) -> None:
+    location = work_issues.warehouse_location(company_id, context_id)
+    if not any(
+        access.RightsResolver().has_permission(
+            actor, permission, location_id=location, context_id=context_id
+        )
+        for permission in permissions
+    ):
+        raise errors.permission_denied(permissions[0])
+
+
 @require_POST
 def job_materials(request: HttpRequest, cmp: str, job_id: UUID) -> JsonResponse:
     """A part from a warehouse to the work: «Change service operations» in the service location
-    and the issue right in the warehouse's location (PROPOSAL)."""
+    and the issue right in the warehouse's location (PROPOSAL). With `plan` the material is only
+    added to the work — reserved by the company's mode (§ 11.7.7); PROPOSAL: «Issue» or «Reserve»
+    in the warehouse."""
     context, actor = _actor(request, cmp)
     job = operations.get_job(context.company.id, job_id)
     if not _visible(actor, job.operation):
@@ -1032,23 +1067,34 @@ def job_materials(request: HttpRequest, cmp: str, job_id: UUID) -> JsonResponse:
     data = parse_json(request)
     context_id = _required_uuid(data, "context_id")
     take = work_issues.parse_take(data)
-    if not access.RightsResolver().has_permission(
-        actor,
-        "warehouse.issue",
-        location_id=work_issues.warehouse_location(context.company.id, context_id),
-        context_id=context_id,
-    ):
-        raise errors.permission_denied("warehouse.issue")
+    planning = data.get("plan") is True
+    replaces_id = _uuid(data, "replaces_id", required=False)
+    if planning:
+        _in_warehouse(actor, context.company.id, context_id, "warehouse.issue", "warehouse.reserve")
+    else:
+        _in_warehouse(actor, context.company.id, context_id, "warehouse.issue")
 
     def handler(ctx: CommandContext) -> CommandResult:
         locked = operations.locked_job(
             context.company.id, job_id, get_int(data, "expected_version")
         )
-        materials.add(ctx, context.company, locked, context_id, take)
+        if planning:
+            materials.plan(ctx, context.company, locked, context_id, take, replaces_id)
+        else:
+            added = materials.add(ctx, context.company, locked, context_id, take)
+            if replaces_id is not None:
+                for m in added:
+                    materials.set_replaces(ctx, m, replaces_id)
         op = operations.get_operation(context.company.id, locked.operation_id)
         return CommandResult(201, {"operation": _operation_payload(op)})
 
-    payload = {"job_id": str(job_id), "context_id": str(context_id), **take.as_dict()}
+    payload = {
+        "job_id": str(job_id),
+        "context_id": str(context_id),
+        "plan": planning,
+        "replaces_id": str(replaces_id) if replaces_id else None,
+        **take.as_dict(),
+    }
     payload["expected_version"] = data.get("expected_version")
     return run_and_respond(request, "service_material.add", actor, payload, handler)
 
@@ -1080,8 +1126,7 @@ def _material_command(
     payload = {
         "material_id": str(material_id),
         "expected_version": expected_version,
-        "quantity": data.get("quantity"),
-        "price": data.get("price"),
+        **{k: v for k, v in data.items() if k != "expected_version"},
     }
     return run_and_respond(request, command, actor, payload, handler)
 
@@ -1096,14 +1141,25 @@ def material_return(request: HttpRequest, cmp: str, material_id: UUID) -> JsonRe
 
     def action(ctx: CommandContext | None, m: Any, data: dict[str, Any]) -> None:
         quantity = _quantity(data)
+        target_id = _uuid(data, "target_context_id", required=False)
         if ctx is None:
+            if m.warehouse_line_id is None:
+                raise errors.business_rule("SERVICE_MATERIAL_NOT_ISSUED")
             location = work_issues.line_location(m.company_id, m.warehouse_line_id)
             if not access.RightsResolver().has_permission(
                 data["_actor"], "warehouse.issue", location_id=location
             ):
                 raise errors.permission_denied("warehouse.issue")
+            if target_id is not None:
+                # § 11.4.5: a return into another warehouse is a return and a move (PROPOSAL:
+                # «Move» in both warehouses).
+                for place in (location, work_issues.warehouse_location(m.company_id, target_id)):
+                    if not access.RightsResolver().has_permission(
+                        data["_actor"], "warehouse.move", location_id=place
+                    ):
+                        raise errors.permission_denied("warehouse.move")
             return
-        materials.return_unused(ctx, m, quantity)
+        materials.return_unused(ctx, m, quantity, target_id)
 
     return _material_command(request, cmp, material_id, "service_material.return", action)
 
@@ -1225,7 +1281,7 @@ def handover_return(request: HttpRequest, cmp: str, handover_id: UUID) -> JsonRe
     return run_and_respond(request, "service_handover.return", actor, payload, handler)
 
 
-# --- Maintenance of vehicles (ch. 9) --------------------------------------------------------------
+# --- Maintenance of vehicles (ch. 9) -------------------------------------------------------------
 
 
 def _iso_date(value: Any) -> str | None:
@@ -1459,3 +1515,237 @@ def maintenance_due(request: HttpRequest, cmp: str) -> JsonResponse:
         for card, rule, status in maintenance.due(context.company.id)
     ]
     return JsonResponse({"due": items})
+
+
+# --- Block 15: planned materials, installed parts, contractor's materials ------------------------
+
+
+def _parts_payload(op: ServiceOperation, job_ids: list[UUID]) -> dict[str, Any]:
+    names = fleet.card_names(op.company_id, {op.vehicle_card_id})
+    on_vehicle = work_issues_parts.of_vehicle(op.company_id, op.vehicle_card_id)
+    own = materials.own_of_jobs(job_ids)
+    return {
+        # Parts installed on the vehicle now — for «Replaces» and for a removal (§ 11.4.3).
+        "installed_parts": [
+            work_issues_parts.payload(i, names) for i in on_vehicle if i.removed_at is None
+        ],
+        # Installations and removals made by the works of this operation.
+        "installations": [
+            work_issues_parts.payload(i, names)
+            for i in on_vehicle
+            if i.install_job_id in job_ids or i.removal_job_id in job_ids
+        ],
+        "own_materials": [
+            {
+                "id": str(m.id),
+                "version": m.version,
+                "job_id": str(m.job_id),
+                "name": m.name,
+                "quantity": catalog.amount_text(m.quantity),
+                "unit": m.unit,
+                "cost": catalog.amount_text(m.cost),
+                "currency": m.currency_id,
+                "comment": m.comment,
+                "removed_at": _iso(m.removed_at),
+                "remove_reason": m.remove_reason,
+            }
+            for m in own
+        ],
+    }
+
+
+@require_POST
+def material_reserve(request: HttpRequest, cmp: str, material_id: UUID) -> JsonResponse:
+    """The manual reserve of a planned material (§ 11.7.7): «Reserve» or «Issue» there."""
+    context, _ = _actor(request, cmp)
+
+    def action(ctx: CommandContext | None, m: Any, data: dict[str, Any]) -> None:
+        if ctx is None:
+            if not m.planned:
+                raise errors.business_rule("SERVICE_MATERIAL_NOT_PLANNED")
+            _in_warehouse(
+                data["_actor"],
+                m.company_id,
+                UUID(m.planned["context_id"]),
+                "warehouse.reserve",
+                "warehouse.issue",
+            )
+            return
+        materials.reserve(ctx, context.company, m)
+
+    return _material_command(request, cmp, material_id, "service_material.reserve", action)
+
+
+@require_POST
+def material_issue(request: HttpRequest, cmp: str, material_id: UUID) -> JsonResponse:
+    """A planned material is issued to the work by «Issue» in the warehouse."""
+    context, _ = _actor(request, cmp)
+
+    def action(ctx: CommandContext | None, m: Any, data: dict[str, Any]) -> None:
+        if ctx is None:
+            if not m.planned:
+                raise errors.business_rule("SERVICE_MATERIAL_NOT_PLANNED")
+            _in_warehouse(
+                data["_actor"], m.company_id, UUID(m.planned["context_id"]), "warehouse.issue"
+            )
+            return
+        materials.issue(ctx, context.company, m)
+
+    return _material_command(request, cmp, material_id, "service_material.issue", action)
+
+
+@require_POST
+def material_take_off(request: HttpRequest, cmp: str, material_id: UUID) -> JsonResponse:
+    """A planned material off the work: its reserve is released (§ 11.7.1)."""
+
+    def action(ctx: CommandContext | None, m: Any, data: dict[str, Any]) -> None:
+        reason = get_str(data, "reason", max_length=TEXT_MAX, required=False)
+        if ctx is None:
+            _require(data["_actor"], "service.create", m.job.operation.location_id)
+            return
+        materials.take_off(ctx, m, reason)
+
+    return _material_command(request, cmp, material_id, "service_material.take_off", action)
+
+
+@require_POST
+def material_replaces(request: HttpRequest, cmp: str, material_id: UUID) -> JsonResponse:
+    """«Replaces the installed part» (§ 11.4.3); empty — no replacement."""
+
+    def action(ctx: CommandContext | None, m: Any, data: dict[str, Any]) -> None:
+        installation_id = _uuid(data, "replaces_id", required=False)
+        if ctx is None:
+            _require(data["_actor"], "service.create", m.job.operation.location_id)
+            return
+        materials.set_replaces(ctx, m, installation_id)
+
+    return _material_command(request, cmp, material_id, "service_material.replaces", action)
+
+
+@require_POST
+def material_install(request: HttpRequest, cmp: str, material_id: UUID) -> JsonResponse:
+    """The issued part is installed on the vehicle (§ 11.4.3): the moment, the odometer and
+    optionally the part it replaces. PROPOSAL: by the right of doing works."""
+
+    def action(ctx: CommandContext | None, m: Any, data: dict[str, Any]) -> None:
+        at = _moment(data, "installed_at", required=True)
+        odometer = _amount(data, "odometer", places=1)
+        replaces_id = _uuid(data, "replaces_id", required=False)
+        if ctx is None:
+            _require(data["_actor"], "service.work", m.job.operation.location_id)
+            return
+        if at is None:
+            raise errors.validation_error("installed_at", code="FIELD_REQUIRED")
+        materials.install(ctx, m, at, odometer, replaces_id)
+
+    return _material_command(request, cmp, material_id, "service_material.install", action)
+
+
+@require_POST
+def job_remove_part(request: HttpRequest, cmp: str, job_id: UUID) -> JsonResponse:
+    """A part installed on the vehicle is removed by this work: the actual moment, the odometer
+    and a comment (§ 11.4.3). PROPOSAL: by the right of doing works."""
+    context, actor = _actor(request, cmp)
+    job = operations.get_job(context.company.id, job_id)
+    if not _visible(actor, job.operation):
+        raise errors.not_found()
+    _require(actor, "service.work", job.operation.location_id)
+    data = parse_json(request)
+    installation_id = _required_uuid(data, "installation_id")
+    at = _moment(data, "removed_at", required=True)
+    odometer = _amount(data, "odometer", places=1)
+    comment = get_str(data, "comment", max_length=TEXT_MAX, required=False)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        locked = operations.locked_job(
+            context.company.id, job_id, get_int(data, "expected_version")
+        )
+        if at is None:
+            raise errors.validation_error("removed_at", code="FIELD_REQUIRED")
+        materials.remove_part(ctx, locked, installation_id, at, odometer, comment)
+        op = operations.get_operation(context.company.id, locked.operation_id)
+        return CommandResult(200, {"operation": _operation_payload(op)})
+
+    payload = {
+        "job_id": str(job_id),
+        "installation_id": str(installation_id),
+        "removed_at": at.isoformat() if at else None,
+        "odometer": str(odometer) if odometer is not None else None,
+        "comment": comment,
+        "expected_version": data.get("expected_version"),
+    }
+    return run_and_respond(request, "service_job.remove_part", actor, payload, handler)
+
+
+@require_POST
+def job_own_materials(request: HttpRequest, cmp: str, job_id: UUID) -> JsonResponse:
+    """§ 16.5.3: parts and materials of an external service from its own stock with their cost,
+    without a receipt into the warehouse. PROPOSAL: «Change service operations»."""
+    context, actor = _actor(request, cmp)
+    job = operations.get_job(context.company.id, job_id)
+    if not _visible(actor, job.operation):
+        raise errors.not_found()
+    _require(actor, "service.create", job.operation.location_id)
+    data = parse_json(request)
+    name = get_str(data, "name", max_length=NAME_MAX)
+    quantity = _amount(data, "quantity", places=2, positive=True)
+    if quantity is None:
+        raise errors.validation_error("quantity", code="FIELD_REQUIRED")
+    unit = get_str(data, "unit", max_length=20)
+    cost = _amount(data, "cost")
+    currency = get_str(data, "currency", max_length=3, required=False) or job.currency_id
+    comment = get_str(data, "comment", max_length=TEXT_MAX, required=False)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        locked = operations.locked_job(
+            context.company.id, job_id, get_int(data, "expected_version")
+        )
+        materials.add_own(
+            ctx,
+            locked,
+            name=name,
+            quantity=quantity,
+            unit=unit,
+            cost=cost,
+            currency=currency,
+            comment=comment,
+        )
+        op = operations.get_operation(context.company.id, locked.operation_id)
+        return CommandResult(201, {"operation": _operation_payload(op)})
+
+    payload = {
+        "job_id": str(job_id),
+        "name": name,
+        "quantity": str(quantity),
+        "unit": unit,
+        "cost": str(cost) if cost is not None else None,
+        "currency": currency,
+        "comment": comment,
+        "expected_version": data.get("expected_version"),
+    }
+    return run_and_respond(request, "service_contractor_material.add", actor, payload, handler)
+
+
+@require_POST
+def own_material_remove(request: HttpRequest, cmp: str, material_id: UUID) -> JsonResponse:
+    context, actor = _actor(request, cmp)
+    found = (
+        ContractorMaterial.objects.select_related("job__operation")
+        .filter(company=context.company, pk=material_id)
+        .first()
+    )
+    if found is None or not _visible(actor, found.job.operation):
+        raise errors.not_found()
+    _require(actor, "service.create", found.job.operation.location_id)
+    data = parse_json(request)
+    expected = get_int(data, "expected_version")
+    reason = get_str(data, "reason", max_length=TEXT_MAX)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        operations.locked_operation(context.company.id, found.job.operation_id)
+        materials.remove_own(ctx, context.company.id, material_id, expected, reason)
+        op = operations.get_operation(context.company.id, found.job.operation_id)
+        return CommandResult(200, {"operation": _operation_payload(op)})
+
+    payload = {"material_id": str(material_id), "expected_version": expected, "reason": reason}
+    return run_and_respond(request, "service_contractor_material.remove", actor, payload, handler)

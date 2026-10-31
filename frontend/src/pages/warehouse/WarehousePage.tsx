@@ -14,9 +14,10 @@ import { OperationsList, WarehouseSettingsCard } from "./Operations";
 import { VehiclePrice } from "./Prices";
 import { PurchasesList } from "./Purchases";
 import { ReceiptsList } from "./Receipts";
+import { ReservesList } from "./Reserves";
 import { StockList } from "./Stock";
 
-const TABS = ["stock", "items", "receipts", "operations", "inventory", "purchases", "storages"] as const;
+const TABS = ["stock", "items", "receipts", "operations", "reserves", "inventory", "purchases", "storages"] as const;
 type Tab = (typeof TABS)[number];
 
 /** Section «Warehouse» (ТЗ гл. 11): stock, the catalog, receipts, purchases and the warehouses
@@ -47,6 +48,7 @@ export function WarehousePage() {
       {tab === "items" ? <Items /> : null}
       {tab === "receipts" ? <ReceiptsList /> : null}
       {tab === "operations" ? <OperationsList /> : null}
+      {tab === "reserves" ? <ReservesList /> : null}
       {tab === "inventory" ? <InventoriesList /> : null}
       {tab === "purchases" ? <PurchasesList /> : null}
       {tab === "storages" ? <Storages /> : null}

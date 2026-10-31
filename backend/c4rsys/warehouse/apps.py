@@ -49,3 +49,14 @@ class WarehouseConfig(AppConfig):
 
         # § 20.3.5: expiry of lots (decision З-7).
         notifications.register_check(notices.run)
+        # § 11.7.8: low stock to the chosen employees; § 11.7.1: reserves past their term.
+        notifications.register_check(notices.low_stock)
+        notifications.register_check(reserves.expire)
+
+        from c4rsys.fleet import odometer
+        from c4rsys.warehouse import corrections, parts
+
+        # § 11.4.3: the odometer of installations follows a change of the unit (§ 8.2.10).
+        odometer.register_unit_participant("warehouse", parts.unit_values)
+        # § 11.6.2: a write-off of a removed part is not corrected as a stock movement.
+        corrections.register_line_guard(parts.guarded_lines)

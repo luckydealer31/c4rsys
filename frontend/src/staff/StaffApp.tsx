@@ -9,6 +9,7 @@ import { UI_LANGUAGES } from "../i18n";
 import { LoginPage } from "../pages/auth/LoginPage";
 import { BlocksPage, JournalPage, MembersPage } from "./Admin";
 import { STAFF_ME, StaffContext, useStaff, useStaffCan, useStaffMe } from "./common";
+import { DictionariesPage } from "./Dictionaries";
 import { CompanyCard, DirectoryPage, UserCard } from "./Directory";
 import { MergePage, MergesPage } from "./Merges";
 import { SessionPage, SessionsPage } from "./Privileged";
@@ -93,6 +94,7 @@ export function StaffApp() {
           <Route path="/vehicles" element={<VehiclesPage />} />
           <Route path="/vehicles/:vhl" element={<GlobalVehiclePage />} />
           <Route path="/vehicle-catalog" element={<CatalogPage />} />
+          <Route path="/dictionaries" element={<DictionariesPage />} />
           <Route path="/recovery" element={<RecoveryCasesPage />} />
           <Route path="/recovery/:id" element={<RecoveryCasePage />} />
           <Route path="/members" element={<MembersPage />} />
@@ -138,6 +140,7 @@ function StaffShell({ children }: { children: ReactNode }) {
     ["/vehicle-conflicts", "staff.nav_conflicts", can("verification.resolve")],
     ["/vehicles", "staff.nav_vehicles", can("verification.resolve") || can("vehicles.characteristics")],
     ["/vehicle-catalog", "staff.nav_catalog", can("vehicles.catalog")],
+    ["/dictionaries", "staff.nav_dictionaries", can("warehouse.dictionaries")],
     ["/merges", "staff.nav_merges", can("accounts.merge")],
     ["/recovery", "staff.nav_recovery", can("recovery.manage")],
     ["/members", "staff.nav_members", can("staff.manage")],

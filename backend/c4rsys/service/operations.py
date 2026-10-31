@@ -836,6 +836,7 @@ def complete(
         odometer = None
     elif odometer is None and job.contractor_id is None:
         raise errors.validation_error("odometer", code="FIELD_REQUIRED")
+    materials.require_issued(job)
     before = job_snapshot(job)
     _record_result(ctx, job, at, comment)
     if replacement is not None:
@@ -895,6 +896,7 @@ def terminate(
     job.price = price
     _save_job(ctx, job, "service_job.terminated", before)
     _charge(ctx, job, "service_job_terminated")
+    materials.release_planned(ctx, job, reason)
     return job
 
 
@@ -910,6 +912,7 @@ def cancel(ctx: CommandContext, job: ServiceJob, reason: str) -> ServiceJob:
     _save_job(ctx, job, "service_job.cancelled", before)
     _charge(ctx, job, "service_job_cancelled")
     _withdraw(ctx, job, reason)
+    materials.release_planned(ctx, job, reason)
     return job
 
 
@@ -1150,6 +1153,7 @@ def _cancel(ctx: CommandContext, op: ServiceOperation, reason: str) -> None:
         )
         _charge(ctx, job, "service_job_cancelled")
         _withdraw(ctx, job, reason)
+        materials.release_planned(ctx, job, reason)
     previous = op.state
     op.state = Op.CANCELLED
     op.end_reason = reason
@@ -1218,6 +1222,7 @@ def terminate_operation(ctx: CommandContext, op: ServiceOperation, reason: str) 
         _charge(ctx, job, "service_operation_terminated")
         if job.state == Job.CANCELLED:
             _withdraw(ctx, job, reason)
+        materials.release_planned(ctx, job, reason)
     op.state = Op.TERMINATED
     op.end_reason = reason
     # A reopened service keeps its historical occupancy (§ 16.8.2).
@@ -1267,7 +1272,7 @@ def client_view_for_order(company_id: UUID, order_id: UUID) -> list[dict[str, An
                     "end": job.actual_end.isoformat() if job.actual_end else None,
                 }
             )
-            for m in job.materials.all():
+            for m in job.materials.filter(removed_at__isnull=True):
                 names[str(m.id)] = m.item_name
                 materials.append({"name": m.item_name, "quantity": str(m.quantity), "unit": m.unit})
         start = op.accepted_at or op.planned_start

@@ -20,7 +20,7 @@ from c4rsys.fleet import services as fleet
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
-from c4rsys.warehouse import catalog, operations, stock
+from c4rsys.warehouse import catalog, corrections, operations, parts, stock
 from c4rsys.warehouse.models import StockOperation, WarehouseSettings, WriteOffReason
 from c4rsys.warehouse.stock_views import (
     COMMENT_MAX,
@@ -82,6 +82,7 @@ def _takes(data: dict[str, Any]) -> tuple[operations.Take, ...]:
                 if quantity in (None, "")
                 else catalog.quantity(quantity, f"{where}.quantity"),
                 confirm_expired=line.get("confirm_expired") is True,
+                reserve_id=_uuid(line.get("reserve_id"), f"{where}.reserve_id"),
             )
         )
     return tuple(parsed)
@@ -117,7 +118,9 @@ def _reason_payload(reason: WriteOffReason) -> dict[str, Any]:
 def _line_cost(line: Any, currency: str) -> tuple[str | None, bool]:
     """Purchase cost of what the line took; unknown costs make it incomplete (§ 11.2.9)."""
     if line.asset_id:
-        cost = line.asset.purchase_cost
+        if operations.effective(line) <= 0:
+            return stock.money_text(Decimal(0), currency), True
+        cost = parts.asset_cost_at(line.asset, line.operation.created_at)
         return stock.money_text(cost, currency), cost is not None
     uses = list(line.layer_uses.all())
     if not uses:
@@ -133,7 +136,9 @@ def _operation_payload(
     operation: StockOperation, vehicles: dict[UUID, str], currency: str
 ) -> dict[str, Any]:
     lines = []
-    for line in sorted(operation.lines.all(), key=lambda entry: entry.position):
+    all_lines = list(operation.lines.all())
+    guarded = corrections.guarded([line.id for line in all_lines])
+    for line in sorted(all_lines, key=lambda entry: entry.position):
         cost, known = _line_cost(line, currency)
         lines.append(
             {
@@ -163,6 +168,12 @@ def _operation_payload(
                 "expired_confirmed": line.expired_confirmed,
                 "cost": cost,
                 "cost_known": known,
+                # § 11.6.2: what a correction may still take back, and the corrections made.
+                "cancelled_quantity": str(line.cancelled_quantity),
+                "correctable": str(
+                    Decimal(0) if line.id in guarded else corrections.correctable(operation, line)
+                ),
+                "corrections": corrections.corrections_payload(line),
             }
         )
     return {
@@ -186,6 +197,9 @@ def _operation_payload(
         else None,
         "reason": _reason_payload(operation.reason) if operation.reason else None,
         "parent_id": str(operation.parent_id) if operation.parent_id else None,
+        "parent_number": operation.parent.number
+        if operation.parent_id and operation.parent
+        else None,
         "receipt": {"id": str(operation.receipt_id), "number": operation.receipt.number}
         if operation.receipt
         else None,
@@ -340,19 +354,30 @@ def consume(request: HttpRequest, cmp: str) -> JsonResponse:
 def _issued_command(
     request: HttpRequest, cmp: str, operation_id: UUID, returning: bool
 ) -> JsonResponse:
+    """A return into another warehouse (§ 11.4.5) is a return and a move: PROPOSAL — «Issue» in
+    the warehouse of the issue and «Move» in both warehouses."""
     context, actor = _actor(request, cmp)
     operation = operations.get_operation(context.company.id, operation_id)
     _require_in(actor, "warehouse.issue", operation.context)
-    amounts = _amounts(parse_json(request))
+    data = parse_json(request)
+    amounts = _amounts(data)
+    target_id = _uuid(data.get("target_context_id"), "target_context_id") if returning else None
+    if target_id is not None and target_id != operation.context_id:
+        _require_in(actor, "warehouse.move", operation.context)
+        _require_in(actor, "warehouse.move", _context_of(context.company.id, target_id))
 
     def handler(ctx: CommandContext) -> CommandResult:
         if returning:
-            operations.return_issued(ctx, context.company.id, operation_id, amounts)
+            operations.return_issued(ctx, context.company.id, operation_id, amounts, target_id)
         else:
             operations.consume_issued(ctx, context.company.id, operation_id, amounts)
         return _result(200, context.company.id, operation_id)
 
-    payload = {"operation_id": str(operation_id), "lines": [a.as_dict() for a in amounts]}
+    payload = {
+        "operation_id": str(operation_id),
+        "lines": [a.as_dict() for a in amounts],
+        "target_context_id": str(target_id) if target_id else None,
+    }
     name = "warehouse.return_issued" if returning else "warehouse.consume_issued"
     return run_and_respond(request, name, actor, payload, handler)
 
@@ -623,7 +648,11 @@ def reason_detail(request: HttpRequest, cmp: str, reason_id: UUID) -> JsonRespon
 
 
 def _settings_payload(found: WarehouseSettings) -> dict[str, Any]:
-    return {"expired_policy": found.expired_policy, "version": found.version}
+    return {
+        "expired_policy": found.expired_policy,
+        "work_reserve_mode": found.work_reserve_mode,
+        "version": found.version,
+    }
 
 
 @require_http_methods(["GET", "PUT"])
@@ -636,14 +665,23 @@ def settings(request: HttpRequest, cmp: str) -> JsonResponse:
         )
     _manager(actor)
     data = parse_json(request)
-    policy = get_str(data, "expired_policy", max_length=10)
+    policy = get_str(data, "expired_policy", max_length=10) if "expired_policy" in data else None
+    mode = (
+        get_str(data, "work_reserve_mode", max_length=10) if "work_reserve_mode" in data else None
+    )
     expected_version = get_int(data, "expected_version")
 
     def handler(ctx: CommandContext) -> CommandResult:
-        found = operations.set_expired_policy(ctx, context.company.id, policy, expected_version)
+        found = operations.set_expired_policy(
+            ctx, context.company.id, policy, expected_version, mode
+        )
         return CommandResult(200, {"settings": _settings_payload(found)})
 
-    payload = {"expired_policy": policy, "expected_version": expected_version}
+    payload = {
+        "expired_policy": policy,
+        "work_reserve_mode": mode,
+        "expected_version": expected_version,
+    }
     return run_and_respond(request, "warehouse.change_settings", actor, payload, handler)
 
 
@@ -696,3 +734,30 @@ def return_to_supplier(request: HttpRequest, cmp: str, receipt_id: UUID) -> Json
         "comment": comment,
     }
     return run_and_respond(request, "warehouse.return_to_supplier", actor, payload, handler)
+
+
+# --- Correction of a posted operation (§ 11.6.2) ------------------------------------------------
+
+
+@require_POST
+def correct_line(request: HttpRequest, cmp: str, operation_id: UUID, line_id: UUID) -> JsonResponse:
+    """«Correct» in the warehouse of the operation, with a reason."""
+    context, actor = _actor(request, cmp)
+    operation = operations.get_operation(context.company.id, operation_id)
+    _require_in(actor, "warehouse.correct", operation.context)
+    data = parse_json(request)
+    value = data.get("quantity")
+    quantity = Decimal("0.00") if value in (0, "0", "0.00") else catalog.quantity(value, "quantity")
+    reason = get_str(data, "reason", max_length=REASON_MAX)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        corrections.correct_line(ctx, context.company.id, operation_id, line_id, quantity, reason)
+        return _result(200, context.company.id, operation_id)
+
+    payload = {
+        "operation_id": str(operation_id),
+        "line_id": str(line_id),
+        "quantity": str(quantity),
+        "reason": reason,
+    }
+    return run_and_respond(request, "warehouse.correct_operation", actor, payload, handler)

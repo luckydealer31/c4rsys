@@ -14,6 +14,7 @@ import { useLocations } from "../settings/LocationsPage";
 import { LinkedTasks } from "../tasks/TasksPage";
 import { LinkedDocuments } from "../documents/DocumentsPage";
 import { StockAdder } from "../warehouse/Sales";
+import { MaterialExtras, OwnMaterials, RemovePart, ReplacesPicker, useWarehouseChoices } from "./Parts";
 import { FixedDamagesPicker, ServiceInspectionsCard, type FixedChoice } from "../inspections/Blocks";
 import {
   FINAL_STATES,
@@ -454,7 +455,8 @@ function Jobs({ op, zone }: { op: ServiceOperation; zone: string }) {
           ) : null}
           {job.comment ? <div className="small">{job.comment}</div> : null}
           {job.end_reason ? <div className="muted small">{job.end_reason}</div> : null}
-          <Materials op={op} job={job} />
+          <Materials op={op} job={job} zone={zone} />
+          <OwnMaterials op={op} job={job} />
           <JobActions op={op} job={job} zone={zone} />
         </div>
       ))}
@@ -814,50 +816,63 @@ function OdometerReplacementFields({
 
 /** Parts of a work: issued, returned unused, consumed; «done» consumes what is left (§ 16.5.1).
  * Everything is consumed or returned before the order closes (§ 16.7.3). */
-function Materials({ op, job }: { op: ServiceOperation; job: ServiceJob }) {
+function Materials({ op, job, zone }: { op: ServiceOperation; job: ServiceJob; zone: string }) {
   const { t } = useTranslation();
   const company = useCompany();
   const can = useCan();
   const refresh = useRefresh();
   const [adding, setAdding] = useState(false);
+  const [replaces, setReplaces] = useState("");
   const items = op.materials.filter((m) => m.job_id === job.id);
   const open = job.state === "planned" || job.state === "in_progress";
-  const mayAdd = open && !FINAL_STATES.includes(op.state) && can("service.create") && can("warehouse.issue");
-  if (items.length === 0 && !mayAdd) return null;
+  const mayAdd = open && !FINAL_STATES.includes(op.state) && can("service.create") && (can("warehouse.issue") || can("warehouse.reserve"));
+  const extra: Record<string, unknown> = { expected_version: job.version, ...(replaces ? { replaces_id: replaces } : {}) };
+  if (items.length === 0 && !mayAdd) {
+    return <RemovePart op={op} job={job} zone={zone} />;
+  }
   return (
     <div className="small" style={{ marginTop: 8 }}>
       {items.map((m) => (
-        <MaterialRow key={m.id} material={m} />
+        <MaterialRow key={m.id} op={op} material={m} zone={zone} />
       ))}
       {mayAdd ? (
         adding ? (
-          <StockAdder
-            path={`/c/${company.public_id}/service/jobs/${job.id}/materials`}
-            title={t("service.add_material")}
-            button={t("service.issue_material")}
-            extra={{ expected_version: job.version }}
-            onAdded={async (result) => {
-              if (result !== null) {
-                setAdding(false);
-                await refresh();
-              }
-            }}
-          />
+          <>
+            <ReplacesPicker op={op} value={replaces} onChange={setReplaces} />
+            <StockAdder
+              path={`/c/${company.public_id}/service/jobs/${job.id}/materials`}
+              title={t("service.add_material")}
+              button={can("warehouse.issue") ? t("service.issue_material") : t("parts.plan_material")}
+              extra={can("warehouse.issue") ? extra : { ...extra, plan: true }}
+              alternatives={can("warehouse.issue") ? [{ button: t("parts.plan_material"), extra: { plan: true } }] : []}
+              onAdded={async (result) => {
+                if (result !== null) {
+                  setAdding(false);
+                  setReplaces("");
+                  await refresh();
+                }
+              }}
+            />
+            <p className="muted small">{t("parts.plan_hint")}</p>
+          </>
         ) : (
           <button type="button" className="secondary small" onClick={() => setAdding(true)}>
             {t("service.add_material")}
           </button>
         )
-      ) : null}
+      ) : null}{" "}
+      <RemovePart op={op} job={job} zone={zone} />
     </div>
   );
 }
 
-function MaterialRow({ material }: { material: ServiceMaterial }) {
+function MaterialRow({ op, material, zone }: { op: ServiceOperation; material: ServiceMaterial; zone: string }) {
   const { t } = useTranslation();
   const company = useCompany();
   const can = useCan();
   const refresh = useRefresh();
+  const warehouses = useWarehouseChoices();
+  const [target, setTarget] = useState("");
   const [mode, setMode] = useState<"" | "return" | "consume" | "price">("");
   const [value, setValue] = useState("");
   const command = useCommand<Record<string, unknown>, Result>(
@@ -871,6 +886,7 @@ function MaterialRow({ material }: { material: ServiceMaterial }) {
     const body: Record<string, unknown> = { expected_version: material.version };
     if (mode === "price") body.price = amount;
     else if (amount) body.quantity = amount;
+    if (mode === "return" && target) body.target_context_id = target;
     const result = await command.run(body);
     if (result) {
       setMode("");
@@ -890,6 +906,7 @@ function MaterialRow({ material }: { material: ServiceMaterial }) {
       · {material.price === null ? t("service.price_unknown") : `${Number(material.price)} ${material.currency}`}
       {Number(material.price_per) !== 1 ? ` / ${Number(material.price_per)} ${unit}` : ""}
       {outstanding ? <span className="badge warn">{t("service.material_outstanding", { quantity: Number(material.outstanding), unit })}</span> : null}{" "}
+      <MaterialExtras op={op} material={material} zone={zone} />
       {outstanding && can("warehouse.issue") ? (
         <button type="button" className="link" onClick={() => setMode(mode === "return" ? "" : "return")}>
           {t("service.return_material")}
@@ -913,6 +930,20 @@ function MaterialRow({ material }: { material: ServiceMaterial }) {
           >
             <input inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} />
           </Field>
+          {mode === "return" && can("warehouse.move") ? (
+            <Field label={t("operations.return_to")} hint={t("operations.return_to_hint")}>
+              <select value={target} onChange={(e) => setTarget(e.target.value)}>
+                <option value="">{t("parts.same_warehouse")}</option>
+                {warehouses
+                  .filter((w) => w.context_id !== material.context_id)
+                  .map((w) => (
+                    <option key={w.context_id} value={w.context_id}>
+                      {w.location_name}
+                    </option>
+                  ))}
+              </select>
+            </Field>
+          ) : null}
           <div className="actions">
             <button type="submit" disabled={command.pending || (mode === "price" && !value.trim())}>
               {t("common.save")}

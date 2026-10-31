@@ -347,8 +347,24 @@ class ServiceMaterial(models.Model):
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
     job = models.ForeignKey(ServiceJob, on_delete=models.PROTECT, related_name="materials")
     order = models.ForeignKey("orders.Order", on_delete=models.PROTECT, related_name="+")
+    # Empty while the material is only added to a planned work (§ 11.7.7): `planned` keeps what
+    # to take and the warehouse, `reserve` — its reserve (automatic, manual or none yet).
     warehouse_line = models.OneToOneField(
-        "warehouse.OperationLine", on_delete=models.PROTECT, related_name="+"
+        "warehouse.OperationLine", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    planned = models.JSONField(default=dict, blank=True)
+    reserve = models.ForeignKey(
+        "warehouse.StockReserve", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    # A planned material taken off the work before its issue; the record stays.
+    removed_at = models.DateTimeField(null=True, blank=True)
+    # «Replaces the installed part» (§ 11.4.3): finishing the work removes it and installs this.
+    replaces = models.ForeignKey(
+        "warehouse.PartInstallation",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
     )
     item_name = models.CharField(max_length=200)
     unit = models.CharField(max_length=20)
@@ -375,10 +391,53 @@ class ServiceMaterial(models.Model):
             models.CheckConstraint(
                 condition=Q(price_per__gt=0), name="service_material_price_per_gt_0"
             ),
+            models.CheckConstraint(
+                condition=Q(warehouse_line__isnull=False) | ~Q(planned={}),
+                name="service_material_issued_or_planned",
+            ),
         ]
 
     def __str__(self) -> str:
         return f"material {self.item_name}"
+
+
+class ContractorMaterial(models.Model):
+    """A part or material an external service used from its own stock (§ 16.5.3): kept in the
+    record of the work with its cost, without a fictitious receipt into the company's warehouse.
+    The cost is empty when unknown — not zero. A wrong record is taken off with a reason; the
+    record stays."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    job = models.ForeignKey(ServiceJob, on_delete=models.PROTECT, related_name="own_materials")
+    name = models.CharField(max_length=200)
+    quantity = models.DecimalField(max_digits=12, decimal_places=2)
+    unit = models.CharField(max_length=20)
+    cost = models.DecimalField(max_digits=20, decimal_places=4, null=True, blank=True)
+    currency = models.ForeignKey(Currency, on_delete=models.PROTECT, related_name="+")
+    comment = models.CharField(max_length=2000, blank=True, default="")
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+    removed_at = models.DateTimeField(null=True, blank=True)
+    removed_by_user_id = models.UUIDField(null=True, blank=True)
+    remove_reason = models.CharField(max_length=2000, blank=True, default="")
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "service_contractor_material"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(quantity__gt=0), name="service_contractor_material_qty_gt_0"
+            ),
+            models.CheckConstraint(
+                condition=Q(cost__isnull=True) | Q(cost__gte=0),
+                name="service_contractor_material_cost_gte_0",
+            ),
+            models.CheckConstraint(condition=~Q(name=""), name="service_contractor_material_name"),
+        ]
+
+    def __str__(self) -> str:
+        return f"contractor material {self.name}"
 
 
 class ServiceHandover(models.Model):

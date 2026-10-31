@@ -227,6 +227,7 @@ export function StockAdder({
   title,
   button,
   extra,
+  alternatives = [],
   withVehicles = false,
   onAdded,
 }: {
@@ -234,6 +235,8 @@ export function StockAdder({
   title: string;
   button: string;
   extra?: Record<string, unknown>;
+  /** Other actions with the same choice, each with its own additions to the body. */
+  alternatives?: { button: string; extra: Record<string, unknown> }[];
   withVehicles?: boolean;
   onAdded: (result: unknown) => Promise<void>;
 }) {
@@ -339,9 +342,22 @@ export function StockAdder({
                     {a.public_id} {a.serial_number}
                   </label>
                 ))}
-                <button type="button" disabled={!assets.length || add.pending} onClick={() => void submit({ item_id: item.id, asset_ids: assets })}>
-                  {button}
-                </button>
+                <div className="actions">
+                  <button type="button" disabled={!assets.length || add.pending} onClick={() => void submit({ item_id: item.id, asset_ids: assets })}>
+                    {button}
+                  </button>
+                  {alternatives.map((alt) => (
+                    <button
+                      key={alt.button}
+                      type="button"
+                      className="secondary"
+                      disabled={!assets.length || add.pending}
+                      onClick={() => void submit({ item_id: item.id, asset_ids: assets, ...alt.extra })}
+                    >
+                      {alt.button}
+                    </button>
+                  ))}
+                </div>
               </div>
             ) : (
               <p className="muted">{t("operations.nothing_available")}</p>
@@ -379,23 +395,30 @@ export function StockAdder({
                   {t("operations.confirm_expired", { lot: lot.public_id })}
                 </label>
               ) : null}
-              <button
-                type="button"
-                disabled={!amount || add.pending}
-                onClick={() => {
-                  const [kind, formId] = chosen.split(":");
-                  void submit({
-                    item_id: item.id,
-                    lot_id: lot?.id,
-                    packaging_id: kind === "pack" ? formId : null,
-                    opened_package_id: kind === "opened" ? formId : null,
-                    quantity: amount,
-                    confirm_expired: confirmExpired,
-                  });
-                }}
-              >
-                {button}
-              </button>
+              <div className="actions">
+                {[{ button, extra: {} }, ...alternatives].map((alt, index) => (
+                  <button
+                    key={alt.button}
+                    type="button"
+                    className={index ? "secondary" : undefined}
+                    disabled={!amount || add.pending}
+                    onClick={() => {
+                      const [kind, formId] = chosen.split(":");
+                      void submit({
+                        item_id: item.id,
+                        lot_id: lot?.id,
+                        packaging_id: kind === "pack" ? formId : null,
+                        opened_package_id: kind === "opened" ? formId : null,
+                        quantity: amount.replace(",", "."),
+                        confirm_expired: confirmExpired,
+                        ...alt.extra,
+                      });
+                    }}
+                  >
+                    {alt.button}
+                  </button>
+                ))}
+              </div>
             </>
           ) : (
             <p className="muted">{t("operations.nothing_available")}</p>

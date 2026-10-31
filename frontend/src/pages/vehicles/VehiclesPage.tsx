@@ -14,6 +14,7 @@ import { useLocations } from "../settings/LocationsPage";
 import { LinkedTasks } from "../tasks/TasksPage";
 import { LinkedDocuments } from "../documents/DocumentsPage";
 import { VehicleService } from "../service/VehicleService";
+import { VehicleParts } from "../warehouse/Reserves";
 import { OwnerRequestCard } from "./OwnerRequestCard";
 import { VehicleMoves } from "./VehicleMoves";
 import { VehicleDamagesCard, VehicleInspectionsCard } from "../inspections/Blocks";
@@ -429,6 +430,7 @@ export function VehiclePage() {
       <GlobalDocumentsCard vehicle={data} />
       <HistoryCard vehicle={data} />
       {stored ? null : <VehicleService vehicle={data} />}
+      {stored ? null : <VehicleParts vehicle={data} />}
       {stored ? null : <VehicleInspectionsCard vehicle={data} />}
       {stored ? null : <VehicleDamagesCard vehicle={data} />}
       <MergeCard key={search.get("merge") ?? ""} vehicle={data} preselected={search.get("merge")} />

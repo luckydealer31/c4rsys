@@ -93,6 +93,7 @@ type LineForm = {
   packs: string;
   expected_quantity: string;
   unit_cost: string;
+  sale_price: string;
   tags: string;
   serials: string;
   lot_id: string;
@@ -120,6 +121,7 @@ function newLine(item: ItemBrief): LineForm {
     packs: "",
     expected_quantity: "",
     unit_cost: "",
+    sale_price: "",
     tags: "",
     serials: "",
     lot_id: "",
@@ -154,6 +156,7 @@ function bodyOf(head: HeadForm, lines: LineForm[]): Record<string, unknown> {
         packs: batch && line.packaging_id ? Number(line.packs) || null : null,
         expected_quantity: line.expected_quantity || null,
         unit_cost: line.unit_cost || null,
+        sale_price: line.sale_price ? line.sale_price.replace(",", ".") : null,
         tags: parseTags(line.tags),
         serial_numbers: batch ? [] : line.serials.split("\n").map((s) => s.trim()),
         lot_id: batch ? line.lot_id || null : null,
@@ -463,6 +466,7 @@ function lineFromReceipt(line: ReceiptLine): LineForm {
     packs: line.packs ? String(line.packs) : "",
     expected_quantity: line.expected_quantity ?? "",
     unit_cost: line.unit_cost ?? "",
+    sale_price: line.sale_price ?? "",
     tags: line.tags.join(", "),
     serials: line.serial_numbers.join("\n"),
     lot_id: line.lot?.id ?? "",
@@ -536,6 +540,7 @@ function LineEditor({
 }) {
   const { t } = useTranslation();
   const company = useCompany();
+  const can = useCan();
   const batch = line.item.accounting === "batch";
   const unit = t(`warehouse.unit_short_${line.item.unit}`);
   const item = useApi<{ item: WarehouseItem }>(
@@ -587,6 +592,14 @@ function LineEditor({
         <Field label={t("receipts.unit_cost_per", { unit })} hint={t("receipts.unit_cost_hint")}>
           <input inputMode="decimal" value={line.unit_cost} onChange={set("unit_cost")} />
         </Field>
+        {can("warehouse.price.set") ? (
+          <Field
+            label={line.packaging_id ? t("receipts.sale_price_pack") : t("receipts.sale_price_per", { unit })}
+            hint={t("receipts.sale_price_hint")}
+          >
+            <input inputMode="decimal" value={line.sale_price} onChange={set("sale_price")} />
+          </Field>
+        ) : null}
       </div>
       {line.expected_quantity && total !== Number(line.expected_quantity) ? (
         <p className="alert warn">
@@ -741,7 +754,12 @@ function PostedReceipt({ receipt }: { receipt: Receipt }) {
                     money(line.unit_cost, receipt.currency)
                   )}
                 </td>
-                <td>{line.total_cost === null ? "—" : money(line.total_cost, receipt.currency)}</td>
+                <td>
+                  {line.total_cost === null ? "—" : money(line.total_cost, receipt.currency)}
+                  {line.sale_price !== null ? (
+                    <div className="small muted">{t("receipts.sale_price_value", { price: `${line.sale_price} ${receipt.currency}` })}</div>
+                  ) : null}
+                </td>
                 <td className="small">
                   {line.asset_refs.length
                     ? line.asset_refs

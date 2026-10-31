@@ -1,6 +1,13 @@
 from django.urls import path
 
-from c4rsys.backoffice import account_views, company_views, recovery_views, vehicle_views, views
+from c4rsys.backoffice import (
+    account_views,
+    company_views,
+    recovery_views,
+    vehicle_views,
+    views,
+    warehouse_views,
+)
 
 S = "staff/"
 P = "staff/privileged/<uuid:session_id>/"
@@ -81,6 +88,16 @@ urlpatterns = [
     path(f"{S}vehicle-catalog/makes", vehicle_views.catalog_makes),
     path(f"{S}vehicle-catalog/models", vehicle_views.catalog_models),
     path(f"{S}vehicle-catalog/link", vehicle_views.catalog_link),
+    # Block 15: the system dictionaries of the warehouse catalog (§ 11.1.12–11.1.14).
+    path(f"{S}warehouse/manufacturers", warehouse_views.manufacturers),
+    path(
+        f"{S}warehouse/manufacturers/<uuid:manufacturer_id>",
+        warehouse_views.manufacturer_detail,
+    ),
+    path(f"{S}warehouse/manufacturer-other", warehouse_views.manufacturer_other),
+    path(f"{S}warehouse/manufacturer-link", warehouse_views.manufacturer_link),
+    path(f"{S}warehouse/attributes", warehouse_views.attributes),
+    path(f"{S}warehouse/attributes/<uuid:attribute_id>", warehouse_views.attribute_detail),
     # Recovery through the support (§ 2.3.1; decision В-11.2).
     path(f"{S}recovery", account_views.recovery_list),
     path(f"{S}recovery/<uuid:case_id>", account_views.recovery_detail),

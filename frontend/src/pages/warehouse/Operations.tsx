@@ -459,6 +459,14 @@ export function OperationPage() {
   const [amounts, setAmounts] = useState<Record<string, string>>({});
   const reasons = useReasons();
   const [settleReason, setSettleReason] = useState("");
+  const warehouses = useWarehouses();
+  const [target, setTarget] = useState("");
+  const [fixing, setFixing] = useState("");
+  const [fixQuantity, setFixQuantity] = useState("");
+  const [fixReason, setFixReason] = useState("");
+  const correcting = useCommand<{ line: string; quantity: string; reason: string }, unknown>(
+    (b) => `${base}/lines/${b.line}/correct`,
+  );
   if (!data.data) return <div className="page"><Loading /></div>;
   const operation = data.data.operation;
 
@@ -524,7 +532,9 @@ export function OperationPage() {
         ) : null}
         {operation.parent_id ? (
           <p className="small">
-            <Link to={companyPath(company, `/warehouse/operations/${operation.parent_id}`)}>{t("operations.parent")}</Link>
+            <Link to={companyPath(company, `/warehouse/operations/${operation.parent_id}`)}>
+              {operation.parent_number ? t("operations.parent_number", { number: operation.parent_number }) : t("operations.parent")}
+            </Link>
           </p>
         ) : null}
       </Card>
@@ -539,6 +549,7 @@ export function OperationPage() {
               {operation.kind === "move" ? <th>{t("operations.received")}</th> : null}
               <th>{t("operations.cost")}</th>
               {issueOpen || receiving || operation.state === "discrepancy" ? <th /> : null}
+              {can("warehouse.correct") && operation.lines.some((l) => Number(l.correctable) > 0) ? <th /> : null}
             </tr>
           </thead>
           <tbody>
@@ -555,7 +566,22 @@ export function OperationPage() {
                   {line.target_lot ? ` → ${line.target_lot}` : ""}
                   {line.expired_confirmed ? <span className="badge warn">{t("stock.expired")}</span> : null}
                 </td>
-                <td>{quantity(line.quantity, line.item.unit)}</td>
+                <td>
+                  {quantity(line.quantity, line.item.unit)}
+                  {Number(line.cancelled_quantity) ? (
+                    <div className="small">{t("corrections.cancelled", { value: quantity(line.cancelled_quantity, line.item.unit) })}</div>
+                  ) : null}
+                  {line.corrections.map((c) => (
+                    <div key={c.created_at} className="small muted">
+                      {t("corrections.entry", {
+                        before: quantity(c.quantity_before, line.item.unit),
+                        after: quantity(c.quantity_after, line.item.unit),
+                        reason: c.reason,
+                        at: new Date(c.created_at).toLocaleString(),
+                      })}
+                    </div>
+                  ))}
+                </td>
                 {operation.kind === "issue" ? (
                   <td className="small">
                     {quantity(line.outstanding, line.item.unit)}
@@ -616,10 +642,72 @@ export function OperationPage() {
                     ) : null}
                   </td>
                 ) : null}
+                {can("warehouse.correct") && operation.lines.some((l) => Number(l.correctable) > 0) ? (
+                  <td>
+                    {Number(line.correctable) > 0 ? (
+                      <button
+                        type="button"
+                        className="link"
+                        onClick={() => {
+                          setFixing(fixing === line.id ? "" : line.id);
+                          setFixQuantity("");
+                          setFixReason("");
+                        }}
+                      >
+                        {t("corrections.correct")}
+                      </button>
+                    ) : null}
+                  </td>
+                ) : null}
               </tr>
             ))}
           </tbody>
         </table>
+        {fixing ? (
+          <div className="line-card">
+            <h3>{t("corrections.title")}</h3>
+            <p className="muted small">{t("corrections.hint")}</p>
+            <div className="row">
+              <Field label={t("corrections.new_quantity")}>
+                <input inputMode="decimal" value={fixQuantity} onChange={(e) => setFixQuantity(e.target.value)} />
+              </Field>
+              <Field label={t("corrections.reason")}>
+                <input value={fixReason} onChange={(e) => setFixReason(e.target.value)} />
+              </Field>
+            </div>
+            <ErrorMessage error={correcting.error} />
+            <div className="actions">
+              <button
+                type="button"
+                disabled={!fixQuantity || !fixReason.trim() || correcting.pending}
+                onClick={async () => {
+                  const result = await correcting.run({ line: fixing, quantity: fixQuantity.replace(",", "."), reason: fixReason });
+                  if (result !== null) {
+                    setFixing("");
+                    await client.invalidateQueries({ queryKey: ["warehouse-operation", company.public_id, id] });
+                    await client.invalidateQueries({ queryKey: ["warehouse-stock", company.public_id] });
+                  }
+                }}
+              >
+                {t("corrections.save")}
+              </button>
+            </div>
+          </div>
+        ) : null}
+        {issueOpen && can("warehouse.move") ? (
+          <Field label={t("operations.return_to")} hint={t("operations.return_to_hint")}>
+            <select value={target} onChange={(e) => setTarget(e.target.value)}>
+              <option value="">{operation.context.location_name}</option>
+              {warehouses
+                .filter((w) => w.context_id !== operation.context.id)
+                .map((w) => (
+                  <option key={w.context_id} value={w.context_id}>
+                    {w.location_name}
+                  </option>
+                ))}
+            </select>
+          </Field>
+        ) : null}
         {operation.state === "discrepancy" && can("warehouse.write_off") ? (
           <Field label={t("operations.reason")} hint={t("operations.settle_hint")}>
             <select value={settleReason} onChange={(e) => setSettleReason(e.target.value)}>
@@ -636,7 +724,7 @@ export function OperationPage() {
         <div className="actions">
           {issueOpen ? (
             <>
-              <button type="button" disabled={pending} onClick={() => void run("return", { lines: selected() })}>
+              <button type="button" disabled={pending} onClick={() => void run("return", { lines: selected(), target_context_id: target || null })}>
                 {t("operations.return")}
               </button>
               <button type="button" className="secondary" disabled={pending} onClick={() => void run("consume", { lines: selected() })}>
@@ -801,12 +889,15 @@ export function WarehouseSettingsCard() {
   const can = useCan();
   const client = useQueryClient();
   const reasonName = useReasonName();
-  const settings = useApi<{ settings: { expired_policy: string; version: number } }>(
+  const settings = useApi<{ settings: { expired_policy: string; work_reserve_mode: string; version: number } }>(
     ["warehouse-settings", company.public_id],
     `/c/${company.public_id}/warehouse/settings`,
   );
   const reasons = useReasons();
-  const save = useCommand<{ expired_policy: string; expected_version: number }, unknown>(`/c/${company.public_id}/warehouse/settings`, "PUT");
+  const save = useCommand<{ expired_policy?: string; work_reserve_mode?: string; expected_version: number }, unknown>(
+    `/c/${company.public_id}/warehouse/settings`,
+    "PUT",
+  );
   const add = useCommand<{ name: string }, unknown>(`/c/${company.public_id}/warehouse/reasons`);
   const change = useCommand<{ id: string; name?: string; archived?: boolean }, unknown>(
     (b) => `/c/${company.public_id}/warehouse/reasons/${b.id}`,
@@ -833,6 +924,20 @@ export function WarehouseSettingsCard() {
           >
             <option value="warn">{t("operations.expired_warn")}</option>
             <option value="forbid">{t("operations.expired_forbid")}</option>
+          </select>
+        </Field>
+      ) : null}
+      {current ? (
+        <Field label={t("reserves.work_mode")} hint={t("reserves.work_mode_hint")}>
+          <select
+            value={current.work_reserve_mode}
+            disabled={!manage || save.pending}
+            onChange={async (e) => {
+              if ((await save.run({ work_reserve_mode: e.target.value, expected_version: current.version })) !== null) await refresh();
+            }}
+          >
+            <option value="auto">{t("reserves.work_mode_auto")}</option>
+            <option value="manual">{t("reserves.work_mode_manual")}</option>
           </select>
         </Field>
       ) : null}

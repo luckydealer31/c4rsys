@@ -1348,6 +1348,17 @@ export type WarehouseItem = {
   applicability: { make: string; model: string | null }[];
   packagings: { id: string; name: string; quantity: string; state: string }[];
   barcodes: { id: string; code: string; packaging_id: string | null }[];
+  extra_attributes: Record<string, string[]>;
+};
+
+/** A system attribute of parts added by the platform administrator (§ 11.1.13). */
+export type PartAttribute = {
+  id: string;
+  code: string;
+  name: { ru: string; en: string; th: string };
+  multiple: boolean;
+  state: "active" | "archived";
+  values: { code: string; name: { ru: string; en: string; th: string } }[];
 };
 
 export type WarehouseOptions = {
@@ -1356,6 +1367,7 @@ export type WarehouseOptions = {
     "side" | "longitudinal" | "vertical" | "placement" | "originality" | "condition",
     string[]
   >;
+  extra_attributes: PartAttribute[];
 };
 
 /** The warehouse of a location — the only place stock is kept (decision of 25.10.2026). */
@@ -1483,6 +1495,7 @@ export type ReceiptLine = {
   expected_quantity: string | null;
   discrepancy: string | null;
   unit_cost: string | null;
+  sale_price: string | null;
   total_cost: string | null;
   tags: string[];
   serial_numbers: string[];
@@ -1604,12 +1617,13 @@ export type StockOperation = {
   number: number;
   version: number;
   kind: "issue" | "consume" | "move" | "write_off" | "repack" | "sale" | "supplier_return";
-  state: "done" | "in_transit" | "discrepancy" | "received";
+  state: "done" | "in_transit" | "discrepancy" | "received" | "cancelled";
   context: { id: string; location_name: string };
   target_context: { id: string; location_name: string } | null;
   vehicle: { id: string; name: string } | null;
   reason: WriteOffReason | null;
   parent_id: string | null;
+  parent_number: number | null;
   receipt: { id: string; number: number } | null;
   children: { id: string; number: number; kind: StockOperation["kind"] }[];
   photos: string[];
@@ -1636,6 +1650,9 @@ export type StockOperation = {
     expired_confirmed: boolean;
     cost: string | null;
     cost_known: boolean;
+    cancelled_quantity: string;
+    correctable: string;
+    corrections: { quantity_before: string; quantity_after: string; reason: string; user_id: string; created_at: string }[];
   }[];
 };
 
@@ -1781,7 +1798,95 @@ export type ServiceOperation = {
   jobs: ServiceJob[];
   materials: ServiceMaterial[];
   handovers: ServiceHandover[];
+  installed_parts: PartInstallation[];
+  installations: PartInstallation[];
+  own_materials: ContractorMaterial[];
   blockers?: string[];
+};
+
+/** A period of a part installed on a vehicle (§ 11.4.3). */
+export type PartInstallation = {
+  id: string;
+  version: number;
+  asset: { id: string; public_id: string };
+  item: { id: string; name: string };
+  vehicle: { id: string; name: string };
+  install_job_id: string;
+  installed_at: string;
+  installed_odometer: string | null;
+  removal_job_id: string | null;
+  removed_at: string | null;
+  removed_odometer: string | null;
+  replaced_by: string | null;
+  disposition: "" | "warehouse" | "written_off";
+  accepted_context_id: string | null;
+  cost_mode: "" | "value" | "zero" | "unknown";
+  valuation: string | null;
+  cost: string | null;
+  cost_known: boolean;
+  currency: string;
+  write_off_id: string | null;
+  days: number;
+  distance: string | null;
+  comment: string;
+  issued_from_context_id: string;
+};
+
+/** A material of an external service from its own stock (§ 16.5.3). */
+export type ContractorMaterial = {
+  id: string;
+  version: number;
+  job_id: string;
+  name: string;
+  quantity: string;
+  unit: string;
+  cost: string | null;
+  currency: string;
+  comment: string;
+  removed_at: string | null;
+  remove_reason: string;
+};
+
+/** A warehouse reserve for a definite operation (§ 11.7.1). */
+export type StockReserve = {
+  id: string;
+  version: number;
+  number: number;
+  purpose: "manual" | "work";
+  source_id: string | null;
+  context: { id: string; location_name: string };
+  item: { id: string; name: string; unit: string; accounting: string; article: string };
+  asset: { id: string; public_id: string } | null;
+  lot: { id: string; public_id: string } | null;
+  packaging_quantity: string | null;
+  opened_package_id: string | null;
+  quantity: string;
+  used_quantity: string;
+  state: "active" | "used" | "released" | "expired";
+  expires_at: string | null;
+  comment: string;
+  created_at: string;
+  ended_at: string | null;
+  end_reason: string;
+};
+
+/** Costs of materials consumed on a vehicle (§ 11.4.4, § 11.2.9). */
+export type VehicleMaterialCosts = {
+  lines: {
+    line_id: string;
+    operation_id: string;
+    operation_number: number;
+    at: string;
+    location_name: string;
+    item: { id: string; name: string; unit: string };
+    what: string;
+    consumed: string;
+    cost: string | null;
+    cost_known: boolean;
+  }[];
+  total: string | null;
+  currency: string;
+  incomplete: boolean;
 };
 
 /** A part issued from a warehouse to a work (§ 16.5.1). */
@@ -1800,6 +1905,15 @@ export type ServiceMaterial = {
   price_per: string;
   amount: string | null;
   currency: string;
+  state: "planned" | "issued" | "removed";
+  reserve_id: string | null;
+  reserve_state: string | null;
+  context_id: string | null;
+  individual: boolean;
+  replaces_id: string | null;
+  installation_id: string | null;
+  cost: string | null;
+  cost_known: boolean;
 };
 
 export type QueueJob = ServiceJob & { operation_number: number; location_id: string; vehicle_name: string | null };

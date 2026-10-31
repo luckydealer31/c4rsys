@@ -108,6 +108,9 @@ EVENTS: dict[str, Event] = {
     "warehouse.expiry": Event(
         Kind.WARNING, "warehouse.view", lead_minutes=7 * 24 * HOUR, has_lead=True
     ),
+    # § 11.7.8 (block 15, PROPOSAL: a working event, on by default, to the chosen employees or
+    # by the right to view the stock of the location).
+    "warehouse.low_stock": Event(Kind.WARNING, "warehouse.view"),
     "finance.debt": Event(Kind.WARNING, "finance.account.view", task=True),
     "task.assigned": Event(Kind.INFO, None),
 }

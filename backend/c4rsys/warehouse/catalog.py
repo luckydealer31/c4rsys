@@ -80,6 +80,8 @@ class ItemData:
     part_subcategory_id: UUID | None = None
     # (make code, model code or None)
     applicability: tuple[tuple[str, str | None], ...] = ()
+    # System attributes of the platform administrator (§ 11.1.13): {code: [values]}.
+    extra_attributes: dict[str, list[str]] | None = None
 
 
 def items_of(company_id: UUID) -> QuerySet[Item]:
@@ -131,6 +133,7 @@ def snapshot(item: Item) -> dict[str, Any]:
         "manufacturer": str(item.manufacturer_id) if item.manufacturer_id else None,
         "manufacturer_other": item.manufacturer_other,
         **{key: getattr(item, key) for key in ATTRIBUTES},
+        "extra_attributes": item.extra_attributes,
         **{key: getattr(item, key) for key in TEXT_FIELDS},
         "photo": str(item.photo_id) if item.photo_id else None,
         "part_category": str(item.part_category_id) if item.part_category_id else None,
@@ -183,6 +186,12 @@ def _apply(item: Item, data: ItemData) -> None:
     item.part_category_id, item.part_subcategory_id = part_catalog.validate(
         data.part_category_id, data.part_subcategory_id
     )
+    if data.extra_attributes is not None:
+        from c4rsys.warehouse import dictionaries
+
+        item.extra_attributes = dictionaries.validate_extra(
+            data.extra_attributes, item.extra_attributes
+        )
 
 
 def _write_applicability(item: Item, data: ItemData) -> None:

@@ -4,6 +4,7 @@ from c4rsys.warehouse import import_views as imv
 from c4rsys.warehouse import inventory_views as inv
 from c4rsys.warehouse import operations_views as ops
 from c4rsys.warehouse import prices_views as pr
+from c4rsys.warehouse import reserve_views as rv
 from c4rsys.warehouse import sales_views as sl
 from c4rsys.warehouse import stock_views, views
 
@@ -70,6 +71,21 @@ urlpatterns = [
     path("c/<str:cmp>/warehouse/operations/<uuid:operation_id>/consume", ops.consume_issued),
     path("c/<str:cmp>/warehouse/operations/<uuid:operation_id>/receive", ops.receive),
     path("c/<str:cmp>/warehouse/operations/<uuid:operation_id>/settle", ops.settle),
+    path(
+        "c/<str:cmp>/warehouse/operations/<uuid:operation_id>/lines/<uuid:line_id>/correct",
+        ops.correct_line,
+    ),
+    path("c/<str:cmp>/warehouse/reserves", rv.reserve_list),
+    path("c/<str:cmp>/warehouse/reserves/<uuid:reserve_id>/release", rv.reserve_release),
+    path("c/<str:cmp>/warehouse/vehicles/<uuid:vehicle_id>/parts", rv.vehicle_parts),
+    path("c/<str:cmp>/warehouse/vehicles/<uuid:vehicle_id>/material-costs", rv.vehicle_costs),
+    path("c/<str:cmp>/warehouse/assets/<uuid:asset_id>/installations", rv.asset_installations),
+    path("c/<str:cmp>/warehouse/removed-parts", rv.removed_parts),
+    path("c/<str:cmp>/warehouse/removed-parts/<uuid:installation_id>/accept", rv.removed_accept),
+    path(
+        "c/<str:cmp>/warehouse/removed-parts/<uuid:installation_id>/write-off",
+        rv.removed_write_off,
+    ),
     path(
         "c/<str:cmp>/warehouse/receipts/<uuid:receipt_id>/lines/<uuid:line_id>/correct",
         ops.correct_receipt_line,

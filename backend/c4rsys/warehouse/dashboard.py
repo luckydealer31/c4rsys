@@ -16,12 +16,12 @@ from typing import Any
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from django.db.models import Q, QuerySet, Sum
+from django.db.models import F, Q, QuerySet, Sum
 from django.utils import timezone
 
 from c4rsys.companies.models import ActivityContext, Company
 from c4rsys.fleet import services as fleet
-from c4rsys.warehouse import operations, prices, stock
+from c4rsys.warehouse import operations, parts, prices, reserves, stock
 from c4rsys.warehouse.models import (
     Asset,
     Item,
@@ -134,6 +134,14 @@ def _stock(scope: Scope) -> list[dict[str, Any]]:
         sale_lines = sale_lines.filter(lot_id=scope.filters.lot_id)
     for sold in sale_lines.values("item_id").annotate(total=Sum("quantity")):
         reserved[sold["item_id"]] += sold["total"]
+    # Warehouse reserves for operations and works (§ 11.7.1, block 15).
+    held = reserves.active_reserves().filter(
+        company_id=scope.company.id, context_id__in=scope.context_ids, item_id__in=scope.items
+    )
+    if scope.filters.lot_id:
+        held = held.filter(lot_id=scope.filters.lot_id)
+    for row in held.values("item_id").annotate(total=Sum(F("quantity") - F("used_quantity"))):
+        reserved[row["item_id"]] += row["total"]
     return [
         {
             "item": scope.brief(item_id),
@@ -302,9 +310,11 @@ def _period(scope: Scope) -> dict[str, Any]:
         if scope.filters.lot_id:
             op_lines = op_lines.filter(lot_id=scope.filters.lot_id)
         money = Money()
-        for ol in op_lines.select_related("asset").prefetch_related("layer_uses"):
-            if ol.asset is not None:
-                money.add(ol.asset.purchase_cost)
+        for ol in op_lines.select_related("asset__receipt_line", "operation").prefetch_related(
+            "layer_uses", "asset__installations"
+        ):
+            if ol.asset is not None and operations.effective(ol) > 0:
+                money.add(parts.asset_cost_at(ol.asset, ol.operation.created_at))
             for use in ol.layer_uses.all():
                 money.add(use.unit_cost, use.quantity)
         count = op_lines.values("operation_id").distinct().count()

@@ -44,6 +44,10 @@ PERMISSIONS: tuple[str, ...] = (
     # support»). The conflicts of identifiers are decided with verification.resolve (§ 24.1.5).
     "vehicles.characteristics",
     "vehicles.catalog",
+    # Block 15 (PROPOSAL): the system dictionaries of the warehouse catalog — manufacturers and
+    # the linking of «Other» values, attributes of parts (§ 11.1.12–11.1.13: «the platform
+    # administrator»).
+    "warehouse.dictionaries",
 )
 
 PLATFORM_ADMIN = "platform_admin"
@@ -72,6 +76,7 @@ STARTER_SETS: dict[str, tuple[str, ...]] = {
         "recovery.approve",
         "vehicles.characteristics",
         "vehicles.catalog",
+        "warehouse.dictionaries",
     ),
     # § 24.1.5: finds users and companies, keeps tickets, views what a ticket needs after a reason;
     # no business operations, no system roles. The reveal of contacts: PROPOSAL.

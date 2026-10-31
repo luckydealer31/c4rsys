@@ -143,6 +143,9 @@ class Item(models.Model):
     external_id = models.CharField(max_length=100, blank=True, default="")
     # Created by an import as a possible duplicate of an existing card (§ 22.4.1).
     possible_duplicate = models.BooleanField(default=False)
+    # System attributes added by the platform administrator (§ 11.1.13): {attribute code:
+    # [value codes]}; an attribute missing — «Not given».
+    extra_attributes = models.JSONField(default=dict, blank=True)
     # § 11.7.5: a material sells at prices of the item or of each lot.
     price_mode = models.CharField(
         max_length=10, choices=[("item", "item"), ("lot", "lot")], default="item"
@@ -485,6 +488,9 @@ class ReceiptLine(models.Model):
     lot_external_number = models.CharField(max_length=100, blank=True, default="")
     lot_production_date = models.DateField(null=True, blank=True)
     lot_expiry_date = models.DateField(null=True, blank=True)
+    # The selling price given in the receipt (§ 11.2.7, § 11.7.6), applied at posting on the
+    # level of the item's price mode; empty — the price stays as it is.
+    sale_price = models.DecimalField(max_digits=14, decimal_places=4, null=True, blank=True)
     position = models.PositiveSmallIntegerField(default=0)
 
     class Meta:
@@ -520,6 +526,8 @@ class Asset(models.Model):
         CANCELLED = "cancelled"  # removed by a correction of its receipt (§ 11.6.2)
         SOLD = "sold"  # sold through a closed order (§ 11.9.1)
         RETURNED = "returned"  # returned to its supplier (§ 11.4.2)
+        INSTALLED = "installed"  # installed on a vehicle (§ 11.4.3, § 11.4.8)
+        REMOVED = "removed"  # removed from a vehicle, awaiting a warehouse or a write-off
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
@@ -672,6 +680,7 @@ class StockMovement(models.Model):
         SALE = "sale"  # a sale at the closing of its order (§ 11.9.1)
         SALE_CANCEL = "sale_cancel"  # a wrongly closed sale cancelled (§ 11.9.5)
         SUPPLIER_RETURN = "supplier_return"  # goods returned to the supplier (§ 11.4.2)
+        REMOVAL = "removal"  # a part removed from a vehicle taken into stock (§ 11.2.2)
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
@@ -822,6 +831,11 @@ class WarehouseSettings(models.Model):
     expired_policy = models.CharField(
         max_length=10, choices=ExpiredPolicy.choices, default=ExpiredPolicy.WARN
     )
+    # § 11.7.7: materials added to a planned work are reserved automatically (default) or by a
+    # separate manual reserve; a change applies to new additions only.
+    work_reserve_mode = models.CharField(
+        max_length=10, choices=[("auto", "auto"), ("manual", "manual")], default="auto"
+    )
     version = models.PositiveIntegerField(default=1)
 
     class Meta:
@@ -850,6 +864,7 @@ class StockOperation(models.Model):
         IN_TRANSIT = "in_transit"  # a move sent and not yet received
         DISCREPANCY = "discrepancy"  # a move received with less than sent, awaiting a decision
         RECEIVED = "received"  # a move received in full or with the shortage settled
+        CANCELLED = "cancelled"  # a move in transit corrected to nothing (§ 11.6.2)
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
@@ -941,6 +956,8 @@ class OperationLine(models.Model):
     consumed_quantity = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     received_quantity = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     settled_quantity = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    # Taken back by corrections of the posted operation (§ 11.6.2); `quantity` stays as posted.
+    cancelled_quantity = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     target_lot = models.ForeignKey(
         Lot, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
@@ -965,14 +982,23 @@ class OperationLine(models.Model):
             models.CheckConstraint(
                 condition=Q(returned_quantity__gte=0)
                 & Q(consumed_quantity__gte=0)
-                & Q(quantity__gte=models.F("returned_quantity") + models.F("consumed_quantity")),
-                name="warehouse_operation_line_issue_range",
+                & Q(cancelled_quantity__gte=0)
+                & Q(
+                    quantity__gte=models.F("returned_quantity")
+                    + models.F("consumed_quantity")
+                    + models.F("cancelled_quantity")
+                ),
+                name="warehouse_operation_line_issue_range_v2",
             ),
             models.CheckConstraint(
                 condition=Q(received_quantity__gte=0)
                 & Q(settled_quantity__gte=0)
-                & Q(quantity__gte=models.F("received_quantity") + models.F("settled_quantity")),
-                name="warehouse_operation_line_move_range",
+                & Q(
+                    quantity__gte=models.F("received_quantity")
+                    + models.F("settled_quantity")
+                    + models.F("cancelled_quantity")
+                ),
+                name="warehouse_operation_line_move_range_v2",
             ),
         ]
 
@@ -1308,3 +1334,263 @@ class SaleLine(models.Model):
 
     def __str__(self) -> str:
         return f"{self.order_id}:{self.quantity}"
+
+
+class StockReserve(models.Model):
+    """A reserve of a unit or of a quantity of a lot in one form for a definite operation
+    (§ 11.7.1): it stays in the warehouse and is unavailable to other operations. A separate
+    warehouse reserve may have a term — past it an unused reserve is released automatically; a
+    reserve of a work has none (PROPOSAL). The issue for its purpose uses it, a cancel releases
+    it; `used_quantity` is what the issues for the purpose already took."""
+
+    class State(models.TextChoices):
+        ACTIVE = "active"
+        USED = "used"
+        RELEASED = "released"
+        EXPIRED = "expired"
+
+    class Purpose(models.TextChoices):
+        MANUAL = "manual"  # a separate warehouse reserve; the comment says what it is for
+        WORK = "work"  # a material of a planned service work (§ 11.7.7)
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    number = models.PositiveIntegerField()
+    purpose = models.CharField(max_length=10, choices=Purpose.choices)
+    # The service work of a reserve for a work (no foreign key across the modules).
+    source_id = models.UUIDField(null=True, blank=True)
+    context = models.ForeignKey(
+        "companies.ActivityContext", on_delete=models.PROTECT, related_name="+"
+    )
+    item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name="+")
+    asset = models.ForeignKey(
+        Asset, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    lot = models.ForeignKey(Lot, on_delete=models.PROTECT, null=True, blank=True, related_name="+")
+    packaging = models.ForeignKey(
+        Packaging, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    opened_package = models.ForeignKey(
+        OpenedPackage, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    quantity = models.DecimalField(max_digits=12, decimal_places=2)
+    used_quantity = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    state = models.CharField(max_length=10, choices=State.choices, default=State.ACTIVE)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    comment = models.TextField(blank=True, default="")
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    ended_by_user_id = models.UUIDField(null=True, blank=True)
+    end_reason = models.TextField(blank=True, default="")
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "warehouse_stock_reserve"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "number"], name="warehouse_stock_reserve_number_uniq"
+            ),
+            models.CheckConstraint(
+                condition=Q(quantity__gt=0)
+                & Q(used_quantity__gte=0)
+                & Q(used_quantity__lte=models.F("quantity")),
+                name="warehouse_stock_reserve_quantity",
+            ),
+            models.CheckConstraint(
+                condition=(Q(asset__isnull=False) & Q(lot__isnull=True) & Q(quantity=1))
+                | (Q(asset__isnull=True) & Q(lot__isnull=False)),
+                name="warehouse_stock_reserve_asset_or_lot",
+            ),
+            models.CheckConstraint(
+                condition=~Q(purpose="work") | Q(source_id__isnull=False, expires_at__isnull=True),
+                name="warehouse_stock_reserve_work_source",
+            ),
+            # One active reserve per unit.
+            models.UniqueConstraint(
+                fields=["asset"],
+                condition=Q(state="active") & Q(asset__isnull=False),
+                name="warehouse_stock_reserve_asset_once",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["lot", "state"], name="warehouse_reserve_lot_idx"),
+            models.Index(fields=["company", "state"], name="warehouse_reserve_state_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"reserve {self.number}"
+
+
+class PartInstallation(models.Model):
+    """One period of an individually accounted part installed on a vehicle (§ 11.4.3, § 11.4.8):
+    the IDs of the part and the vehicle, the moment and the odometer of the installation and of
+    the removal, the service works. A reinstallation opens a new period; one part is never
+    installed on two vehicles at once. The odometer values are as entered, in the vehicle's unit.
+    After the removal the part is taken to a warehouse with a new valuation — a cost, an explicit
+    zero or unknown (§ 11.4.7) — or written off."""
+
+    class Disposition(models.TextChoices):
+        NONE = ""  # installed, or removed and awaiting a decision
+        WAREHOUSE = "warehouse"
+        WRITTEN_OFF = "written_off"
+
+    class CostMode(models.TextChoices):
+        VALUE = "value"
+        ZERO = "zero"
+        UNKNOWN = "unknown"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    asset = models.ForeignKey(Asset, on_delete=models.PROTECT, related_name="installations")
+    vehicle = models.ForeignKey("fleet.VehicleCard", on_delete=models.PROTECT, related_name="+")
+    # The issue line the part came by; its consumption is the cost of the installation.
+    operation_line = models.ForeignKey(
+        OperationLine, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    # Service works (no foreign key across the modules).
+    install_job_id = models.UUIDField()
+    installed_at = models.DateTimeField()
+    installed_odometer = models.DecimalField(max_digits=12, decimal_places=1, null=True, blank=True)
+    installed_by_user_id = models.UUIDField()
+    removal_job_id = models.UUIDField(null=True, blank=True)
+    removed_at = models.DateTimeField(null=True, blank=True)
+    removed_odometer = models.DecimalField(max_digits=12, decimal_places=1, null=True, blank=True)
+    removed_by_user_id = models.UUIDField(null=True, blank=True)
+    # The installation that replaced this part («Replaces the installed part», § 11.4.3).
+    replaced_by = models.ForeignKey(
+        "self", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    disposition = models.CharField(
+        max_length=20, choices=Disposition.choices, blank=True, default=""
+    )
+    decided_at = models.DateTimeField(null=True, blank=True)
+    decided_by_user_id = models.UUIDField(null=True, blank=True)
+    accepted_context = models.ForeignKey(
+        "companies.ActivityContext",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    cost_mode = models.CharField(max_length=10, choices=CostMode.choices, blank=True, default="")
+    # The cost of the part before its valuation, and the valuation (§ 11.4.7).
+    cost_before = models.DecimalField(max_digits=14, decimal_places=4, null=True, blank=True)
+    valuation = models.DecimalField(max_digits=14, decimal_places=4, null=True, blank=True)
+    write_off = models.ForeignKey(
+        StockOperation, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    comment = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(default=now)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "warehouse_part_installation"
+        constraints = [
+            # § 11.4.8: a part is installed on one vehicle at a time.
+            models.UniqueConstraint(
+                fields=["asset"],
+                condition=Q(removed_at__isnull=True),
+                name="warehouse_part_installed_once",
+            ),
+            models.CheckConstraint(
+                condition=Q(removed_at__isnull=True) | Q(removed_at__gte=models.F("installed_at")),
+                name="warehouse_part_removal_after_install",
+            ),
+            models.CheckConstraint(
+                condition=Q(disposition="") | Q(removed_at__isnull=False),
+                name="warehouse_part_decided_after_removal",
+            ),
+            models.CheckConstraint(
+                condition=~Q(disposition="warehouse")
+                | Q(accepted_context__isnull=False, cost_mode__in=["value", "zero", "unknown"]),
+                name="warehouse_part_accepted_data",
+            ),
+            models.CheckConstraint(
+                condition=Q(valuation__isnull=True) | Q(valuation__gte=0),
+                name="warehouse_part_valuation_not_negative",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["vehicle", "installed_at"], name="warehouse_part_vehicle_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.asset_id}@{self.vehicle_id}"
+
+
+class OperationCorrection(models.Model):
+    """A correction of a posted operation line (§ 11.6.2): the original record stays; the change,
+    its reason and its author are kept."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    line = models.ForeignKey(OperationLine, on_delete=models.PROTECT, related_name="corrections")
+    quantity_before = models.DecimalField(max_digits=12, decimal_places=2)
+    quantity_after = models.DecimalField(max_digits=12, decimal_places=2)
+    reason = models.CharField(max_length=500)
+    user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "warehouse_operation_correction"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(quantity_after__gte=0)
+                & Q(quantity_after__lt=models.F("quantity_before")),
+                name="warehouse_operation_correction_decrease",
+            ),
+            models.CheckConstraint(
+                condition=~Q(reason=""), name="warehouse_operation_correction_reason"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.line_id}:{self.quantity_before}->{self.quantity_after}"
+
+
+class PartAttribute(models.Model):
+    """A system attribute of parts added by the platform administrator (§ 11.1.13) with its
+    values; `multiple` allows several values at once. No value — «Not given», not universal. An
+    archived attribute is not offered for new choices and stays on the items that have it."""
+
+    class State(models.TextChoices):
+        ACTIVE = "active"
+        ARCHIVED = "archived"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    code = models.CharField(max_length=40, unique=True)
+    name_ru = models.CharField(max_length=100)
+    name_en = models.CharField(max_length=100)
+    name_th = models.CharField(max_length=100)
+    multiple = models.BooleanField(default=False)
+    state = models.CharField(max_length=10, choices=State.choices, default=State.ACTIVE)
+    position = models.PositiveSmallIntegerField(default=0)
+    created_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "part_attribute"
+
+    def __str__(self) -> str:
+        return self.code
+
+
+class PartAttributeValue(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    attribute = models.ForeignKey(PartAttribute, on_delete=models.PROTECT, related_name="values")
+    code = models.CharField(max_length=40)
+    name_ru = models.CharField(max_length=100)
+    name_en = models.CharField(max_length=100)
+    name_th = models.CharField(max_length=100)
+    position = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        db_table = "part_attribute_value"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["attribute", "code"], name="part_attribute_value_code_uniq"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.attribute_id}:{self.code}"

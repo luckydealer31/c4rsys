@@ -40,6 +40,7 @@ type Form = {
   manufacturer_other: string;
   photo: string | null;
   applicability: { make: string; model: string }[];
+  extra_attributes: Record<string, string[]>;
 } & Record<PairKey | ChoiceKey | (typeof TEXTS)[number], string>;
 
 function formOf(item?: WarehouseItem): Form {
@@ -64,6 +65,7 @@ function formOf(item?: WarehouseItem): Form {
     external_id: item?.external_id ?? "",
     photo: item?.photo ?? null,
     applicability: (item?.applicability ?? []).map((a) => ({ make: a.make, model: a.model ?? "" })),
+    extra_attributes: item?.extra_attributes ?? {},
   };
 }
 
@@ -190,6 +192,7 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
     };
     for (const [key] of PAIRS) body[key] = form[key];
     for (const [key] of CHOICES) body[key] = form[key];
+    body.extra_attributes = form.extra_attributes;
     for (const key of TEXTS) body[key] = form[key];
     if (item) body.expected_version = item.version;
     else body.unit = form.unit;
@@ -310,6 +313,34 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
                 ))}
               </div>
             ))}
+            {(options.data?.extra_attributes ?? [])
+              .filter((a) => a.state === "active" || (form.extra_attributes[a.code] ?? []).length)
+              .map((a) => {
+                const chosen = form.extra_attributes[a.code] ?? [];
+                const code = i18n.language.slice(0, 2);
+                const lang: "ru" | "en" | "th" = code === "ru" || code === "th" ? code : "en";
+                return (
+                  <div key={a.code} className="toggle-row">
+                    <span className="muted small">{a.name[lang]}</span>
+                    {a.values.map((v) => (
+                      <ToggleButton
+                        key={v.code}
+                        pressed={chosen.includes(v.code)}
+                        disabled={!editable || a.state !== "active"}
+                        label={v.name[lang]}
+                        onClick={() => {
+                          const next = chosen.includes(v.code)
+                            ? chosen.filter((c) => c !== v.code)
+                            : a.multiple
+                              ? [...chosen, v.code]
+                              : [v.code];
+                          set({ extra_attributes: { ...form.extra_attributes, [a.code]: next } });
+                        }}
+                      />
+                    ))}
+                  </div>
+                );
+              })}
           </div>
           <div className="field" style={{ marginTop: 12 }}>
             <span>{t("warehouse.applicability")}</span>

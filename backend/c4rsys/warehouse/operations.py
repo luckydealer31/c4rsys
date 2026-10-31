@@ -66,26 +66,49 @@ def settings_of(company_id: UUID) -> WarehouseSettings:
     return found
 
 
+WORK_RESERVE_MODES = ("auto", "manual")
+
+
 def set_expired_policy(
-    ctx: CommandContext, company_id: UUID, policy: str, expected_version: int
+    ctx: CommandContext,
+    company_id: UUID,
+    policy: str | None,
+    expected_version: int,
+    work_reserve_mode: str | None = None,
 ) -> WarehouseSettings:
-    """Warning with an explicit confirmation (default) or a full ban (§ 11.2.15)."""
-    if policy not in WarehouseSettings.ExpiredPolicy.values:
+    """Expired lots: a warning with an explicit confirmation (default) or a full ban
+    (§ 11.2.15). Materials of planned works: reserved automatically (default) or manually
+    (§ 11.7.7); a change of the mode touches no existing reserve."""
+    if policy is not None and policy not in WarehouseSettings.ExpiredPolicy.values:
         raise errors.validation_error("expired_policy")
+    if work_reserve_mode is not None and work_reserve_mode not in WORK_RESERVE_MODES:
+        raise errors.validation_error("work_reserve_mode")
     current = settings_of(company_id)
     current = WarehouseSettings.objects.select_for_update().get(pk=current.pk)
     if current.version != expected_version:
         raise errors.version_conflict()
-    before = current.expired_policy
-    current.expired_policy = policy
+    before = {
+        "expired_policy": current.expired_policy,
+        "work_reserve_mode": current.work_reserve_mode,
+    }
+    if policy is not None:
+        current.expired_policy = policy
+    if work_reserve_mode is not None:
+        current.work_reserve_mode = work_reserve_mode
+    after = {
+        "expired_policy": current.expired_policy,
+        "work_reserve_mode": current.work_reserve_mode,
+    }
+    if after == before:
+        raise errors.validation_error("body", code="NOTHING_TO_CHANGE")
     current.version += 1
     current.save()
     ctx.audit(
         "warehouse.settings_changed",
         object_type="warehouse_settings",
         object_id=company_id,
-        before={"expired_policy": before},
-        after={"expired_policy": policy},
+        before={k: v for k, v in before.items() if v != after[k]},
+        after={k: v for k, v in after.items() if v != before[k]},
     )
     return current
 
@@ -168,9 +191,12 @@ class Take:
     opened_package_id: UUID | None = None
     quantity: Decimal | None = None
     confirm_expired: bool = False
+    # The reserve made for this operation (§ 11.8.1): it may take what is reserved under it.
+    reserve_id: UUID | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
+            "reserve_id": str(self.reserve_id) if self.reserve_id else None,
             "item_id": str(self.item_id),
             "asset_ids": [str(a) for a in self.asset_ids],
             "lot_id": str(self.lot_id) if self.lot_id else None,
@@ -245,6 +271,11 @@ def _take_one(
     item = Item.objects.filter(company_id=company_id, pk=take.item_id).first()
     if item is None:
         raise errors.validation_error(f"{where}.item_id", code="ITEM_UNKNOWN")
+    reserve = None
+    if take.reserve_id is not None:
+        reserve = reserves.lock(company_id, take.reserve_id)
+        reserves.check_take(reserve, context.id, item.id)
+    held = reserve.id if reserve else None
     if item.accounting == Item.Accounting.INDIVIDUAL:
         if not take.asset_ids or take.lot_id or take.quantity is not None:
             raise errors.validation_error(f"{where}.asset_ids", code="FIELD_REQUIRED")
@@ -257,16 +288,20 @@ def _take_one(
         )
         if len(assets) != len(take.asset_ids):
             raise errors.validation_error(f"{where}.asset_ids", code="ASSET_UNKNOWN")
+        if reserve is not None and [a.id for a in assets] != [reserve.asset_id]:
+            raise errors.validation_error(f"{where}.asset_ids", code="RESERVE_NOT_FOR_THIS")
         for asset in assets:
             if (
                 asset.context_id != context.id
                 or asset.state != Asset.State.IN_STOCK
-                or reserves.asset_reserved(asset.id)
+                or reserves.asset_reserved(asset.id, exclude_reserve=held)
             ):
                 # § 11.8.1: nothing beyond what is available in this warehouse.
                 raise errors.business_rule(
                     "ASSET_NOT_AVAILABLE", field=f"{where}.asset_ids", asset=asset.public_id
                 )
+        if reserve is not None:
+            reserves.use(ctx, reserve, Decimal(1))
         return Taken(item=item, assets=assets, quantity=Decimal(len(assets)))
 
     if take.asset_ids or take.lot_id is None:
@@ -282,6 +317,12 @@ def _take_one(
         raise errors.validation_error(f"{where}.lot_id", code="LOT_UNKNOWN")
     if check_expiry:
         _check_expired(company_id, lot, take.confirm_expired, where)
+    if reserve is not None and (
+        reserve.lot_id != lot.id
+        or reserve.opened_package_id != take.opened_package_id
+        or (take.opened_package_id is None and reserve.packaging_id != take.packaging_id)
+    ):
+        raise errors.validation_error(f"{where}.reserve_id", code="RESERVE_NOT_FOR_THIS")
     amount = take.quantity
     taken = Taken(item=item, lot=lot, quantity=amount, confirmed=take.confirm_expired)
     if take.opened_package_id is not None:
@@ -294,11 +335,15 @@ def _take_one(
             raise errors.validation_error(
                 f"{where}.opened_package_id", code="OPENED_PACKAGE_UNKNOWN"
             )
-        free = opened.remaining - reserves.reserved_in_form(lot.id, opened.packaging_id, opened.id)
+        free = opened.remaining - reserves.reserved_in_form(
+            lot.id, opened.packaging_id, opened.id, exclude_reserve=held
+        )
         if amount > free:
             raise errors.business_rule(
                 "STOCK_NOT_ENOUGH", field=f"{where}.quantity", available=str(free)
             )
+        if reserve is not None:
+            reserves.use(ctx, reserve, amount)
         opened.remaining -= amount
         opened.save(update_fields=["remaining"])
         taken.opened = opened
@@ -314,11 +359,15 @@ def _take_one(
         if rest and not allow_open:
             raise errors.validation_error(f"{where}.quantity", code="QUANTITY_NOT_WHOLE_PACKS")
         needed = size * (whole + (1 if rest else 0))
-        free = row.quantity - reserves.reserved_in_form(lot.id, packaging.id, None)
+        free = row.quantity - reserves.reserved_in_form(
+            lot.id, packaging.id, None, exclude_reserve=held
+        )
         if needed > free:
             raise errors.business_rule(
                 "STOCK_NOT_ENOUGH", field=f"{where}.quantity", available=str(free)
             )
+        if reserve is not None:
+            reserves.use(ctx, reserve, needed)
         row.quantity -= needed
         row.save(update_fields=["quantity"])
         taken.packaging = packaging
@@ -343,11 +392,13 @@ def _take_one(
             taken.pieces.append(Piece(rest, opened=opened))
     else:
         row = _stock_row(lot, None)
-        free = row.quantity - reserves.reserved_in_form(lot.id, None, None)
+        free = row.quantity - reserves.reserved_in_form(lot.id, None, None, exclude_reserve=held)
         if amount > free:
             raise errors.business_rule(
                 "STOCK_NOT_ENOUGH", field=f"{where}.quantity", available=str(free)
             )
+        if reserve is not None:
+            reserves.use(ctx, reserve, amount)
         row.quantity -= amount
         row.save(update_fields=["quantity"])
         taken.pieces.append(Piece(amount))
@@ -556,6 +607,7 @@ def snapshot(operation: StockOperation) -> dict[str, Any]:
                 "lot": str(line.lot_id) if line.lot_id else None,
                 "packaging": str(line.packaging_id) if line.packaging_id else None,
                 "quantity": str(line.quantity),
+                "cancelled": str(line.cancelled_quantity),
                 "output": line.output,
             }
             for line in operation.lines.order_by("position")
@@ -644,16 +696,32 @@ def _lines(
     return result
 
 
+def effective(line: OperationLine) -> Decimal:
+    """The posted quantity less what corrections took back (§ 11.6.2)."""
+    return line.quantity - line.cancelled_quantity
+
+
 def outstanding(line: OperationLine) -> Decimal:
-    """Issued and neither returned nor consumed yet."""
-    return line.quantity - line.returned_quantity - line.consumed_quantity
+    """Issued and neither returned, consumed nor corrected away yet."""
+    return effective(line) - line.returned_quantity - line.consumed_quantity
 
 
 def return_issued(
-    ctx: CommandContext, company_id: UUID, operation_id: UUID, amounts: tuple[LineAmount, ...]
+    ctx: CommandContext,
+    company_id: UUID,
+    operation_id: UUID,
+    amounts: tuple[LineAmount, ...],
+    target_id: UUID | None = None,
 ) -> StockOperation:
-    """Unused material comes back into the same lot and the same unit with its ID (§ 11.4.5)."""
+    """Unused material comes back into the same lot and the same unit with its ID (§ 11.4.5).
+    Another warehouse may be chosen: the material comes back into its lot and is moved there at
+    once by a move of its own, so the history of the move between the warehouses stays; a part
+    of a lot becomes a child lot there (§ 11.3.3)."""
     operation = _lock_operation(company_id, operation_id, StockOperation.Kind.ISSUE)
+    target = None
+    if target_id is not None and target_id != operation.context_id:
+        target = _warehouse(company_id, target_id, "target_context_id")
+    moved: list[Take] = []
     done = []
     for line, amount in _lines(operation, amounts):
         if amount > outstanding(line):
@@ -666,6 +734,7 @@ def return_issued(
             asset.vehicle = None
             asset.save(update_fields=["state", "vehicle"])
             _move(ctx, StockMovement.Kind.RETURN, operation.context, line, Decimal(1), asset=asset)
+            moved.append(Take(item_id=line.item_id, asset_ids=(asset.id,)))
         else:
             lot = _lot_of(line)
             _restore_layers(line, amount)
@@ -679,14 +748,45 @@ def return_issued(
                 lot=lot,
                 piece=piece,
             )
+            moved.append(
+                Take(
+                    item_id=line.item_id,
+                    lot_id=lot.id,
+                    packaging_id=piece.packaging.id if piece.packaging else None,
+                    opened_package_id=piece.opened.id if piece.opened else None,
+                    quantity=amount,
+                )
+            )
         done.append({"line": str(line.id), "returned": str(amount)})
     operation.version += 1
     operation.save(update_fields=["version"])
+    move = None
+    if target is not None:
+        company = Company.objects.get(pk=company_id)
+        move = send(
+            ctx,
+            company,
+            operation.context_id,
+            target.id,
+            tuple(moved),
+            f"return of issue {operation.number}",
+            parent=operation,
+        )
+        receive(
+            ctx,
+            company_id,
+            move.id,
+            tuple(LineAmount(line.id, line.quantity) for line in move.lines.all()),
+        )
     ctx.audit(
         "warehouse.issue_returned",
         object_type="warehouse_operation",
         object_id=operation.id,
-        after={"lines": done},
+        after={
+            "lines": done,
+            "target_context": str(target.id) if target else None,
+            "move": move.number if move else None,
+        },
     )
     return operation
 
@@ -726,6 +826,7 @@ def send(
     target_id: UUID | None,
     takes: tuple[Take, ...],
     comment: str,
+    parent: StockOperation | None = None,
 ) -> StockOperation:
     """Sent: unavailable in the sending warehouse, in transit until received (§ 11.5.1)."""
     context = _warehouse(company.id, context_id)
@@ -741,6 +842,7 @@ def send(
         target_context=target,
         state=StockOperation.State.IN_TRANSIT,
         comment=comment,
+        parent=parent,
     )
     _write_out(ctx, operation, taken, StockMovement.Kind.MOVE_OUT, Asset.State.IN_TRANSIT)
     ctx.audit(
@@ -821,9 +923,10 @@ def receive(
     received = []
     for line in lines:
         amount = given.get(line.id, ZERO)
-        if amount > line.quantity or (line.asset_id and amount not in (0, 1)):
+        sent = effective(line)
+        if amount > sent or (line.asset_id and amount not in (0, 1)):
             raise errors.validation_error("lines", code="QUANTITY_EXCEEDS_SENT")
-        if amount < line.quantity:
+        if amount < sent:
             short = True
         if amount <= 0:
             continue
@@ -856,7 +959,7 @@ def receive(
 
 
 def shortage(line: OperationLine) -> Decimal:
-    return line.quantity - line.received_quantity - line.settled_quantity
+    return effective(line) - line.received_quantity - line.settled_quantity
 
 
 def settle_shortage(
@@ -1367,10 +1470,14 @@ def correct_receipt_line(
 def operations_of(company_id: UUID) -> QuerySet[StockOperation]:
     return (
         StockOperation.objects.filter(company_id=company_id)
-        .select_related("context__location", "target_context__location", "reason", "receipt")
+        .select_related(
+            "context__location", "target_context__location", "reason", "receipt", "parent"
+        )
         .prefetch_related(
             "lines__item",
-            "lines__asset",
+            "lines__asset__installations",
+            "lines__asset__receipt_line",
+            "lines__corrections",
             "lines__lot",
             "lines__packaging",
             "lines__layer_uses",

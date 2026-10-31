@@ -314,23 +314,31 @@ def minimums(company_id: UUID, context_ids: set[UUID]) -> dict[tuple[UUID, UUID]
 
 
 def low_stock(company_id: UUID, context_ids: set[UUID]) -> list[dict[str, Any]]:
-    """Items whose available quantity in a warehouse is below its threshold. Reserves come
-    later, so the available quantity is the stock in the warehouse (decision of 25.10.2026)."""
+    """Items whose available quantity in a warehouse — the stock less its reserves by open
+    orders and warehouse reserves (block 15) — is below its threshold (§ 11.7.8)."""
+    from c4rsys.warehouse import reserves
+
     thresholds = minimums(company_id, context_ids)
     if not thresholds:
         return []
     stock = totals(company_id, context_ids)
+    held = reserves.reserved_totals(company_id, context_ids)
     items = {i.id: i for i in Item.objects.filter(pk__in={item for item, _ in thresholds})}
     places = {c.id: c for c in locations.storage_contexts(company_id).filter(pk__in=context_ids)}
     result: list[dict[str, Any]] = []
     for (item_id, context_id), minimum in thresholds.items():
-        available = stock.get(item_id, {}).get(context_id, {}).get("quantity", ZERO)
+        actual = stock.get(item_id, {}).get(context_id, {}).get("quantity", ZERO)
+        reserved = held.get((item_id, context_id), ZERO)
+        available = actual - reserved
         if available < minimum:
             item = items[item_id]
             result.append(
                 {
                     "item": {"id": str(item.id), "name": item.name, "unit": item.unit},
                     "context_id": str(context_id),
+                    "location_id": str(places[context_id].location_id),
+                    "actual": str(actual),
+                    "reserved": str(reserved),
                     "location_name": places[context_id].location.name,
                     "available": str(available),
                     "minimum": str(minimum),
