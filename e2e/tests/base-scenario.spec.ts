@@ -86,7 +86,7 @@ test("base example from registration to closing survives a restart", async ({ pa
 
   await page.goto(`${base}/settings/company`);
   await page.getByLabel(t("companies.main_currency")).selectOption("THB");
-  await page.getByRole("button", { name: t("common.save") }).click();
+  await page.getByRole("main").locator("form").getByRole("button", { name: t("common.save") }).click();
   await expect(page.getByText(t("common.saved"))).toBeVisible();
 
   await page.goto(`${base}/company`);
