@@ -1,5 +1,7 @@
 """Vehicles (ТЗ § 8.1, § 8.2.9, § 8.2.12, § 8.5.1)."""
 
+from django.contrib.postgres.constraints import ExclusionConstraint
+from django.contrib.postgres.fields import DateTimeRangeField, RangeOperators
 from django.db import models
 from django.db.models import Q
 from django.utils.timezone import now
@@ -90,6 +92,19 @@ class Vehicle(models.Model):
     power_hp = models.PositiveSmallIntegerField(null=True, blank=True)
     seats = models.PositiveSmallIntegerField(null=True, blank=True)
     doors = models.PositiveSmallIntegerField(null=True, blank=True)
+    # The rest of the optional characteristics of § 8.1.12 (block 12, part Б).
+    manufacturer = models.CharField(max_length=150, blank=True, default="")
+    manufacture_country = models.CharField(max_length=2, blank=True, default="")
+    modification = models.CharField(max_length=150, blank=True, default="")
+    tank_volume_l = models.DecimalField(max_digits=6, decimal_places=1, null=True, blank=True)
+    battery_kwh = models.DecimalField(max_digits=6, decimal_places=1, null=True, blank=True)
+    # The declared range in kilometres (PROPOSAL: the unit of a range is not the odometer's).
+    range_km = models.PositiveIntegerField(null=True, blank=True)
+    gears = models.PositiveSmallIntegerField(null=True, blank=True)
+    curb_weight_kg = models.PositiveIntegerField(null=True, blank=True)
+    gross_weight_kg = models.PositiveIntegerField(null=True, blank=True)
+    payload_kg = models.PositiveIntegerField(null=True, blank=True)
+    cargo_volume_m3 = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True)
     # Factory characteristics confirmed by the c4rsys staff (§ 8.2.1): not changed by a direct
     # edit of a company; the history of each change is `VehicleCharacteristicEvent`.
     confirmed_fields = models.JSONField(default=list, blank=True)
@@ -190,6 +205,14 @@ class VehicleCard(models.Model):
         "self", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
     merged_at = models.DateTimeField(null=True, blank=True)
+    # The inventory number and the barcode / QR of § 8.1.12 are labels of the company, kept in
+    # its card (PROPOSAL).
+    inventory_number = models.CharField(max_length=60, blank=True, default="")
+    barcode = models.CharField(max_length=120, blank=True, default="")
+    # The archive of the card (§ 8.7.5): who, when and why; a sale or a write-off archives it too.
+    archived_at = models.DateTimeField(null=True, blank=True)
+    archived_by_user_id = models.UUIDField(null=True, blank=True)
+    archive_reason = models.CharField(max_length=1000, blank=True, default="")
     created_by_user_id = models.UUIDField()
     created_at = models.DateTimeField(default=now)
     updated_at = models.DateTimeField(auto_now=True)
@@ -257,6 +280,9 @@ class VehicleOwnerClaim(models.Model):
     )
     manual_name = models.CharField(max_length=300, blank=True, default="")
     manual_contact = models.CharField(max_length=254, blank=True, default="")
+    # «ownership_change» — declared by the system when the ownership passed to another owner
+    # (§ 8.3.10): the company does not learn who the new owner is.
+    source = models.CharField(max_length=20, blank=True, default="")
     created_at = models.DateTimeField(default=now)
     created_by_user_id = models.UUIDField()
 
@@ -467,6 +493,13 @@ class VehicleOwnership(models.Model):
     request = models.ForeignKey(
         VehicleOwnerRequest, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
+    # How the period began: the answer to a request, a sale through an order (§ 8.3.9), a
+    # decision of the support (§ 8.3.12), a return to the seller after a cancelled sale.
+    basis = models.CharField(max_length=20, blank=True, default="request")
+    order_id = models.UUIDField(null=True, blank=True)
+    seller_company_id = models.UUIDField(null=True, blank=True)
+    # A transfer cancelled after the new owner confirmed it was wrong (§ 8.3.9).
+    reversed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(default=now)
 
     class Meta:
@@ -913,3 +946,471 @@ class VehicleActionCode(models.Model):
 
     def __str__(self) -> str:
         return f"{self.purpose}:{self.subject}"
+
+
+# --- Lifecycle of a vehicle card (ТЗ § 8.1.6, § 8.3.10, § 8.3.17, § 8.4.2, § 8.7.5–8.7.6) ------
+
+
+class VehicleCardPeriod(models.Model):
+    """A period of work of the company with the vehicle under one relation (§ 8.7.6): a change of
+    the relation, the end of the management, an archive and a restore of the card end one period
+    and may begin another. The history of the card is shown by these periods."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    vehicle_card = models.ForeignKey(VehicleCard, on_delete=models.PROTECT, related_name="periods")
+    relation = models.CharField(max_length=10, choices=VehicleCard.Relation.choices)
+    started_at = models.DateTimeField()
+    ended_at = models.DateTimeField(null=True, blank=True)
+    start_basis = models.CharField(max_length=30)
+    start_reason = models.TextField(blank=True, default="")
+    end_basis = models.CharField(max_length=30, blank=True, default="")
+    end_reason = models.TextField(blank=True, default="")
+    started_by_user_id = models.UUIDField(null=True, blank=True)
+    ended_by_user_id = models.UUIDField(null=True, blank=True)
+
+    class Meta:
+        db_table = "vehicle_card_period"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["vehicle_card"],
+                condition=Q(ended_at__isnull=True),
+                name="vehicle_card_period_one_open",
+            ),
+            models.CheckConstraint(
+                condition=Q(ended_at__isnull=True) | Q(ended_at__gte=models.F("started_at")),
+                name="vehicle_card_period_valid",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.vehicle_card_id}:{self.relation}"
+
+
+class VehicleDisposal(models.Model):
+    """A write-off or a disposal of an own vehicle from the warehouse (§ 8.4.2)."""
+
+    class Kind(models.TextChoices):
+        WRITE_OFF = "write_off"
+        DISPOSAL = "disposal"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    vehicle_card = models.ForeignKey(VehicleCard, on_delete=models.PROTECT, related_name="+")
+    kind = models.CharField(max_length=10, choices=Kind.choices)
+    reason = models.TextField()
+    storage_context = models.ForeignKey(ActivityContext, on_delete=models.PROTECT, related_name="+")
+    done_at = models.DateTimeField()
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "vehicle_disposal"
+        constraints = [
+            models.UniqueConstraint(fields=["vehicle_card"], name="vehicle_disposal_once"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.kind}:{self.vehicle_card_id}"
+
+
+class VehicleTransferReversal(models.Model):
+    """The seller's request to the new owner to confirm that the transfer of ownership by a sale
+    was wrong and to cancel it (§ 8.3.9). Until the confirmation (or a decision of the support)
+    the ownership and the personal garage stay."""
+
+    class State(models.TextChoices):
+        OPEN = "open"
+        ACCEPTED = "accepted"
+        REJECTED = "rejected"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    vehicle_card = models.ForeignKey(VehicleCard, on_delete=models.PROTECT, related_name="+")
+    vehicle = models.ForeignKey(Vehicle, on_delete=models.PROTECT, related_name="+")
+    ownership = models.ForeignKey(VehicleOwnership, on_delete=models.PROTECT, related_name="+")
+    order_id = models.UUIDField()
+    reason = models.TextField()
+    state = models.CharField(max_length=10, choices=State.choices, default=State.OPEN)
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+    answered_by_user_id = models.UUIDField(null=True, blank=True)
+    answered_at = models.DateTimeField(null=True, blank=True)
+    answer_comment = models.TextField(blank=True, default="")
+
+    class Meta:
+        db_table = "vehicle_transfer_reversal"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["ownership"],
+                condition=Q(state="open"),
+                name="vehicle_transfer_reversal_one_open",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"reversal {self.ownership_id}"
+
+
+# --- Manual restriction of a vehicle (ТЗ § 8.8, § 23.5.5–23.5.6) ------------------------------
+
+
+class VehicleRestrictionReason(models.Model):
+    """A reason of the company added to the system list (§ 8.8.7)."""
+
+    class State(models.TextChoices):
+        ACTIVE = "active"
+        ARCHIVED = "archived"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    name = models.CharField(max_length=200)
+    state = models.CharField(max_length=10, choices=State.choices, default=State.ACTIVE)
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "vehicle_restriction_reason"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "id"], name="vehicle_restriction_reason_company_id_uniq"
+            ),
+            models.UniqueConstraint(
+                fields=["company", "name"], name="vehicle_restriction_reason_name_uniq"
+            ),
+            models.CheckConstraint(
+                condition=~Q(name=""), name="vehicle_restriction_reason_name_not_empty"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class VehicleRestriction(models.Model):
+    """A manual ban of chosen actions with a vehicle, apart from the occupancy by operations
+    (§ 8.8.1, § 8.7.2): the reason from the list with a comment, the start, an end or none, the
+    forbidden actions. With the end reached it ends by itself (§ 8.8.3). In the MVP one at a time
+    (§ 8.8.5): the periods of a card do not overlap; dropping that exclusion allows several
+    restrictions later (§ 8.8.6). `period` is [start, the end or the lift) and is kept by the
+    commands."""
+
+    class Reason(models.TextChoices):
+        TECHNICAL = "technical_fault"
+        SAFETY = "safety"
+        DOCUMENT = "document_missing"
+        ACCIDENT = "accident_damage"
+        LEGAL = "legal"
+        OTHER = "other"
+        CUSTOM = "custom"  # a reason of the company
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    vehicle_card = models.ForeignKey(
+        VehicleCard, on_delete=models.PROTECT, related_name="restrictions"
+    )
+    reason = models.CharField(max_length=20, choices=Reason.choices)
+    custom_reason = models.ForeignKey(
+        VehicleRestrictionReason, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    comment = models.CharField(max_length=2000, blank=True, default="")
+    starts_at = models.DateTimeField()
+    ends_at = models.DateTimeField(null=True, blank=True)
+    # The forbidden actions (§ 8.8.7): the issue into a new rental; the start of a delivery or of
+    # a usual move; the start of use in the chosen contexts.
+    forbid_rental_issue = models.BooleanField(default=False)
+    forbid_moves = models.BooleanField(default=False)
+    forbidden_contexts = models.JSONField(default=list, blank=True)
+    period = DateTimeRangeField()
+    lifted_at = models.DateTimeField(null=True, blank=True)
+    lifted_by_user_id = models.UUIDField(null=True, blank=True)
+    lift_comment = models.CharField(max_length=2000, blank=True, default="")
+    # The automatic end was journaled (§ 8.8.3, § 8.8.7).
+    end_journaled_at = models.DateTimeField(null=True, blank=True)
+    # The operations running at the start were told (§ 8.8.7: a notification and a task).
+    start_checked_at = models.DateTimeField(null=True, blank=True)
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+    updated_at = models.DateTimeField(auto_now=True)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "vehicle_restriction"
+        constraints = [
+            ExclusionConstraint(
+                name="vehicle_restriction_one_at_a_time",
+                expressions=[
+                    ("vehicle_card", RangeOperators.EQUAL),
+                    ("period", RangeOperators.OVERLAPS),
+                ],
+            ),
+            models.CheckConstraint(
+                condition=Q(ends_at__isnull=True) | Q(ends_at__gt=models.F("starts_at")),
+                name="vehicle_restriction_period_valid",
+            ),
+            models.CheckConstraint(
+                condition=Q(reason="custom", custom_reason__isnull=False)
+                | (~Q(reason="custom") & Q(custom_reason__isnull=True)),
+                name="vehicle_restriction_custom_reason",
+            ),
+            models.CheckConstraint(
+                condition=Q(forbid_rental_issue=True)
+                | Q(forbid_moves=True)
+                | ~Q(forbidden_contexts=[]),
+                name="vehicle_restriction_forbids_something",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"restriction {self.vehicle_card_id}"
+
+
+# --- Odometer: unit change and replacement (ТЗ § 8.2.10, § 8.2.13) ---------------------------
+
+
+class OdometerReplacement(models.Model):
+    """The system work «Odometer replacement» (§ 8.2.13): the moment, the last reading of the old
+    odometer and the first of the new one (not necessarily zero). The accumulated mileage goes on
+    from the old final reading; `reading` is the reading of the new odometer at that moment."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    vehicle_card = models.ForeignKey(VehicleCard, on_delete=models.PROTECT, related_name="+")
+    replaced_at = models.DateTimeField()
+    old_final = models.DecimalField(max_digits=12, decimal_places=1)
+    new_start = models.DecimalField(max_digits=12, decimal_places=1)
+    unit = models.CharField(max_length=2, choices=VehicleCard.OdometerUnit.choices)
+    reading = models.OneToOneField(OdometerReading, on_delete=models.PROTECT, related_name="+")
+    source_type = models.CharField(max_length=30)
+    source_id = models.UUIDField(null=True, blank=True)
+    entered_by_user_id = models.UUIDField()
+    entered_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "odometer_replacement"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(old_final__gte=0) & Q(new_start__gte=0),
+                name="odometer_replacement_not_negative",
+            ),
+            models.UniqueConstraint(
+                fields=["vehicle_card", "replaced_at"], name="odometer_replacement_one_moment"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"replacement {self.vehicle_card_id} @ {self.replaced_at:%Y-%m-%d}"
+
+
+class OdometerUnitChange(models.Model):
+    """A change of the odometer unit (§ 8.2.10): the method chosen explicitly — the label only or
+    a conversion by 1.609344 — with the original numbers and units of every converted record,
+    the employee and the moment."""
+
+    class Method(models.TextChoices):
+        RELABEL = "relabel"
+        CONVERT = "convert"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    vehicle_card = models.ForeignKey(VehicleCard, on_delete=models.PROTECT, related_name="+")
+    method = models.CharField(max_length=10, choices=Method.choices)
+    from_unit = models.CharField(max_length=2, choices=VehicleCard.OdometerUnit.choices)
+    to_unit = models.CharField(max_length=2, choices=VehicleCard.OdometerUnit.choices)
+    reason = models.CharField(max_length=2000, blank=True, default="")
+    # {"readings": [...], "replacements": [...], "<module>": [...]}: the values before and after.
+    details = models.JSONField(default=dict)
+    changed_by_user_id = models.UUIDField()
+    changed_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "odometer_unit_change"
+        constraints = [
+            models.CheckConstraint(
+                condition=~Q(from_unit=models.F("to_unit")), name="odometer_unit_change_differs"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.from_unit}→{self.to_unit} {self.method}"
+
+
+# --- What the owner of a managed vehicle sees (ТЗ § 8.3.4, § 8.3.6–8.3.7, § 8.3.15) ----------
+
+
+class VehicleManagementConfirmation(models.Model):
+    """A period of the confirmed management (§ 8.3.1): from the third «yes» to a new declaration
+    of the owner, a change of the owner (§ 8.3.10) or the end of the management (§ 8.3.17). Only
+    within such a period the owner receives the history of the company; what he received stays."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    vehicle_card = models.ForeignKey(VehicleCard, on_delete=models.PROTECT, related_name="+")
+    vehicle = models.ForeignKey(Vehicle, on_delete=models.PROTECT, related_name="+")
+    request = models.OneToOneField(VehicleOwnerRequest, on_delete=models.PROTECT, related_name="+")
+    owner_user_id = models.UUIDField(null=True, blank=True)
+    owner_company_id = models.UUIDField(null=True, blank=True)
+    started_at = models.DateTimeField()
+    ended_at = models.DateTimeField(null=True, blank=True)
+    end_reason = models.CharField(max_length=30, blank=True, default="")
+
+    class Meta:
+        db_table = "vehicle_management_confirmation"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["vehicle_card"],
+                condition=Q(ended_at__isnull=True),
+                name="vehicle_management_confirmation_one_open",
+            ),
+            models.CheckConstraint(
+                condition=Q(owner_user_id__isnull=False, owner_company_id__isnull=True)
+                | Q(owner_user_id__isnull=True, owner_company_id__isnull=False),
+                name="vehicle_management_confirmation_one_owner",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"management {self.vehicle_card_id}"
+
+
+class VehicleDisclosureSetting(models.Model):
+    """The categories of history and finance the company passes to the owner of the managed
+    vehicle (§ 8.3.7, § 8.3.15), with the moment they take effect. A new row is a new version;
+    the latest effective one is current."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    vehicle_card = models.ForeignKey(VehicleCard, on_delete=models.PROTECT, related_name="+")
+    categories = models.JSONField(default=list)
+    effective_from = models.DateTimeField()
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "vehicle_disclosure_setting"
+        indexes = [
+            models.Index(fields=["vehicle_card", "effective_from"], name="vehicle_disclosure_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"disclosure {self.vehicle_card_id}"
+
+
+# --- Global documents of a vehicle (ТЗ § 8.2.3–8.2.4, § 8.2.7) -------------------------------
+
+
+class VehicleDocument(models.Model):
+    """A changeable document of the global vehicle — the vehicle passport, the registration
+    certificate, an insurance policy or another one — kept by versions (§ 8.2.3). Not public:
+    the confirmed owner manages the access."""
+
+    class Type(models.TextChoices):
+        PASSPORT = "passport"  # ПТС
+        REGISTRATION = "registration"  # СТС
+        INSURANCE = "insurance"
+        OTHER = "other"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    vehicle = models.ForeignKey(Vehicle, on_delete=models.PROTECT, related_name="+")
+    doc_type = models.CharField(max_length=20, choices=Type.choices)
+    title = models.CharField(max_length=300, blank=True, default="")
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "vehicle_document"
+
+    def __str__(self) -> str:
+        return f"{self.doc_type}:{self.vehicle_id}"
+
+
+class VehicleDocumentVersion(models.Model):
+    """A version never overwrites the earlier one (§ 8.2.3): the details, the date of issue, the
+    term of validity and the file. The source is the owner or a company's copy the owner accepted
+    (§ 8.2.7)."""
+
+    class Source(models.TextChoices):
+        OWNER = "owner"
+        COMPANY_COPY = "company_copy"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    document = models.ForeignKey(VehicleDocument, on_delete=models.PROTECT, related_name="versions")
+    number = models.PositiveIntegerField()
+    details = models.CharField(max_length=1000, blank=True, default="")
+    issued_on = models.DateField(null=True, blank=True)
+    valid_until = models.DateField(null=True, blank=True)
+    file_id = models.UUIDField(null=True, blank=True)
+    source = models.CharField(max_length=20, choices=Source.choices)
+    source_company_id = models.UUIDField(null=True, blank=True)
+    source_version_id = models.UUIDField(null=True, blank=True)
+    owner_user_id = models.UUIDField(null=True, blank=True)
+    owner_company_id = models.UUIDField(null=True, blank=True)
+    added_by_user_id = models.UUIDField()
+    added_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "vehicle_document_version"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["document", "number"], name="vehicle_document_version_number_uniq"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.document_id} v{self.number}"
+
+
+class VehicleDocumentGrant(models.Model):
+    """A separate access of a company to the global documents given by the owner (§ 8.2.3)."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    vehicle = models.ForeignKey(Vehicle, on_delete=models.PROTECT, related_name="+")
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    owner_user_id = models.UUIDField(null=True, blank=True)
+    owner_company_id = models.UUIDField(null=True, blank=True)
+    granted_by_user_id = models.UUIDField()
+    granted_at = models.DateTimeField(default=now)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "vehicle_document_grant"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["vehicle", "company"],
+                condition=Q(revoked_at__isnull=True),
+                name="vehicle_document_grant_one_active",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"grant {self.vehicle_id}:{self.company_id}"
+
+
+class VehicleCopyDecision(models.Model):
+    """The owner's decision on a copy uploaded by a company before the confirmation (§ 8.2.7):
+    accepted as a new version of the global document, or left in the closed history of that
+    company only."""
+
+    class Decision(models.TextChoices):
+        ACCEPTED = "accepted"
+        KEPT_PRIVATE = "kept_private"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    vehicle = models.ForeignKey(Vehicle, on_delete=models.PROTECT, related_name="+")
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    # The version of the company's document (documents module).
+    company_version_id = models.UUIDField(unique=True)
+    decision = models.CharField(max_length=15, choices=Decision.choices)
+    global_version = models.ForeignKey(
+        VehicleDocumentVersion, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    owner_user_id = models.UUIDField(null=True, blank=True)
+    owner_company_id = models.UUIDField(null=True, blank=True)
+    decided_by_user_id = models.UUIDField()
+    decided_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "vehicle_copy_decision"
+
+    def __str__(self) -> str:
+        return f"{self.decision}:{self.company_version_id}"

@@ -164,6 +164,7 @@ def test_managed_vehicle_owner_by_profile_does_not_reveal_it(
         "lookup": "carowner@example.com",
         "name": "",
         "contact": "",
+        "source": "",
         "confirmed": False,
         "ownership_confirmed": False,
         "conflict": False,

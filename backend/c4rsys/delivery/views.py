@@ -331,6 +331,9 @@ def delivery_record(request: HttpRequest, cmp: str) -> JsonResponse:
         actual_end=_required_moment(data, "actual_end"),
         result=get_str(data, "result", max_length=24),
         comment=_text(data, "comment"),
+        restriction_exception=get_str(
+            data, "restriction_exception_reason", max_length=1000, required=False
+        ),
     )
     card = fleet.get_card(context.company.id, new.vehicle_card_id)
     source = services.source_location(card, None)
@@ -338,6 +341,9 @@ def delivery_record(request: HttpRequest, cmp: str) -> JsonResponse:
         _can(actor, p, source) for p in ("delivery.create", "delivery.start", "delivery.finish")
     ):
         raise errors.permission_denied("vehicle.move")
+    if new.restriction_exception and not _can(actor, "vehicle.move_restricted_to_service", source):
+        # § 23.5.6: the usual right to move does not give the exception.
+        raise errors.permission_denied("vehicle.move_restricted_to_service")
 
     def handler(ctx: CommandContext) -> CommandResult:
         return _result(services.record(ctx, context.company, new), 201, actor)
@@ -346,6 +352,7 @@ def delivery_record(request: HttpRequest, cmp: str) -> JsonResponse:
         data, "vehicle_card_id", "to", "driver_id", "actual_start", "actual_end", "result"
     )
     payload["comment"] = new.comment
+    payload["restriction_exception"] = new.restriction_exception
     return run_and_respond(request, "delivery.record", actor, payload, handler)
 
 

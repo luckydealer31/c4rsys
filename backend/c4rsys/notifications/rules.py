@@ -60,6 +60,12 @@ EVENTS: dict[str, Event] = {
     # who see the vehicle.
     "vehicle.identifier_conflict_decided": Event(Kind.INFO, "vehicle.view", mandatory=True),
     "vehicle.characteristic_decided": Event(Kind.INFO, "vehicle.view", mandatory=True),
+    # § 8.8.7: a restriction that begins while an operation runs does not stop it — the
+    # responsible gets a notification and a task. PROPOSAL: mandatory; without the responsible,
+    # to those who lift restrictions.
+    "vehicle.restriction_during_operation": Event(
+        Kind.ACTION, "vehicle.restriction.lift", mandatory=True, task=True
+    ),
     # Confirmations of share transfers and owners' approvals of deactivation (§ 3.4.1, § 3.6.2).
     "ownership.approval_requested": Event(Kind.ACTION, None, mandatory=True),
     "company.state_approval_requested": Event(Kind.ACTION, None, mandatory=True),

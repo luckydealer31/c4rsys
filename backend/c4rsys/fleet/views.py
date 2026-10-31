@@ -56,10 +56,44 @@ def _payload(card: VehicleCard, *, detail: bool = False) -> dict[str, Any]:
         if card.merged_into_id and card.merged_into
         else None
     )
+    # Block 12, part Б.
+    from c4rsys.fleet import disclosure, lifecycle, odometer, vehicle_documents
+
+    body["periods"] = lifecycle.periods_payload(card)
+    body["owners_history"] = lifecycle.owners_history(card)
+    body["plates_history"] = lifecycle.plates_history(card)
+    body["archive"] = (
+        {
+            "at": card.archived_at.isoformat() if card.archived_at else None,
+            "reason": card.archive_reason,
+        }
+        if card.state == VehicleCard.State.ARCHIVED
+        else None
+    )
+    body["disposal"] = _disposal(card)
+    body["odometer_replacements"] = odometer.replacements_payload(card.id)
+    body["odometer_unit_history"] = odometer.unit_history(card.id)
+    body["disclosure"] = (
+        disclosure.card_payload(card) if card.relation == VehicleCard.Relation.MANAGED else None
+    )
+    body["global_documents"] = vehicle_documents.card_payload(card)
+    body["transfer_reversals"] = lifecycle.reversals_of_card(card)
+    body["sold_to_profile"] = lifecycle.sold_ownership(card) is not None
     return body
 
 
+def _disposal(card: VehicleCard) -> dict[str, Any] | None:
+    from c4rsys.fleet.models import VehicleDisposal
+
+    found = VehicleDisposal.objects.filter(vehicle_card=card).first()
+    if found is None:
+        return None
+    return {"kind": found.kind, "reason": found.reason, "at": found.done_at.isoformat()}
+
+
 def _summary(card: VehicleCard) -> dict[str, Any]:
+    from c4rsys.fleet import odometer, restrictions
+
     reading = services.current_reading(card.id)
     return {
         "id": str(card.id),
@@ -77,9 +111,16 @@ def _summary(card: VehicleCard) -> dict[str, Any]:
             "value": str(reading.value),
             "unit": reading.unit,
             "measured_at": reading.measured_at.isoformat(),
+            # § 8.2.13: the accumulated mileage, apart from the dashboard reading.
+            "accumulated": str(odometer.accumulated(reading)),
         },
+        # § 8.8: the restriction acting now or the next one.
+        "restriction": restrictions.card_payload(card)["current"],
         "rental_readiness": services.rental_readiness(card),
-        "characteristics": characteristics.describe(card.vehicle),
+        "characteristics": {
+            **characteristics.describe(card.vehicle),
+            **{k: getattr(card, k) for k in characteristics.CARD_FIELDS},
+        },
         "owner": owners.describe(card),
         "acquisition": None
         if card.acquisition_cost is None
@@ -433,7 +474,15 @@ def vehicle_move(request: HttpRequest, cmp: str, card_id: UUID) -> JsonResponse:
         actual_start=_moment(data, "actual_start"),
         actual_end=_moment(data, "actual_end"),
         note=get_str(data, "note", max_length=500, required=False),
+        restriction_exception=get_str(
+            data, "restriction_exception_reason", max_length=1000, required=False
+        ),
     )
+    if move_request.restriction_exception and not _allowed(
+        actor, "vehicle.move_restricted_to_service", card
+    ):
+        # § 23.5.6: the usual right to move does not give the exception.
+        raise errors.permission_denied("vehicle.move_restricted_to_service")
 
     def handler(ctx: CommandContext) -> CommandResult:
         move = moves.record_move(ctx, context.company.id, move_request)

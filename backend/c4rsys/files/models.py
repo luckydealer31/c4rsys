@@ -29,6 +29,8 @@ class StoredFile(models.Model):
         INSPECTION_VIDEO = "inspection_video"
         # A signature drawn on the screen of an employee's device (§ 10.2.2, § 18.4.2).
         DOCUMENT_SIGNATURE = "document_signature"
+        # A version of a global document of a vehicle, uploaded by its owner (§ 8.2.3).
+        VEHICLE_DOCUMENT = "vehicle_document"
 
     class State(models.TextChoices):
         """Decision В-8.1: an inspection video is compressed on the server after its upload; until

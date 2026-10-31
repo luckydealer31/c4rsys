@@ -25,6 +25,13 @@ class InspectionsConfig(AppConfig):
         from c4rsys.inspections import card_records
 
         merges.register_card_records(card_records.PROVIDER)
+        # § 8.3.15: what the confirmed management passes to the owner.
+        from c4rsys.fleet import disclosure
+        from c4rsys.inspections import vehicle_links
+
+        disclosure.register_provider("inspections", vehicle_links.inspections_for_owner)
+        disclosure.register_provider("damages", vehicle_links.damages_for_owner)
+        disclosure.register_provider("mileage_fuel", vehicle_links.fuel_for_owner)
 
 
 def file_reader(user_id: UUID, item: Any) -> bool:

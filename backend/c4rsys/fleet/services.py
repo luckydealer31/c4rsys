@@ -103,6 +103,21 @@ def later_operations(company_id: UUID, card_id: UUID, moment: datetime) -> list[
     return [item for p in _later for item in p(company_id, card_id, moment)]
 
 
+# (company_id, vehicle_card_id, now) -> operations of the vehicle not finished yet — running or
+# planned — as {"kind", "id", "label", "active", "order_id"}: they stop an archive and the end of
+# the management (§ 8.7.5) and get a notice when a restriction begins while they run (§ 8.8.7).
+PendingOperations = Callable[[UUID, UUID, datetime], list[dict[str, Any]]]
+_pending: list[PendingOperations] = []
+
+
+def register_pending(provider: PendingOperations) -> None:
+    _pending.append(provider)
+
+
+def pending_operations(company_id: UUID, card_id: UUID, now: datetime) -> list[dict[str, Any]]:
+    return [item for p in _pending for item in p(company_id, card_id, now)]
+
+
 def cards_of(company_id: UUID, *, include_merged: bool = False) -> QuerySet[VehicleCard]:
     """Cards of the company; a duplicate merged into another card is left out of the lists: it
     redirects to the main card (§ 8.6.6)."""
@@ -181,9 +196,15 @@ def create_vehicle(ctx: CommandContext, company: Company, data: NewVehicle) -> V
         accounting_location_id=location_id,
         odometer_unit=data.odometer_unit,
         possible_duplicate=data.possible_duplicate,
+        inventory_number=data.details.inventory_number,
+        barcode=data.details.barcode,
         created_by_user_id=ctx.actor.user_id,
         created_at=now,
     )
+    from c4rsys.fleet import lifecycle
+
+    # The first period of the company's work with the vehicle (§ 8.7.6).
+    lifecycle.open_period(card, "created", "", ctx.actor.user_id, now)
     usable = USAGE_CONTEXT_TYPES
     if data.relation == VehicleCard.Relation.CLIENT:
         # A client vehicle is only serviced, and service is implied (§ 8.1.2).
@@ -241,6 +262,9 @@ def update_details(
         raise errors.not_found()
     if card.version != expected_version:
         raise errors.version_conflict()
+    if card.state == VehicleCard.State.ARCHIVED:
+        # § 8.7.5: an archived card is for viewing its history only.
+        raise errors.business_rule("VEHICLE_ARCHIVED")
     vehicle = Vehicle.objects.select_for_update().get(pk=card.vehicle_id)
     if identity.resolve(vehicle.id) != vehicle.id:
         # Linked to another entity, waiting for the company's merge of its two cards (§ 8.6.2).
@@ -270,10 +294,17 @@ def update_details(
                 valid_from=now,
             )
     card.name = name or characteristics.make_name(details) or card.name
+    before_labels = {k: getattr(card, k) for k in characteristics.CARD_FIELDS}
+    card.inventory_number = details.inventory_number
+    card.barcode = details.barcode
     card.version += 1
-    card.save(update_fields=["name", "version", "updated_at"])
+    card.save(update_fields=["name", "inventory_number", "barcode", "version", "updated_at"])
     after = characteristics.describe(vehicle)
     changed = [k for k in after if before.get(k) != after[k] and k != "identifier_matches"]
+    labels = {k: getattr(card, k) for k in characteristics.CARD_FIELDS}
+    before.update(before_labels)
+    after.update(labels)
+    changed += [k for k in labels if before_labels[k] != labels[k]]
     working_changed = before_working != after_working
     ctx.audit(
         "vehicle.details_changed",
@@ -377,6 +408,9 @@ def update_vehicle(
         raise errors.not_found()
     if card.version != expected_version:
         raise errors.version_conflict()
+    if card.state == VehicleCard.State.ARCHIVED:
+        # § 8.7.5: an archived card is for viewing its history only.
+        raise errors.business_rule("VEHICLE_ARCHIVED")
     before: dict[str, Any] = {"name": card.name, "contexts": sorted(allowed_contexts(card))}
     if changes.name is not None:
         card.name = changes.name
@@ -481,34 +515,17 @@ def record_reading(
     """Stores a reading inside the caller's command (inspections). The card row is locked so that
     concurrent readings are checked against each other. A value below the nearest earlier
     measurement or above the nearest later one is refused with the conflicting readings; an
-    odometer replacement is a separate service procedure (§ 8.2.13, later)."""
+    odometer replacement is a separate service procedure (§ 8.2.13, `odometer`)."""
     if value < 0:
         raise errors.validation_error("odometer", code="ODOMETER_INVALID")
+    from c4rsys.fleet import odometer
+
     VehicleCard.objects.select_for_update().filter(pk=card.pk).first()
-    readings = OdometerReading.objects.filter(vehicle_card=card, replaced_by__isnull=True)
-    if replaces is not None:
-        readings = readings.exclude(pk=replaces.pk)
-    earlier = readings.filter(measured_at__lte=measured_at).order_by("-measured_at").first()
-    later = readings.filter(measured_at__gte=measured_at).order_by("measured_at").first()
-    conflicts = [
-        r
-        for r in (earlier, later)
-        if r is not None
-        and (
-            (r.measured_at < measured_at and r.value > value)
-            or (r.measured_at > measured_at and r.value < value)
-            or (r.measured_at == measured_at and r.value != value)
-        )
-    ]
-    if conflicts:
-        raise errors.business_rule(
-            "ODOMETER_SEQUENCE_CONFLICT",
-            field="odometer",
-            conflicts=[
-                {"id": str(r.id), "measured_at": r.measured_at.isoformat(), "value": str(r.value)}
-                for r in conflicts
-            ],
-        )
+    # Checked by the accumulated mileage, so an odometer replacement is taken into account
+    # (§ 8.2.13).
+    odometer.check_new_reading(
+        card, measured_at, value, exclude=replaces.pk if replaces is not None else None
+    )
     reading = OdometerReading.objects.create(
         company_id=card.company_id,
         vehicle_card=card,
@@ -591,6 +608,10 @@ def register_garage_blockers(check: GarageBlockers) -> None:
     _garage_blockers.append(check)
 
 
+def garage_blockers(company_id: UUID, card_id: UUID) -> list[str]:
+    return [code for check in _garage_blockers for code in check(company_id, card_id)]
+
+
 def return_to_garage(
     ctx: CommandContext, company_id: UUID, card_id: UUID, expected_version: int
 ) -> VehicleCard:
@@ -605,7 +626,7 @@ def return_to_garage(
         raise errors.business_rule("VEHICLE_NOT_IN_WAREHOUSE")
     if card.state != VehicleCard.State.ACTIVE:
         raise errors.business_rule("VEHICLE_ARCHIVED")
-    found = [code for check in _garage_blockers for code in check(company_id, card.id)]
+    found = garage_blockers(company_id, card.id)
     if found:
         raise errors.business_rule("VEHICLE_HAS_OPERATIONS", blockers=found)
     before = {"storage_context": str(card.storage_context_id)}
@@ -705,26 +726,6 @@ def card_names(company_id: UUID, ids: set[UUID]) -> dict[UUID, str]:
     )
 
 
-def record_sale(ctx: CommandContext, company_id: UUID, card_id: UUID, order_id: UUID) -> None:
-    """A vehicle sold from a warehouse through a closed order: the seller's ownership ends
-    (§ 8.3.9). The card leaves the active garage and the warehouse; its ID and history stay.
-    PROPOSAL: the card is archived."""
-    card = VehicleCard.objects.select_for_update().filter(company_id=company_id, pk=card_id).first()
-    if card is None:
-        raise errors.not_found()
-    if card.storage_context_id is None:
-        raise errors.business_rule("VEHICLE_NOT_IN_WAREHOUSE")
-    card.state = VehicleCard.State.ARCHIVED
-    card.version += 1
-    card.save(update_fields=["state", "version", "updated_at"])
-    ctx.audit(
-        "vehicle.sold",
-        object_type="vehicle_card",
-        object_id=card.id,
-        after={"order": str(order_id), "state": card.state},
-    )
-
-
 def stored_card(company_id: UUID, card_id: UUID) -> VehicleCard | None:
     """An active vehicle of the company transferred to a warehouse — for sale (§ 8.3.9)."""
     return (
@@ -798,7 +799,7 @@ def remove_imported(company_id: UUID, card_ids: list[UUID]) -> None:
     """Cancel of an import (§ 22.2.5): the cards it created, with their contexts, declared
     owners and readings; the global vehicle goes too unless another card refers to it. Any other
     reference raises ProtectedError and the caller refuses the cancel."""
-    from c4rsys.fleet.models import VehicleOwnerClaim
+    from c4rsys.fleet.models import VehicleCardPeriod, VehicleOwnerClaim
 
     identity.leave(card_ids, timezone.now())
     for card in VehicleCard.objects.select_for_update().filter(
@@ -808,6 +809,7 @@ def remove_imported(company_id: UUID, card_ids: list[UUID]) -> None:
         VehicleCardContext.objects.filter(vehicle_card=card).delete()
         VehicleOwnerClaim.objects.filter(vehicle_card=card).delete()
         VehicleCardWorkingValue.objects.filter(vehicle_card=card).delete()
+        VehicleCardPeriod.objects.filter(vehicle_card=card).delete()
         OdometerReading.objects.filter(vehicle_card=card).delete()
         card.delete()
         if not VehicleCard.objects.filter(vehicle=vehicle).exists():

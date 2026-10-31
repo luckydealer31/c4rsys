@@ -52,3 +52,13 @@ class ServiceConfig(AppConfig):
         from c4rsys.inspections import links as inspection_links
 
         inspection_links.register_service_reader(operations.inspection_link)
+        # Block 12, part Б: what the service gives the vehicle card (§ 8.2.10, § 8.3.15,
+        # § 8.7.5, § 9.1.4, § 9.1.16).
+        from c4rsys.fleet import disclosure, odometer, owner_view
+        from c4rsys.service import vehicle_links
+
+        fleet.register_pending(vehicle_links.pending)
+        odometer.register_unit_participant("service", vehicle_links.unit_values)
+        disclosure.register_provider("service", vehicle_links.works_for_owner)
+        owner_view.register_work_history(vehicle_links.works_for_buyer)
+        owner_view.register_rules(vehicle_links.rules_for_buyer)

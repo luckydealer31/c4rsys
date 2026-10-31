@@ -47,6 +47,9 @@ export function VehicleMoves({ vehicle }: { vehicle: Vehicle }) {
   const [endInput, setEnd] = useState<string | null>(null);
   const end = endInput ?? toLocalInput(new Date(), zone);
   const [note, setNote] = useState("");
+  // § 8.8.7, § 23.5.6: a restricted vehicle goes to a service only as an exception with a reason.
+  const [exception, setException] = useState("");
+  const restricted = vehicle.restriction?.state === "active" && vehicle.restriction.forbid_moves;
   const [done, setDone] = useState<Delivery | null>(null);
   const move = useCommand<Record<string, unknown>, { delivery: Delivery }>(`/c/${company.public_id}/deliveries/record`);
 
@@ -60,6 +63,7 @@ export function VehicleMoves({ vehicle }: { vehicle: Vehicle }) {
       actual_end: fromLocalInput(end, zone),
       result: "accepted_in_location",
       comment: note,
+      ...(restricted && exception.trim() ? { restriction_exception_reason: exception } : {}),
     });
     if (result) {
       setDone(result.delivery);
@@ -158,6 +162,18 @@ export function VehicleMoves({ vehicle }: { vehicle: Vehicle }) {
               <input value={note} onChange={(e) => setNote(e.target.value)} />
             </Field>
           </div>
+          {restricted ? (
+            <div className="row">
+              <div className="alert warn" style={{ flexBasis: "100%" }}>
+                {t("moves.restricted_hint")}
+              </div>
+              {can("vehicle.move_restricted_to_service") ? (
+                <Field label={t("moves.restriction_exception")} hint={t("moves.restriction_exception_hint")}>
+                  <input value={exception} onChange={(e) => setException(e.target.value)} />
+                </Field>
+              ) : null}
+            </div>
+          ) : null}
           <ErrorMessage error={move.error} />
           {done ? <div className="alert ok">{t("moves.done", { to: names.get(done.to.location) ?? "" })}</div> : null}
           <div className="actions">

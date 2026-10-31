@@ -1,6 +1,6 @@
 from django.urls import path
 
-from c4rsys.fleet import identity_views, owner_views, views
+from c4rsys.fleet import identity_views, lifecycle_views, owner_views, views
 
 V = "c/<str:cmp>/vehicles/<uuid:card_id>/"
 
@@ -13,6 +13,26 @@ urlpatterns = [
     path(f"{V}merges/<uuid:merge_id>/split", identity_views.split),
     path(f"{V}merges/<uuid:merge_id>/split/preview", identity_views.split_preview),
     path(f"{V}proposals", identity_views.propose),
+    # Block 12, part Б: lifecycle of the card (§ 8.1.6, § 8.2.10–8.2.13, § 8.3, § 8.4.2, § 8.7,
+    # § 8.8).
+    path(f"{V}restrictions", lifecycle_views.restriction_set),
+    path(f"{V}restrictions/<uuid:restriction_id>", lifecycle_views.restriction_change),
+    path(f"{V}restrictions/<uuid:restriction_id>/lift", lifecycle_views.restriction_lift),
+    path("c/<str:cmp>/vehicle-restriction-reasons", lifecycle_views.restriction_reasons),
+    path(f"{V}archive", lifecycle_views.archive),
+    path(f"{V}restore", lifecycle_views.restore),
+    path(f"{V}end-management", lifecycle_views.end_management),
+    path(f"{V}take-into-management", lifecycle_views.take_into_management),
+    path(f"{V}dispose", lifecycle_views.dispose),
+    path(f"{V}transfer-reversal", lifecycle_views.transfer_reversal),
+    path(f"{V}odometer-unit", lifecycle_views.unit_change),
+    path(f"{V}odometer-unit/preview", lifecycle_views.unit_preview),
+    path(f"{V}odometer/replacement-preview", lifecycle_views.replacement_preview),
+    path(f"{V}disclosure", lifecycle_views.disclosure_set),
+    path(
+        f"{V}global-documents/versions/<uuid:version_id>/file",
+        lifecycle_views.global_document_file,
+    ),
     path("catalog/vehicle-options", views.catalog_options),
     path("catalog/vehicle-makes", views.catalog_makes),
     path("catalog/vehicle-makes/<str:make>/models", views.catalog_models),

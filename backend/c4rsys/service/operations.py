@@ -814,17 +814,42 @@ def complete(
     comment: str,
     contractor_cost: Decimal | None = None,
     fixed_damages: list[damages.Fix] | None = None,
+    replacement: tuple[Decimal, Decimal] | None = None,
 ) -> ServiceJob:
     """«Done» with the actual time and odometer; the author is kept apart from the executor
     (§ 16.4.2–16.4.3). The odometer reading goes to the vehicle (§ 8.2.12). A contractor's work
     is done when an employee of the company accepts it; the contractor's word is not the
     acceptance, and the odometer may be unknown (§ 16.6.8). The damages fixed by the work are
-    chosen explicitly; finishing it fixes nothing by itself (§ 16.5.4, § 10.5.1)."""
-    if odometer is None and job.contractor_id is None:
+    chosen explicitly; finishing it fixes nothing by itself (§ 16.5.4, § 10.5.1).
+
+    The system work «Odometer replacement» takes the last reading of the old odometer and the
+    first of the new one instead of a reading (§ 8.2.13); an ordinary work never resets it."""
+    from c4rsys.fleet import odometer as odometers
+
+    is_replacement = job.snapshot.get("system_work") == odometers.REPLACEMENT_WORK
+    if is_replacement and replacement is None:
+        raise errors.validation_error("odometer_replacement", code="FIELD_REQUIRED")
+    if not is_replacement and replacement is not None:
+        raise errors.validation_error("odometer_replacement", code="FIELD_NOT_APPLICABLE")
+    if is_replacement:
+        odometer = None
+    elif odometer is None and job.contractor_id is None:
         raise errors.validation_error("odometer", code="FIELD_REQUIRED")
     before = job_snapshot(job)
     _record_result(ctx, job, at, comment)
-    if odometer is not None:
+    if replacement is not None:
+        card = VehicleCard.objects.get(pk=job.operation.vehicle_card_id)
+        odometers.record_replacement(
+            ctx,
+            card,
+            replaced_at=at,
+            old_final=replacement[0],
+            new_start=replacement[1],
+            source_type="service_job",
+            source_id=job.id,
+        )
+        odometer = replacement[1]
+    elif odometer is not None:
         card = VehicleCard.objects.get(pk=job.operation.vehicle_card_id)
         fleet.record_reading(
             ctx, card, measured_at=at, value=odometer, source_type="service_job", source_id=job.id
@@ -1386,6 +1411,14 @@ def correct_job(
         raise errors.validation_error("actual_end", code="PERIOD_INVALID")
     if odometer is not None and job.state != Job.DONE:
         raise errors.validation_error("odometer", code="FIELD_NOT_APPLICABLE")
+    from c4rsys.fleet import odometer as odometers
+
+    if job.snapshot.get("system_work") == odometers.REPLACEMENT_WORK and (
+        odometer is not None or end != job.actual_end
+    ):
+        # TODO(spec): a correction of a recorded odometer replacement (§ 8.2.10: «with a check of
+        # the related operations») is not defined; its facts are not changed here.
+        raise errors.business_rule("ODOMETER_REPLACEMENT_NOT_CORRECTABLE")
     before = job_snapshot(job)
     before["comment"] = job.comment
     job.actual_start = start

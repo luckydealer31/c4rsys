@@ -422,6 +422,10 @@ def start(ctx: CommandContext, d: Delivery, at: datetime) -> Delivery:
     _not_future(at, "actual_start")
     card = VehicleCard.objects.get(pk=d.vehicle_card_id)
     _check_vehicle(card)
+    from c4rsys.fleet import restrictions
+
+    # § 8.8.7: the start of a delivery is refused while a restriction forbidding moves lasts.
+    restrictions.require_allowed(card, "move", at)
     if card.accounting_location_id not in (None, d.from_location_id):
         raise errors.business_rule(
             "VEHICLE_LOCATION_MISMATCH",
@@ -523,6 +527,23 @@ class Record:
     result: str
     comment: str = ""
     order_id: UUID | None = None
+    # § 8.8.7, § 23.5.6: a restricted vehicle moved to a service, with the reason.
+    restriction_exception: str = ""
+
+
+def _check_restriction(company_id: UUID, card: VehicleCard, data: Record) -> None:
+    """A usual move of a restricted vehicle is refused (§ 8.8.7); a move to a service location is
+    the separate exception with its reason (§ 23.5.6)."""
+    from c4rsys.fleet import restrictions
+
+    if not data.restriction_exception:
+        restrictions.require_allowed(card, "move", data.actual_start)
+        return
+    if restrictions.active_at(card.id, data.actual_start) is None:
+        raise errors.validation_error("restriction_exception_reason", code="VEHICLE_NOT_RESTRICTED")
+    target = data.to.location_id if data.to.kind == "location" else None
+    if target is None or "service" not in locations.enabled_context_types(company_id, target):
+        raise errors.validation_error("to", code="MOVE_EXCEPTION_NOT_SERVICE")
 
 
 def record(ctx: CommandContext, company: Company, data: Record) -> Delivery:
@@ -532,6 +553,7 @@ def record(ctx: CommandContext, company: Company, data: Record) -> Delivery:
     card = fleet.lock_card(company.id, data.vehicle_card_id)
     fleet.require_open_for_new(card)
     _check_vehicle(card)
+    _check_restriction(company.id, card, data)
     d = Delivery(company=company, vehicle_card=card, created_by_user_id=ctx.actor.user_id)
     _apply_route(
         d,
@@ -564,7 +586,12 @@ def record(ctx: CommandContext, company: Company, data: Record) -> Delivery:
             d.save()
     except IntegrityError as exc:
         raise errors.business_rule("VEHICLE_IN_TRANSIT", field="vehicle_card_id") from exc
-    ctx.audit("delivery.created", object_type="delivery", object_id=d.id, after=snapshot(d))
+    ctx.audit(
+        "delivery.created",
+        object_type="delivery",
+        object_id=d.id,
+        after={**snapshot(d), "restriction_exception": data.restriction_exception or None},
+    )
     finished = finish(ctx, d, data.actual_end, data.result, data.comment)
     # § 12.3.5: added to an order in work, it waits for the client's answer like the other
     # positions; it has already happened, so a refusal keeps it (§ 12.3.1).
@@ -851,3 +878,21 @@ def schedule(
             }
         )
     return result
+
+
+def pending(company_id: UUID, card_id: UUID, now: datetime) -> list[dict[str, Any]]:
+    """Planned deliveries and those on the way: they stop an archive (§ 8.7.5)."""
+    return [
+        {
+            "kind": "delivery",
+            "id": str(d.id),
+            "label": str(d.number),
+            "active": d.state == State.IN_TRANSIT,
+            "order_id": str(d.order_id),
+        }
+        for d in Delivery.objects.filter(
+            company_id=company_id,
+            vehicle_card_id=card_id,
+            state__in=(State.PLANNED, State.IN_TRANSIT),
+        )
+    ]

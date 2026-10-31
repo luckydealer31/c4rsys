@@ -592,3 +592,35 @@ def files_for_export(actor: Any, company_id: UUID) -> Iterator[tuple[str, bytes]
             item = StoredFile.objects.filter(pk=str(signer.signature_file_id)).first()
             if item is not None:
                 yield f"{d.number}/screen_signature_{signer.id}.png", files.content(item)
+
+
+def vehicle_copies(company_id: UUID, card_id: UUID) -> list[dict[str, Any]]:
+    """Versions with a file of the company's active documents linked to the vehicle card: copies
+    uploaded by the company (§ 8.2.7) that the confirmed owner may accept as global versions."""
+    result = []
+    for d in linked_to(company_id, DocumentLink.ObjectType.VEHICLE, card_id).filter(
+        state=Document.State.ACTIVE
+    ):
+        for v in versions_of(d):
+            if v.file_id is None:
+                continue
+            result.append(
+                {
+                    "document_id": str(d.id),
+                    "title": d.title,
+                    "version_id": str(v.id),
+                    "number": v.number,
+                    "file_id": str(v.file_id),
+                    "file_name": v.file_name,
+                    "valid_until": v.valid_until.isoformat() if v.valid_until else None,
+                    "created_at": v.created_at.isoformat(),
+                }
+            )
+    return result
+
+
+def vehicle_copy(company_id: UUID, card_id: UUID, version_id: UUID) -> dict[str, Any] | None:
+    return next(
+        (c for c in vehicle_copies(company_id, card_id) if c["version_id"] == str(version_id)),
+        None,
+    )

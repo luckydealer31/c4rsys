@@ -80,15 +80,23 @@ class Status:
 
 
 def status_of(
-    rule: MaintenanceRule, jobs: list[ServiceJob], odometer: Decimal | None, today: date
+    rule: MaintenanceRule,
+    jobs: list[ServiceJob],
+    odometer: Decimal | None,
+    today: date,
+    accumulated: dict[UUID, Decimal] | None = None,
 ) -> Status:
+    """Distances count by the accumulated mileage (§ 8.2.13): `odometer` is the accumulated
+    current one and a done work counts by the accumulated mileage of its reading. Manual values
+    of a rule are taken as accumulated (PROPOSAL)."""
     last = next((j for j in jobs if _matches(rule, j)), None)
     base_on: date | None
     base_odometer: Decimal | None
     due_on: date | None = None
     due_odometer: Decimal | None = None
     if last is not None and last.actual_end is not None:
-        base, base_on, base_odometer = "work", timezone.localdate(last.actual_end), last.odometer
+        base, base_on = "work", timezone.localdate(last.actual_end)
+        base_odometer = (accumulated or {}).get(last.id, last.odometer)
     elif rule.last_done_on is not None or rule.last_done_odometer is not None:
         base, base_on, base_odometer = "manual_last", rule.last_done_on, rule.last_done_odometer
     else:
@@ -136,15 +144,22 @@ def rules_of(company_id: UUID, card_id: UUID, *, archived: bool = False) -> list
 
 
 def odometer_of(card_id: UUID) -> Decimal | None:
-    reading = fleet.current_reading(card_id)
-    return reading.value if reading else None
+    """The accumulated mileage of the vehicle (§ 8.2.13)."""
+    from c4rsys.fleet import odometer
+
+    return odometer.current_accumulated(card_id)
 
 
 def statuses(company_id: UUID, card: VehicleCard) -> list[tuple[MaintenanceRule, Status]]:
+    from c4rsys.fleet import odometer as odometers
+
     jobs = done_jobs(company_id, card.id)
     odometer = odometer_of(card.id)
     today = _today(card)
-    return [(r, status_of(r, jobs, odometer, today)) for r in rules_of(company_id, card.id)]
+    accumulated = odometers.accumulated_of_sources(card.id, "service_job", [j.id for j in jobs])
+    return [
+        (r, status_of(r, jobs, odometer, today, accumulated)) for r in rules_of(company_id, card.id)
+    ]
 
 
 def due(company_id: UUID) -> list[tuple[VehicleCard, MaintenanceRule, Status]]:

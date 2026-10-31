@@ -40,6 +40,22 @@ class MoveRequest:
     actual_start: datetime
     actual_end: datetime
     note: str = ""
+    # § 8.8.7, § 23.5.6: a restricted vehicle moved to a service, with the reason.
+    restriction_exception: str = ""
+
+
+def _check_restriction(company_id: UUID, card: VehicleCard, request: MoveRequest) -> None:
+    """A usual move of a restricted vehicle is refused (§ 8.8.7); a move to a service is a
+    separate exception with its reason — the destination must have a service context."""
+    from c4rsys.fleet import restrictions
+
+    if not request.restriction_exception:
+        restrictions.require_allowed(card, "move", request.actual_start)
+        return
+    if restrictions.active_at(card.id, request.actual_start) is None:
+        raise errors.validation_error("restriction_exception_reason", code="VEHICLE_NOT_RESTRICTED")
+    if "service" not in locations.enabled_context_types(company_id, request.to_location_id):
+        raise errors.validation_error("to_location_id", code="MOVE_EXCEPTION_NOT_SERVICE")
 
 
 def record_move(ctx: CommandContext, company_id: UUID, request: MoveRequest) -> VehicleMove:
@@ -59,6 +75,7 @@ def record_move(ctx: CommandContext, company_id: UUID, request: MoveRequest) -> 
     busy = busy_reasons(company_id, card.id)
     if busy:
         raise errors.business_rule("VEHICLE_BUSY", reasons=busy)
+    _check_restriction(company_id, card, request)
     driver = Employment.objects.filter(
         company_id=company_id, pk=request.driver_employment_id, state=Employment.State.ACTIVE
     ).first()
@@ -99,6 +116,7 @@ def record_move(ctx: CommandContext, company_id: UUID, request: MoveRequest) -> 
             "driver_employment": str(driver.id),
             "actual_start": request.actual_start.isoformat(),
             "actual_end": request.actual_end.isoformat(),
+            "restriction_exception": request.restriction_exception or None,
             "note": request.note,
         },
     )

@@ -292,6 +292,14 @@ export function BookingCard({ rental, onDone }: { rental: Rental; onDone: (next?
           <Link to={companyPath(company, `/rentals/${booking.delay_conflict.rental}`)}>{t("bookings.open_rental")}</Link>
         </div>
       ) : null}
+      {booking.restriction_conflict ? (
+        <div className="alert warn">
+          {t("bookings.restriction_conflict", {
+            start: when(booking.restriction_conflict.starts_at),
+            end: booking.restriction_conflict.ends_at ? when(booking.restriction_conflict.ends_at) : "—",
+          })}
+        </div>
+      ) : null}
       {elsewhere ? (
         <div className="alert warn">
           {t("bookings.vehicle_elsewhere", { place: place.get(booking.vehicle_location_id ?? "") ?? "—" })}

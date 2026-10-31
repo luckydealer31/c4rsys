@@ -27,7 +27,8 @@ PREFIXES = (
 FILE_RE = re.compile(
     r"^/api/files/(?P<id>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$", re.I
 )
-CABINET_PURPOSES = ("avatar",)
+# The owner uploads the files of the global documents of his vehicle (§ 8.2.3).
+CABINET_PURPOSES = ("avatar", "vehicle_document")
 
 
 def _file_allowed(request: HttpRequest) -> bool:

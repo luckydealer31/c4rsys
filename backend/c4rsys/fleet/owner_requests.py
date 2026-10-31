@@ -173,23 +173,65 @@ def cancel(ctx: CommandContext, company_id: UUID, card_id: UUID) -> VehicleOwner
 def close_for_new_owner(ctx: CommandContext, card: VehicleCard) -> None:
     """Another declared owner: the open request was addressed to the previous one and is no
     longer answered (§ 8.3.13). It is cancelled with the reason and stays in the history with
-    its answers; a request to the new owner may be sent. The card is locked by the caller."""
+    its answers; a request to the new owner may be sent. The confirmed management of the earlier
+    declaration ends (§ 8.3.4). The card is locked by the caller."""
+    close_open(ctx, card, OWNER_CHANGED)
+
+
+def close_open(ctx: CommandContext, card: VehicleCard, reason: str) -> None:
+    from c4rsys.fleet import disclosure
+
     now = timezone.now()
+    disclosure.end_confirmation(ctx, card, reason, now)
     for request in VehicleOwnerRequest.objects.select_for_update().filter(
         vehicle_card_id=card.id, state=State.OPEN
     ):
         expired = effective_state(request, now) == State.EXPIRED
         request.state = State.EXPIRED if expired else State.CANCELLED
         request.closed_at = now
-        request.closed_reason = "" if expired else OWNER_CHANGED
+        request.closed_reason = "" if expired else reason
         request.save(update_fields=["state", "closed_at", "closed_reason"])
         if not expired:
             ctx.audit(
                 "vehicle.owner_request_cancelled",
                 object_type="vehicle_card",
                 object_id=card.id,
-                after={"request": str(request.id), "reason": OWNER_CHANGED},
+                after={"request": str(request.id), "reason": reason},
+                company_id=card.company_id,
             )
+
+
+def send_to_new_owner(
+    ctx: CommandContext,
+    card: VehicleCard,
+    claim: VehicleOwnerClaim,
+    *,
+    user_id: UUID | None,
+    company_id: UUID | None,
+) -> VehicleOwnerRequest:
+    """§ 8.3.10: after the ownership passed, the new owner gets a separate request to confirm
+    the management. The company does not learn who he is: the target is the profile itself."""
+    now = timezone.now()
+    request = VehicleOwnerRequest.objects.create(
+        company_id=card.company_id,
+        vehicle_card=card,
+        vehicle_id=card.vehicle_id,
+        claim=claim,
+        target_label="",
+        target_user_id=user_id if company_id is None else None,
+        target_company_id=company_id,
+        created_by_user_id=ctx.actor.user_id,
+        created_at=now,
+        expires_at=now + TTL,
+    )
+    ctx.audit(
+        "vehicle.owner_requested",
+        object_type="vehicle_card",
+        object_id=card.id,
+        after={"request": str(request.id), "target": "new_owner", "reason": "ownership_changed"},
+        company_id=card.company_id,
+    )
+    return request
 
 
 def requests_of_card(company_id: UUID, card_id: UUID) -> QuerySet[VehicleOwnerRequest]:
@@ -296,6 +338,11 @@ def _answer(
         request.state = State.COMPLETE
         request.closed_at = now
     request.save(update_fields=["target_user_id", "state", "closed_at"])
+    if complete and all({**before, **given}.get(q) is True for q in QUESTIONS):
+        # Three «yes»: the management is confirmed from now (§ 8.3.1, § 8.3.6).
+        from c4rsys.fleet import disclosure
+
+        disclosure.start_confirmation(request, now)
     after = {"request": str(request.id), "answers": given, "complete": complete}
     if ownership:
         after["ownership"] = ownership

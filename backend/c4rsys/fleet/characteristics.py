@@ -42,6 +42,25 @@ FUEL_TYPES = ["petrol", "diesel", "hybrid", "plug_in_hybrid", "electric", "gas",
 TRANSMISSIONS = ["manual", "automatic", "robot", "cvt"]
 DRIVES = ["fwd", "rwd", "awd"]
 
+# Characteristics kept as decimals; in the API they are strings.
+DECIMAL_FIELDS = ("engine_volume_l", "tank_volume_l", "battery_kwh", "cargo_volume_m3")
+# The optional characteristics added in block 12, part Б (§ 8.1.12).
+EXTRA_FIELDS = (
+    "manufacturer",
+    "manufacture_country",
+    "modification",
+    "tank_volume_l",
+    "battery_kwh",
+    "range_km",
+    "gears",
+    "curb_weight_kg",
+    "gross_weight_kg",
+    "payload_kg",
+    "cargo_volume_m3",
+)
+# Labels of the company kept in its card (PROPOSAL), not in the global vehicle.
+CARD_FIELDS = ("inventory_number", "barcode")
+
 # § 8.6.1: VIN is upper-cased and trimmed; similar symbols are not replaced. 17 characters
 # without I, O, Q is the usual format — a different one is only a warning.
 VIN_FORMAT = re.compile(r"^[A-HJ-NPR-Z0-9]{17}$")
@@ -78,7 +97,9 @@ def _int(data: dict[str, Any], key: str, low: int, high: int) -> int | None:
     return value
 
 
-def _decimal(data: dict[str, Any], key: str) -> Decimal | None:
+def _decimal(
+    data: dict[str, Any], key: str, high: str = "99.9", places: str = "0.1"
+) -> Decimal | None:
     value = data.get(key)
     if value in (None, ""):
         return None
@@ -86,9 +107,16 @@ def _decimal(data: dict[str, Any], key: str) -> Decimal | None:
         number = Decimal(str(value))
     except InvalidOperation as exc:
         raise errors.validation_error(key) from exc
-    if not Decimal("0") < number <= Decimal("99.9"):
-        raise errors.validation_error(key, code="OUT_OF_RANGE", min=0, max=99.9)
-    return number.quantize(Decimal("0.1"))
+    if not number.is_finite() or not Decimal("0") < number <= Decimal(high):
+        raise errors.validation_error(key, code="OUT_OF_RANGE", min=0, max=high)
+    return number.quantize(Decimal(places))
+
+
+def _country(data: dict[str, Any], key: str) -> str:
+    value = _text(data, key, 2).upper()
+    if value and not COUNTRY.match(value):
+        raise errors.validation_error(key, code="COUNTRY_INVALID")
+    return value
 
 
 def normalize_plate(number: str) -> str:
@@ -123,6 +151,21 @@ class Characteristics:
     power_hp: int | None = None
     seats: int | None = None
     doors: int | None = None
+    # The rest of § 8.1.12 (block 12, part Б).
+    manufacturer: str = ""
+    manufacture_country: str = ""
+    modification: str = ""
+    tank_volume_l: Decimal | None = None
+    battery_kwh: Decimal | None = None
+    range_km: int | None = None
+    gears: int | None = None
+    curb_weight_kg: int | None = None
+    gross_weight_kg: int | None = None
+    payload_kg: int | None = None
+    cargo_volume_m3: Decimal | None = None
+    # Labels of the company's card, not of the global vehicle (PROPOSAL).
+    inventory_number: str = ""
+    barcode: str = ""
     warnings: list[str] = field(default_factory=list)
     # The identifiers as they were entered, before the normalization (§ 8.6.1).
     originals: dict[str, str] = field(default_factory=dict)
@@ -130,7 +173,8 @@ class Characteristics:
     def payload(self) -> dict[str, Any]:
         """For the stored request of the command (A07)."""
         body = {k: v for k, v in self.__dict__.items() if k not in ("warnings", "originals")}
-        body["engine_volume_l"] = str(self.engine_volume_l) if self.engine_volume_l else None
+        for key in DECIMAL_FIELDS:
+            body[key] = str(body[key]) if body[key] is not None else None
         return body
 
 
@@ -177,6 +221,19 @@ def parse(data: dict[str, Any], this_year: int) -> Characteristics:
         power_hp=_int(data, "power_hp", 1, 5000),
         seats=_int(data, "seats", 1, 200),
         doors=_int(data, "doors", 0, 10),
+        manufacturer=_text(data, "manufacturer", 150),
+        manufacture_country=_country(data, "manufacture_country"),
+        modification=_text(data, "modification", 150),
+        tank_volume_l=_decimal(data, "tank_volume_l", "9999.9"),
+        battery_kwh=_decimal(data, "battery_kwh", "9999.9"),
+        range_km=_int(data, "range_km", 1, 100000),
+        gears=_int(data, "gears", 1, 30),
+        curb_weight_kg=_int(data, "curb_weight_kg", 1, 1000000),
+        gross_weight_kg=_int(data, "gross_weight_kg", 1, 1000000),
+        payload_kg=_int(data, "payload_kg", 1, 1000000),
+        cargo_volume_m3=_decimal(data, "cargo_volume_m3", "99999.99", "0.01"),
+        inventory_number=_text(data, "inventory_number", 60),
+        barcode=_text(data, "barcode", 120),
     )
     if vin and not VIN_FORMAT.match(vin):
         result.warnings.append("VIN_FORMAT")
@@ -223,6 +280,7 @@ def apply(vehicle: Vehicle, value: Characteristics) -> None:
         "power_hp",
         "seats",
         "doors",
+        *EXTRA_FIELDS,
     ):
         setattr(vehicle, key, getattr(value, key))
 
@@ -264,6 +322,12 @@ def describe(vehicle: Vehicle) -> dict[str, Any]:
         "power_hp": vehicle.power_hp,
         "seats": vehicle.seats,
         "doors": vehicle.doors,
+        **{
+            key: str(getattr(vehicle, key))
+            if key in DECIMAL_FIELDS and getattr(vehicle, key) is not None
+            else getattr(vehicle, key)
+            for key in EXTRA_FIELDS
+        },
         "identifier_matches": matches(vehicle),
     }
 
@@ -290,6 +354,7 @@ FIELDS = (
     "power_hp",
     "seats",
     "doors",
+    *EXTRA_FIELDS,
 )
 # The basic factory characteristics that the c4rsys staff may confirm (§ 8.2.1). PROPOSAL: the
 # ТЗ does not list them; the colour (it may be repainted) and the plate (periods, § 8.2.11) are
@@ -303,8 +368,9 @@ def value_of(vehicle: Vehicle, name: str) -> Any:
         return {"code": vehicle.make_id or "", "other": vehicle.make_other}
     if name == "model":
         return {"code": vehicle.model_id or "", "other": vehicle.model_other}
-    if name == "engine_volume_l":
-        return str(vehicle.engine_volume_l) if vehicle.engine_volume_l is not None else None
+    if name in DECIMAL_FIELDS:
+        value = getattr(vehicle, name)
+        return str(value) if value is not None else None
     return getattr(vehicle, name)
 
 
@@ -314,8 +380,9 @@ def value_in(details: Characteristics, name: str) -> Any:
         return {"code": details.make_code, "other": details.make_other}
     if name == "model":
         return {"code": details.model_code, "other": details.model_other}
-    if name == "engine_volume_l":
-        return str(details.engine_volume_l) if details.engine_volume_l is not None else None
+    if name in DECIMAL_FIELDS:
+        value = getattr(details, name)
+        return str(value) if value is not None else None
     return getattr(details, name)
 
 
@@ -332,8 +399,8 @@ def set_value(vehicle: Vehicle, name: str, value: Any) -> None:
     elif name == "model":
         vehicle.model_id = value.get("code") or None
         vehicle.model_other = "" if value.get("code") else value.get("other", "")
-    elif name == "engine_volume_l":
-        vehicle.engine_volume_l = Decimal(value) if value not in (None, "") else None
+    elif name in DECIMAL_FIELDS:
+        setattr(vehicle, name, Decimal(value) if value not in (None, "") else None)
     else:
         setattr(vehicle, name, value)
 

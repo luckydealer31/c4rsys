@@ -167,6 +167,8 @@ def describe(card: VehicleCard) -> dict[str, Any] | None:
         "lookup": claim.lookup,
         "name": claim.manual_name,
         "contact": claim.manual_contact,
+        # «ownership_change»: declared by the system after the ownership passed (§ 8.3.10).
+        "source": claim.source,
         # The answers to the request of § 8.3.1: three «yes» confirm the management.
         **owner_requests.owner_status(card),
     }

@@ -32,3 +32,5 @@ class DeliveryConfig(AppConfig):
         from c4rsys.fleet import merges
 
         merges.register_card_records(card_records.PROVIDER)
+        # Block 12, part Б: unfinished deliveries stop an archive (§ 8.7.5).
+        fleet.register_pending(services.pending)

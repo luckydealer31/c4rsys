@@ -70,9 +70,13 @@ class Issued:
 
 
 def _check_vehicle(card: VehicleCard, request: IssueRequest) -> None:
+    from c4rsys.fleet import restrictions
+
     readiness = fleet.rental_readiness(card)
     if not readiness["ready"]:
         raise errors.business_rule("VEHICLE_NOT_READY", missing=readiness["missing"])
+    # § 8.8.7: the issue is blocked while a restriction forbidding it lasts.
+    restrictions.require_allowed(card, "rental_issue", request.actual_start)
     if card.accounting_location_id != request.issue_location_id:
         # § 14.2.2: the current location of the vehicle must be the issue location.
         raise errors.business_rule(

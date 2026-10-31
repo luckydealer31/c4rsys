@@ -61,3 +61,11 @@ class RentalsConfig(AppConfig):
         from c4rsys.rentals import bookings
 
         suspension.register_resumed(bookings.after_unblock)
+        # Block 12, part Б: unfinished rentals stop an archive (§ 8.7.5); the mileage terms change
+        # with the odometer unit (§ 8.2.10); the operation periods for the owner (§ 8.3.15).
+        from c4rsys.fleet import disclosure, odometer
+        from c4rsys.rentals import vehicle_links
+
+        fleet.register_pending(vehicle_links.pending)
+        odometer.register_unit_participant("rentals", vehicle_links.unit_values)
+        disclosure.register_provider("operation_periods", vehicle_links.periods_for_owner)

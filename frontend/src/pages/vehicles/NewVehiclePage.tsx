@@ -14,6 +14,25 @@ import { useLocations } from "../settings/LocationsPage";
 
 const OTHER = "__other";
 
+// § 8.1.12: the rest of the optional characteristics (block 12, part Б); the inventory number
+// and the barcode are labels of the company's card.
+const EXTRA = [
+  ["manufacturer", "text"],
+  ["manufacture_country", "text"],
+  ["modification", "text"],
+  ["tank_volume_l", "decimal"],
+  ["battery_kwh", "decimal"],
+  ["range_km", "int"],
+  ["gears", "int"],
+  ["curb_weight_kg", "int"],
+  ["gross_weight_kg", "int"],
+  ["payload_kg", "int"],
+  ["cargo_volume_m3", "decimal"],
+  ["inventory_number", "text"],
+  ["barcode", "text"],
+] as const;
+type ExtraKey = (typeof EXTRA)[number][0];
+
 type Form = {
   transport_class: string;
   vehicle_type: string;
@@ -39,6 +58,8 @@ type Form = {
   power_hp: string;
   seats: string;
   doors: string;
+  // § 8.1.12, block 12 part Б: the rest of the optional characteristics.
+  extra: Record<ExtraKey, string>;
   location_id: string;
   odometer_unit: string;
   relation: string;
@@ -79,6 +100,7 @@ const EMPTY: Form = {
   power_hp: "",
   seats: "",
   doors: "",
+  extra: Object.fromEntries(EXTRA.map(([k]) => [k, ""])) as Record<ExtraKey, string>,
   location_id: "",
   odometer_unit: "km",
   relation: "own",
@@ -146,6 +168,9 @@ function formOf(vehicle: Vehicle): Form {
     power_hp: text(c.power_hp),
     seats: text(c.seats),
     doors: text(c.doors),
+    extra: Object.fromEntries(
+      EXTRA.map(([k]) => [k, c[k] === null || c[k] === undefined ? "" : String(c[k])]),
+    ) as Record<ExtraKey, string>,
     location_id: vehicle.location_id ?? "",
     odometer_unit: vehicle.odometer_unit,
     relation: vehicle.relation,
@@ -259,6 +284,12 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
       power_hp: number(form.power_hp),
       seats: number(form.seats),
       doors: number(form.doors),
+      ...Object.fromEntries(
+        EXTRA.map(([k, kind]) => [
+          k,
+          kind === "int" ? number(form.extra[k]) : kind === "decimal" ? form.extra[k] || undefined : form.extra[k],
+        ]),
+      ),
       relation: form.relation,
     };
     if (form.relation === "client") {
@@ -313,7 +344,7 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
   }
   const o = options.data;
   const popular = (makes.data?.makes ?? []).filter((m) => m.popular);
-  const choose = (key: keyof Form, list: string[], prefix: string) => (
+  const choose = (key: Exclude<keyof Form, "extra">, list: string[], prefix: string) => (
     <select value={form[key]} disabled={locked(key)} onChange={(e) => set({ [key]: e.target.value })}>
       <option value="">—</option>
       {list.map((code) => (
@@ -494,6 +525,29 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
               <input type="number" value={form.doors} disabled={locked("doors")} onChange={(e) => set({ doors: e.target.value })} />
             </Field>
           </div>
+          <details>
+            <summary>{t("vehicles.more_characteristics")}</summary>
+            <div className="row">
+              {EXTRA.map(([k, kind]) => (
+                <Field key={k} label={t(`vehicles.${k}`)}>
+                  <input
+                    inputMode={kind === "text" ? undefined : "decimal"}
+                    maxLength={k === "manufacture_country" ? 2 : undefined}
+                    disabled={locked(k)}
+                    value={form.extra[k]}
+                    onChange={(e) =>
+                      set({
+                        extra: {
+                          ...form.extra,
+                          [k]: kind === "text" ? e.target.value : e.target.value.replace(",", "."),
+                        },
+                      })
+                    }
+                  />
+                </Field>
+              ))}
+            </div>
+          </details>
         </Card>
 
         <Card title={t("vehicles.section_owner")}>

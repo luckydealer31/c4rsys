@@ -435,8 +435,11 @@ export type Vehicle = {
   contexts: string[];
   state: string;
   version: number;
-  odometer: { value: string; unit: string; measured_at: string } | null;
+  /** `accumulated` — the mileage kept over odometer replacements (§ 8.2.13). */
+  odometer: { value: string; unit: string; measured_at: string; accumulated?: string } | null;
   rental_readiness: { ready: boolean; missing: string[] };
+  /** The manual restriction acting now or the next one (§ 8.8). */
+  restriction?: VehicleRestriction | null;
   characteristics: VehicleCharacteristics;
   /** On a warehouse as a stock item (§ 8.1.5); null — in the garage. */
   storage: { context_id: string; location_id: string; since: string | null } | null;
@@ -455,6 +458,8 @@ export type Vehicle = {
     conflict?: boolean;
     company?: { public_id: string; display_name: string; legal_name: string };
     client?: { id: string; name: string };
+    /** «ownership_change» — declared by the system after the ownership passed (§ 8.3.10). */
+    source?: string;
   } | null;
   /** Kinds of identifiers in open conflicts (§ 8.6.1). */
   identifier_conflict_kinds?: string[];
@@ -468,6 +473,157 @@ export type Vehicle = {
   merge_candidates?: { id: string; name: string; relation: string }[];
   merged_cards?: { id: string; name: string; vehicle_id: string; merged_at: string | null }[];
   merged_into?: { id: string; name: string } | null;
+  /** Block 12, part Б — only in the detail of a card. */
+  periods?: VehiclePeriod[];
+  owners_history?: {
+    owner: "this_company" | "company" | "person";
+    name: string;
+    started_at: string;
+    ended_at: string | null;
+    started_approx: boolean;
+    ended_approx: boolean;
+    basis: string;
+    reversed: boolean;
+  }[];
+  plates_history?: { number: string; country: string; region: string; valid_from: string; valid_to: string | null }[];
+  archive?: { at: string | null; reason: string } | null;
+  disposal?: { kind: string; reason: string; at: string } | null;
+  odometer_replacements?: {
+    id: string;
+    replaced_at: string;
+    old_final: string;
+    new_start: string;
+    unit: string;
+    accumulated: string;
+  }[];
+  odometer_unit_history?: {
+    id: string;
+    method: "relabel" | "convert";
+    from_unit: string;
+    to_unit: string;
+    reason: string;
+    changed_at: string;
+    count: number;
+  }[];
+  disclosure?: {
+    categories: string[];
+    all: string[];
+    confirmed_since: string | null;
+    history: { categories: string[]; effective_from: string; created_at: string }[];
+  } | null;
+  global_documents?: {
+    access: "ownership" | "management" | "grant" | null;
+    documents: GlobalDocument[];
+    copies: {
+      document_id: string;
+      title: string;
+      version_id: string;
+      number: number;
+      valid_until: string | null;
+      owner_decision: "accepted" | "kept_private" | null;
+    }[];
+  };
+  transfer_reversals?: TransferReversal[];
+  sold_to_profile?: boolean;
+};
+
+export type VehicleRestriction = {
+  id: string;
+  reason: string;
+  custom_reason: { id: string; name: string } | null;
+  comment: string;
+  starts_at: string;
+  ends_at: string | null;
+  forbid_rental_issue: boolean;
+  forbid_moves: boolean;
+  forbidden_contexts: string[];
+  lifted_at: string | null;
+  lift_comment: string;
+  state: "planned" | "active" | "ended" | "lifted";
+  version: number;
+};
+
+export type VehiclePeriod = {
+  relation: string;
+  started_at: string;
+  ended_at: string | null;
+  start_basis: string;
+  start_reason: string;
+  end_basis: string;
+  end_reason: string;
+};
+
+export type GlobalDocumentVersion = {
+  id: string;
+  number: number;
+  details: string;
+  issued_on: string | null;
+  valid_until: string | null;
+  has_file: boolean;
+  source: "owner" | "company_copy";
+  added_at: string;
+};
+
+export type GlobalDocument = {
+  id: string;
+  doc_type: string;
+  title: string;
+  current: GlobalDocumentVersion | null;
+  versions: GlobalDocumentVersion[];
+};
+
+export type TransferReversal = {
+  id: string;
+  state: "open" | "accepted" | "rejected";
+  reason: string;
+  created_at: string;
+  answered_at: string | null;
+  answer_comment: string;
+  company: { public_id: string; display_name: string };
+  vehicle_id: string;
+};
+
+/** What the owner sees of one company managing the vehicle (§ 8.3.6, § 8.3.15). */
+export type OwnerDisclosure = {
+  company: { public_id: string; display_name: string };
+  confirmed: boolean;
+  offered: string[];
+  categories: {
+    category: string;
+    passed: boolean;
+    until?: string | null;
+    records?: Record<string, unknown>[];
+    totals?: Record<string, string>[];
+  }[];
+};
+
+export type GarageVehicleDetail = {
+  vehicle_id: string;
+  name: string;
+  make: string;
+  model: string;
+  plate: string;
+  year: number | null;
+  vin: string;
+  since: string;
+  basis: string;
+  managers: OwnerDisclosure[];
+  documents: GlobalDocument[];
+  copies: {
+    title: string;
+    version_id: string;
+    number: number;
+    valid_until: string | null;
+    company: string;
+    card_id: string;
+    decision: string | null;
+  }[];
+  seller_history: {
+    company: string;
+    works: { at: string; work: string; odometer: string | null; materials: { item: string; quantity: string; unit: string }[] }[];
+    rules: { name: string; system_work: string | null; interval_distance: number | null; interval_days: number | null }[];
+  } | null;
+  reversals: TransferReversal[];
 };
 
 /** What a company sees of a conflict of identifiers: the fact and the number (§ 8.6.1). */
@@ -533,6 +689,20 @@ export type VehicleCharacteristics = {
   power_hp: number | null;
   seats: number | null;
   doors: number | null;
+  /** The rest of § 8.1.12 (block 12, part Б). */
+  manufacturer?: string;
+  manufacture_country?: string;
+  modification?: string;
+  tank_volume_l?: string | null;
+  battery_kwh?: string | null;
+  range_km?: number | null;
+  gears?: number | null;
+  curb_weight_kg?: number | null;
+  gross_weight_kg?: number | null;
+  payload_kg?: number | null;
+  cargo_volume_m3?: string | null;
+  inventory_number?: string;
+  barcode?: string;
   /** Identifiers that coincide with another vehicle: a reason to check (§ 8.6.3). */
   identifier_matches: ("vin" | "plate" | "body_number" | "chassis_number" | "frame_number")[];
 };
@@ -638,6 +808,8 @@ export type Booking = {
   cancel_reason: string;
   deposit_override: { required: boolean; amount: string | null; reason: string } | null;
   delay_conflict: { rental: string; planned_end: string | null; overdue: boolean } | null;
+  /** § 8.8.7: the booking overlaps a restriction forbidding the issue. */
+  restriction_conflict?: { restriction: string; reason: string; starts_at: string; ends_at: string | null } | null;
   vehicle_location_id: string | null;
   client_missing: boolean;
 };

@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router";
 
 import { ApiError } from "../../api/client";
+import { useApi } from "../../api/queries";
 import type { ServiceJob, ServiceMaterial, ServiceOperation } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
@@ -584,6 +585,10 @@ function JobForm({
   // § 16.5.4: the damages fixed by the work are chosen explicitly, with photos of the result.
   const [fixed, setFixed] = useState<FixedChoice[]>([]);
   const contractor = job.contractor_id !== null;
+  // § 8.2.13: the system work «Odometer replacement» takes two readings instead of one.
+  const replacement = job.system_work === "odometer_replacement";
+  const [oldFinal, setOldFinal] = useState("");
+  const [newStart, setNewStart] = useState("");
   const path = mode === "assign" ? "assign" : mode;
   const command = useCommand<Record<string, unknown>, Result>(`/c/${company.public_id}/service/jobs/${job.id}/${path}`);
   const number = (value: string) => value.trim().replace(",", ".") || null;
@@ -596,7 +601,10 @@ function JobForm({
       body.actual_end = fromLocalInput(at, zone);
       body.comment = comment;
     }
-    if (mode === "complete") body.odometer = number(odometer);
+    if (mode === "complete" && !replacement) body.odometer = number(odometer);
+    if (mode === "complete" && replacement) {
+      body.odometer_replacement = { old_final: number(oldFinal), new_start: number(newStart) };
+    }
     if (mode === "complete" && fixed.length) body.fixed_damages = fixed;
     if (contractor && (mode === "complete" || mode === "terminate" || mode === "contractor-cost")) {
       body.contractor_cost = number(cost);
@@ -674,11 +682,25 @@ function JobForm({
   }
   if (mode === "complete") {
     fields.push(<FixedDamagesPicker key="fixed" vehicleCardId={vehicleCardId} value={fixed} onChange={setFixed} />);
-    fields.push(
-      <Field key="odometer" label={t("service.odometer")} hint={contractor ? t("service.odometer_optional") : undefined}>
-        <input inputMode="decimal" value={odometer} onChange={(e) => setOdometer(e.target.value)} />
-      </Field>,
-    );
+    if (replacement) {
+      fields.push(
+        <OdometerReplacementFields
+          key="replacement"
+          vehicleCardId={vehicleCardId}
+          at={at ? fromLocalInput(at, zone) : ""}
+          oldFinal={oldFinal}
+          newStart={newStart}
+          onOldFinal={setOldFinal}
+          onNewStart={setNewStart}
+        />,
+      );
+    } else {
+      fields.push(
+        <Field key="odometer" label={t("service.odometer")} hint={contractor ? t("service.odometer_optional") : undefined}>
+          <input inputMode="decimal" value={odometer} onChange={(e) => setOdometer(e.target.value)} />
+        </Field>,
+      );
+    }
   }
   if (mode === "terminate" || mode === "cancel") {
     fields.push(
@@ -716,7 +738,8 @@ function JobForm({
     );
   }
   const blocked =
-    (mode === "complete" && !contractor && !odometer.trim()) ||
+    (mode === "complete" && !replacement && !contractor && !odometer.trim()) ||
+    (mode === "complete" && replacement && (!oldFinal.trim() || !newStart.trim())) ||
     (mode === "contractor-cost" && !cost.trim()) ||
     (mode === "terminate" && !reason.trim()) ||
     (mode === "correct" && !reason.trim()) ||
@@ -732,6 +755,60 @@ function JobForm({
       </div>
       <ErrorMessage error={command.error} />
     </form>
+  );
+}
+
+/** § 8.2.13: the last reading of the old odometer and the first of the new one; before saving the
+ * resulting accumulated mileage is shown. */
+function OdometerReplacementFields({
+  vehicleCardId,
+  at,
+  oldFinal,
+  newStart,
+  onOldFinal,
+  onNewStart,
+}: {
+  vehicleCardId: string;
+  at: string;
+  oldFinal: string;
+  newStart: string;
+  onOldFinal: (value: string) => void;
+  onNewStart: (value: string) => void;
+}) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const clean = (value: string) => value.trim().replace(",", ".");
+  const ready = Boolean(at && clean(oldFinal) && clean(newStart));
+  const query = new URLSearchParams({ at, old_final: clean(oldFinal), new_start: clean(newStart) });
+  const preview = useApi<{ preview: { accumulated: string; unit: string; conflicts: { measured_at: string; value: string }[] } }>(
+    ["odometer-replacement", company.public_id, vehicleCardId, query.toString()],
+    `/c/${company.public_id}/vehicles/${vehicleCardId}/odometer/replacement-preview?${query.toString()}`,
+    ready,
+  );
+  const result = preview.data?.preview;
+  return (
+    <>
+      <Field label={t("vehicles.replacement_old_final")}>
+        <input inputMode="decimal" value={oldFinal} onChange={(e) => onOldFinal(e.target.value)} />
+      </Field>
+      <Field label={t("vehicles.replacement_new_start")}>
+        <input inputMode="decimal" value={newStart} onChange={(e) => onNewStart(e.target.value)} />
+      </Field>
+      <p className="small" style={{ flexBasis: "100%" }}>
+        {result ? (
+          <>
+            {t("vehicles.replacement_accumulated", { value: Number(result.accumulated), unit: t(`vehicles.unit_${result.unit}`) })}
+            {result.conflicts.length ? (
+              <span className="badge warn" style={{ marginLeft: 8 }}>
+                {t("vehicles.replacement_conflicts", { values: result.conflicts.map((c) => Number(c.value)).join(", ") })}
+              </span>
+            ) : null}
+          </>
+        ) : (
+          <span className="muted">{t("vehicles.replacement_hint")}</span>
+        )}
+      </p>
+    </>
   );
 }
 

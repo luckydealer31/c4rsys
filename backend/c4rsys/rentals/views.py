@@ -14,6 +14,7 @@ from c4rsys.companies import access, history, locations
 from c4rsys.companies import services as companies
 from c4rsys.companies.views import run_and_respond
 from c4rsys.finance import deposits
+from c4rsys.fleet import restrictions
 from c4rsys.fleet import services as fleet
 from c4rsys.inspections import services as inspections
 from c4rsys.inspections.models import Inspection
@@ -460,6 +461,12 @@ def _booking_payload(rental: Rental) -> dict[str, Any]:
             "cancel_reason": rental.cancel_reason,
             "deposit_override": rental.deposit_override,
             "delay_conflict": bookings.delay_conflict(rental),
+            # § 8.8.7: a booking over a restriction is allowed; the conflict is shown.
+            "restriction_conflict": restrictions.booking_conflict(
+                rental.vehicle_card_id, rental.planned_start, rental.planned_end
+            )
+            if rental.state == Rental.State.BOOKED
+            else None,
             "vehicle_location_id": str(card.accounting_location_id)
             if card.accounting_location_id
             else None,

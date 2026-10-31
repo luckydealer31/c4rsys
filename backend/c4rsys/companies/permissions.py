@@ -71,6 +71,20 @@ PERMISSIONS: dict[str, str] = {
     # The merge only in «Company administrator» is a PROPOSAL.
     "vehicle.merge": "vehicle",
     "vehicle.split": "vehicle",
+    # Block 12, part Б (companies/0034): § 23.5.5 — set, change and lift a restriction; § 23.5.6 —
+    # the move of a restricted vehicle to a service; § 23.5.2 — the odometer unit; § 8.4.2 — a
+    # write-off or disposal. PROPOSAL: archive and restore, relation, disclosure to the owner, the
+    # request about a wrong transfer.
+    "vehicle.restriction.set": "vehicle",
+    "vehicle.restriction.change": "vehicle",
+    "vehicle.restriction.lift": "vehicle",
+    "vehicle.move_restricted_to_service": "vehicle",
+    "vehicle.odometer_unit": "vehicle",
+    "vehicle.dispose": "vehicle",
+    "vehicle.archive": "vehicle",
+    "vehicle.relation": "vehicle",
+    "vehicle.disclosure": "vehicle",
+    "vehicle.ownership_reversal": "vehicle",
     # Warehouse (§ 23.7.3–23.7.5, § 23.2.6). Scope — the warehouse of a location. `catalog.manage`
     # (creating and changing items) is a PROPOSAL: the ТЗ lets an item be created at receipt.
     "warehouse.view": "warehouse",

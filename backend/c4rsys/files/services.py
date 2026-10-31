@@ -104,8 +104,11 @@ def document_type(content: bytes) -> str:
 # § 18.1.3: PDF, DOCX and XLSX up to 2 MB; photos by § 10.4.2 — JPEG, PNG, WebP up to 5 MB.
 COMPANY_DOCUMENT = "company_document"
 TASK_ATTACHMENT = "task_attachment"
+# A file of a global document of a vehicle (§ 8.2.3); PROPOSAL: the types and sizes of a company
+# document.
+VEHICLE_DOCUMENT = "vehicle_document"
 # Decision З-10: an attachment of a task takes the types and sizes of a company document.
-OFFICE_PURPOSES = {COMPANY_DOCUMENT, TASK_ATTACHMENT}
+OFFICE_PURPOSES = {COMPANY_DOCUMENT, TASK_ATTACHMENT, VEHICLE_DOCUMENT}
 MAX_OFFICE_BYTES = 2 * 1024 * 1024
 MAX_PHOTO_BYTES = 5 * 1024 * 1024
 DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"

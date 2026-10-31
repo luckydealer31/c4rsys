@@ -147,6 +147,19 @@ def current_calculation(rental: Rental, now: datetime | None = None) -> dict[str
     return {**_calculation_payload(kind, end, result), "unit": unit}
 
 
+def _distance(rental: Rental, issued: Inspection, returned: Inspection) -> Decimal:
+    """§ 13.4.3: the whole rental by the accumulated mileage of the vehicle (§ 8.2.13), so a
+    replaced odometer is taken into account; the readings of the vehicle are in its current unit,
+    like the terms of the rental (§ 8.2.10). Without the readings — the inspections' values."""
+    from c4rsys.fleet import odometer
+
+    start = odometer.accumulated_of_source(rental.vehicle_card_id, "inspection", issued.id)
+    end = odometer.accumulated_of_source(rental.vehicle_card_id, "inspection", returned.id)
+    if start is not None and end is not None:
+        return end - start
+    return (returned.odometer_value or Decimal(0)) - (issued.odometer_value or Decimal(0))
+
+
 def mileage(rental: Rental) -> dict[str, Any] | None:
     """Mileage of the whole rental against its included limit (§ 13.4.1–13.4.3): the limit is the
     included mileage per unit times the billable units after free time (§ 13.4.2); the overage is
@@ -171,7 +184,7 @@ def mileage(rental: Rental) -> dict[str, Any] | None:
             "distance": None,
             "unit": snapshot["vehicle_terms"].get("mileage_unit"),
         }
-    distance = returned.odometer_value - issued.odometer_value
+    distance = _distance(rental, issued, returned)
     result: dict[str, Any] = {
         "mode": terms.get("mode"),
         "unit": snapshot["vehicle_terms"].get("mileage_unit"),

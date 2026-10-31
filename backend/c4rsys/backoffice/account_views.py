@@ -234,6 +234,17 @@ def ownership_decide(request: HttpRequest, request_id: UUID) -> JsonResponse:
             ticket_id=ticket.id if ticket else None,
             now=timezone.now(),
         )
+        if decision.new_ownership is not None:
+            # § 8.3.10: the managing companies lose the confirmation of the earlier owner.
+            from c4rsys.fleet import lifecycle
+
+            new = decision.new_ownership
+            lifecycle.on_ownership_changed(
+                ctx.ctx,
+                new.vehicle_id,
+                user_id=new.owner_user_id,
+                company_id=new.owner_company_id,
+            )
         ctx.journal(
             "verification.ownership_decided",
             object_type="vehicle_owner_request",

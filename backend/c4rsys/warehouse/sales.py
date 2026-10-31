@@ -294,7 +294,11 @@ def on_order_close(ctx: CommandContext, company_id: UUID, order_id: UUID) -> Non
     now = timezone.now()
     for line in lines:
         if line.vehicle_id is not None:
-            fleet.record_sale(ctx, company_id, line.vehicle_id, order_id)
+            from c4rsys.fleet import lifecycle
+
+            lifecycle.record_sale(
+                ctx, company_id, line.vehicle_id, order_id, _buyer_profile(company_id, order_id)
+            )
         else:
             operation = by_context.get(line.context_id)
             if operation is None:
@@ -320,6 +324,18 @@ def on_order_close(ctx: CommandContext, company_id: UUID, order_id: UUID) -> Non
             "operations": [o.number for o in by_context.values()],
         },
     )
+
+
+def _buyer_profile(company_id: UUID, order_id: UUID) -> UUID | None:
+    """A buyer — a person — linked with a confirmed personal profile gets the vehicle in the
+    personal garage (§ 7.1.2, § 8.3.9)."""
+    from c4rsys.parties import services as clients
+
+    order = Order.objects.get(pk=order_id)
+    if order.client_id is None:
+        return None
+    client = clients.get_client(company_id, order.client_id)
+    return client.linked_user_id if client.kind == "person" else None
 
 
 def _sell(ctx: CommandContext, operation: StockOperation, line: SaleLine) -> OperationLine:
@@ -387,7 +403,7 @@ def cancel(ctx: CommandContext, company_id: UUID, line_id: UUID, reason: str) ->
     if line.state != SaleLine.State.SOLD:
         raise errors.business_rule("SALE_LINE_STATE", state=line.state)
     if line.vehicle_id is not None:
-        raise errors.business_rule("VEHICLE_SALE_CORRECTION_LATER")
+        return _cancel_vehicle(ctx, order, line, reason)
     op_line = line.operation_line
     if op_line is None:
         raise errors.business_rule("SALE_LINE_STATE", state=line.state)
@@ -422,6 +438,29 @@ def cancel(ctx: CommandContext, company_id: UUID, line_id: UUID, reason: str) ->
         object_type="order",
         object_id=order.id,
         after={"line": str(line.id)},
+        reason=reason,
+    )
+    return line
+
+
+def _cancel_vehicle(ctx: CommandContext, order: Any, line: SaleLine, reason: str) -> SaleLine:
+    """§ 11.9.5 for a vehicle: allowed only while the ownership did not pass to the buyer or after
+    the new owner confirmed the error (§ 8.3.9); the vehicle returns to the seller's warehouse."""
+    from c4rsys.fleet import lifecycle
+
+    if line.vehicle_id is None:
+        raise errors.business_rule("SALE_LINE_STATE", state=line.state)
+    lifecycle.cancel_sale(ctx, line.company_id, line.vehicle_id, line.order_id, reason)
+    line.state = SaleLine.State.CANCELLED
+    line.cancelled_at = timezone.now()
+    line.cancel_reason = reason
+    line.save(update_fields=["state", "cancelled_at", "cancel_reason"])
+    _charge(ctx, order, line, ZERO, "sale_cancelled")
+    ctx.audit(
+        "warehouse.sale_cancelled",
+        object_type="order",
+        object_id=order.id,
+        after={"line": str(line.id), "vehicle": str(line.vehicle_id)},
         reason=reason,
     )
     return line

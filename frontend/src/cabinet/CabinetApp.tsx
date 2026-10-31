@@ -14,6 +14,7 @@ import { LinkRequests } from "../pages/account/LinkRequests";
 import { OwnerRequests } from "../pages/account/OwnerRequests";
 import { ProfilePage } from "../pages/account/ProfilePage";
 import { deviceTimeZone, formatMoment } from "../time";
+import { GarageVehicle } from "./GarageVehicle";
 
 /** Whether this address serves the personal cabinet (customer's decision of 30.10.2026: its
  * own domain with its own sign-in; the B2B domain keeps the company interface) or the internal
@@ -125,6 +126,7 @@ export function CabinetApp({ user }: { user: User }) {
       <Route path="/documents" element={page(<DocumentsList />)} />
       <Route path="/documents/:id" element={page(<DocumentView />)} />
       <Route path="/garage" element={page(<Garage />)} />
+      <Route path="/garage/:vehicleId" element={page(<GarageVehicle />)} />
       <Route path="/requests" element={page(<Requests />)} />
       <Route path="/profile" element={page(<ProfilePage user={user} />)} />
       <Route path="*" element={<Navigate to="/" replace />} />
@@ -465,7 +467,9 @@ function Garage() {
             <tbody>
               {(garage.data?.vehicles ?? []).map((v) => (
                 <tr key={v.vehicle_id}>
-                  <td>{v.name}</td>
+                  <td>
+                    <Link to={`/garage/${v.vehicle_id}`}>{v.name}</Link>
+                  </td>
                   <td>{v.make || "—"}</td>
                   <td>{v.model || "—"}</td>
                   <td>{v.plate || "—"}</td>

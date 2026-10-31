@@ -885,8 +885,10 @@ def job_complete(request: HttpRequest, cmp: str, job_id: UUID) -> JsonResponse:
         cost = _amount(data, "contractor_cost")
         # § 16.5.4: the damages fixed by this work, chosen explicitly, with result photos.
         fixed = damages.parse_fixes(data.get("fixed_damages"))
+        # § 8.2.13: the system work «Odometer replacement».
+        replacement = _replacement(data.get("odometer_replacement"))
         if ctx is not None and at is not None:
-            operations.complete(ctx, job, at, odometer, comment, cost, fixed)
+            operations.complete(ctx, job, at, odometer, comment, cost, fixed, replacement)
 
     return _job_command(
         request,
@@ -895,9 +897,31 @@ def job_complete(request: HttpRequest, cmp: str, job_id: UUID) -> JsonResponse:
         "service.work",
         "service_job.complete",
         action,
-        ("actual_end", "odometer", "comment", "contractor_cost", "fixed_damages"),
+        (
+            "actual_end",
+            "odometer",
+            "comment",
+            "contractor_cost",
+            "fixed_damages",
+            "odometer_replacement",
+        ),
         own_or_others=True,
     )
+
+
+def _replacement(value: Any) -> tuple[Decimal, Decimal] | None:
+    """{"old_final", "new_start"}: the last reading of the old odometer, the first of the new."""
+    if value in (None, ""):
+        return None
+    if not isinstance(value, dict):
+        raise errors.validation_error("odometer_replacement")
+    old = _amount(value, "old_final", places=1)
+    new = _amount(value, "new_start", places=1)
+    if old is None:
+        raise errors.validation_error("old_final", code="FIELD_REQUIRED")
+    if new is None:
+        raise errors.validation_error("new_start", code="FIELD_REQUIRED")
+    return old, new
 
 
 @require_POST

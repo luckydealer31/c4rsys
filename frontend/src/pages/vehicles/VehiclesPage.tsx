@@ -25,6 +25,16 @@ import {
   PendingMergeBanner,
   ProposalsCard,
 } from "./VehicleIdentity";
+import {
+  DisclosureCard,
+  DisposeCard,
+  GlobalDocumentsCard,
+  HistoryCard,
+  OdometerCard,
+  RelationCard,
+  RestrictionCard,
+  ReversalCard,
+} from "./VehicleLifecycle";
 
 // Only operational contexts are switched for a vehicle — rental now (decision of 24.10.2026):
 // service is implied, the warehouse is reached by a transfer of an own vehicle (§ 8.1.5).
@@ -189,9 +199,11 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
     [
       t("vehicles.section_owner"),
       // Only the owner of a managed vehicle is asked to confirm (§ 8.3.1, § 8.3.13).
-      vehicle.relation === "managed" && owner && owner.kind !== "none" && !owner.confirmed
-        ? `${ownerText} (${t("vehicles.owner_unconfirmed")})`
-        : ownerText,
+      owner?.source === "ownership_change"
+        ? `${t("vehicles.owner_new_after_change")}${owner.confirmed ? "" : ` (${t("vehicles.owner_unconfirmed")})`}`
+        : vehicle.relation === "managed" && owner && owner.kind !== "none" && !owner.confirmed
+          ? `${ownerText} (${t("vehicles.owner_unconfirmed")})`
+          : ownerText,
     ],
     [t("vehicles.vehicle_type"), c.vehicle_type ? t(`vehicles.type_${c.vehicle_type}`) : "", "vehicle_type"],
     [t("vehicles.make"), c.make_name, "make"],
@@ -212,6 +224,19 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
     [t("vehicles.power_hp"), c.power_hp ? String(c.power_hp) : "", "power_hp"],
     [t("vehicles.seats"), c.seats ? String(c.seats) : "", "seats"],
     [t("vehicles.doors"), c.doors !== null ? String(c.doors) : "", "doors"],
+    [t("vehicles.manufacturer"), c.manufacturer ?? "", "manufacturer"],
+    [t("vehicles.manufacture_country"), c.manufacture_country ?? "", "manufacture_country"],
+    [t("vehicles.modification"), c.modification ?? "", "modification"],
+    [t("vehicles.tank_volume_l"), c.tank_volume_l ?? "", "tank_volume_l"],
+    [t("vehicles.battery_kwh"), c.battery_kwh ?? "", "battery_kwh"],
+    [t("vehicles.range_km"), c.range_km ? String(c.range_km) : "", "range_km"],
+    [t("vehicles.gears"), c.gears ? String(c.gears) : "", "gears"],
+    [t("vehicles.curb_weight_kg"), c.curb_weight_kg ? String(c.curb_weight_kg) : "", "curb_weight_kg"],
+    [t("vehicles.gross_weight_kg"), c.gross_weight_kg ? String(c.gross_weight_kg) : "", "gross_weight_kg"],
+    [t("vehicles.payload_kg"), c.payload_kg ? String(c.payload_kg) : "", "payload_kg"],
+    [t("vehicles.cargo_volume_m3"), c.cargo_volume_m3 ?? "", "cargo_volume_m3"],
+    [t("vehicles.inventory_number"), c.inventory_number ?? ""],
+    [t("vehicles.barcode"), c.barcode ?? ""],
   ];
   return (
     <Card title={t("vehicles.section_characteristics")}>
@@ -250,7 +275,7 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
             );
           })}
       </dl>
-      {can("vehicle.edit") ? (
+      {can("vehicle.edit") && vehicle.state !== "archived" ? (
         <div className="actions">
           <Link className="button secondary" to={companyPath(company, `/vehicles/${vehicle.id}/edit`)}>
             {t("common.edit")}
@@ -320,6 +345,12 @@ export function VehiclePage() {
         </div>
       ) : null}
       <PendingMergeBanner vehicle={data} />
+      {data.state === "archived" ? (
+        <div className="alert">{t("vehicles.archived_read_only")}</div>
+      ) : null}
+      {data.restriction?.state === "active" ? (
+        <div className="alert warn">{t("vehicles.restricted_banner")}</div>
+      ) : null}
       <VehicleFacts vehicle={data} />
       <ConflictsCard vehicle={data} />
       <ProposalsCard vehicle={data} />
@@ -346,7 +377,7 @@ export function VehiclePage() {
           )}
         </p>
         )}
-        {can("vehicle.edit") ? (
+        {can("vehicle.edit") && data.state !== "archived" ? (
           <>
             <div className="row">
               <Field label={t("vehicles.name")}>
@@ -380,6 +411,14 @@ export function VehiclePage() {
         <TransferToWarehouse vehicle={data} />
       ) : null}
       {stored && data.state === "active" ? <ReturnToGarage vehicle={data} /> : null}
+      <RestrictionCard vehicle={data} />
+      <OdometerCard vehicle={data} />
+      <RelationCard vehicle={data} />
+      <DisposeCard vehicle={data} />
+      <ReversalCard vehicle={data} />
+      <DisclosureCard vehicle={data} />
+      <GlobalDocumentsCard vehicle={data} />
+      <HistoryCard vehicle={data} />
       {stored ? null : <VehicleService vehicle={data} />}
       {stored ? null : <VehicleInspectionsCard vehicle={data} />}
       {stored ? null : <VehicleDamagesCard vehicle={data} />}

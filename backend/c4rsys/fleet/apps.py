@@ -20,6 +20,19 @@ class FleetConfig(AppConfig):
         from c4rsys.notifications import services as notifications
 
         notifications.register_check(owner_notices.requests)
+        # § 8.8.3, § 8.8.7: restrictions that began or ended meanwhile.
+        from c4rsys.fleet import restrictions
+
+        notifications.register_check(restrictions.run)
+        # § 8.2.3: the files of the global documents are read by the owner.
+        from c4rsys.files import services as files
+        from c4rsys.fleet import vehicle_documents
+
+        files.register_reader(vehicle_documents.PURPOSE, vehicle_documents.file_reader)
+        # § 8.3.15: the readings of the odometer in the category «mileage and fuel».
+        from c4rsys.fleet import disclosure
+
+        disclosure.register_provider("mileage_fuel", disclosure.readings_for_owner)
         rules.on_journal("vehicle.owner_answered", owner_notices.on_answer)
         orders.register_operations(moves.operations_for_order)
         orders.register_history(moves.history_for_order)
