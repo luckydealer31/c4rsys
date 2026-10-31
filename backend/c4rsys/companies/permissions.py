@@ -112,12 +112,27 @@ PERMISSIONS: dict[str, str] = {
     "client.list": "client",
     "client.create": "client",
     "client.edit": "client",
+    # Block 13 (companies/0035): § 6.6.4, § 23.8.2 — archiving and restoring a client card;
+    # § 6.2.3 — merging duplicates; § 6.5.3, § 23.8.6 — splitting a merge, in «Company
+    # administrator» (CONFIRMED); § 6.7.1, § 23.8.7 — setting and lifting the blacklist mark,
+    # two separate rights (CONFIRMED). Everything but the split only in «Company administrator»
+    # is a PROPOSAL.
+    "client.archive": "client",
+    "client.restore": "client",
+    "client.merge": "client",
+    "client.split": "client",
+    "client.blacklist.add": "client",
+    "client.blacklist.remove": "client",
     # Counterparties (§ 23.8.2), the minimal list of the warehouse stage.
     "counterparty.view": "counterparty",
     "counterparty.create": "counterparty",
     "counterparty.edit": "counterparty",
     "counterparty.archive": "counterparty",
     "counterparty.restore": "counterparty",
+    # § 6.1.13: merging duplicate counterparties and splitting a merge (PROPOSAL: the rights of
+    # the clients' merge apply, in «Company administrator» only).
+    "counterparty.merge": "counterparty",
+    "counterparty.split": "counterparty",
     "rental.view": "rental",
     # Bookings (§ 14.1, § 23.2.2): create, change, cancel, auto-cancel moment — one right
     # (customer's decision of 26.10.2026).

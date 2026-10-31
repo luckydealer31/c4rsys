@@ -607,7 +607,7 @@ def attach(ctx: CommandContext, d: Delivery, order_id: UUID) -> Delivery:
     current = orders.get_order(d.company_id, d.order_id)
     if not current.is_internal:
         raise errors.business_rule("DELIVERY_IN_CLIENT_ORDER")
-    target = orders.open_order_of_client(d.company_id, order_id)
+    target = orders.open_order_of_client(d.company_id, order_id, new_operation=True)
     before = snapshot(d)
     d.order = target
     _save(ctx, d, "delivery.attached", before)

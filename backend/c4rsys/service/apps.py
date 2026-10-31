@@ -32,6 +32,11 @@ class ServiceConfig(AppConfig):
         from c4rsys.service import card_records
 
         merges.register_card_records(card_records.PROVIDER)
+        # § 8.1.2: the vehicles of the client's orders in the client card.
+        from c4rsys.parties import history as client_history
+        from c4rsys.service import client_cards
+
+        client_history.register_order_vehicles(client_cards.order_vehicles)
         orders.register_operations(operations.operations_for_order)
         orders.register_client_view(operations.client_view_for_order)
         from c4rsys.fleet import services as fleet_services

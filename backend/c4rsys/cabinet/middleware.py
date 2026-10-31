@@ -13,13 +13,21 @@ from django.http import HttpRequest, HttpResponse, JsonResponse
 from c4rsys.cabinet.views import is_cabinet_host
 
 EXACT = frozenset(
-    {"/api/health", "/api/site", "/api/me", "/api/profile-links", "/api/owner-requests"}
+    {
+        "/api/health",
+        "/api/site",
+        "/api/me",
+        "/api/profile-links",
+        "/api/profile-data-requests",
+        "/api/owner-requests",
+    }
 )
 PREFIXES = (
     "/api/auth/",
     "/api/me/",
     "/api/cabinet/",
     "/api/profile-links/",
+    "/api/profile-data-requests/",
     "/api/owner-requests/",
 )
 # The profile photo is the only file of the cabinet in the general file API: a document file is

@@ -13,7 +13,41 @@ from c4rsys.companies.models import Company
 from c4rsys.platform.ids import uuid7
 
 
-class ClientCard(models.Model):
+class ExtendedFields(models.Model):
+    """The extended data of a card (§ 6.2.12–6.2.13): none of them is required at creation; a
+    document checks the data it needs. Person: identity document, driving licence with the
+    allowed categories, driving experience, other documents, addresses of registration and of
+    residence. Company: country of registration, legal form, registration and tax numbers, legal
+    and actual addresses, head, contact person, bank details, the signing representative and the
+    basis of their authority. The shapes of the documents are a PROPOSAL."""
+
+    # {"type", "number", "country", "issued_on", "expires_on"}
+    id_document = models.JSONField(null=True, blank=True)
+    # {"number", "country", "issued_on", "expires_on", "categories": [...]}
+    driver_license = models.JSONField(null=True, blank=True)
+    # Driving experience counted from this date (PROPOSAL).
+    driving_since = models.DateField(null=True, blank=True)
+    # [{"title", "number", "issued_on", "expires_on", "note"}]
+    other_documents = models.JSONField(default=list, blank=True)
+    registration_address = models.CharField(max_length=500, blank=True, default="")
+    residence_address = models.CharField(max_length=500, blank=True, default="")
+    country = models.CharField(max_length=2, blank=True, default="")  # ISO 3166-1 alpha-2
+    legal_form = models.CharField(max_length=100, blank=True, default="")
+    registration_number = models.CharField(max_length=100, blank=True, default="")
+    tax_number = models.CharField(max_length=100, blank=True, default="")
+    legal_address = models.CharField(max_length=500, blank=True, default="")
+    actual_address = models.CharField(max_length=500, blank=True, default="")
+    director_name = models.CharField(max_length=200, blank=True, default="")
+    contact_person = models.CharField(max_length=200, blank=True, default="")
+    bank_details = models.TextField(blank=True, default="")
+    signatory_name = models.CharField(max_length=200, blank=True, default="")
+    signatory_basis = models.CharField(max_length=500, blank=True, default="")
+
+    class Meta:
+        abstract = True
+
+
+class ClientCard(ExtendedFields):
     """A person or a company (§ 6.1.1). The client base is shared by the whole company, not by
     location (§ 6.1.9)."""
 
@@ -24,6 +58,8 @@ class ClientCard(models.Model):
     class State(models.TextChoices):
         ACTIVE = "active"
         ARCHIVED = "archived"
+        # Merged into another card of the company (§ 6.2.3, § 6.5.2): closed for new operations.
+        MERGED = "merged"
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
@@ -42,6 +78,13 @@ class ClientCard(models.Model):
     linked_user_id = models.UUIDField(null=True, blank=True)
     linked_company_id = models.UUIDField(null=True, blank=True)
     state = models.CharField(max_length=10, choices=State.choices, default=State.ACTIVE)
+    # § 6.2.9–6.2.10: created with only an ID or a contact and a request to the profile; not
+    # ready for operations until it holds the minimum of § 6.2.7–6.2.8.
+    provisional = models.BooleanField(default=False)
+    merged_into = models.ForeignKey(
+        "self", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    merged_at = models.DateTimeField(null=True, blank=True)
     created_by_user_id = models.UUIDField()
     created_at = models.DateTimeField(default=now)
     updated_at = models.DateTimeField(auto_now=True)
@@ -51,20 +94,28 @@ class ClientCard(models.Model):
         db_table = "client_card"
         constraints = [
             models.UniqueConstraint(fields=["company", "id"], name="client_card_company_id_uniq"),
-            # Minimum of § 6.2.7–6.2.8; the contact minimum is checked by the commands.
+            # Minimum of § 6.2.7–6.2.8, except a provisional card (§ 6.2.9); the contact minimum is
+            # checked by the commands.
             models.CheckConstraint(
                 condition=(
-                    Q(kind="person") & ~Q(first_name="") & ~Q(last_name="") & Q(company_name="")
+                    Q(kind="person")
+                    & Q(company_name="")
+                    & (Q(provisional=True) | (~Q(first_name="") & ~Q(last_name="")))
                 )
                 | (
                     Q(kind="company")
-                    & ~Q(company_name="")
                     & Q(first_name="")
                     & Q(last_name="")
                     & Q(middle_name="")
                     & Q(birth_date__isnull=True)
+                    & (Q(provisional=True) | ~Q(company_name=""))
                 ),
-                name="client_card_minimum_by_kind",
+                name="client_card_minimum_by_kind_v2",
+            ),
+            models.CheckConstraint(
+                condition=(Q(state="merged") & Q(merged_into__isnull=False))
+                | (~Q(state="merged") & Q(merged_into__isnull=True)),
+                name="client_card_merged_has_main",
             ),
             # One card of the list per profile in a company (§ 6.2.4, § 6.6.6).
             models.UniqueConstraint(
@@ -126,7 +177,7 @@ class ClientContact(models.Model):
         return f"{self.kind}:{self.value}"
 
 
-class Counterparty(models.Model):
+class Counterparty(ExtendedFields):
     """A supplier of goods or services to the company (§ 6.1.4–6.1.5): a person or a company. It is
     a list of its own, apart from the clients (§ 6.1.7), shared by the whole company (§ 6.1.9).
     Minimal list of the warehouse stage (customer's decision of 25.10.2026): linking to a profile,
@@ -139,6 +190,8 @@ class Counterparty(models.Model):
     class State(models.TextChoices):
         ACTIVE = "active"
         ARCHIVED = "archived"
+        # Merged into another card of the company (§ 6.2.3, § 6.5.2): closed for new operations.
+        MERGED = "merged"
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
@@ -157,6 +210,13 @@ class Counterparty(models.Model):
     linked_user_id = models.UUIDField(null=True, blank=True)
     linked_company_id = models.UUIDField(null=True, blank=True)
     state = models.CharField(max_length=10, choices=State.choices, default=State.ACTIVE)
+    # § 6.2.9–6.2.10: created with only an ID or a contact and a request to the profile; not
+    # ready for operations until it holds the minimum of § 6.2.7–6.2.8.
+    provisional = models.BooleanField(default=False)
+    merged_into = models.ForeignKey(
+        "self", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    merged_at = models.DateTimeField(null=True, blank=True)
     created_by_user_id = models.UUIDField()
     created_at = models.DateTimeField(default=now)
     updated_at = models.DateTimeField(auto_now=True)
@@ -166,19 +226,27 @@ class Counterparty(models.Model):
         db_table = "counterparty"
         constraints = [
             models.UniqueConstraint(fields=["company", "id"], name="counterparty_company_id_uniq"),
-            # Minimum of § 6.2.7–6.2.8 and § 22.3.3; the contact minimum is checked by the commands.
+            # Minimum of § 6.2.7–6.2.8 and § 22.3.3, except a provisional card (§ 6.2.9, § 6.1.13);
+            # the contact minimum is checked by the commands.
             models.CheckConstraint(
                 condition=(
-                    Q(kind="person") & ~Q(first_name="") & ~Q(last_name="") & Q(company_name="")
+                    Q(kind="person")
+                    & Q(company_name="")
+                    & (Q(provisional=True) | (~Q(first_name="") & ~Q(last_name="")))
                 )
                 | (
                     Q(kind="company")
-                    & ~Q(company_name="")
                     & Q(first_name="")
                     & Q(last_name="")
                     & Q(middle_name="")
+                    & (Q(provisional=True) | ~Q(company_name=""))
                 ),
-                name="counterparty_minimum_by_kind",
+                name="counterparty_minimum_by_kind_v2",
+            ),
+            models.CheckConstraint(
+                condition=(Q(state="merged") & Q(merged_into__isnull=False))
+                | (~Q(state="merged") & Q(merged_into__isnull=True)),
+                name="counterparty_merged_has_main",
             ),
             # One card of the list per profile in a company (§ 6.2.4, § 6.6.6).
             models.UniqueConstraint(
@@ -290,10 +358,16 @@ class ProfileLink(models.Model):
     broken_initiator = models.CharField(
         max_length=10, choices=Initiator.choices, blank=True, default=""
     )
+    # § 6.5.5: access to wrongly shown history revoked when correcting a mistake; the record of
+    # the correction stays with the company. What was downloaded is not returned.
+    access_revoked_at = models.DateTimeField(null=True, blank=True)
+    access_revoked_by_user_id = models.UUIDField(null=True, blank=True)
+    access_revoke_reason = models.CharField(max_length=500, blank=True, default="")
 
     class Meta:
         db_table = "profile_link"
         constraints = [
+            models.UniqueConstraint(fields=["company", "id"], name="profile_link_company_id_uniq"),
             models.CheckConstraint(
                 condition=(Q(client__isnull=False) & Q(counterparty__isnull=True))
                 | (Q(client__isnull=True) & Q(counterparty__isnull=False)),
@@ -369,3 +443,180 @@ class ClientGroupMember(models.Model):
 
     def __str__(self) -> str:
         return f"{self.group_id}:{self.client_id}"
+
+
+class ClientRestriction(models.Model):
+    """An internal restriction mark of a client (§ 6.7.1, § 23.8.7). The blacklist acts only inside
+    the company: new orders and new service operations are forbidden, the start of an earlier
+    booking too; started operations go on, settlements and refunds are not blocked. Setting and
+    lifting need different rights; both need a reason and keep the author and the time. Other
+    kinds of marks are OPEN."""
+
+    class Kind(models.TextChoices):
+        BLACKLIST = "blacklist"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    client = models.ForeignKey(ClientCard, on_delete=models.PROTECT, related_name="restrictions")
+    kind = models.CharField(max_length=20, choices=Kind.choices, default=Kind.BLACKLIST)
+    reason = models.CharField(max_length=1000)
+    added_by_user_id = models.UUIDField()
+    added_at = models.DateTimeField(default=now)
+    lifted_reason = models.CharField(max_length=1000, blank=True, default="")
+    lifted_by_user_id = models.UUIDField(null=True, blank=True)
+    lifted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "client_restriction"
+        constraints = [
+            models.CheckConstraint(condition=~Q(reason=""), name="client_restriction_reason"),
+            models.CheckConstraint(
+                condition=(
+                    Q(lifted_at__isnull=True)
+                    & Q(lifted_by_user_id__isnull=True)
+                    & Q(lifted_reason="")
+                )
+                | (
+                    Q(lifted_at__isnull=False)
+                    & Q(lifted_by_user_id__isnull=False)
+                    & ~Q(lifted_reason="")
+                ),
+                name="client_restriction_lift_complete",
+            ),
+            models.UniqueConstraint(
+                fields=["client", "kind"],
+                condition=Q(lifted_at__isnull=True),
+                name="client_restriction_one_active",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.kind}:{self.client_id}"
+
+
+class CardMerge(models.Model):
+    """A duplicate card merged into the main card of the same list of the company (§ 6.2.3,
+    § 6.1.13, § 6.5.2). The duplicate is not rewritten: it gets the state «merged» and refers to
+    the main card; the records of other modules keep their card and are shown from the main one.
+    `chosen` keeps the values taken from the duplicate and `before` the values of both cards, so a
+    split restores them (§ 6.5.3)."""
+
+    class CardType(models.TextChoices):
+        CLIENT = "client"
+        COUNTERPARTY = "counterparty"
+
+    class State(models.TextChoices):
+        MERGED = "merged"
+        SPLIT = "split"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    card_type = models.CharField(max_length=20, choices=CardType.choices)
+    primary_client = models.ForeignKey(
+        ClientCard, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    duplicate_client = models.ForeignKey(
+        ClientCard, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    primary_counterparty = models.ForeignKey(
+        Counterparty, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    duplicate_counterparty = models.ForeignKey(
+        Counterparty, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    state = models.CharField(max_length=10, choices=State.choices, default=State.MERGED)
+    reason = models.TextField(blank=True, default="")
+    chosen = models.JSONField(default=dict, blank=True)
+    before = models.JSONField(default=dict, blank=True)
+    # The profile the main card took from the duplicate, if any: {"user": id} or {"company": id}.
+    moved_link = models.JSONField(default=dict, blank=True)
+    merged_by_user_id = models.UUIDField()
+    merged_at = models.DateTimeField(default=now)
+    split_by_user_id = models.UUIDField(null=True, blank=True)
+    split_at = models.DateTimeField(null=True, blank=True)
+    split_reason = models.TextField(blank=True, default="")
+    # The records made after the merge and the card each was assigned to by hand at the split.
+    assignments = models.JSONField(default=list, blank=True)
+    # § 6.5.5: links whose access to the history of the other card ended with the split.
+    revoked = models.JSONField(default=list, blank=True)
+
+    class Meta:
+        db_table = "card_merge"
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    Q(card_type="client")
+                    & Q(primary_client__isnull=False)
+                    & Q(duplicate_client__isnull=False)
+                    & Q(primary_counterparty__isnull=True)
+                    & Q(duplicate_counterparty__isnull=True)
+                )
+                | (
+                    Q(card_type="counterparty")
+                    & Q(primary_client__isnull=True)
+                    & Q(duplicate_client__isnull=True)
+                    & Q(primary_counterparty__isnull=False)
+                    & Q(duplicate_counterparty__isnull=False)
+                ),
+                name="card_merge_one_list",
+            ),
+            models.CheckConstraint(
+                condition=~Q(primary_client=models.F("duplicate_client"))
+                & ~Q(primary_counterparty=models.F("duplicate_counterparty")),
+                name="card_merge_two_cards",
+            ),
+            models.UniqueConstraint(
+                fields=["duplicate_client"],
+                condition=Q(state="merged"),
+                name="card_merge_one_current_client",
+            ),
+            models.UniqueConstraint(
+                fields=["duplicate_counterparty"],
+                condition=Q(state="merged"),
+                name="card_merge_one_current_counterparty",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"merge {self.id}"
+
+
+class ProfileDataRequest(models.Model):
+    """A request of fresh data from the linked profile (§ 6.4.4), sent only when the client asks
+    for a service: never automatically or periodically. The recipient chooses what to give; the
+    answer is a new snapshot of the link, it does not change the working fields by itself
+    (§ 6.4.2–6.4.3)."""
+
+    class State(models.TextChoices):
+        PENDING = "pending"
+        ACCEPTED = "accepted"
+        DECLINED = "declined"
+        CANCELLED = "cancelled"
+        EXPIRED = "expired"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    link = models.ForeignKey(ProfileLink, on_delete=models.PROTECT, related_name="data_requests")
+    # What the client asked for when the request was sent (the occasion of § 6.4.4).
+    occasion = models.CharField(max_length=500)
+    state = models.CharField(max_length=10, choices=State.choices, default=State.PENDING)
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+    expires_at = models.DateTimeField()
+    decided_at = models.DateTimeField(null=True, blank=True)
+    decided_by_user_id = models.UUIDField(null=True, blank=True)
+    shared = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = "profile_data_request"
+        constraints = [
+            models.CheckConstraint(condition=~Q(occasion=""), name="profile_data_request_occasion"),
+            models.UniqueConstraint(
+                fields=["link"],
+                condition=Q(state="pending"),
+                name="profile_data_request_one_pending",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"data request {self.id}"

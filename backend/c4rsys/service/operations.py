@@ -411,6 +411,7 @@ def create_operation(ctx: CommandContext, company: Company, data: NewOperation) 
     _post(company.id, data.location_id, data.plan.post_id)
     if data.order_id is not None:
         order = orders.lock_open_order(company.id, data.order_id, preliminary_ok=True)
+        orders.require_client_of(order)  # § 6.7.1: a new service operation
     elif data.internal:
         order = orders.create_internal_order(
             ctx, company_id=company.id, responsible_employment_id=ctx.actor.employment_id

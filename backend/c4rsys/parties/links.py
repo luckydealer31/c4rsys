@@ -28,8 +28,8 @@ from c4rsys.accounts import services as accounts
 from c4rsys.accounts.models import UserAccount
 from c4rsys.companies import services as companies
 from c4rsys.companies.models import Company
-from c4rsys.parties import counterparties, services
-from c4rsys.parties.models import ClientCard, Counterparty, ProfileLink
+from c4rsys.parties import counterparties, extended, services
+from c4rsys.parties.models import ClientCard, Counterparty, ProfileDataRequest, ProfileLink
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
 from c4rsys.platform.ids import normalize_public_id
@@ -132,6 +132,18 @@ def _lock_card(company_id: UUID, card_type: str, card_id: UUID) -> Card:
     return card
 
 
+def current_card_id(link: ProfileLink) -> UUID:
+    """The card a link works with now: the main card when its card was merged (§ 6.5.2)."""
+    card_id = card_id_of(link)
+    if link.client_id is not None:
+        return services.main_card_id(link.company_id, card_id)
+    return counterparties.main_card_id(link.company_id, card_id)
+
+
+def _lock_link_card(link: ProfileLink) -> Card:
+    return _lock_card(link.company_id, card_type_of(link), current_card_id(link))
+
+
 def card_type_of(link: ProfileLink) -> str:
     return "client" if link.client_id is not None else "counterparty"
 
@@ -168,9 +180,16 @@ def _taken(
 
 
 def links_of_card(company_id: UUID, card_type: str, card_id: UUID) -> QuerySet[ProfileLink]:
-    return ProfileLink.objects.filter(
-        _card_filter(card_type, card_id), company_id=company_id
-    ).order_by("-created_at")
+    """The links of the card and of the cards merged into it (§ 6.5.2)."""
+    family = (
+        services.family_ids(company_id, card_id)
+        if card_type == "client"
+        else counterparties.family_ids(company_id, card_id)
+    )
+    field = "client_id__in" if card_type == "client" else "counterparty_id__in"
+    return ProfileLink.objects.filter(**{field: family}, company_id=company_id).order_by(
+        "-created_at"
+    )
 
 
 # --- Request by the company -------------------------------------------------------------------
@@ -256,21 +275,46 @@ def cancel(ctx: CommandContext, company_id: UUID, link_id: UUID) -> ProfileLink:
     return link
 
 
-def break_link(ctx: CommandContext, company_id: UUID, link_id: UUID, initiator: str) -> ProfileLink:
+def break_link(
+    ctx: CommandContext,
+    company_id: UUID,
+    link_id: UUID,
+    initiator: str,
+    *,
+    revoke: bool = False,
+    reason: str = "",
+) -> ProfileLink:
     """By the company's initiative or after the client asked (§ 6.6.2); the initiator and the time
-    are recorded (§ 6.6.6). Data and history of the card stay (§ 6.6.1)."""
+    are recorded (§ 6.6.6). Data and history of the card stay (§ 6.6.1). Correcting a mistake,
+    the access to the history shown to a wrong profile may be revoked as well, with a reason; the
+    record stays with the company and what was downloaded is not returned (§ 6.5.5)."""
     if initiator not in (ProfileLink.Initiator.COMPANY, ProfileLink.Initiator.CLIENT):
         raise errors.validation_error("initiator")
+    if revoke and not reason.strip():
+        raise errors.validation_error("reason", code="FIELD_REQUIRED")
     query = ProfileLink.objects.filter(company_id=company_id)
     peek = query.filter(pk=link_id).first()
     if peek is None:
         raise errors.not_found()
     # The card is locked before its link, as in request_link and the answer.
-    card = _lock_card(company_id, card_type_of(peek), card_id_of(peek))
+    card = _lock_link_card(peek)
     link = query.select_for_update().get(pk=link_id)
     if link.state != State.ACCEPTED:
         raise errors.business_rule("LINK_NOT_ACCEPTED")
     now = timezone.now()
+    if revoke:
+        link.access_revoked_at = now
+        link.access_revoked_by_user_id = ctx.actor.user_id
+        link.access_revoke_reason = reason.strip()
+        link.save(
+            update_fields=["access_revoked_at", "access_revoked_by_user_id", "access_revoke_reason"]
+        )
+        ctx.audit(
+            "profile_link.access_revoked",
+            object_type="profile_link",
+            object_id=link.id,
+            reason=link.access_revoke_reason,
+        )
     card.linked_user_id = None
     card.linked_company_id = None
     card.version += 1
@@ -302,7 +346,7 @@ def break_by_platform(ctx: CommandContext, link_id: UUID, reason: str) -> Profil
     peek = find(link_id)
     if peek is None:
         raise errors.not_found()
-    card = _lock_card(peek.company_id, card_type_of(peek), card_id_of(peek))
+    card = _lock_link_card(peek)
     link = ProfileLink.objects.select_for_update().get(pk=link_id)
     if link.state not in (State.ACCEPTED, State.PENDING):
         raise errors.business_rule("LINK_NOT_OPEN")
@@ -386,12 +430,37 @@ def links_of_user(user_id: UUID) -> QuerySet[ProfileLink]:
 def client_cards_of_user(user_id: UUID) -> list[tuple[UUID, UUID, datetime | None]]:
     """(company, client card, end of the shared history) of a person. A confirmed link shares
     the whole history of the card; after a break only what was shared before stays (§ 6.3.6,
-    § 6.6.3)."""
+    § 6.6.3). A confirmed link of a merged card works with its main card (§ 6.5.2); a revoked
+    access shares nothing (§ 6.5.5)."""
     return [
-        (link.company_id, link.client_id, link.broken_at)
+        (link.company_id, card, link.broken_at)
         for link in links_of_user(user_id).filter(client__isnull=False)
-        if link.client_id is not None
+        for card in history_cards(link)
     ]
+
+
+def history_cards(link: ProfileLink) -> list[UUID]:
+    """The cards whose history the linked profile sees (§ 6.1.14, § 6.3.6): the card of the link
+    and the cards merged into it (for a confirmed link — those of its main card). Nothing after
+    the access was revoked (§ 6.5.5)."""
+    if link.access_revoked_at is not None or link.state not in (State.ACCEPTED, State.BROKEN):
+        return []
+    model = card_model(card_type_of(link))
+    card = current_card_id(link) if link.state == State.ACCEPTED else card_id_of(link)
+    family = (
+        services.family_ids(link.company_id, card)
+        if link.client_id is not None
+        else counterparties.family_ids(link.company_id, card)
+    )
+    if link.broken_at is None:
+        return family
+    # After a break only what was shared before it: no card merged in later.
+    later = set(
+        model.objects.filter(pk__in=family, merged_at__gt=link.broken_at).values_list(
+            "id", flat=True
+        )
+    )
+    return [c for c in family if c not in later]
 
 
 def for_company(company_id: UUID) -> QuerySet[ProfileLink]:
@@ -425,7 +494,7 @@ def _locked_with_card(query: QuerySet[ProfileLink], link_id: UUID) -> tuple[Prof
     peek = query.filter(pk=link_id).first()
     if peek is None:
         raise errors.not_found()
-    card = _lock_card(peek.company_id, card_type_of(peek), card_id_of(peek))
+    card = _lock_link_card(peek)
     return _locked(query, link_id), card
 
 
@@ -749,25 +818,39 @@ def _identifiers(value: Any) -> str:
 
 
 def apply_value(
-    ctx: CommandContext, company_id: UUID, link_id: UUID, field: str, expected_version: int
+    ctx: CommandContext,
+    company_id: UUID,
+    link_id: UUID,
+    field: str,
+    expected_version: int,
+    data_request_id: UUID | None = None,
 ) -> Card:
     """Takes one value of the snapshot into the working data of the card; the profile does not
-    change (§ 6.4.2). The previous value stays in the card's history."""
+    change (§ 6.4.2). The previous value stays in the card's history. The snapshot is the one
+    given at the link or a later one given to a request of fresh data (§ 6.4.4)."""
     link = ProfileLink.objects.filter(
         company_id=company_id, pk=link_id, state__in=(State.ACCEPTED, State.BROKEN)
     ).first()
     if link is None:
         raise errors.not_found()
-    data = (link.shared or {}).get("data", {})
+    shared = link.shared or {}
+    if data_request_id is not None:
+        found = ProfileDataRequest.objects.filter(
+            link=link, pk=data_request_id, state=ProfileDataRequest.State.ACCEPTED
+        ).first()
+        if found is None:
+            raise errors.not_found()
+        shared = found.shared or {}
+    data = shared.get("data", {})
     if field not in data:
         raise errors.validation_error("field", code="VALUE_UNKNOWN")
     value = data[field]
     card_type = card_type_of(link)
-    card_id = card_id_of(link)
+    card_id = current_card_id(link)
     changes: dict[str, Any] = {}
     contacts: list[services.Contact] | None = None
+    card = card_model(card_type).objects.get(pk=card_id)
     if field in ("email", "phone"):
-        card = card_model(card_type).objects.get(pk=card_id)
         contact = services.normalize_contact(field, str(value), "field")
         contacts = _contacts(card)
         if all((c.kind, c.normalized) != (contact.kind, contact.normalized) for c in contacts):
@@ -778,8 +861,21 @@ def apply_value(
         changes[field] = date.fromisoformat(str(value))
     elif field in ("display_name", "legal_name"):
         changes["company_name"] = str(value)[:200]
-    elif field in ("legal_address", "actual_address"):
-        changes["address"] = str(value)[:500]
+    elif field in ("legal_address", "actual_address", "legal_form") and card.kind == "company":
+        # § 6.2.13: the separate fields of the extended card (block 13).
+        changes[field] = str(value)[: 100 if field == "legal_form" else 500]
+    elif field == "country" and card.kind == "company":
+        changes["country"] = str(value)[:2].upper()
+    elif field == "document" and card.kind == "person" and isinstance(value, dict):
+        changes["id_document"] = extended.parse_value(
+            "id_document",
+            {
+                "type": "passport" if value.get("type") == "passport" else "other",
+                "number": value.get("number") or "",
+                "issued_on": value.get("issued_on"),
+                "expires_on": value.get("expires_on"),
+            },
+        )
     elif field == "identifiers" and card_type == "counterparty":
         changes["registration"] = _identifiers(value)[:500]
     else:
@@ -796,7 +892,11 @@ def apply_value(
         "profile_link.value_applied",
         object_type="profile_link",
         object_id=link.id,
-        after={"field": field, "source": "profile"},
+        after={
+            "field": field,
+            "source": "profile",
+            "data_request": str(data_request_id) if data_request_id else None,
+        },
     )
     return result
 
@@ -839,6 +939,9 @@ def payload(link: ProfileLink, now: datetime) -> dict[str, Any]:
         "linked_profile": _profile_of(link),
         "shared": (link.shared or {}).get("data", {}) if accepted else {},
         "shared_at": (link.shared or {}).get("at") if accepted else None,
+        "card_id": str(card_id_of(link)),
+        "access_revoked_at": link.access_revoked_at.isoformat() if link.access_revoked_at else None,
+        "access_revoke_reason": link.access_revoke_reason,
     }
 
 

@@ -283,6 +283,36 @@ export type ProfileLink = {
   linked_profile: { public_id: string; name: string } | null;
   shared: Record<string, unknown>;
   shared_at: string | null;
+  card_id: string;
+  access_revoked_at: string | null;
+  access_revoke_reason: string;
+};
+
+/** A request of fresh data from a linked profile (§ 6.4.4), seen by the requesting company. */
+export type DataRequest = {
+  id: string;
+  link_id: string;
+  state: "pending" | "accepted" | "declined" | "cancelled" | "expired";
+  occasion: string;
+  created_at: string;
+  expires_at: string;
+  decided_at: string | null;
+  shared: Record<string, unknown>;
+  shared_at: string | null;
+};
+
+/** The same request seen by its recipient. */
+export type IncomingDataRequest = {
+  id: string;
+  state: DataRequest["state"];
+  company: { public_id: string; display_name: string };
+  card_type: "client" | "counterparty";
+  occasion: string;
+  created_at: string;
+  expires_at: string;
+  decided_at: string | null;
+  available: Record<string, unknown>;
+  shared: Record<string, unknown>;
 };
 
 /** The same request seen by its recipient: who asks and what may be given. */
@@ -772,6 +802,127 @@ export type Client = {
   external_id: string;
   possible_duplicate: boolean;
   contacts: ClientContact[];
+  name: string;
+  state: "active" | "archived" | "merged";
+  provisional: boolean;
+  merged_into: string | null;
+  blacklisted: boolean;
+} & ExtendedCard;
+
+/** § 6.2.12–6.2.13: the extended data of a card of a client or a counterparty. */
+export type IdDocument = {
+  type: "passport" | "national_id" | "other";
+  number: string;
+  country: string;
+  issued_on: string | null;
+  expires_on: string | null;
+};
+export type DriverLicense = {
+  number: string;
+  country: string;
+  issued_on: string | null;
+  expires_on: string | null;
+  categories: string[];
+};
+export type OtherDocument = {
+  title: string;
+  number: string;
+  issued_on: string | null;
+  expires_on: string | null;
+  note: string;
+};
+export type ExtendedCard = {
+  id_document: IdDocument | null;
+  driver_license: DriverLicense | null;
+  driving_since: string | null;
+  other_documents: OtherDocument[];
+  registration_address: string;
+  residence_address: string;
+  country: string;
+  legal_form: string;
+  registration_number: string;
+  tax_number: string;
+  legal_address: string;
+  actual_address: string;
+  director_name: string;
+  contact_person: string;
+  bank_details: string;
+  signatory_name: string;
+  signatory_basis: string;
+};
+
+export type ClientRestriction = {
+  id: string;
+  kind: "blacklist";
+  client_id: string;
+  reason: string;
+  added_at: string;
+  added_by: string;
+  lifted_at: string | null;
+  lifted_by: string | null;
+  lifted_reason: string;
+};
+
+export type CardBrief = { id: string; name: string; kind: "person" | "company"; state: string };
+
+/** The comparison of two cards before a merge (§ 6.5.1–6.5.4). */
+export type MergeComparison = {
+  card_type: "client" | "counterparty";
+  primary: CardBrief;
+  duplicate: CardBrief;
+  fields: { key: string; primary: unknown; duplicate: unknown; same: boolean; choices: string[] }[];
+  profiles: {
+    primary: { public_id: string; name: string } | null;
+    duplicate: { public_id: string; name: string } | null;
+  };
+  restrictions: { primary: { id: string; reason: string }[]; duplicate: { id: string; reason: string }[] };
+  obstacles: string[];
+};
+
+export type CardMerge = {
+  id: string;
+  card_type: "client" | "counterparty";
+  state: "merged" | "split";
+  primary: CardBrief;
+  duplicate: CardBrief;
+  reason: string;
+  chosen: Record<string, string>;
+  link_moved: boolean;
+  merged_at: string;
+  split_at: string | null;
+  split_reason: string;
+  assignments: { record: string; card: string }[];
+  revoked: { link: string; target: string }[];
+};
+
+export type SplitRecord = { kind: string; id: string; label: string; at: string; key: string };
+
+/** The history in the card of a client (§ 6.1.14, § 8.1.2). */
+export type ClientHistory = {
+  cards: string[];
+  orders: {
+    id: string;
+    number: number;
+    state: string;
+    client_id: string;
+    created_at: string;
+    closed_at: string | null;
+    operations: { type: string; id: string; state: string }[];
+    amounts: Record<string, { charged: string; paid: string; balance: string }>;
+    vehicles: string[];
+  }[];
+  vehicles: { id: string; name: string; sources: string[] }[];
+  payments: {
+    id: string;
+    number: number;
+    kind: string;
+    direction: "in" | "out";
+    state: string;
+    amount: string;
+    currency: string;
+    client_id: string;
+    created_at: string;
+  }[];
 };
 
 export type RentalSummary = {
@@ -1230,9 +1381,11 @@ export type Counterparty = {
   category: string;
   external_id: string;
   possible_duplicate: boolean;
-  state: "active" | "archived";
+  state: "active" | "archived" | "merged";
+  provisional: boolean;
+  merged_into: string | null;
   contacts: ClientContact[];
-};
+} & ExtendedCard;
 
 export type ItemBrief = {
   id: string;

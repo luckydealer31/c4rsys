@@ -68,7 +68,9 @@ def add_proposal(
     """A rental offered in a preliminary order of a client (decision З2)."""
     if data.planned_end <= data.planned_start:
         raise errors.validation_error("planned_end", code="PERIOD_INVALID")
-    order = orders.open_order_of_client(company_id, order_id, preliminary_ok=True)
+    order = orders.open_order_of_client(
+        company_id, order_id, preliminary_ok=True, new_operation=True
+    )
     if order.state != Order.State.PRELIMINARY:
         raise errors.business_rule("ORDER_NOT_PRELIMINARY", field="order_id")
     card = fleet.lock_card(company_id, data.vehicle_card_id)
@@ -297,6 +299,8 @@ def transfer(
             company_id=company_id,
             client_id=source.client_id,
             responsible_employment_id=ctx.actor.employment_id,
+            # § 6.7.1: a started rental goes on in another order of the same client.
+            continued=True,
         )
     rental.order_id = target.id
     rental.version += 1

@@ -148,11 +148,16 @@ def create_order(
     client_id: UUID | None,
     responsible_employment_id: UUID | None,
     preliminary: bool = False,
+    continued: bool = False,
 ) -> Order:
     """A client order created by the operation that needs it (an issue or a booking) or by hand
     (§ 12.1.7). A booking may create it before the client is known: «client not specified»
     (§ 12.1.8). The number is the next one inside the company; the responsible employee is the
-    creator by default. Creating the order does not start its operations (§ 12.2.3)."""
+    creator by default. Creating the order does not start its operations (§ 12.2.3). A new order
+    needs a card ready for operations and not on the blacklist (§ 6.2.10, § 6.7.1); a started
+    operation that only goes on in another order (`continued`) does not."""
+    if client_id is not None and not continued:
+        require_client(company_id, client_id)
     order = Order.objects.create(
         company_id=company_id,
         number=next_number(company_id, "order"),
@@ -196,6 +201,7 @@ def assign_client(ctx: CommandContext, order: Order, client_id: UUID) -> None:
         if order.client_id != client_id:
             raise errors.business_rule("ORDER_CLIENT_MISMATCH", field="client_id")
         return
+    require_client(order.company_id, client_id)
     order.client_id = client_id
     order.version += 1
     order.save(update_fields=["client", "version", "updated_at"])
@@ -211,20 +217,38 @@ def assign_client(ctx: CommandContext, order: Order, client_id: UUID) -> None:
         handler(ctx, order.company_id, order.id)
 
 
+def require_client(company_id: UUID, client_id: UUID, field: str = "client_id") -> None:
+    """§ 6.2.10, § 6.6.5, § 6.7.1: a new order or a new operation of a client needs a card ready
+    for operations — not provisional, archived or merged, not on the blacklist."""
+    from c4rsys.parties import services as parties
+
+    parties.require_operable(company_id, client_id, field)
+
+
+def require_client_of(order: Order) -> None:
+    """A new operation added to an existing order of a client (§ 6.7.1)."""
+    if order.client_id is not None and not order.is_internal:
+        require_client(order.company_id, order.client_id, "order_id")
+
+
 def open_order_of_client(
     company_id: UUID,
     order_id: UUID,
     client_id: UUID | None = None,
     *,
     preliminary_ok: bool = False,
+    new_operation: bool = False,
 ) -> Order:
     """An open client order to add goods to (decision of 25.10.2026), locked. A preliminary one
-    takes services and rental proposals (decision З2)."""
+    takes services and rental proposals (decision З2). A new operation needs the client ready
+    for it (§ 6.7.1)."""
     order = lock_open_order(company_id, order_id, preliminary_ok=preliminary_ok)
     if order.is_internal or order.client_id is None:
         raise errors.business_rule("ORDER_WITHOUT_CLIENT", field="order_id")
     if client_id is not None and order.client_id != client_id:
         raise errors.business_rule("ORDER_CLIENT_MISMATCH", field="order_id")
+    if new_operation:
+        require_client_of(order)
     return order
 
 
@@ -541,6 +565,8 @@ def form_order(
     order = _locked(company_id, order_id, expected_version)
     if order.state != Order.State.PRELIMINARY:
         raise errors.business_rule("ORDER_NOT_PRELIMINARY")
+    # § 6.7.1: forming makes a new order of the client (PROPOSAL).
+    require_client_of(order)
     order.state = Order.State.OPEN
     _bump(order, "state")
     for handler in _on_formed:
@@ -646,6 +672,48 @@ def history_objects(order: Order) -> list[tuple[str, str]]:
 
 
 # --- The client's history (§ 6.1.14, § 7.1.1; decision Б-1) -----------------------------------
+
+
+# (ctx, company_id, order_ids, from_client, to_client): what an operation does when the orders
+# go to another client card at the split of a merge (§ 6.5.3).
+ClientMovedHandler = Callable[[CommandContext, UUID, list[UUID], UUID, UUID], None]
+_on_client_moved: list[ClientMovedHandler] = []
+
+
+def register_on_client_moved(handler: ClientMovedHandler) -> None:
+    _on_client_moved.append(handler)
+
+
+def move_to_client(
+    ctx: CommandContext,
+    company_id: UUID,
+    order_ids: list[UUID],
+    from_client: UUID,
+    to_client: UUID,
+) -> None:
+    """§ 6.5.3: orders made after a merge are assigned by hand at its split. The order keeps its
+    number, operations and history; its payments and documents keep their link with it, and the
+    modules move what they keep of the client (handlers)."""
+    found = list(
+        Order.objects.select_for_update()
+        .filter(company_id=company_id, pk__in=order_ids, client_id=from_client)
+        .order_by("id")
+    )
+    if len(found) != len(set(order_ids)):
+        raise errors.business_rule("CARD_SPLIT_CHANGED")
+    for order in found:
+        order.client_id = to_client
+        order.version += 1
+        order.save(update_fields=["client", "version", "updated_at"])
+        ctx.audit(
+            "order.client_moved",
+            object_type="order",
+            object_id=order.id,
+            before={"client": str(from_client)},
+            after={"client": str(to_client), "reason": "card_split"},
+        )
+    for handler in _on_client_moved:
+        handler(ctx, company_id, [o.id for o in found], from_client, to_client)
 
 
 def client_orders(

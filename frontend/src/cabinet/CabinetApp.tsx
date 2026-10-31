@@ -12,6 +12,7 @@ import { RailLink } from "../layout/AppShell";
 import { UserMenu } from "../layout/UserMenu";
 import { LinkRequests } from "../pages/account/LinkRequests";
 import { OwnerRequests } from "../pages/account/OwnerRequests";
+import { IncomingDataRequests } from "../pages/clients/DataRequests";
 import { ProfilePage } from "../pages/account/ProfilePage";
 import { deviceTimeZone, formatMoment } from "../time";
 import { GarageVehicle } from "./GarageVehicle";
@@ -142,6 +143,7 @@ function CabinetHome() {
     <div className="page">
       <h1>{t("cabinet.companies")}</h1>
       <LinkRequests base="/profile-links" title={t("links.my_title")} hideEmpty pendingOnly />
+      <IncomingDataRequests base="/profile-data-requests" title={t("data_requests.my_title")} />
       <OwnerRequests base="/owner-requests" title={t("owner_requests.my_title")} hideEmpty />
       <Card>
         {companies.isLoading ? <Loading /> : null}
@@ -489,6 +491,7 @@ function Requests() {
   return (
     <div className="page">
       <LinkRequests base="/profile-links" title={t("links.my_title")} />
+      <IncomingDataRequests base="/profile-data-requests" title={t("data_requests.my_title")} />
       <OwnerRequests base="/owner-requests" title={t("owner_requests.my_title")} />
     </div>
   );

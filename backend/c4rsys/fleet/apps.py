@@ -42,3 +42,8 @@ class FleetConfig(AppConfig):
         from c4rsys.platform import userlinks
 
         userlinks.register(VehicleLinks())
+        # § 8.1.2: the client vehicles in the client card.
+        from c4rsys.fleet import owners
+        from c4rsys.parties import history as client_history
+
+        client_history.register_owned_vehicles(owners.vehicles_of_clients)

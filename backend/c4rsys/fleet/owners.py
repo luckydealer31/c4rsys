@@ -182,3 +182,18 @@ def describe(card: VehicleCard) -> dict[str, Any] | None:
             "legal_name": company.legal_name,
         }
     return body
+
+
+def vehicles_of_clients(company_id: UUID, client_ids: list[UUID]) -> list[UUID]:
+    """§ 8.1.2: the client vehicles whose latest declared owner is one of the client cards."""
+    found = []
+    claims = VehicleOwnerClaim.objects.filter(company_id=company_id, client_id__in=client_ids)
+    for card_id in set(claims.values_list("vehicle_card_id", flat=True)):
+        latest = (
+            VehicleOwnerClaim.objects.filter(company_id=company_id, vehicle_card_id=card_id)
+            .order_by("-created_at")
+            .first()
+        )
+        if latest is not None and latest.client_id in client_ids:
+            found.append(card_id)
+    return found

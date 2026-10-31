@@ -22,3 +22,10 @@ class FinanceConfig(AppConfig):
         orders.register_paid(deposits.paid_for_order)
         orders.register_history(payments.history_for_order)
         orders.register_history(offsets.history_for_order)
+        # § 6.5.2–6.5.3: settlements in the merge and the split of client cards.
+        from c4rsys.finance import client_cards
+        from c4rsys.parties import merges
+
+        merges.register_check("client", client_cards.merge_check)
+        merges.register_card_records(client_cards.PROVIDER)
+        orders.register_on_client_moved(client_cards.on_client_moved)

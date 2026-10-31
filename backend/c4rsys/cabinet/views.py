@@ -106,10 +106,12 @@ def history(request: HttpRequest, link_id: UUID) -> JsonResponse:
     link = links.links_of_user(user.id).filter(pk=link_id).first()
     if link is None:
         raise errors.not_found()
-    if link.client_id is None:
+    # § 6.5.2: with the cards merged into it; § 6.5.5: nothing after a revoked access.
+    cards = links.history_cards(link) if link.client_id is not None else []
+    if not cards:
         return JsonResponse({"orders": []})
     places: dict[str, int] = {}
-    found = orders.client_orders(link.company_id, [link.client_id], link.broken_at)
+    found = orders.client_orders(link.company_id, cards, link.broken_at)
     return JsonResponse({"orders": [_order(o, places) for o in found[:HISTORY_LIMIT]]})
 
 

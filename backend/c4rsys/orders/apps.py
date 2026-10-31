@@ -29,4 +29,10 @@ class OrdersConfig(AppConfig):
         from c4rsys.orders import discounts
 
         charges.register_after_change(discounts.on_charge_changed)
+        # § 6.5.2–6.5.3: orders in the merge and the split of client cards.
+        from c4rsys.orders import client_cards
+        from c4rsys.parties import merges
+
+        merges.register_check("client", client_cards.merge_check)
+        merges.register_card_records(client_cards.PROVIDER)
         charges.register_companion(lambda source_type: [discounts.source_of(source_type)])

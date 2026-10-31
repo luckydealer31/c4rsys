@@ -17,6 +17,9 @@ class PartiesConfig(AppConfig):
         notifications.register_check(notices.requests)
         rules.on_journal("profile_link.accepted", notices.on_answer)
         rules.on_journal("profile_link.declined", notices.on_answer)
+        # § 6.4.4: the answers to requests of fresh data.
+        rules.on_journal("profile_data_request.accepted", notices.on_data_answer)
+        rules.on_journal("profile_data_request.declined", notices.on_data_answer)
         # § 24.1.8: the cards linked with a profile move with the merge of accounts.
         from c4rsys.parties.userlinks import PartyLinks
         from c4rsys.platform import userlinks

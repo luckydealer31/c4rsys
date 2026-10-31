@@ -370,7 +370,7 @@ def update(
         rental.booking_period = (start, end)
     order = None
     if changes.client_id is not None and changes.client_id != rental.client_id:
-        client = parties.get_client(company_id, changes.client_id)
+        client = parties.require_operable(company_id, changes.client_id)
         order = orders.lock_open_order(company_id, rental.order_id)
         rental.client = client
     if changes.tariff_id is not None and changes.tariff_id != rental.tariff_id:

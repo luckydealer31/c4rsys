@@ -15,9 +15,34 @@ import { EmployeesList } from "../settings/EmployeesPage";
 import { CounterpartiesList } from "./Counterparties";
 import { LinkedTasks } from "../tasks/TasksPage";
 import { LinkedDocuments } from "../documents/DocumentsPage";
+import {
+  ArchiveActions,
+  ClientHistoryCard,
+  ExtendedFieldsCard,
+  MergeCard,
+  ProvisionalForm,
+  RestrictionsCard,
+} from "./CardExtras";
 
 export function clientName(client: Pick<Client, "kind" | "first_name" | "last_name" | "company_name">) {
   return client.kind === "company" ? client.company_name : `${client.first_name} ${client.last_name}`.trim();
+}
+
+/** The state marks of a card: archive, blacklist (§ 6.7.1), provisional (§ 6.2.9), merged. */
+export function CardBadges({
+  card,
+}: {
+  card: { state: string; provisional: boolean; blacklisted?: boolean; possible_duplicate?: boolean };
+}) {
+  const { t } = useTranslation();
+  return (
+    <>
+      {card.state !== "active" ? <span className="badge">{t(`cards.state_${card.state}`)}</span> : null}{" "}
+      {card.blacklisted ? <span className="badge error">{t("cards.blacklisted")}</span> : null}{" "}
+      {card.provisional ? <span className="badge warn">{t("cards.provisional")}</span> : null}{" "}
+      {card.possible_duplicate ? <span className="badge warn">{t("imports.possible_duplicate")}</span> : null}
+    </>
+  );
 }
 
 /** Clients: list with search when allowed (§ 6.2.2), creation with possible matches (§ 6.1.11). */
@@ -81,25 +106,34 @@ function ClientsList() {
   const company = useCompany();
   const can = useCan();
   const [query, setQuery] = useState("");
+  const [archived, setArchived] = useState(false);
   const list = useApi<{ clients: Client[] }>(
-    ["clients", company.public_id, query],
-    `/c/${company.public_id}/clients?q=${encodeURIComponent(query)}`,
+    ["clients", company.public_id, query, archived],
+    `/c/${company.public_id}/clients?q=${encodeURIComponent(query)}&state=${archived ? "archived" : "active"}`,
     can("client.list"),
   );
   return (
     <>
       {can("client.list") ? (
         <Card>
-          <Field label={t("clients.search")}>
-            <input value={query} onChange={(e) => setQuery(e.target.value)} />
-          </Field>
+          <div className="row">
+            <Field label={t("clients.search")}>
+              <input value={query} onChange={(e) => setQuery(e.target.value)} />
+            </Field>
+            {/* § 6.6.4: archived cards are found with the «Archive» filter. */}
+            <label style={{ alignSelf: "end" }}>
+              <input type="checkbox" checked={archived} onChange={(e) => setArchived(e.target.checked)} />{" "}
+              {t("cards.show_archived")}
+            </label>
+          </div>
           {list.isLoading ? <Loading /> : null}
           <table>
             <tbody>
               {(list.data?.clients ?? []).map((client) => (
                 <tr key={client.id}>
                   <td>
-                    <Link to={companyPath(company, `/clients/${client.id}`)}>{clientName(client)}</Link>
+                    <Link to={companyPath(company, `/clients/${client.id}`)}>{client.name || clientName(client)}</Link>{" "}
+                    <CardBadges card={client} />
                   </td>
                   <td className="small muted">{client.contacts.map((c) => c.value).join(", ")}</td>
                 </tr>
@@ -111,6 +145,7 @@ function ClientsList() {
         <p className="muted">{t("clients.list_not_allowed")}</p>
       )}
       {can("client.create") ? <ClientForm /> : null}
+      {can("client.create") && can("client.edit") ? <ProvisionalForm cardType="client" /> : null}
     </>
   );
 }
@@ -357,6 +392,13 @@ export function ClientPage() {
   if (card.isLoading) return <div className="page"><Loading /></div>;
   const data = card.data?.client;
   if (!data) return <div className="page"><ErrorMessage error={null} /></div>;
+  const editable = can("client.edit") && data.state !== "merged";
+  async function reload() {
+    setForm(null);
+    await queryClient.invalidateQueries({ queryKey: ["client", company.public_id, id] });
+    await queryClient.invalidateQueries({ queryKey: ["clients", company.public_id] });
+    await queryClient.invalidateQueries({ queryKey: ["client-history", company.public_id, id] });
+  }
   const values = form ?? {
     first_name: data.first_name,
     last_name: data.last_name,
@@ -401,7 +443,7 @@ export function ClientPage() {
     <Field label={label}>
       <input
         value={values[key] ?? ""}
-        disabled={!can("client.edit")}
+        disabled={!editable}
         onChange={(e) => setForm({ ...values, [key]: e.target.value })}
       />
     </Field>
@@ -410,9 +452,17 @@ export function ClientPage() {
   return (
     <div className="page">
       <h1>
-        {clientName(data)}{" "}
-        {data.possible_duplicate ? <span className="badge warn">{t("imports.possible_duplicate")}</span> : null}
+        {data.name || clientName(data)} <CardBadges card={data} />
       </h1>
+      {data.merged_into ? (
+        // § 6.5.2: the duplicate leads to the main card, where new operations go.
+        <div className="alert warn">
+          {t("cards.merged_banner")}{" "}
+          <Link to={companyPath(company, `/clients/${data.merged_into}`)}>{t("cards.open_main")}</Link>
+        </div>
+      ) : null}
+      {data.provisional ? <div className="alert warn">{t("cards.provisional_banner")}</div> : null}
+      {data.blacklisted ? <div className="alert error">{t("cards.blacklisted_banner")}</div> : null}
       <Card title={t("clients.balance")}>
         {Object.entries(balance.data?.balance ?? {}).length === 0 ? (
           <p className="muted">0</p>
@@ -467,7 +517,7 @@ export function ClientPage() {
             {field("phone", t("clients.phone"))}
             <MessengerField
               value={(values.phone_messenger ?? "") as Messenger}
-              disabled={!can("client.edit")}
+              disabled={!editable}
               onChange={(messenger) => setForm({ ...values, phone_messenger: messenger })}
             />
             {field("email", t("auth.email"))}
@@ -481,7 +531,7 @@ export function ClientPage() {
           {field("comment", t("warehouse.comment"))}
           {field("external_id", t("imports.external_id"))}
           <ErrorMessage error={update.error} />
-          {can("client.edit") ? (
+          {editable ? (
             <div className="actions">
               <button type="submit" disabled={!form || update.pending}>
                 {t("common.save")}
@@ -489,7 +539,12 @@ export function ClientPage() {
             </div>
           ) : null}
         </form>
+        {data.state !== "merged" ? <ArchiveActions card={data} onChanged={reload} /> : null}
       </Card>
+      <ExtendedFieldsCard cardType="client" card={data} onSaved={reload} />
+      {data.state !== "merged" ? <RestrictionsCard clientId={data.id} onChanged={reload} /> : null}
+      <ClientHistoryCard clientId={data.id} />
+      <MergeCard cardType="client" card={data} onChanged={reload} />
       <ProfileLinkCard
         cardType="client"
         cardId={data.id}

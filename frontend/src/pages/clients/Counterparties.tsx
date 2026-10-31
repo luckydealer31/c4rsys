@@ -9,7 +9,8 @@ import type { ClientContact, Counterparty, Messenger } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
-import { contactText, extraContacts, MessengerField } from "./ClientsPage";
+import { CardBadges, contactText, extraContacts, MessengerField } from "./ClientsPage";
+import { ContractorHistoryCard, ExtendedFieldsCard, MergeCard, ProvisionalForm } from "./CardExtras";
 
 type Texts = { registration: string; address: string; category: string; external_id: string };
 
@@ -90,6 +91,7 @@ export function CounterpartiesList() {
         <p className="muted">{t("counterparties.list_not_allowed")}</p>
       )}
       {can("counterparty.create") ? <CounterpartyForm /> : null}
+      {can("counterparty.create") && can("counterparty.edit") ? <ProvisionalForm cardType="counterparty" /> : null}
     </>
   );
 }
@@ -218,6 +220,7 @@ export function CounterpartyPage() {
     external_id: data.external_id,
   };
   const editable = can("counterparty.edit") && data.state === "active";
+  const mergedInto = data.merged_into;
 
   async function refresh() {
     setForm(null);
@@ -267,10 +270,15 @@ export function CounterpartyPage() {
         <Link to={companyPath(company, "/clients?tab=counterparties")}>← {t("clients.tab_counterparties")}</Link>
       </p>
       <h1>
-        {data.name}{" "}
-        {data.state === "archived" ? <span className="badge warn">{t("counterparties.archived")}</span> : null}{" "}
-        {data.possible_duplicate ? <span className="badge warn">{t("imports.possible_duplicate")}</span> : null}
+        {data.name} <CardBadges card={data} />
       </h1>
+      {mergedInto ? (
+        <div className="alert warn">
+          {t("cards.merged_banner")}{" "}
+          <Link to={companyPath(company, `/clients/counterparties/${mergedInto}`)}>{t("cards.open_main")}</Link>
+        </div>
+      ) : null}
+      {data.provisional ? <div className="alert warn">{t("cards.provisional_banner")}</div> : null}
       <Card>
         <form className="stack" onSubmit={save}>
           <p className="small muted">{t(`clients.kind_${data.kind}`)}</p>
@@ -338,6 +346,7 @@ export function CounterpartyPage() {
           </div>
         </form>
       </Card>
+      <ExtendedFieldsCard cardType="counterparty" card={data} onSaved={refresh} />
       <ProfileLinkCard
         cardType="counterparty"
         cardId={data.id}
@@ -345,6 +354,8 @@ export function CounterpartyPage() {
         version={data.version}
         onChanged={refresh}
       />
+      {data.kind === "company" ? <ContractorHistoryCard counterpartyId={data.id} /> : null}
+      <MergeCard cardType="counterparty" card={data} onChanged={refresh} />
     </div>
   );
 }

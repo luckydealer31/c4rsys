@@ -2,11 +2,11 @@
 § 6.6.4–6.6.5, § 22.3.3; customer's decision of 25.10.2026).
 
 Person: first and last name and at least one contact; company: name and at least one contact.
-A counterparty is archived and restored, not deleted. Linking to a c4rsys profile, requests and
-merging of cards come later.
+A counterparty is archived and restored, not deleted. Linking to a c4rsys profile is in links.py,
+merging duplicates in merges.py (block 13).
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 from uuid import UUID
 
@@ -14,8 +14,9 @@ from django.db.models import Q, QuerySet
 from django.utils import timezone
 
 from c4rsys.companies.models import Company
-from c4rsys.parties.models import Counterparty, CounterpartyContact
-from c4rsys.parties.services import Contact
+from c4rsys.parties import extended
+from c4rsys.parties.models import Counterparty, CounterpartyContact, ProfileLink
+from c4rsys.parties.services import Contact, has_minimum
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
 
@@ -33,22 +34,25 @@ class CounterpartyData:
     address: str = ""
     category: str = ""
     external_id: str = ""
+    # § 6.2.12–6.2.13 by § 6.1.13 (extended.FIELDS); none is required.
+    extended: dict[str, Any] = field(default_factory=dict)
 
-    def check_minimum(self) -> None:
-        """Person: first and last name; company: name (§ 6.2.7–6.2.8, § 22.3.3)."""
+    def check_minimum(self, *, provisional: bool = False) -> None:
+        """Person: first and last name; company: name (§ 6.2.7–6.2.8, § 22.3.3). A provisional
+        card (§ 6.2.9, § 6.1.13) may lack them."""
         if self.kind == Counterparty.Kind.PERSON:
-            if not self.first_name:
+            if not self.first_name and not provisional:
                 raise errors.validation_error("first_name", code="FIELD_REQUIRED")
-            if not self.last_name:
+            if not self.last_name and not provisional:
                 raise errors.validation_error("last_name", code="FIELD_REQUIRED")
             if self.company_name:
                 raise errors.validation_error("company_name", code="FIELD_NOT_APPLICABLE")
         elif self.kind == Counterparty.Kind.COMPANY:
-            if not self.company_name:
+            if not self.company_name and not provisional:
                 raise errors.validation_error("company_name", code="FIELD_REQUIRED")
-            for field in ("first_name", "last_name", "middle_name"):
-                if getattr(self, field):
-                    raise errors.validation_error(field, code="FIELD_NOT_APPLICABLE")
+            for name in ("first_name", "last_name", "middle_name"):
+                if getattr(self, name):
+                    raise errors.validation_error(name, code="FIELD_NOT_APPLICABLE")
         else:
             raise errors.validation_error("kind")
 
@@ -67,6 +71,9 @@ def snapshot(card: Counterparty) -> dict[str, Any]:
         "external_id": card.external_id,
         "possible_duplicate": card.possible_duplicate,
         "state": card.state,
+        "provisional": card.provisional,
+        "merged_into": str(card.merged_into_id) if card.merged_into_id else None,
+        **extended.values_of(card),
         "contacts": [
             {"kind": c.kind, "value": c.value, "messenger": c.messenger}
             for c in card.contacts.order_by("kind", "value")
@@ -96,9 +103,10 @@ def create(
     contacts: list[Contact],
     *,
     possible_duplicate: bool = False,
+    provisional: bool = False,
 ) -> Counterparty:
-    data.check_minimum()
-    if not contacts:
+    data.check_minimum(provisional=provisional)
+    if not contacts and not provisional:
         raise errors.validation_error("contacts", code="CONTACT_REQUIRED")
     card = Counterparty.objects.create(
         company=company,
@@ -113,8 +121,10 @@ def create(
         category=data.category,
         external_id=data.external_id,
         possible_duplicate=possible_duplicate,
+        provisional=provisional,
         created_by_user_id=ctx.actor.user_id,
         created_at=timezone.now(),
+        **data.extended,
     )
     _write_contacts(card, contacts)
     ctx.audit(
@@ -133,6 +143,8 @@ def _lock(company_id: UUID, counterparty_id: UUID, expected_version: int) -> Cou
         raise errors.not_found()
     if card.version != expected_version:
         raise errors.version_conflict()
+    if card.state == Counterparty.State.MERGED:
+        raise errors.business_rule("COUNTERPARTY_MERGED", main=str(card.merged_into_id))
     return card
 
 
@@ -144,7 +156,8 @@ def update(
     contacts: list[Contact] | None,
     expected_version: int,
 ) -> Counterparty:
-    """Names, company name, comment and the full list of contacts; the kind does not change."""
+    """Names, company name, comment, the extended data and the full list of contacts; the kind
+    does not change. A provisional card becomes ready once it holds the minimum (PROPOSAL)."""
     card = _lock(company_id, counterparty_id, expected_version)
     before = snapshot(card)
     for key, value in changes.items():
@@ -155,11 +168,13 @@ def update(
         last_name=card.last_name,
         middle_name=card.middle_name,
         company_name=card.company_name,
-    ).check_minimum()
+    ).check_minimum(provisional=card.provisional)
     if contacts is not None:
-        if not contacts:
+        if not contacts and not card.provisional:
             raise errors.validation_error("contacts", code="CONTACT_REQUIRED")
         _write_contacts(card, contacts)
+    if card.provisional and has_minimum(card, card.contacts.count()):
+        card.provisional = False
     card.version += 1
     card.save()
     after = snapshot(card)
@@ -204,7 +219,19 @@ def set_archived(
 def display_name(card: Counterparty) -> str:
     if card.company_name:
         return card.company_name
-    return " ".join(part for part in (card.first_name, card.last_name) if part)
+    name = " ".join(part for part in (card.first_name, card.last_name) if part)
+    if name or not card.provisional:
+        return name
+    contact = card.contacts.order_by("kind", "value").first()
+    if contact is not None:
+        return contact.value
+    label = (
+        ProfileLink.objects.filter(counterparty_id=card.id)
+        .order_by("-created_at")
+        .values_list("target_label", flat=True)
+        .first()
+    )
+    return label or ""
 
 
 def of_company(company_id: UUID) -> QuerySet[Counterparty]:
@@ -219,11 +246,42 @@ def get(company_id: UUID, counterparty_id: UUID) -> Counterparty:
 
 
 def usable(company_id: UUID, counterparty_id: UUID, field: str = "supplier") -> Counterparty:
-    """An active counterparty of the company — for a purchase or a receipt."""
+    """An active counterparty of the company — for a purchase or a receipt; a provisional card
+    is not ready for operations (§ 6.2.10, § 6.1.13)."""
     card = of_company(company_id).filter(pk=counterparty_id).first()
-    if card is None or card.state != Counterparty.State.ACTIVE:
+    if card is None or card.state != Counterparty.State.ACTIVE or card.provisional:
         raise errors.validation_error(field, code="COUNTERPARTY_NOT_USABLE")
     return card
+
+
+def main_card_id(company_id: UUID, counterparty_id: UUID) -> UUID:
+    current = counterparty_id
+    for _ in range(100):
+        row = (
+            Counterparty.objects.filter(company_id=company_id, pk=current)
+            .values_list("state", "merged_into_id")
+            .first()
+        )
+        if row is None or row[0] != Counterparty.State.MERGED or row[1] is None:
+            return current
+        current = row[1]
+    return current
+
+
+def family_ids(company_id: UUID, counterparty_id: UUID) -> list[UUID]:
+    """The card and the cards merged into it (§ 6.5.2, § 6.1.13)."""
+    found = [counterparty_id]
+    frontier = [counterparty_id]
+    while frontier:
+        frontier = list(
+            Counterparty.objects.filter(
+                company_id=company_id,
+                merged_into_id__in=frontier,
+                state=Counterparty.State.MERGED,
+            ).values_list("id", flat=True)
+        )
+        found += [i for i in frontier if i not in found]
+    return found
 
 
 def names(company_id: UUID, ids: set[UUID]) -> dict[UUID, str]:
@@ -238,8 +296,8 @@ def search(
 ) -> QuerySet[Counterparty]:
     """By a part of the name or a contact (§ 2.8.3)."""
     cards = of_company(company_id)
-    if state:
-        cards = cards.filter(state=state)
+    # Merged cards are reached through their main card (§ 6.5.2).
+    cards = cards.filter(state=state) if state else cards.exclude(state=Counterparty.State.MERGED)
     for word in text.split():
         cards = cards.filter(
             Q(first_name__icontains=word)

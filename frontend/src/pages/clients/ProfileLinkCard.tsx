@@ -8,6 +8,7 @@ import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field } from "../../components/ui";
 import { deviceTimeZone, formatMoment } from "../../time";
 import { useCan, useCompany } from "../../layout/CompanyShell";
+import { DataRequestsPanel } from "./DataRequests";
 
 /** Fields of the snapshot that can be taken into the working data of a card (§ 6.4.2). */
 const APPLICABLE: Record<"client" | "counterparty", string[]> = {
@@ -22,6 +23,9 @@ const APPLICABLE: Record<"client" | "counterparty", string[]> = {
     "legal_name",
     "legal_address",
     "actual_address",
+    "legal_form",
+    "country",
+    "document",
   ],
   counterparty: [
     "first_name",
@@ -34,6 +38,9 @@ const APPLICABLE: Record<"client" | "counterparty", string[]> = {
     "legal_address",
     "actual_address",
     "identifiers",
+    "legal_form",
+    "country",
+    "document",
   ],
 };
 
@@ -103,9 +110,11 @@ export function ProfileLinkCard({
   const cancel = useCommand<Record<string, never>, unknown>(
     () => `${base}/${links.data?.links[0]?.id}/cancel`,
   );
-  const breakLink = useCommand<{ initiator: string }, unknown>(
+  const breakLink = useCommand<{ initiator: string; revoke: boolean; reason: string }, unknown>(
     () => `${base}/${links.data?.links[0]?.id}/break`,
   );
+  const [revoke, setRevoke] = useState(false);
+  const [revokeReason, setRevokeReason] = useState("");
   const apply = useCommand<{ field: string; expected_version: number }, unknown>(
     () => `${base}/${links.data?.links[0]?.id}/apply`,
   );
@@ -197,8 +206,33 @@ export function ProfileLinkCard({
               </table>
             </>
           ) : null}
+          {state === "accepted" ? (
+            <DataRequestsPanel
+              linkId={last.id}
+              editable={editable}
+              applicable={APPLICABLE[cardType]}
+              version={version}
+              onApplied={refresh}
+            />
+          ) : null}
+          {last.access_revoked_at ? (
+            <p className="alert warn small">{t("links.access_revoked", { reason: last.access_revoke_reason })}</p>
+          ) : null}
           {state === "accepted" && editable ? (
             <div className="row">
+              {can(cardType === "client" ? "client.split" : "counterparty.split") ? (
+                <>
+                  <label className="small" style={{ alignSelf: "end" }}>
+                    <input type="checkbox" checked={revoke} onChange={(e) => setRevoke(e.target.checked)} />{" "}
+                    {t("links.revoke")}
+                  </label>
+                  {revoke ? (
+                    <Field label={t("links.revoke_reason")}>
+                      <input value={revokeReason} onChange={(e) => setRevokeReason(e.target.value)} />
+                    </Field>
+                  ) : null}
+                </>
+              ) : null}
               <Field label={t("links.initiator")}>
                 <select value={initiator} onChange={(e) => setInitiator(e.target.value)}>
                   <option value="company">{t("links.initiator_company")}</option>
@@ -209,10 +243,14 @@ export function ProfileLinkCard({
                 <button
                   type="button"
                   className="secondary"
-                  disabled={breakLink.pending}
+                  disabled={breakLink.pending || (revoke && !revokeReason.trim())}
                   onClick={async () => {
                     if (!window.confirm(t("links.break_confirm"))) return;
-                    if ((await breakLink.run({ initiator })) !== null) await refresh();
+                    if ((await breakLink.run({ initiator, revoke, reason: revokeReason })) !== null) {
+                      setRevoke(false);
+                      setRevokeReason("");
+                      await refresh();
+                    }
                   }}
                 >
                   {t("links.break")}

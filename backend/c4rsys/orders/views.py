@@ -129,7 +129,18 @@ def order_list(request: HttpRequest, cmp: str) -> JsonResponse:
     if request.method == "POST":
         return _create(request, context, actor)
     items = []
-    for order in services.orders_of(context.company.id)[:LIST_LIMIT]:
+    found = services.orders_of(context.company.id)
+    client = request.GET.get("client_id")
+    if client:
+        # § 6.1.14: the orders of a client card and of the cards merged into it.
+        from c4rsys.parties import services as clients
+
+        try:
+            client_id = UUID(client)
+        except ValueError as exc:
+            raise errors.validation_error("client_id") from exc
+        found = found.filter(client_id__in=clients.family_ids(context.company.id, client_id))
+    for order in found[:LIST_LIMIT]:
         operations = services.operations_of(order)
         if _visible(actor, operations):
             items.append(_payload(order, operations))

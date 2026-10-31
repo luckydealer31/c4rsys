@@ -1,15 +1,29 @@
 from django.urls import path
 
-from c4rsys.parties import group_views, link_views, views
+from c4rsys.parties import group_views, link_views, merge_views, views
 
 urlpatterns = [
     path("c/<str:cmp>/clients", views.client_list),
     path("c/<str:cmp>/clients/matches", views.client_matches),
+    path("c/<str:cmp>/clients/provisional", views.client_provisional),
     path("c/<str:cmp>/clients/<uuid:client_id>", views.client_detail),
+    path("c/<str:cmp>/clients/<uuid:client_id>/archive", views.client_archive),
+    path("c/<str:cmp>/clients/<uuid:client_id>/restore", views.client_restore),
+    path("c/<str:cmp>/clients/<uuid:client_id>/restrictions", views.client_restrictions),
+    path("c/<str:cmp>/clients/<uuid:client_id>/history", merge_views.client_history),
+    path("c/<str:cmp>/client-restrictions/<uuid:restriction_id>/lift", views.restriction_lift),
     path("c/<str:cmp>/counterparties", views.counterparty_list),
+    path("c/<str:cmp>/counterparties/provisional", views.counterparty_provisional),
     path("c/<str:cmp>/counterparties/<uuid:counterparty_id>", views.counterparty_detail),
     path("c/<str:cmp>/counterparties/<uuid:counterparty_id>/archive", views.counterparty_archive),
     path("c/<str:cmp>/counterparties/<uuid:counterparty_id>/restore", views.counterparty_restore),
+    path(
+        "c/<str:cmp>/counterparties/<uuid:counterparty_id>/history",
+        merge_views.counterparty_history,
+    ),
+    path("c/<str:cmp>/card-merges", merge_views.merge_list),
+    path("c/<str:cmp>/card-merges/preview", merge_views.merge_preview),
+    path("c/<str:cmp>/card-merges/<uuid:merge_id>/split", merge_views.merge_split),
     path("c/<str:cmp>/client-groups", group_views.group_list),
     path("c/<str:cmp>/client-groups/<uuid:group_id>", group_views.group_detail),
     path("c/<str:cmp>/clients/<uuid:client_id>/groups", group_views.client_groups),
@@ -17,10 +31,27 @@ urlpatterns = [
     path("c/<str:cmp>/profile-links/<uuid:link_id>/cancel", link_views.link_cancel),
     path("c/<str:cmp>/profile-links/<uuid:link_id>/break", link_views.link_break),
     path("c/<str:cmp>/profile-links/<uuid:link_id>/apply", link_views.link_apply),
+    path(
+        "c/<str:cmp>/profile-links/<uuid:link_id>/data-requests",
+        merge_views.link_data_requests,
+    ),
+    path("c/<str:cmp>/data-requests/<uuid:request_id>/cancel", merge_views.data_request_cancel),
     path("c/<str:cmp>/incoming-links", link_views.incoming),
     path("c/<str:cmp>/incoming-links/<uuid:link_id>/accept", link_views.incoming_accept),
     path("c/<str:cmp>/incoming-links/<uuid:link_id>/decline", link_views.incoming_decline),
+    path("c/<str:cmp>/incoming-data-requests", merge_views.incoming_data_requests),
+    path(
+        "c/<str:cmp>/incoming-data-requests/<uuid:request_id>/accept",
+        merge_views.incoming_data_accept,
+    ),
+    path(
+        "c/<str:cmp>/incoming-data-requests/<uuid:request_id>/decline",
+        merge_views.incoming_data_decline,
+    ),
     path("profile-links", link_views.my_links),
     path("profile-links/<uuid:link_id>/accept", link_views.my_accept),
     path("profile-links/<uuid:link_id>/decline", link_views.my_decline),
+    path("profile-data-requests", merge_views.my_data_requests),
+    path("profile-data-requests/<uuid:request_id>/accept", merge_views.my_data_accept),
+    path("profile-data-requests/<uuid:request_id>/decline", merge_views.my_data_decline),
 ]

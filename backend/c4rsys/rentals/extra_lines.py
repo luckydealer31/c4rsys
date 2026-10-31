@@ -509,7 +509,9 @@ def add_standalone(ctx: CommandContext, company_id: UUID, data: Standalone) -> E
     quantity = _quantity(service.pricing, data.quantity)
     start, end = _period(service.pricing, data.period_start, data.period_end)
     if data.order_id is not None:
-        order = orders.open_order_of_client(company_id, data.order_id, preliminary_ok=True)
+        order = orders.open_order_of_client(
+            company_id, data.order_id, preliminary_ok=True, new_operation=True
+        )
     else:
         if data.client_id is None:
             raise errors.validation_error("client_id", code="CLIENT_REQUIRED")

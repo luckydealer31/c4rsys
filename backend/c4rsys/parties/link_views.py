@@ -24,6 +24,7 @@ from c4rsys.platform.http import get_int, get_str, parse_json
 
 VIEW = {"client": ("client.find", "client.list"), "counterparty": ("counterparty.view",)}
 EDIT = {"client": "client.edit", "counterparty": "counterparty.edit"}
+REVOKE = {"client": "client.split", "counterparty": "counterparty.split"}
 
 
 def _actor(request: HttpRequest, cmp: str) -> tuple[companies.CompanyContext, Actor]:
@@ -124,14 +125,25 @@ def link_cancel(request: HttpRequest, cmp: str, link_id: UUID) -> JsonResponse:
 @require_POST
 def link_break(request: HttpRequest, cmp: str, link_id: UUID) -> JsonResponse:
     context, actor = _actor(request, cmp)
-    _own_link(context.company.id, link_id, actor)
-    initiator = get_str(parse_json(request), "initiator", max_length=10)
+    link = _own_link(context.company.id, link_id, actor)
+    data = parse_json(request)
+    initiator = get_str(data, "initiator", max_length=10)
+    revoke = data.get("revoke") is True
+    reason = get_str(data, "reason", max_length=500, required=False)
+    if revoke:
+        # § 6.5.5: revoking the access is the correction of a mistake — the elevated right of the
+        # split (PROPOSAL).
+        permission = REVOKE[links.card_type_of(link)]
+        if not _has(actor, permission):
+            raise errors.permission_denied(permission)
 
     def handler(ctx: CommandContext) -> CommandResult:
-        link = links.break_link(ctx, context.company.id, link_id, initiator)
-        return CommandResult(200, {"link": links.payload(link, timezone.now())})
+        found = links.break_link(
+            ctx, context.company.id, link_id, initiator, revoke=revoke, reason=reason
+        )
+        return CommandResult(200, {"link": links.payload(found, timezone.now())})
 
-    payload = {"link_id": str(link_id), "initiator": initiator}
+    payload = {"link_id": str(link_id), "initiator": initiator, "revoke": revoke, "reason": reason}
     return run_and_respond(request, "profile_link.break", actor, payload, handler)
 
 
@@ -142,12 +154,24 @@ def link_apply(request: HttpRequest, cmp: str, link_id: UUID) -> JsonResponse:
     data = parse_json(request)
     field = get_str(data, "field", max_length=40)
     expected_version = get_int(data, "expected_version")
+    request_id = data.get("data_request_id")
+    try:
+        data_request_id = UUID(str(request_id)) if request_id else None
+    except ValueError as exc:
+        raise errors.validation_error("data_request_id") from exc
 
     def handler(ctx: CommandContext) -> CommandResult:
-        card = links.apply_value(ctx, context.company.id, link_id, field, expected_version)
+        card = links.apply_value(
+            ctx, context.company.id, link_id, field, expected_version, data_request_id
+        )
         return CommandResult(200, {"card_id": str(card.id), "version": card.version})
 
-    payload = {"link_id": str(link_id), "field": field, "expected_version": expected_version}
+    payload = {
+        "link_id": str(link_id),
+        "field": field,
+        "expected_version": expected_version,
+        "data_request_id": str(data_request_id) if data_request_id else None,
+    }
     return run_and_respond(request, "profile_link.apply", actor, payload, handler)
 
 

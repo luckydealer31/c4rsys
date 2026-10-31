@@ -120,7 +120,7 @@ def _price(value: Decimal | None) -> Decimal:
 def add(ctx: CommandContext, company: Company, order_id: UUID, data: SaleData) -> list[SaleLine]:
     """§ 11.9.1: the line reserves at once, without a term while the order is open, and keeps the
     price snapshot (§ 11.3.2). Nothing beyond the free quantity is reserved (§ 11.8.1)."""
-    order = orders.open_order_of_client(company.id, order_id)
+    order = orders.open_order_of_client(company.id, order_id, new_operation=True)
     if data.context_id is None:
         raise errors.validation_error("context_id", code="FIELD_REQUIRED")
     context = locations.storage_context(company.id, data.context_id)

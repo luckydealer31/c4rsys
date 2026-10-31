@@ -28,6 +28,12 @@ class RentalsConfig(AppConfig):
         from c4rsys.rentals import card_records
 
         merges.register_card_records(card_records.PROVIDER)
+        # § 6.5.3, § 6.1.14, § 8.1.2: rentals and the client cards.
+        from c4rsys.parties import history as client_history
+        from c4rsys.rentals import client_cards
+
+        orders.register_on_client_moved(client_cards.on_client_moved)
+        client_history.register_order_vehicles(client_cards.order_vehicles)
         fleet.register_context_blockers(rentals.vehicle_context_blockers)
         orders.register_operations(rentals.operations_for_order)
         orders.register_client_view(rentals.client_view_for_order)

@@ -145,7 +145,7 @@ def issue(ctx: CommandContext, request: IssueRequest) -> Issued:
         locations.require_usable(
             company_id, request.planned_return_location_id, "planned_return_location_id"
         )
-    client = parties.get_client(company_id, request.client_id)
+    client = parties.require_operable(company_id, request.client_id)
     tariff = tariffs.tariffs_for_vehicle(card).filter(pk=request.tariff_id).first()
     terms = tariffs.vehicle_terms(tariff, card) if tariff else None
     if tariff is None or terms is None:
