@@ -112,6 +112,11 @@ th { font-size: 0.85rem; color: var(--muted); font-weight: 600; }
 }
 .topbar .brand { font-weight: 700; color: var(--text); text-decoration: none; }
 .topbar .spacer { flex: 1; }
+/* § 2.8.2: the single search line of the company. */
+.topbar-search { flex: 0 1 360px; min-width: 120px; }
+.topbar-search input { width: 100%; }
+.plain-list { list-style: none; padding: 0; margin: 0; }
+.plain-list li { padding: 4px 0; }
 .topbar .bell { position: relative; display: inline-flex; color: var(--text); margin-right: 12px; }
 .topbar .bell-count {
   position: absolute; top: -6px; right: -8px; min-width: 18px; height: 18px; padding: 0 4px;

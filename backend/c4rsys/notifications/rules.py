@@ -93,6 +93,10 @@ EVENTS: dict[str, Event] = {
     # system; the booking waits for an employee's decision. PROPOSAL: mandatory, to those who
     # change bookings.
     "rental.auto_cancel_missed": Event(Kind.ACTION, "rental.book", mandatory=True),
+    # § 14.8.1 (block 16): the auto-cancel moment came while a delivery of the booking was on the
+    # way; the booking is kept and waits for an employee. PROPOSAL: mandatory like the one above,
+    # to the responsible of the order, else to those who change bookings.
+    "rental.auto_cancel_held": Event(Kind.ACTION, "rental.book", mandatory=True),
     # § 24.3.2: a privileged session of the c4rsys staff in the company has ended; to the
     # top-authority director and the employees with the security right (recipients are given).
     "security.privileged_session": Event(Kind.INFO, "company.security", mandatory=True),
@@ -103,6 +107,10 @@ EVENTS: dict[str, Event] = {
     ),
     "rental.return_overdue": Event(Kind.WARNING, "rental.accept_return", repeat_minutes=2 * HOUR),
     "rental.booking_cancelled": Event(Kind.INFO, "rental.book"),
+    # § 14.3.3, § 14.6.2, § 20.3.5 (block 16; PROPOSAL: working, on by default): an issue with a
+    # deposit not fully paid; a late return touching the next booking («schedule conflict»).
+    "rental.deposit_shortfall": Event(Kind.WARNING, "finance.deposit.manage"),
+    "rental.schedule_conflict": Event(Kind.WARNING, "rental.book"),
     "service.maintenance_due": Event(Kind.WARNING, "service.create", task=True),
     "service.works_done": Event(Kind.INFO, "service.view"),
     "warehouse.expiry": Event(
@@ -112,6 +120,12 @@ EVENTS: dict[str, Event] = {
     # by the right to view the stock of the location).
     "warehouse.low_stock": Event(Kind.WARNING, "warehouse.view"),
     "finance.debt": Event(Kind.WARNING, "finance.account.view", task=True),
+    # § 12.2.6, § 20.3.5 (block 16): the debt of an order is unpaid after its term of payment.
+    # PROPOSAL: a working event, on by default, repeated daily, to the responsible of the order,
+    # else to those who see the finances; an automatic task by the company's rule.
+    "finance.payment_overdue": Event(
+        Kind.WARNING, "finance.account.view", repeat_minutes=24 * HOUR, task=True
+    ),
     "task.assigned": Event(Kind.INFO, None),
 }
 

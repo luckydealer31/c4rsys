@@ -369,7 +369,9 @@
     "edit": "Edit",
     "loading": "Loading…",
     "save": "Save",
-    "saved": "Saved."
+    "saved": "Saved.",
+    "archive_anyway": "ย้ายไปเก็บถาวรต่อไป",
+    "unconfigured_warning": "หลังจากนี้สถานที่จะ «ยังไม่ได้ตั้งค่า» และไม่รับงานใหม่: {{locations}} การจอง การเช่า และคำสั่งซื้อที่มีอยู่จะดำเนินต่อไป"
   },
   "companies": {
     "company_id": "Company ID",
@@ -749,7 +751,7 @@
     "refund_exceeds_available": "คืนได้เฉพาะยอดที่ใช้ได้: {{available}} {{currency}}",
     "offset_target_required": "เลือกคำสั่งหรือหนี้ยกมา",
     "order_nothing_to_pay": "คำสั่งนี้ไม่มียอดต้องชำระ",
-    "order_cancelled": "คำสั่งถูกยกเลิก",
+    "order_cancelled": "คำสั่งซื้อถูกยกเลิก",
     "offset_exceeds_available": "เงินที่ใช้ได้: {{available}} {{currency}}",
     "offset_exceeds_debt": "การหักกลบมากกว่าหนี้: {{debt}} {{currency}}",
     "offset_cancelled": "การหักกลบถูกยกเลิกแล้ว",
@@ -1262,7 +1264,13 @@
     "attribute_one_value": "คุณลักษณะนี้มีได้ค่าเดียว",
     "attribute_archived": "คุณลักษณะถูกเก็บถาวร",
     "manufacturer_exists": "มีผู้ผลิตนี้แล้ว",
-    "too_many_values": "ค่ามากเกินไป"
+    "too_many_values": "ค่ามากเกินไป",
+    "context_would_be_unconfigured": "นี่เป็นรายการสุดท้ายที่ใช้ได้: โปรดยืนยันการเก็บถาวร",
+    "deposit_part_used": "ส่วนมัดจำของรายการรับนี้ถูกใช้แล้ว (คงเหลือ {{free}}): แก้ไขมัดจำก่อน",
+    "previous_booking_not_cancelled": "การจองก่อนหน้าต้องเป็นการจองที่ยกเลิกแล้วเท่านั้น",
+    "booking_unknown": "ไม่พบการจอง",
+    "module_not_connected": "โมดูลนี้ไม่ได้เชื่อมต่อกับบริษัท",
+    "module_has_contexts": "โมดูลมีบริบทที่เปิดอยู่: ปิดก่อน"
   },
   "history": {
     "action": "Action",
@@ -1525,7 +1533,16 @@
     "condition_service_job_editing_service": "งานบริการเปิดเพื่อแก้ไขอยู่",
     "condition_service_job_editing_service_work": "งานบริการเปิดเพื่อแก้ไขอยู่",
     "operation_approval": "รายการที่รอลูกค้า",
-    "condition_awaiting_client": "รายการรอคำตอบลูกค้า"
+    "condition_awaiting_client": "รายการรอคำตอบลูกค้า",
+    "payment_due": "กำหนดชำระ",
+    "payment_due_none": "ไม่กำหนด",
+    "payment_due_set": "กำหนดวันชำระ",
+    "payment_due_clear": "ลบกำหนด",
+    "payment_due_hint": "หลังวันนี้ยอดค้างชำระถือว่าเกินกำหนด",
+    "overdue": "เกินกำหนดชำระ",
+    "filter_all": "คำสั่งซื้อทั้งหมด",
+    "filter_debt": "มีหนี้",
+    "filter_overdue": "หนี้เกินกำหนด"
   },
   "payments": {
     "account": "Cash desk or account",
@@ -3156,7 +3173,8 @@
     "order": "คำสั่ง",
     "reason": "เหตุผล (บังคับ)",
     "refund_preview": "จ่าย ≈ {{amount}} {{currency}}",
-    "vehicle_with_client": "รถยังอยู่กับลูกค้า — คืนเงินอยู่ดี"
+    "vehicle_with_client": "รถยังอยู่กับลูกค้า — คืนเงินอยู่ดี",
+    "kind_correction": "แก้ไขพร้อมรายการรับ"
   },
   "bookings": {
     "new": "จองรถ",
@@ -3215,7 +3233,9 @@
     "policy_source_default": "ค่าเริ่มต้น",
     "action_exception": "อนุญาตข้อยกเว้น",
     "deliveries_warning": "รถมีการเดินทางในช่วงนี้ การจองจะถูกบันทึก โปรดตรวจสอบเวลา:",
-    "restriction_conflict": "ขัดแย้ง: รถมีข้อจำกัด {{start}} — {{end}} การส่งมอบถูกปิดกั้นในช่วงนี้"
+    "restriction_conflict": "ขัดแย้ง: รถมีข้อจำกัด {{start}} — {{end}} การส่งมอบถูกปิดกั้นในช่วงนี้",
+    "previous": "สร้างแทนการจอง № {{number}}",
+    "rebook": "จองใหม่แทนการจองนี้"
   },
   "issue_rules": {
     "page_hint": "กฎการส่งมอบและการยกเลิกการจองอัตโนมัติ: สำหรับทั้งบริษัท และแต่ละสถานที่ตั้งค่าเองได้",
@@ -3583,7 +3603,9 @@
     "open_job_hint": "งานยังคงเสร็จแล้ว แก้ไขแล้วปิดอีกครั้ง",
     "close_job": "ปิด",
     "job_editing": "เปิดเพื่อแก้ไข",
-    "blocker_service_job_editing": "งานเปิดเพื่อแก้ไขอยู่ ปิดงานก่อน"
+    "blocker_service_job_editing": "งานเปิดเพื่อแก้ไขอยู่ ปิดงานก่อน",
+    "maintenance_on_create_hint": "ไม่บังคับ: กฎตามระยะเวลาหรือระยะทางพร้อมการแจ้งเตือน เพิ่มภายหลังในบัตรได้",
+    "remove_rule_draft": "ลบ"
   },
   "trips": {
     "new": "การเดินทางใหม่",
@@ -4021,7 +4043,10 @@
     "system_finance_debt": "เรียกเก็บหนี้ของคำสั่งซื้อ",
     "system_rental_auto_cancel_missed": "Decide on the booking whose auto-cancel passed during a block",
     "system_vehicle_restriction_during_operation": "ตัดสินใจเกี่ยวกับการดำเนินการของรถที่มีข้อจำกัด",
-    "system_employee_rights_confirmation": "ยืนยันหรือปฏิเสธสิทธิ์กว้างพิเศษ"
+    "system_employee_rights_confirmation": "ยืนยันหรือปฏิเสธสิทธิ์กว้างพิเศษ",
+    "system_finance_payment_overdue": "เรียกเก็บหนี้ที่เกินกำหนดของคำสั่งซื้อ",
+    "system_rental_auto_cancel_held": "ตัดสินใจเรื่องการจอง: การยกเลิกอัตโนมัติถูกระงับ",
+    "system_rental_exception_rejected": "จัดการการละเมิดของข้อยกเว้นการส่งมอบที่ถูกปฏิเสธ"
   },
   "notifications": {
     "title": "การแจ้งเตือน",
@@ -4114,7 +4139,15 @@
     "event_employee_rights_confirmation": "{{employee}}: สิทธิ์กว้างพิเศษรอการยืนยันของคุณ",
     "rule_employee_rights_confirmation": "การยืนยันสิทธิ์กว้างพิเศษ",
     "event_warehouse_low_stock": "สต็อกต่ำ: {{item}} ที่ {{location}} — {{available}} จากขั้นต่ำ {{minimum}}",
-    "rule_warehouse_low_stock": "สต็อกต่ำกว่าขั้นต่ำ"
+    "rule_warehouse_low_stock": "สต็อกต่ำกว่าขั้นต่ำ",
+    "event_finance_payment_overdue": "หนี้ของคำสั่งซื้อ № {{number}} เกินกำหนด (กำหนด {{due_on}})",
+    "rule_finance_payment_overdue": "การชำระหนี้เกินกำหนด",
+    "event_rental_auto_cancel_held": "การจอง № {{booking_number}} ไม่ถูกยกเลิกอัตโนมัติ: มีการจัดส่งอยู่ — โปรดตัดสินใจ ({{vehicle}})",
+    "rule_rental_auto_cancel_held": "การยกเลิกอัตโนมัติถูกระงับเพราะการจัดส่ง",
+    "event_rental_deposit_shortfall": "การเช่า {{vehicle}} ส่งมอบโดยมัดจำไม่ครบ: ขาด {{missing}} {{currency}}",
+    "rule_rental_deposit_shortfall": "ส่งมอบโดยมัดจำไม่ครบ",
+    "event_rental_schedule_conflict": "การจอง № {{booking_number}} ({{vehicle}}): ยานพาหนะคืนช้าจากการเช่าก่อนหน้า — โปรดตัดสินใจ",
+    "rule_rental_schedule_conflict": "ตารางเวลาชนกับการจองถัดไป"
   },
   "reports": {
     "metric_rental_issues_today": "การส่งมอบที่คาดว่าจะมีวันนี้",
@@ -4273,7 +4306,20 @@
     "personal_empty": "เลือกตัวชี้วัดของแดชบอร์ดนี้",
     "personal_name": "ชื่อ",
     "personal_hint": "มีเพียงคุณที่เห็นแดชบอร์ดนี้ ตัวชี้วัดคำนวณเหมือนในแดชบอร์ดต้นทางและตามสิทธิ์ของคุณ",
-    "personal_remove": "ลบแดชบอร์ด"
+    "personal_remove": "ลบแดชบอร์ด",
+    "metric_finance_result_by_location": "ผลลัพธ์ตามสถานที่ (เรียกเก็บ − ค่าใช้จ่าย)",
+    "metric_finance_result_by_vehicle": "ผลลัพธ์ตามยานพาหนะ (เรียกเก็บ − ค่าใช้จ่าย)",
+    "metric_finance_service_costs": "ค่าใช้จ่ายงานบริการ",
+    "col_income": "เรียกเก็บ",
+    "col_result": "ผลลัพธ์",
+    "col_order": "คำสั่งซื้อ №",
+    "col_location": "สถานที่ของผลลัพธ์",
+    "col_execution": "ดำเนินการที่",
+    "col_expense_kind": "ค่าใช้จ่าย",
+    "col_incomplete": "ต้นทุนไม่ครบ",
+    "expense_contractor": "งานผู้รับเหมา",
+    "expense_contractor_material": "วัสดุผู้รับเหมา",
+    "expense_material": "วัสดุจากคลัง"
   },
   "imports": {
     "title": "นำเข้าจาก XLSX",
@@ -5510,7 +5556,10 @@
     "operational_dispute_hint": "ยานพาหนะอยู่ในกองยานของตนเองหรือที่บริหารของบริษัทเหล่านี้ ทำการเปลี่ยนแปลงที่จำเป็นด้วยเครื่องมือที่มีอยู่ (แก้ไขช่วงการเป็นเจ้าของ; บริษัทยุติการบริหารหรือเก็บการ์ดเข้าคลัง) แล้วบันทึกคำตัดสิน",
     "operational_dispute_close": "บันทึกคำตัดสิน",
     "nav_dictionaries": "พจนานุกรมคลัง",
-    "reason": "เหตุผล"
+    "reason": "เหตุผล",
+    "modules": "โมดูลที่เชื่อมต่อ",
+    "modules_hint": "บริษัทเพิ่มได้เฉพาะบริบทของโมดูลที่เชื่อมต่อ โมดูลที่มีบริบทเปิดอยู่จะยกเลิกไม่ได้จนกว่าจะปิดบริบทก่อน",
+    "save_modules": "บันทึกโมดูล"
   },
   "staff_access": {
     "hint": "Date and time, the unit of c4rsys, the reason category and the viewed sections. The person of the staff member and the content of the ticket are not shown.",
@@ -5872,5 +5921,35 @@
     "value": "ค่า",
     "value_code": "รหัสของค่า",
     "add_value": "เพิ่มค่า"
+  },
+  "search": {
+    "placeholder": "ค้นหา: เลขที่, ID, ชื่อ, VIN, ทะเบียน…",
+    "title": "ค้นหา",
+    "for": "ผลการค้นหา «{{q}}»",
+    "hint": "พิมพ์เลขที่ ID ชื่อ VIN หรือทะเบียนในช่องค้นหาด้านบน",
+    "nothing": "ไม่พบข้อมูล",
+    "exact": "ตรงทั้งหมด",
+    "scope_note": "แสดงเฉพาะรายการของบริษัทที่ใช้งานอยู่ที่คุณเปิดได้",
+    "kind_order": "คำสั่งซื้อ",
+    "kind_rental": "การจองและการเช่า",
+    "kind_service_operation": "บริการ",
+    "kind_trip": "การเดินทาง",
+    "kind_payment": "การชำระเงินและรายการเงิน",
+    "kind_document": "เอกสาร",
+    "kind_vehicle": "ยานพาหนะ",
+    "kind_client": "ลูกค้า",
+    "kind_counterparty": "คู่ค้า",
+    "kind_item": "สินค้า",
+    "kind_task": "งาน",
+    "numbered_order": "คำสั่งซื้อ № {{number}}",
+    "numbered_rental": "การจอง № {{number}}",
+    "numbered_service_operation": "งานบริการ № {{number}}",
+    "numbered_trip": "การเดินทาง № {{number}}",
+    "numbered_payment": "รายการเงิน № {{number}}",
+    "numbered_document": "เอกสาร № {{number}}",
+    "numbered_task": "งาน № {{number}}",
+    "party_person": "บุคคล",
+    "party_company": "นิติบุคคล",
+    "section_placeholder": "ค้นหาในส่วนนี้"
   }
 }

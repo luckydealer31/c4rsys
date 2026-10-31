@@ -9,6 +9,23 @@ class ServiceConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
 
     def ready(self) -> None:
+        # § 16.6.5, § 17.3.1–17.3.2 (block 16): charges and expenses of service works.
+        from c4rsys.finance import attribution
+        from c4rsys.service import finance_links
+
+        attribution.register_source("service_job", finance_links.jobs)
+        attribution.register_source("service_material", finance_links.service_materials)
+        attribution.register_expenses(finance_links.expenses)
+        # § 16.6.6 (block 16): the trip to the contractor hands the vehicle over.
+        from c4rsys.delivery import services as delivery_services
+        from c4rsys.service import operations as service_operations
+
+        delivery_services.register_on_finished(service_operations.on_delivery_finished)
+        # § 2.8.2: the records of the module in the single search line.
+        from c4rsys.platform import search as platform_search
+        from c4rsys.service import search as service_search
+
+        platform_search.register("service_operation", service_search.provider)
         from c4rsys.companies import locations, readiness
         from c4rsys.fleet import moves
         from c4rsys.fleet import services as fleet

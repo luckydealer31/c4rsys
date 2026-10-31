@@ -94,6 +94,8 @@ def _company_payload(company: Company, context: services.CompanyContext | None) 
         "display_name": company.display_name,
         "logo": str(company.logo_id) if company.logo_id else None,
         "timezone": company.timezone or None,
+        # § 4.1.9: the connected modules; the interface offers only their context types.
+        "modules": list(company.modules),
         "main_currency": company.main_currency_id,
         "created_at": company.created_at.isoformat(),
         "version": company.version,

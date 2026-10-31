@@ -9,6 +9,11 @@ class FleetConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
 
     def ready(self) -> None:
+        # § 2.8.2: the records of the module in the single search line.
+        from c4rsys.fleet import search as fleet_search
+        from c4rsys.platform import search as platform_search
+
+        platform_search.register("vehicle", fleet_search.provider)
         from c4rsys.companies import locations
         from c4rsys.fleet import moves, services
         from c4rsys.orders import services as orders

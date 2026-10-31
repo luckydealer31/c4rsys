@@ -155,16 +155,26 @@ def _set_archived(
 ) -> JsonResponse:
     context, actor = _actor(request, cmp)
     _visible_service(context, actor, service_id)
-    expected_version = get_int(parse_json(request), "expected_version")
+    data = parse_json(request)
+    expected_version = get_int(data, "expected_version")
+    confirmed = data.get("confirm_unconfigured") is True  # § 4.3.2
 
     def handler(ctx: CommandContext) -> CommandResult:
+        from c4rsys.companies import readiness
+
+        before = readiness.ready_contexts(context.company.id, "rental")
         locked = extras.locked(context.company.id, service_id, expected_version)
         _require(actor, "tariff.archive", extras.availability_of(locked))
         service = extras.set_archived(ctx, locked, archived=archived)
-        return CommandResult(200, {"service": _service_payload(service)})
+        lost = readiness.check_still_ready(ctx, context.company.id, "rental", before, confirmed)
+        return CommandResult(200, {"service": _service_payload(service), "unconfigured": lost})
 
     command = "extra_service.archive" if archived else "extra_service.restore"
-    payload = {"service_id": str(service_id), "expected_version": expected_version}
+    payload = {
+        "service_id": str(service_id),
+        "expected_version": expected_version,
+        "confirm_unconfigured": confirmed,
+    }
     return run_and_respond(request, command, actor, payload, handler)
 
 

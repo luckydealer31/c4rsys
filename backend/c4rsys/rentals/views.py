@@ -168,16 +168,27 @@ def _set_archived(
 ) -> JsonResponse:
     context, actor = _actor(request, cmp)
     _get_visible(context, actor, tariff_id)
-    expected_version = get_int(parse_json(request), "expected_version")
+    data = parse_json(request)
+    expected_version = get_int(data, "expected_version")
+    # § 4.3.2: the archive of the last tariff of a location is confirmed after a warning.
+    confirmed = data.get("confirm_unconfigured") is True
 
     def handler(ctx: CommandContext) -> CommandResult:
+        from c4rsys.companies import readiness
+
+        before = readiness.ready_contexts(context.company.id, "rental")
         locked = tariffs.locked_tariff(context.company.id, tariff_id, expected_version)
         _require(actor, "tariff.archive", tariffs.availability_of(locked))
         tariff = tariffs.set_archived(ctx, locked, archived=archived)
-        return CommandResult(200, {"tariff": _payload(tariff)})
+        lost = readiness.check_still_ready(ctx, context.company.id, "rental", before, confirmed)
+        return CommandResult(200, {"tariff": _payload(tariff), "unconfigured": lost})
 
     command = "tariff.archive" if archived else "tariff.restore"
-    payload = {"tariff_id": str(tariff_id), "expected_version": expected_version}
+    payload = {
+        "tariff_id": str(tariff_id),
+        "expected_version": expected_version,
+        "confirm_unconfigured": confirmed,
+    }
     return run_and_respond(request, command, actor, payload, handler)
 
 
@@ -442,6 +453,15 @@ def _rental_payload(rental: Rental) -> dict[str, Any]:
     }
 
 
+def _previous_booking(rental: Rental) -> dict[str, Any] | None:
+    if rental.previous_booking_id is None:
+        return None
+    found = Rental.objects.filter(pk=rental.previous_booking_id).first()
+    if found is None:
+        return None
+    return {"id": str(found.id), "number": found.booking_number}
+
+
 def _booking_payload(rental: Rental) -> dict[str, Any]:
     """A booking (§ 14.1): own number, planned start, contact, comment, the auto-cancel moment,
     a late return touching it (§ 14.6.2) and a different current location of the vehicle
@@ -459,6 +479,8 @@ def _booking_payload(rental: Rental) -> dict[str, Any]:
             "auto_cancel_rule": rental.auto_cancel_rule,
             "cancelled_at": _utc(rental.cancelled_at),
             "cancel_reason": rental.cancel_reason,
+            # § 14.8.1: the cancelled booking this one was made instead of.
+            "previous_booking": _previous_booking(rental),
             "deposit_override": rental.deposit_override,
             "delay_conflict": bookings.delay_conflict(rental),
             # § 8.8.7: a booking over a restriction is allowed; the conflict is shown.

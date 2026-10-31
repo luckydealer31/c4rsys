@@ -20,6 +20,7 @@ urlpatterns = [
     path(f"{S}companies", views.company_search),
     path(f"{S}companies/<str:cmp>", views.company_detail),
     path(f"{S}companies/<str:cmp>/contacts", views.company_reveal),
+    path(f"{S}companies/<str:cmp>/modules", views.company_modules),
     path(f"{S}tickets", views.ticket_list),
     path(f"{S}tickets/<uuid:ticket_id>", views.ticket_detail),
     path(f"{S}tickets/<uuid:ticket_id>/state", views.ticket_state),

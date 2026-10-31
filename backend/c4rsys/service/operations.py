@@ -103,12 +103,16 @@ def get_job(company_id: UUID, job_id: UUID) -> ServiceJob:
 
 
 def post_in_use(post_id: UUID) -> bool:
-    return ServiceOperation.objects.filter(post_id=post_id, state__in=OPEN_STATES).exists()
+    return ServiceOperation.objects.filter(
+        post_id=post_id, state__in=OPEN_STATES, post_released_at__isnull=True
+    ).exists()
 
 
 def post_taken_by(post_id: UUID, exclude: UUID | None = None) -> ServiceOperation | None:
     """The operation whose vehicle stands on the post now."""
-    query = ServiceOperation.objects.filter(post_id=post_id, state__in=HOLDING).exclude(REOPENED)
+    query = ServiceOperation.objects.filter(
+        post_id=post_id, state__in=HOLDING, post_released_at__isnull=True
+    ).exclude(REOPENED)
     if exclude is not None:
         query = query.exclude(pk=exclude)
     return query.first()
@@ -582,7 +586,7 @@ def place(ctx: CommandContext, op: ServiceOperation, post_id: UUID | None) -> Se
     finishing the service (§ 16.3.4–16.3.5)."""
     if op.state not in HOLDING or op.accepted_at is None or op.location_id is None:
         raise errors.business_rule("SERVICE_VEHICLE_NOT_ACCEPTED", state=op.state)
-    if op.post_id == post_id:
+    if op.post_id == post_id and op.post_released_at is None:
         raise errors.business_rule("NOTHING_CHANGED")
     _post(op.company_id, op.location_id, post_id)
     if post_id is not None:
@@ -591,10 +595,12 @@ def place(ctx: CommandContext, op: ServiceOperation, post_id: UUID | None) -> Se
             raise errors.business_rule("POST_OCCUPIED", field="post_id", operation=taken.number)
     before = str(op.post_id) if op.post_id else None
     op.version += 1
+    op.post_released_at = None
     _save_plan(
         op,
         Plan(op.planned_start, op.planned_end, post_id),
         "post",
+        "post_released_at",
         "planned_start",
         "planned_end",
         "planned_period",
@@ -872,7 +878,33 @@ def complete(
             odometer=odometer,
             fixes=fixed_damages,
         )
+    _release_post_when_done(ctx, job)
     return job
+
+
+def _release_post_when_done(ctx: CommandContext, job: ServiceJob) -> None:
+    """§ 16.3.5 (block 16): once every work of the operation on a post has its final result,
+    the post is freed automatically at the end of the last work; the vehicle stays in the
+    service until the operation is finished, the operation keeps the post as its history.
+    TODO(spec): the choice of «automatic or confirmed by an employee» for a context, vehicle or
+    service is read as part of the after-MVP camera integration."""
+    op = ServiceOperation.objects.select_for_update().get(pk=job.operation_id)
+    if op.post_id is None or op.post_released_at is not None or op.state not in HOLDING:
+        return
+    jobs = ServiceJob.objects.filter(operation=op)
+    if jobs.filter(state__in=(Job.PLANNED, Job.IN_PROGRESS)).exists():
+        return
+    ends = [j.actual_end for j in jobs if j.actual_end is not None]
+    op.post_released_at = max(ends) if ends else timezone.now()
+    op.version += 1
+    op.save(update_fields=["post_released_at", "version", "updated_at"])
+    ctx.audit(
+        "service_operation.post_released",
+        object_type="service_operation",
+        object_id=op.id,
+        before={"post": str(op.post_id)},
+        after={"post_released_at": op.post_released_at, "automatic": True},
+    )
 
 
 def terminate(
@@ -897,6 +929,7 @@ def terminate(
     _save_job(ctx, job, "service_job.terminated", before)
     _charge(ctx, job, "service_job_terminated")
     materials.release_planned(ctx, job, reason)
+    _release_post_when_done(ctx, job)
     return job
 
 
@@ -913,6 +946,7 @@ def cancel(ctx: CommandContext, job: ServiceJob, reason: str) -> ServiceJob:
     _charge(ctx, job, "service_job_cancelled")
     _withdraw(ctx, job, reason)
     materials.release_planned(ctx, job, reason)
+    _release_post_when_done(ctx, job)
     return job
 
 
@@ -1521,4 +1555,38 @@ def inspection_link(company_id: UUID, operation_id: UUID) -> Any:
         return None
     return ServiceLink(
         id=op.id, vehicle_card_id=op.vehicle_card_id, state=op.state, location_id=op.location_id
+    )
+
+
+def on_delivery_finished(ctx: CommandContext, d: Any) -> None:
+    """§ 16.6.6 (block 16): a trip of the order to an «Other» address that ends with the vehicle
+    handed over completes the transfer to the contractor: «vehicle handed to the contractor» is
+    recorded at the trip's end. Only with exactly one matching operation at a counterparty of the
+    same order and vehicle; with a doubt nothing is done (as decision Д-7). PROPOSAL: the results
+    «not handed» and «taken from the client» record nothing."""
+    if d.to_kind != "other" or d.result in ("not_handed", "taken_from_client"):
+        return
+    found = list(
+        ServiceOperation.objects.select_for_update()
+        .filter(
+            company_id=d.company_id,
+            order_id=d.order_id,
+            vehicle_card_id=d.vehicle_card_id,
+            location__isnull=True,
+            counterparty__isnull=False,
+            state__in=(Op.PLANNED, Op.ACCEPTED, Op.IN_PROGRESS),
+        )
+        .exclude(handovers__kind=ServiceHandover.Kind.VEHICLE, handovers__returned_at__isnull=True)[
+            :2
+        ]
+    )
+    if len(found) != 1:
+        return
+    hand_over(
+        ctx,
+        found[0],
+        kind=ServiceHandover.Kind.VEHICLE,
+        description=f"delivery {d.number}",
+        counterparty_id=None,
+        at=d.actual_end,
     )

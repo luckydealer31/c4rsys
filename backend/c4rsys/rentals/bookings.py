@@ -202,6 +202,7 @@ def snapshot(rental: Rental) -> dict[str, Any]:
         "auto_cancel_at": rental.auto_cancel_at,
         "deposit_override": rental.deposit_override,
         "state": rental.state,
+        "previous_booking": str(rental.previous_booking_id) if rental.previous_booking_id else None,
     }
 
 
@@ -217,6 +218,23 @@ class BookingData:
     planned_return_location_id: UUID | None = None
     contact: str = ""
     comment: str = ""
+    previous_booking_id: UUID | None = None
+
+
+def _previous(company_id: UUID, data: BookingData) -> Rental | None:
+    """§ 14.8.1: a cancelled booking is not restored by a new term; a new one may refer to it."""
+    if data.previous_booking_id is None:
+        return None
+    found = (
+        Rental.objects.filter(company_id=company_id, pk=data.previous_booking_id)
+        .exclude(booking_number__isnull=True)
+        .first()
+    )
+    if found is None:
+        raise errors.validation_error("previous_booking_id", code="BOOKING_UNKNOWN")
+    if found.state != Rental.State.CANCELLED:
+        raise errors.business_rule("PREVIOUS_BOOKING_NOT_CANCELLED", field="previous_booking_id")
+    return found
 
 
 def _tariff(card: VehicleCard, tariff_id: UUID) -> tuple[Tariff, dict[str, Any]]:
@@ -252,6 +270,7 @@ def create(ctx: CommandContext, company_id: UUID, data: BookingData) -> Rental:
     client = parties.get_client(company_id, data.client_id) if data.client_id else None
     tariff, snap = _tariff(card, data.tariff_id) if data.tariff_id else (None, None)
     location, zone, place = _place(company_id, data)
+    previous = _previous(company_id, data)
     if data.planned_return_location_id is not None:
         locations.require_usable(
             company_id, data.planned_return_location_id, "planned_return_location_id"
@@ -285,6 +304,7 @@ def create(ctx: CommandContext, company_id: UUID, data: BookingData) -> Rental:
                 booking_period=(data.planned_start, data.planned_end),
                 planned_return_location_id=data.planned_return_location_id,
                 booking_number=next_number(company_id, "booking"),
+                previous_booking=previous,
                 booking_contact=data.contact,
                 booking_comment=data.comment,
                 auto_cancel_rule=rule,
@@ -523,12 +543,73 @@ def set_deposit(
     return _save(ctx, rental, before, "rental.deposit_changed")
 
 
+AUTO_CANCEL_PROCESS = "booking_auto_cancel"
+AUTO_CANCEL_HELD = "rental.auto_cancel_held"
+
+
+def _preparation(rental: Rental) -> list[dict[str, Any]]:
+    """What prepares the issue of the booking right now (§ 14.8.1): a delivery of the same order
+    and vehicle on the way. TODO(spec): «other preparation of the issue» is not defined further;
+    only the delivery is counted."""
+    from c4rsys.delivery import services as deliveries
+
+    return deliveries.issue_preparation(rental.company_id, rental.order_id, rental.vehicle_card_id)
+
+
+def _hold_auto_cancel(ctx: CommandContext, rental: Rental, found: list[dict[str, Any]]) -> None:
+    """The booking is not cancelled automatically: its automatic cancellation is taken off and a
+    conflict with a notification and a task asks an employee to decide (§ 14.8.1)."""
+    from c4rsys.notifications import rules
+    from c4rsys.rentals import notices
+    from c4rsys.tasks import services as tasks
+
+    before = snapshot(rental)
+    missed = rental.auto_cancel_at
+    rental.auto_cancel_at = None
+    rental.version += 1
+    rental.save(update_fields=["auto_cancel_at", "version", "updated_at"])
+    ctx.audit(
+        AUTO_CANCEL_HELD,
+        object_type="rental",
+        object_id=rental.id,
+        before=before,
+        after={"auto_cancel_at": None, "held_at": missed, "preparation": found},
+    )
+    condition = f"{AUTO_CANCEL_HELD}:{rental.id}"
+    params = {
+        **notices.params_of(rental),
+        "missed_at": missed.isoformat() if missed else None,
+        "trips": [x["number"] for x in found],
+    }
+    rules.raise_event(
+        rental.company_id,
+        AUTO_CANCEL_HELD,
+        condition=condition,
+        location_id=rental.issue_location_id,
+        object_type="rental",
+        object_id=rental.id,
+        params=params,
+        responsible=[orders.responsible_of(rental.order_id)],
+    )
+    tasks.ensure_system(
+        rental.company_id,
+        event=AUTO_CANCEL_HELD,
+        condition=condition,
+        location_id=rental.issue_location_id,
+        object_type="rental",
+        object_id=rental.id,
+        params=params,
+    )
+
+
 def cancel_no_shows(now: datetime | None = None) -> int:
     """Cancels bookings whose auto-cancel moment has passed and that are not issued (§ 14.8.1).
-    Run on a schedule; returns how many were cancelled.
+    Run on a schedule; returns how many were cancelled. Each cancellation is a system command:
+    the journal names the process, a pending approval is withdrawn and the charge of the booking
+    is recalculated as at a manual cancellation. A delivery on the way keeps the booking with a
+    conflict instead."""
+    from c4rsys.platform.commands import run_system
 
-    TODO(spec): a delivery or other preparation in progress keeps the booking with a conflict —
-    with deliveries (part А7)."""
     moment = now or timezone.now()
     cancelled = 0
     # § 24.2.2: a company blocked by the system cancels nothing automatically; after the block
@@ -539,13 +620,28 @@ def cancel_no_shows(now: datetime | None = None) -> int:
         .exclude(company_id__in=blocked)
         .only("id", "company_id")
     ):
-        with transaction.atomic():
-            locked = Rental.objects.select_for_update().filter(pk=booking.id, state=BOOKED).first()
+
+        def handler(ctx: CommandContext, booking_id: UUID = booking.id) -> int:
+            locked = Rental.objects.select_for_update().filter(pk=booking_id, state=BOOKED).first()
             if locked is None or locked.auto_cancel_at is None or locked.auto_cancel_at > moment:
-                continue
-            cancel(None, locked.company_id, locked.id, "no_show", None, automatic=True)
-            cancelled += 1
+                # Nothing to do; the journal still needs an entry, so nothing is written.
+                raise _Skip
+            found = _preparation(locked)
+            if found:
+                _hold_auto_cancel(ctx, locked, found)
+                return 0
+            cancel(ctx, locked.company_id, locked.id, "no_show", None, automatic=True)
+            return 1
+
+        try:
+            cancelled += run_system(booking.company_id, AUTO_CANCEL_PROCESS, handler)
+        except _Skip:
+            continue
     return cancelled
+
+
+class _Skip(Exception):
+    """The booking changed meanwhile: nothing is done (the transaction is rolled back)."""
 
 
 AUTO_CANCEL_MISSED = "rental.auto_cancel_missed"

@@ -9,6 +9,11 @@ class TasksConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
 
     def ready(self) -> None:
+        # § 2.8.2: the records of the module in the single search line.
+        from c4rsys.platform import search as platform_search
+        from c4rsys.tasks import search as tasks_search
+
+        platform_search.register("task", tasks_search.provider)
         from c4rsys.files import services as files
         from c4rsys.notifications import services as notifications
         from c4rsys.tasks import notices, services

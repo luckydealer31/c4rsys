@@ -40,6 +40,9 @@ class Order(models.Model):
     # § 12.2.1: a cancellation before the operations start, with its reason (decision З4).
     cancelled_at = models.DateTimeField(null=True, blank=True)
     cancel_reason = models.CharField(max_length=2000, blank=True, default="")
+    # § 12.2.6: the term of payment of the order's debt; past it an unpaid balance is overdue.
+    # Empty — no term, the debt is never overdue (PROPOSAL, block 16).
+    payment_due_on = models.DateField(null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
     version = models.PositiveIntegerField(default=1)
 

@@ -51,3 +51,26 @@ export function Loading() {
   const { t } = useTranslation();
   return <p className="muted">{t("common.loading")}</p>;
 }
+
+/** § 4.3.2: archiving the last tariff, standalone service or service work leaves a location not
+ * configured — allowed after this warning; existing operations go on. */
+export function UnconfiguredConfirm({
+  error,
+  pending,
+  onConfirm,
+}: {
+  error: ApiError | null;
+  pending: boolean;
+  onConfirm: () => void;
+}) {
+  const { t } = useTranslation();
+  if (error?.code !== "CONTEXT_WOULD_BE_UNCONFIGURED") return null;
+  return (
+    <div className="alert warn">
+      <p>{t("common.unconfigured_warning", { locations: (error.params.locations as string[] | undefined)?.join(", ") ?? "" })}</p>
+      <button type="button" className="danger" disabled={pending} onClick={onConfirm}>
+        {t("common.archive_anyway")}
+      </button>
+    </div>
+  );
+}

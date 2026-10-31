@@ -106,7 +106,9 @@ def build(actor: Actor, company: Company, filters: Filters) -> list[Block]:
         ):
             if op.accepted_at is None:
                 continue
-            part = Span(op.accepted_at, op.finished_at or now).clip(start, end)
+            # § 16.3.5: a post freed automatically is occupied until that moment.
+            until = op.post_released_at or op.finished_at or now
+            part = Span(op.accepted_at, until).clip(start, end)
             if part is not None:
                 spans.append(part)
         occupied = _union(spans)
@@ -116,7 +118,7 @@ def build(actor: Actor, company: Company, filters: Filters) -> list[Block]:
         post_rows.append(
             {
                 "post": f"{post.location.name} · {post.name}",
-                "busy": held.filter(post=post).exists(),
+                "busy": held.filter(post=post, post_released_at__isnull=True).exists(),
                 "occupied_hours": str(_hours(occupied)),
                 "working_hours": str(_hours(working)),
                 "utilization": str(

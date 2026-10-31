@@ -575,3 +575,32 @@ def test_split_of_an_expense(owner: Client, s: Scenario) -> None:
     assert wrong.json()["error"]["code"] == "SHARES_SUM_MISMATCH"
     assert split.status_code == 200, split.content
     assert [x["amount"] for x in split.json()["shares"]] == ["100.00", "200.00"]
+
+
+def test_cancelled_set_off_of_a_closed_order_tells_the_debt_controllers(
+    owner: Client, s: Scenario
+) -> None:
+    # § 17.2.16 (block 16): the reason and the author are in the notification.
+    from c4rsys.notifications.models import Notification
+    from c4rsys.orders import notices
+    from c4rsys.platform.models import AuditEvent
+
+    order_id = _returned_order(owner, s)
+    account = _account(owner, s.cmp)
+    _pay_client(owner, s, account, "3000")
+    offset = post(
+        owner,
+        f"/api/c/{s.cmp}/offsets",
+        {"client_id": s.client, "order_id": order_id, "amount": "2000", "currency": "THB"},
+        key(),
+    ).json()["offset"]
+    Order.objects.filter(pk=order_id).update(state="closed", closed_at=timezone.now())
+    url = f"/api/c/{s.cmp}/offsets/{offset['id']}/cancel"
+    body = {"confirmed_debt": "2000.00", "comment": "Wrong order"}
+    assert post(owner, url, body, key()).status_code == 200
+    entry = AuditEvent.objects.get(action="offset.cancelled")
+    assert notices.on_payment_corrected(entry) == 1
+    n = Notification.objects.get(event="finance.debt")
+    assert n.params["corrected"] is True and n.params["reason"] == "Wrong order"
+    assert n.params["author"] == "Anna Petrova"
+    assert n.params["debt"] == {"THB": "2000.0000"}

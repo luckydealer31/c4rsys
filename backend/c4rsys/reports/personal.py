@@ -74,6 +74,9 @@ CATALOG: dict[str, tuple[str, ...]] = {
         "finance.orders_paid",
         "finance.receivable",
         "finance.payable",
+        "finance.result_by_location",
+        "finance.result_by_vehicle",
+        "finance.service_costs",
     ),
     "service": (
         "service.operations_by_state",

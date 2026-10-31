@@ -265,8 +265,12 @@ def task_list(request: HttpRequest, cmp: str) -> JsonResponse:
             query = query.filter(tag_links__tag_id=_uuid(params["tag"], "tag"))
         if params.get("group"):
             query = query.filter(group_id=_uuid(params["group"], "group"))
-        if params.get("q"):
-            query = query.filter(title__icontains=params["q"][:100])
+        if params.get("q", "").strip():
+            # § 2.8.3: by the number or the id, a part of the title and the tags.
+            from c4rsys.platform.search import parse
+            from c4rsys.tasks import search
+
+            query = search.matching(query, parse(params["q"]))
         resolver = access.RightsResolver()
         items = [
             t

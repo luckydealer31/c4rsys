@@ -211,6 +211,7 @@ def company_card(company: Company) -> dict[str, Any]:
     return {
         **company_summary(company),
         "legal_name": company.legal_name,
+        "modules": list(company.modules),
         "setup_completed_at": company.setup_completed_at.isoformat()
         if company.setup_completed_at
         else None,

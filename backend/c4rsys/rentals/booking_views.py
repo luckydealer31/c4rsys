@@ -85,6 +85,7 @@ def booking_create(request: HttpRequest, cmp: str) -> JsonResponse:
         planned_return_location_id=_optional_uuid(data, "planned_return_location_id"),
         contact=get_str(data, "contact", max_length=200, required=False),
         comment=get_str(data, "comment", max_length=1000, required=False),
+        previous_booking_id=_optional_uuid(data, "previous_booking_id"),
     )
 
     def handler(ctx: CommandContext) -> CommandResult:

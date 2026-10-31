@@ -1,6 +1,7 @@
 """HTTP API of orders: reading, manual creation, forming, the responsible employee, cancellation,
 closing and reopening (ТЗ § 12.1.7, § 12.1.9–12.1.10, § 12.2, § 23.6)."""
 
+from datetime import date
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -105,6 +106,9 @@ def _payload(order: Order, operations: list[services.OperationSummary]) -> dict[
         "closed_at": order.closed_at.isoformat() if order.closed_at else None,
         "cancelled_at": order.cancelled_at.isoformat() if order.cancelled_at else None,
         "cancel_reason": order.cancel_reason,
+        # § 12.2.6: the term of payment of the debt and whether the debt is overdue.
+        "payment_due_on": order.payment_due_on.isoformat() if order.payment_due_on else None,
+        "overdue": services.is_overdue(order),
         "version": order.version,
         "operations": [
             {"type": op.type, "id": str(op.id), "state": op.state, "finished": op.finished}
@@ -140,7 +144,25 @@ def order_list(request: HttpRequest, cmp: str) -> JsonResponse:
         except ValueError as exc:
             raise errors.validation_error("client_id") from exc
         found = found.filter(client_id__in=clients.family_ids(context.company.id, client_id))
-    for order in found[:LIST_LIMIT]:
+    # § 2.8.3: the search in the section, by the number or the id.
+    if request.GET.get("q", "").strip():
+        from c4rsys.orders import search
+        from c4rsys.platform.search import parse
+
+        found = search.matching(found, parse(request.GET["q"]))
+    # § 12.2.6: the filter of debts — any unpaid balance or the overdue one.
+    debt = request.GET.get("debt", "")
+    if debt not in ("", "any", "overdue"):
+        raise errors.validation_error("debt")
+    if debt:
+        found = found.exclude(state=Order.State.CANCELLED)
+        if debt == "overdue":
+            found = found.filter(payment_due_on__lt=services.today_of(context.company.id))
+    for order in found[: LIST_LIMIT if not debt else LIST_LIMIT * 5]:
+        if debt and not (
+            services.is_overdue(order) if debt == "overdue" else services.debt_of(order)
+        ):
+            continue
         operations = services.operations_of(order)
         if _visible(actor, operations):
             items.append(_payload(order, operations))
@@ -297,6 +319,38 @@ def order_responsible(request: HttpRequest, cmp: str, order_id: UUID) -> JsonRes
         "expected_version": expected_version,
     }
     return run_and_respond(request, "order.set_responsible", actor, payload, handler)
+
+
+@require_POST
+def order_payment_due(request: HttpRequest, cmp: str, order_id: UUID) -> JsonResponse:
+    """§ 12.2.6: sets, moves or removes the term of payment of the debt. PROPOSAL (block 16):
+    with «Change orders» on the whole order; the reason is optional."""
+    context, actor = _actor(request, cmp)
+    _order_for(actor, context.company.id, order_id, "order.edit")
+    data = parse_json(request)
+    value = data.get("due_on")
+    due_on = None
+    if value not in (None, ""):
+        try:
+            due_on = date.fromisoformat(str(value))
+        except ValueError as exc:
+            raise errors.validation_error("due_on") from exc
+    reason = get_str(data, "reason", max_length=2000, required=False)
+    expected_version = get_int(data, "expected_version")
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        order = services.set_payment_due(
+            ctx, context.company.id, order_id, due_on, reason, expected_version
+        )
+        return _result(order)
+
+    payload = {
+        "order_id": str(order_id),
+        "due_on": due_on.isoformat() if due_on else None,
+        "reason": reason,
+        "expected_version": expected_version,
+    }
+    return run_and_respond(request, "order.set_payment_due", actor, payload, handler)
 
 
 @require_POST

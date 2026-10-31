@@ -184,6 +184,9 @@ class ServiceOperation(models.Model):
     )
     accepted_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)
+    # § 16.3.5 (block 16): every work has its final result — the post is free from this moment,
+    # the operation keeps the post as the history of its occupancy.
+    post_released_at = models.DateTimeField(null=True, blank=True)
     end_reason = models.CharField(max_length=2000, blank=True, default="")
     state = models.CharField(max_length=12, choices=State.choices, default=State.PLANNED)
     created_by_user_id = models.UUIDField()

@@ -10,9 +10,12 @@ import { useCompany } from "../../layout/CompanyShell";
 import { useCashAccounts } from "./FinancePage";
 import { RateField, effectiveRate, useRateSuggestion } from "./Rates";
 
-export function usePayments() {
+export function usePayments(q = "") {
   const company = useCompany();
-  return useApi<{ payments: Payment[] }>(["payments", company.public_id], `/c/${company.public_id}/payments`);
+  return useApi<{ payments: Payment[] }>(
+    q ? ["payments", company.public_id, "q", q] : ["payments", company.public_id],
+    `/c/${company.public_id}/payments${q ? `?q=${encodeURIComponent(q)}` : ""}`,
+  );
 }
 
 /** Cash receipt (§ 17.2.9–17.2.10, STAGE1_SCREENS): account, amount in the account's currency,

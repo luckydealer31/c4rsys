@@ -242,6 +242,11 @@ class Rental(models.Model):
     # Booking (§ 14.1): own number inside the company (customer's decision of 26.10.2026), the
     # planned start and the period it holds.
     booking_number = models.PositiveIntegerField(null=True, blank=True)
+    # § 14.8.1 (block 16): a new booking made instead of an already cancelled one refers to it;
+    # the cancelled booking is not restored.
+    previous_booking = models.ForeignKey(
+        "self", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
     planned_start = models.DateTimeField(null=True, blank=True)
     booking_period = DateTimeRangeField(null=True, blank=True)
     booking_contact = models.CharField(max_length=200, blank=True, default="")

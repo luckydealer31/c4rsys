@@ -337,3 +337,61 @@ export function RentalProposals({ order, onDone }: { order: Order; onDone: Done 
     </Card>
   );
 }
+
+/** § 12.2.6: the term of payment of the order's debt; past it an unpaid balance is overdue. */
+export function PaymentDueField({ order, onDone }: { order: Order; onDone: Done }) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const can = useCan();
+  const [editing, setEditing] = useState(false);
+  const [dueOn, setDueOn] = useState(order.payment_due_on ?? "");
+  const change = useCommand<Record<string, unknown>, OrderResponse>(
+    `/c/${company.public_id}/orders/${order.id}/payment-due`,
+  );
+  const allowed = order.state !== "cancelled" && can("order.edit");
+
+  async function save(value: string | null) {
+    const result = await change.run({ due_on: value, expected_version: order.version });
+    if (result) {
+      setEditing(false);
+      await onDone();
+    }
+  }
+
+  if (!editing) {
+    return (
+      <>
+        {order.payment_due_on ?? t("orders.payment_due_none")}{" "}
+        {order.overdue ? <span className="badge danger">{t("orders.overdue")}</span> : null}{" "}
+        {allowed ? (
+          <button type="button" className="secondary" onClick={() => setEditing(true)}>
+            {t("orders.payment_due_set")}
+          </button>
+        ) : null}
+      </>
+    );
+  }
+  return (
+    <form
+      onSubmit={(event: FormEvent) => {
+        event.preventDefault();
+        void save(dueOn || null);
+      }}
+    >
+      <input type="date" value={dueOn} onChange={(e) => setDueOn(e.target.value)} aria-label={t("orders.payment_due")} />{" "}
+      <button type="submit" disabled={change.pending || !dueOn}>
+        {t("common.save")}
+      </button>{" "}
+      {order.payment_due_on ? (
+        <button type="button" className="secondary" disabled={change.pending} onClick={() => void save(null)}>
+          {t("orders.payment_due_clear")}
+        </button>
+      ) : null}{" "}
+      <button type="button" className="secondary" onClick={() => setEditing(false)}>
+        {t("common.cancel")}
+      </button>
+      <p className="muted small">{t("orders.payment_due_hint")}</p>
+      <ErrorMessage error={change.error} />
+    </form>
+  );
+}

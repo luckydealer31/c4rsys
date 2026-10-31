@@ -224,15 +224,25 @@ def work_detail(request: HttpRequest, cmp: str, work_id: UUID) -> JsonResponse:
 def _archive(request: HttpRequest, cmp: str, work_id: UUID, archived: bool) -> JsonResponse:
     context, actor = _actor(request, cmp)
     _require(actor, "service.catalog")
-    expected_version = get_int(parse_json(request), "expected_version")
+    data = parse_json(request)
+    expected_version = get_int(data, "expected_version")
+    confirmed = data.get("confirm_unconfigured") is True  # § 4.3.2
 
     def handler(ctx: CommandContext) -> CommandResult:
+        from c4rsys.companies import readiness
+
+        before = readiness.ready_contexts(context.company.id, "service")
         work = catalog.locked_work(context.company.id, work_id, expected_version)
         work = catalog.set_work_archived(ctx, work, archived=archived)
-        return CommandResult(200, {"work": _work_payload(work)})
+        lost = readiness.check_still_ready(ctx, context.company.id, "service", before, confirmed)
+        return CommandResult(200, {"work": _work_payload(work), "unconfigured": lost})
 
     command = "service_work.archive" if archived else "service_work.restore"
-    payload = {"work_id": str(work_id), "expected_version": expected_version}
+    payload = {
+        "work_id": str(work_id),
+        "expected_version": expected_version,
+        "confirm_unconfigured": confirmed,
+    }
     return run_and_respond(request, command, actor, payload, handler)
 
 
@@ -460,6 +470,8 @@ def _operation_payload(op: ServiceOperation, *, detail: bool = True) -> dict[str
         "planned_start": _iso(op.planned_start),
         "planned_end": _iso(op.planned_end),
         "post_id": str(op.post_id) if op.post_id else None,
+        # § 16.3.5: the post is free from this moment, the vehicle stays in the service.
+        "post_released_at": op.post_released_at.isoformat() if op.post_released_at else None,
         "post_name": post_name,
         "accepted_at": _iso(op.accepted_at),
         "finished_at": _iso(op.finished_at),

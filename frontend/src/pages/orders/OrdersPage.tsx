@@ -2,9 +2,9 @@ import { ReopenOrder, SaleGoods } from "../warehouse/Sales";
 import { OrderApprovals } from "./Approvals";
 import { OrderDiscountsCard } from "./Discounts";
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useParams } from "react-router";
+import { Link, useParams, useSearchParams } from "react-router";
 
 import type { ApiError } from "../../api/client";
 import { useApi } from "../../api/queries";
@@ -20,7 +20,7 @@ import { CashReceipt, usePayments } from "../finance/CashReceipt";
 import { OrderServices } from "../rentals/Services";
 import { useCashAccounts } from "../finance/FinancePage";
 import { JournalTable } from "../settings/EmployeesPage";
-import { CancelOrder, editable, FormOrder, NewOrder, RentalProposals, ResponsibleField } from "./OrderActions";
+import { CancelOrder, editable, FormOrder, NewOrder, PaymentDueField, RentalProposals, ResponsibleField } from "./OrderActions";
 
 export function useOrders() {
   const company = useCompany();
@@ -71,13 +71,52 @@ export function OrdersPage() {
   const { t, i18n } = useTranslation();
   const company = useCompany();
   const can = useCan();
-  const orders = useOrders();
+  const [params, setParams] = useSearchParams();
+  const q = params.get("q") ?? "";
+  const debt = params.get("debt") ?? "";
+  const [text, setText] = useState(q);
+  const filtered = Boolean(q || debt);
+  const all = useOrders();
+  const query = new URLSearchParams({ ...(q ? { q } : {}), ...(debt ? { debt } : {}) }).toString();
+  const found = useApi<{ orders: Order[] }>(
+    ["orders", company.public_id, "filtered", query],
+    `/c/${company.public_id}/orders?${query}`,
+    filtered && can("order.view"),
+  );
+  const orders = filtered ? found : all;
   const names = useClientNames(can("client.list"));
   const zone = company.timezone ?? "UTC";
+
+  function apply(next: { q?: string; debt?: string }) {
+    const merged = { q, debt, ...next };
+    setParams(Object.fromEntries(Object.entries(merged).filter(([, v]) => v)));
+  }
+
   return (
     <div className="page">
       <h1>{t("nav.orders")}</h1>
       {can("order.create") ? <NewOrder /> : null}
+      <form
+        className="actions"
+        role="search"
+        onSubmit={(event: FormEvent) => {
+          event.preventDefault();
+          apply({ q: text.trim() });
+        }}
+      >
+        <input
+          type="search"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder={t("search.section_placeholder")}
+          aria-label={t("search.section_placeholder")}
+        />
+        <select value={debt} onChange={(e) => apply({ debt: e.target.value })} aria-label={t("orders.filter_debt")}>
+          <option value="">{t("orders.filter_all")}</option>
+          <option value="any">{t("orders.filter_debt")}</option>
+          <option value="overdue">{t("orders.filter_overdue")}</option>
+        </select>
+      </form>
       <Card>
         {orders.isLoading ? <Loading /> : null}
         <ErrorMessage error={orders.error as ApiError} />
@@ -104,7 +143,10 @@ export function OrdersPage() {
                   <td className="small">
                     <OrderAmountsText order={order} />
                   </td>
-                  <td>{t(`orders.state_${order.state}`)}</td>
+                  <td>
+                    {t(`orders.state_${order.state}`)}
+                    {order.overdue ? <span className="badge danger" style={{ marginLeft: 6 }}>{t("orders.overdue")}</span> : null}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -197,6 +239,10 @@ export function OrderPage() {
           <dt>{t("orders.responsible")}</dt>
           <dd>
             <ResponsibleField key={current.version} order={current} onDone={refresh} />
+          </dd>
+          <dt>{t("orders.payment_due")}</dt>
+          <dd>
+            <PaymentDueField key={`due-${current.version}`} order={current} onDone={refresh} />
           </dd>
           <dt>{t("orders.created")}</dt>
           <dd>{when(current.created_at)}</dd>

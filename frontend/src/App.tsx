@@ -73,6 +73,7 @@ import { InspectionPage } from "./pages/inspections/InspectionPage";
 import { InspectionsPage } from "./pages/inspections/InspectionsPage";
 import { NewInspectionPage } from "./pages/inspections/NewInspection";
 import { InspectionPolicyPage, InspectionTemplatesPage } from "./pages/inspections/Settings";
+import { SearchPage } from "./pages/search/SearchPage";
 
 export function App() {
   const site = useSite();
@@ -174,6 +175,7 @@ function MainApp({ cabinet }: { cabinet: boolean }) {
       <Route path="/c/:cmp" element={<CompanyShell user={user} />}>
         <Route index element={<Navigate to="company" replace />} />
         <Route path="company" element={<CompanyPage />} />
+        <Route path="search" element={<SearchPage />} />
         <Route path="link-requests" element={<LinkRequestsPage />} />
         <Route path="link-requests/:id" element={<LinkRequestsPage />} />
         <Route path="dashboards" element={<DashboardsPage />} />

@@ -30,6 +30,7 @@ export type CompanySummary = {
 
 export type Company = CompanySummary & {
   timezone: string | null;
+  modules?: string[]; // § 4.1.9: connected by the platform administrator
   main_currency: string | null;
   created_at: string;
   version: number;
@@ -1225,6 +1226,8 @@ export type Order = {
   closing_conditions: { operation: string; id: string; condition: string }[];
   amounts: Record<string, OrderAmounts>;
   estimated: Record<string, string>; // an order without a client: not charged yet (Р25)
+  payment_due_on?: string | null; // § 12.2.6: the term of payment of the debt
+  overdue?: boolean;
 };
 
 /** A rental offered in a preliminary order: it holds nothing until the order is formed (З2). */

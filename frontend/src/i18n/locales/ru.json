@@ -369,7 +369,9 @@
     "edit": "Изменить",
     "loading": "Загрузка…",
     "save": "Сохранить",
-    "saved": "Сохранено."
+    "saved": "Сохранено.",
+    "archive_anyway": "Всё равно в архив",
+    "unconfigured_warning": "После этого локация станет «не настроена» и не будет принимать новые операции: {{locations}}. Уже созданные брони, аренды и заказы продолжатся."
   },
   "companies": {
     "company_id": "ID компании",
@@ -1262,7 +1264,13 @@
     "attribute_one_value": "Для этого признака — только одно значение",
     "attribute_archived": "Признак в архиве",
     "manufacturer_exists": "Такой производитель уже есть",
-    "too_many_values": "Слишком много значений"
+    "too_many_values": "Слишком много значений",
+    "context_would_be_unconfigured": "Это последний доступный вариант: подтвердите архивирование.",
+    "deposit_part_used": "Часть залога этого поступления уже использована (свободно {{free}}): сначала исправьте залог.",
+    "previous_booking_not_cancelled": "Предыдущей может быть только отменённая бронь.",
+    "booking_unknown": "Бронь не найдена.",
+    "module_not_connected": "Этот модуль не подключён компании.",
+    "module_has_contexts": "У модуля есть включённые контексты: сначала отключите их."
   },
   "history": {
     "action": "Действие",
@@ -1525,7 +1533,16 @@
     "condition_service_job_editing_service": "Работа сервиса открыта для редактирования",
     "condition_service_job_editing_service_work": "Работа сервиса открыта для редактирования",
     "operation_approval": "позиция, ожидающая ответа клиента",
-    "condition_awaiting_client": "Позиция ожидает ответа клиента"
+    "condition_awaiting_client": "Позиция ожидает ответа клиента",
+    "payment_due": "Срок оплаты",
+    "payment_due_none": "срок не задан",
+    "payment_due_set": "Задать срок",
+    "payment_due_clear": "Убрать срок",
+    "payment_due_hint": "После этой даты неоплаченный остаток считается просроченным.",
+    "overdue": "Оплата просрочена",
+    "filter_all": "Все заказы",
+    "filter_debt": "С долгом",
+    "filter_overdue": "Просроченный долг"
   },
   "payments": {
     "account": "Касса или счёт",
@@ -3156,7 +3173,8 @@
     "order": "Заказ",
     "reason": "Причина (обязательно)",
     "refund_preview": "Выплата ≈ {{amount}} {{currency}}",
-    "vehicle_with_client": "ТС ещё у клиента — вернуть всё равно"
+    "vehicle_with_client": "ТС ещё у клиента — вернуть всё равно",
+    "kind_correction": "Исправлено вместе с поступлением"
   },
   "bookings": {
     "new": "Забронировать",
@@ -3215,7 +3233,9 @@
     "policy_source_default": "по умолчанию",
     "action_exception": "Разрешить исключение",
     "deliveries_warning": "У ТС есть поездки в этот период; бронь сохранится, проверьте время:",
-    "restriction_conflict": "Конфликт: на ТС ограничение {{start}} — {{end}}; выдача на это время заблокирована."
+    "restriction_conflict": "Конфликт: на ТС ограничение {{start}} — {{end}}; выдача на это время заблокирована.",
+    "previous": "Создана вместо брони № {{number}}",
+    "rebook": "Новая бронь вместо этой"
   },
   "issue_rules": {
     "page_hint": "Правила выдачи и автоотмена броней: для всей компании, у локации может быть своя настройка.",
@@ -3583,7 +3603,9 @@
     "open_job_hint": "Работа остаётся выполненной: открытие не меняет её время и результат. Исправьте и снова закройте; пока она открыта, сервис не завершается и заказ не закрывается.",
     "close_job": "Закрыть",
     "job_editing": "Открыта для редактирования",
-    "blocker_service_job_editing": "Работа открыта для редактирования: закройте её, чтобы завершить сервис и закрыть заказ."
+    "blocker_service_job_editing": "Работа открыта для редактирования: закройте её, чтобы завершить сервис и закрыть заказ.",
+    "maintenance_on_create_hint": "Необязательно: правила по сроку или пробегу с напоминаниями; их можно добавить и позже в карточке.",
+    "remove_rule_draft": "Убрать"
   },
   "trips": {
     "new": "Новая поездка",
@@ -4021,7 +4043,10 @@
     "system_finance_debt": "Взыскать долг по заказу",
     "system_rental_auto_cancel_missed": "Решить судьбу брони, автоотмена которой прошла во время блокировки",
     "system_vehicle_restriction_during_operation": "Решить по операции ограниченного ТС",
-    "system_employee_rights_confirmation": "Подтвердить или отклонить особо широкие права"
+    "system_employee_rights_confirmation": "Подтвердить или отклонить особо широкие права",
+    "system_finance_payment_overdue": "Взыскать просроченный долг по заказу",
+    "system_rental_auto_cancel_held": "Решить по брони: автоотмена остановлена доставкой",
+    "system_rental_exception_rejected": "Урегулировать нарушение по отклонённому исключению выдачи"
   },
   "notifications": {
     "title": "Уведомления",
@@ -4114,7 +4139,15 @@
     "event_employee_rights_confirmation": "{{employee}}: особо широкие права ждут вашего подтверждения",
     "rule_employee_rights_confirmation": "Подтверждение особо широких прав",
     "event_warehouse_low_stock": "Низкий остаток: {{item}} на складе {{location}} — {{available}} при минимуме {{minimum}}",
-    "rule_warehouse_low_stock": "Остаток ниже минимума"
+    "rule_warehouse_low_stock": "Остаток ниже минимума",
+    "event_finance_payment_overdue": "Просрочена оплата долга по заказу № {{number}} (срок {{due_on}})",
+    "rule_finance_payment_overdue": "Просроченная оплата долга",
+    "event_rental_auto_cancel_held": "Бронь № {{booking_number}} не отменена автоматически: выполняется доставка — примите решение ({{vehicle}})",
+    "rule_rental_auto_cancel_held": "Автоотмена остановлена доставкой",
+    "event_rental_deposit_shortfall": "Аренда {{vehicle}} выдана без полного залога: не хватает {{missing}} {{currency}}",
+    "rule_rental_deposit_shortfall": "Выдача без полного залога",
+    "event_rental_schedule_conflict": "Бронь № {{booking_number}} ({{vehicle}}): ТС задерживается с прошлой аренды — примите решение по брони",
+    "rule_rental_schedule_conflict": "Конфликт расписания со следующей бронью"
   },
   "reports": {
     "metric_rental_issues_today": "Ожидаемые сегодня выдачи (брони на сегодня)",
@@ -4273,7 +4306,20 @@
     "personal_empty": "Выберите показатели этого дашборда.",
     "personal_name": "Название",
     "personal_hint": "Этот дашборд видите только вы. Каждый показатель считается так же, как в своём дашборде, и по вашим правам.",
-    "personal_remove": "Удалить дашборд"
+    "personal_remove": "Удалить дашборд",
+    "metric_finance_result_by_location": "Результат по локациям (начислено − расходы)",
+    "metric_finance_result_by_vehicle": "Результат по ТС (начислено − расходы)",
+    "metric_finance_service_costs": "Расходы сервисных работ",
+    "col_income": "Начислено",
+    "col_result": "Результат",
+    "col_order": "Заказ №",
+    "col_location": "Локация результата",
+    "col_execution": "Место выполнения",
+    "col_expense_kind": "Расход",
+    "col_incomplete": "Стоимость неполная",
+    "expense_contractor": "Работа подрядчика",
+    "expense_contractor_material": "Материалы подрядчика",
+    "expense_material": "Материалы со склада"
   },
   "imports": {
     "title": "Импорт из XLSX",
@@ -5510,7 +5556,10 @@
     "operational_dispute_hint": "ТС числится в собственном или управляемом парке этих компаний. Внесите нужные изменения существующими средствами (исправление периода владения; компания прекращает управление или архивирует карточку), затем зафиксируйте решение.",
     "operational_dispute_close": "Зафиксировать решение",
     "nav_dictionaries": "Справочники склада",
-    "reason": "Основание"
+    "reason": "Основание",
+    "modules": "Подключённые модули",
+    "modules_hint": "Компания может добавлять только контексты подключённых модулей. Модуль с включёнными контекстами не отключается: сначала их отключают.",
+    "save_modules": "Сохранить модули"
   },
   "staff_access": {
     "hint": "Дата и время, подразделение c4rsys, категория причины и просмотренные разделы. Личность сотрудника и содержание обращения не показываются.",
@@ -5872,5 +5921,35 @@
     "value": "Значение",
     "value_code": "Код значения",
     "add_value": "Ещё значение"
+  },
+  "search": {
+    "placeholder": "Поиск: номер, ID, название, VIN, госномер…",
+    "title": "Поиск",
+    "for": "Результаты по запросу «{{q}}»",
+    "hint": "Введите номер, ID, название, VIN или госномер в строке поиска вверху.",
+    "nothing": "Ничего не найдено.",
+    "exact": "точное совпадение",
+    "scope_note": "Показаны только записи активной компании, которые вам доступны.",
+    "kind_order": "Заказы",
+    "kind_rental": "Брони и аренды",
+    "kind_service_operation": "Сервис",
+    "kind_trip": "Поездки",
+    "kind_payment": "Платежи и денежные записи",
+    "kind_document": "Документы",
+    "kind_vehicle": "ТС",
+    "kind_client": "Клиенты",
+    "kind_counterparty": "Контрагенты",
+    "kind_item": "Товары",
+    "kind_task": "Задачи",
+    "numbered_order": "Заказ № {{number}}",
+    "numbered_rental": "Бронь № {{number}}",
+    "numbered_service_operation": "Сервисная операция № {{number}}",
+    "numbered_trip": "Поездка № {{number}}",
+    "numbered_payment": "Денежная запись № {{number}}",
+    "numbered_document": "Документ № {{number}}",
+    "numbered_task": "Задача № {{number}}",
+    "party_person": "физлицо",
+    "party_company": "организация",
+    "section_placeholder": "Поиск в разделе"
   }
 }

@@ -181,3 +181,60 @@ def run_command(
     except Exception as exc:
         logger.exception("Command %s not posted (request %s)", command, request_id)
         raise errors.operation_not_posted() from exc
+
+
+# --- Commands of system processes (block 16, § 14.8.1) ------------------------------------------
+
+# Records made by a system process name no user; the fields that keep the author store this id,
+# which no account ever has (account ids are UUIDv7). The journal names the process instead.
+SYSTEM_USER_ID = UUID(int=0)
+
+
+class SystemContext(CommandContext):
+    """The context of a command run by a system process (an automatic cancellation, a periodic
+    check): the same module commands are reused, their journal entries carry the process and no
+    user (`audit_event` requires one or the other)."""
+
+    def audit(
+        self,
+        action: str,
+        *,
+        object_type: str,
+        object_id: str | UUID,
+        before: dict[str, Any] | None = None,
+        after: dict[str, Any] | None = None,
+        reason: str = "",
+        company_id: UUID | None = None,
+    ) -> None:
+        self._entries.append(
+            AuditEvent(
+                company_id=company_id or self.actor.company_id,
+                system_process=self.command,
+                action=action,
+                object_type=object_type,
+                object_id=str(object_id),
+                before=before,
+                after=after,
+                reason=reason,
+            )
+        )
+
+
+def is_system(ctx: CommandContext) -> bool:
+    return isinstance(ctx, SystemContext)
+
+
+def run_system[T](company_id: UUID, process: str, handler: Callable[[CommandContext], T]) -> T:
+    """Runs a system command in one transaction with its journal; the journal is mandatory as for
+    an employee's command. One transaction per object of the process."""
+    context = SystemContext(
+        actor=Actor(user_id=SYSTEM_USER_ID, company_id=company_id),
+        command=process,
+        idempotency_key="",
+    )
+    with transaction.atomic():
+        result = handler(context)
+        if not context.audit_entries:
+            raise RuntimeError(f"System process {process} produced no journal entry")
+        AuditEvent.objects.bulk_create(context.audit_entries)
+    return result

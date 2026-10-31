@@ -1,11 +1,12 @@
 from django.urls import path
 
-from c4rsys.companies import org_views, ownership_views, staff_views, views
+from c4rsys.companies import org_views, ownership_views, search_views, staff_views, views
 
 urlpatterns = [
     path("companies", views.companies),
     path("companies/lookup", views.company_lookup),
     path("c/<str:cmp>", views.company),
+    path("c/<str:cmp>/search", search_views.company_search),
     path("c/<str:cmp>/public-fields", views.public_fields),
     path("c/<str:cmp>/profile-history", views.profile_history),
     path("c/<str:cmp>/locations", views.location_list),

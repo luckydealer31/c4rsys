@@ -43,7 +43,51 @@ type CompanyCardData = CompanySummary & {
   employees: number;
   owners: number;
   blocks: Block[];
+  modules: string[];
 };
+
+const MODULES = ["rental", "service", "warehouse"];
+
+/** § 4.1.9 (block 16): the platform administrator connects the modules of the company. */
+function CompanyModules({ cmp, modules, onChanged }: { cmp: string; modules: string[]; onChanged: () => void }) {
+  const { t } = useTranslation();
+  const [chosen, setChosen] = useState<string[]>(modules);
+  const [reason, setReason] = useState("");
+  const save = useCommand<Record<string, unknown>, { modules: string[] }>(`/staff/companies/${cmp}/modules`, "PUT");
+  return (
+    <Card title={t("staff.modules")}>
+      <p className="muted small">{t("staff.modules_hint")}</p>
+      {MODULES.map((m) => (
+        <label key={m} style={{ marginRight: 16 }}>
+          <input
+            type="checkbox"
+            checked={chosen.includes(m)}
+            onChange={() => setChosen(chosen.includes(m) ? chosen.filter((x) => x !== m) : [...chosen, m])}
+          />{" "}
+          {t(`contexts.${m}`)}
+        </label>
+      ))}
+      <div className="row" style={{ marginTop: 8 }}>
+        <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={t("staff.reason")} aria-label={t("staff.reason")} />
+        <button
+          type="button"
+          disabled={save.pending || !reason.trim()}
+          onClick={() =>
+            void save.run({ modules: chosen, reason: reason.trim() }).then((r) => {
+              if (r) {
+                setReason("");
+                onChanged();
+              }
+            })
+          }
+        >
+          {t("staff.save_modules")}
+        </button>
+      </div>
+      <ErrorMessage error={save.error} />
+    </Card>
+  );
+}
 
 /** § 24.1.2: search of users and companies with minimal information. */
 export function DirectoryPage() {
@@ -380,6 +424,13 @@ export function CompanyCard() {
         </dl>
         {can("contacts.reveal") ? <Reveal path={`/staff/companies/${c.public_id}/contacts`} /> : null}
       </Card>
+      {can("companies.modules") ? (
+        <CompanyModules key={c.modules.join(",")} cmp={c.public_id} modules={c.modules} onChanged={refresh} />
+      ) : (
+        <p className="muted">
+          {t("staff.modules")}: {c.modules.map((m) => t(`contexts.${m}`)).join(", ")}
+        </p>
+      )}
       <Actions targetType="company" target={c.public_id} blocked={c.blocked} onChanged={refresh} />
       <Card title={t("staff.blocks")}>
         <BlockHistory blocks={c.blocks} onChanged={refresh} />

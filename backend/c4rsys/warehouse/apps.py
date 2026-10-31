@@ -9,6 +9,11 @@ class WarehouseConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
 
     def ready(self) -> None:
+        # § 2.8.2: the records of the module in the single search line.
+        from c4rsys.platform import search as platform_search
+        from c4rsys.warehouse import search as warehouse_search
+
+        platform_search.register("item", warehouse_search.provider)
         from c4rsys.companies import readiness
 
         # TODO(spec): § 4.3.1 does not define readiness of a warehouse context. PROPOSAL: an

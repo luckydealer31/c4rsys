@@ -9,6 +9,11 @@ class DocumentsConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
 
     def ready(self) -> None:
+        # § 2.8.2: the records of the module in the single search line.
+        from c4rsys.documents import search as documents_search
+        from c4rsys.platform import search as platform_search
+
+        platform_search.register("document", documents_search.provider)
         from c4rsys.documents import notices, services
         from c4rsys.files import services as files
         from c4rsys.files.models import StoredFile

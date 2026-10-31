@@ -9,6 +9,16 @@ class DeliveryConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
 
     def ready(self) -> None:
+        # § 17.3.1 (block 16): a charged delivery belongs to its start location.
+        from c4rsys.delivery import finance_links
+        from c4rsys.finance import attribution
+
+        attribution.register_source("delivery", finance_links.deliveries)
+        # § 2.8.2: the records of the module in the single search line.
+        from c4rsys.delivery import search as delivery_search
+        from c4rsys.platform import search as platform_search
+
+        platform_search.register("trip", delivery_search.provider)
         from c4rsys.companies import locations
         from c4rsys.delivery import money, services
         from c4rsys.fleet import moves

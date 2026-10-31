@@ -723,6 +723,9 @@ class DepositEntry(models.Model):
         OFFSET = "offset"
         REFUND = "refund"
         WAIVER = "waiver"
+        # § 14.7.3 (block 16): the deposit part of a receipt cancelled by the reversal of that
+        # receipt; `money_movement` names the reversed receipt.
+        CORRECTION = "correction"
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")

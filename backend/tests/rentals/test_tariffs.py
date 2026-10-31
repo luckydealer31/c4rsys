@@ -147,7 +147,12 @@ def test_rental_context_is_ready_with_available_tariff(owner: Client, cmp: str) 
     assert _state(owner, cmp, phuket) == "active"
     assert _state(owner, cmp, krabi) == "draft"
 
-    post(owner, f"/api/c/{cmp}/tariffs/{tariff['id']}/archive", {"expected_version": 1}, key())
+    post(
+        owner,
+        f"/api/c/{cmp}/tariffs/{tariff['id']}/archive",
+        {"expected_version": 1, "confirm_unconfigured": True},
+        key(),
+    )
     assert _state(owner, cmp, phuket) == "draft"  # § 4.4.4
 
     _create(owner, cmp, name="Company wide")

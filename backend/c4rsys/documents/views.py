@@ -211,6 +211,12 @@ def document_list(request: HttpRequest, cmp: str) -> JsonResponse:
             query = query.filter(state=Document.State.ACTIVE)
         if params.get("kind_id"):
             query = query.filter(kind_id=_uuid(params["kind_id"], "kind_id"))
+        if params.get("q", "").strip():
+            # § 2.8.3: by the number or the id and a part of the title.
+            from c4rsys.documents import search
+            from c4rsys.platform.search import parse
+
+            query = search.matching(query, parse(params["q"]))
         items = [
             d
             for d in query.order_by("-number")[:LIST_LIMIT]

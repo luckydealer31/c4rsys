@@ -94,7 +94,7 @@ def figures(rental: Any) -> Figures:
         .values("kind")
         .annotate(total=Sum("amount"))
     }
-    result.received = totals.get(K.RECEIVED, ZERO)
+    result.received = totals.get(K.RECEIVED, ZERO) - totals.get(K.CORRECTION, ZERO)
     result.to_balance = totals.get(K.TO_BALANCE, ZERO)
     result.offset = totals.get(K.OFFSET, ZERO)
     result.refunded = totals.get(K.REFUND, ZERO)
@@ -154,7 +154,8 @@ def client_adjustments(company_id: UUID, client_id: UUID) -> dict[str, Decimal]:
         currency = entry.money_currency_id or entry.currency_id
         amount = entry.money_amount if entry.money_amount is not None else entry.amount
         result[currency] = result.get(currency, ZERO) - amount
-    for entry in entries.filter(kind__in=[K.TO_BALANCE, K.OFFSET]):
+    # A corrected deposit part leaves with its reversed receipt (§ 14.7.3).
+    for entry in entries.filter(kind__in=[K.TO_BALANCE, K.OFFSET, K.CORRECTION]):
         # A set-off pays the order in the order's currency.
         currency = entry.money_currency_id or entry.currency_id
         amount = entry.money_amount if entry.money_amount is not None else entry.amount
@@ -164,7 +165,13 @@ def client_adjustments(company_id: UUID, client_id: UUID) -> dict[str, Decimal]:
 
 def held_by_client(company_id: UUID, client_id: UUID) -> dict[str, Decimal]:
     """The deposit held for the client, shown apart from the balance (§ 6.7.2)."""
-    sign: dict[str, int] = {K.RECEIVED: 1, K.TO_BALANCE: -1, K.OFFSET: -1, K.REFUND: -1}
+    sign: dict[str, int] = {
+        K.RECEIVED: 1,
+        K.TO_BALANCE: -1,
+        K.OFFSET: -1,
+        K.REFUND: -1,
+        K.CORRECTION: -1,
+    }
     result: dict[str, Decimal] = {}
     rows = (
         DepositEntry.objects.filter(company_id=company_id, client_id=client_id, kind__in=sign)
@@ -533,3 +540,43 @@ def _release_one(company_id: UUID, rental_id: UUID, moment: datetime) -> int:
         after={"amount": str(data.free), "currency": data.currency, "term": data.release_at},
     )
     return 1
+
+
+# --- Correction of a receipt with a deposit part (§ 14.7.3; block 16) ---------------------------
+
+
+def correct_with_receipt(ctx: CommandContext, movement_id: UUID, reason: str) -> list[DepositEntry]:
+    """The receipt is reversed together with its deposit part: the part leaves the deposit with
+    the history kept. Only a part still held and not held by a claim may leave; what was offset,
+    refunded or moved to the balance is corrected first by its own action."""
+    made = []
+    for received in DepositEntry.objects.filter(
+        money_movement_id=movement_id, kind=K.RECEIVED
+    ).order_by("created_at"):
+        if DepositEntry.objects.filter(
+            money_movement_id=movement_id, kind=K.CORRECTION, rental_id=received.rental_id
+        ).exists():
+            continue
+        rental = _rentals().lock_rental(received.company_id, received.rental_id)
+        data = figures(rental)
+        if data.free < received.amount:
+            raise errors.business_rule(
+                "DEPOSIT_PART_USED", free=str(data.free), part=str(received.amount)
+            )
+        made.append(
+            _entry(
+                ctx,
+                rental,
+                K.CORRECTION,
+                received.amount,
+                money_movement_id=movement_id,
+                money_amount=received.money_amount,
+                money_currency_id=received.money_currency_id,
+                rate_fetch_id=received.rate_fetch_id,
+                suggested_rate=received.suggested_rate,
+                applied_rate=received.applied_rate,
+                rate_manual=received.rate_manual,
+                reason=reason,
+            )
+        )
+    return made

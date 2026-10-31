@@ -48,6 +48,9 @@ PERMISSIONS: tuple[str, ...] = (
     # the linking of «Other» values, attributes of parts (§ 11.1.12–11.1.13: «the platform
     # administrator»).
     "warehouse.dictionaries",
+    # Block 16 (PROPOSAL): connecting the modules of a company (§ 4.1.9, «the platform
+    # administrator»).
+    "companies.modules",
 )
 
 PLATFORM_ADMIN = "platform_admin"
@@ -77,6 +80,7 @@ STARTER_SETS: dict[str, tuple[str, ...]] = {
         "vehicles.characteristics",
         "vehicles.catalog",
         "warehouse.dictionaries",
+        "companies.modules",
     ),
     # § 24.1.5: finds users and companies, keeps tickets, views what a ticket needs after a reason;
     # no business operations, no system roles. The reveal of contacts: PROPOSAL.

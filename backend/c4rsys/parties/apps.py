@@ -9,6 +9,12 @@ class PartiesConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
 
     def ready(self) -> None:
+        # § 2.8.2: the records of the module in the single search line.
+        from c4rsys.parties import search as parties_search
+        from c4rsys.platform import search as platform_search
+
+        platform_search.register("client", parties_search.clients)
+        platform_search.register("counterparty", parties_search.counterparty_hits)
         from c4rsys.notifications import rules
         from c4rsys.notifications import services as notifications
         from c4rsys.parties import notices

@@ -11,6 +11,7 @@ import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { formatMoment } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
+import { SectionSearch } from "../search/SearchPage";
 import { LinkedTasks } from "../tasks/TasksPage";
 import { LinkedDocuments } from "../documents/DocumentsPage";
 import { VehicleService } from "../service/VehicleService";
@@ -66,11 +67,19 @@ export function VehiclesPage() {
   const { t } = useTranslation();
   const company = useCompany();
   const can = useCan();
-  const vehicles = useVehicles();
-  const locations = useLocations();
-  const rentals = useRentals(can("rental.view"));
   // Tabs by relation, as the tabs of «Contacts» (decision of 24.10.2026; § 8.1.6).
   const [params, setParams] = useSearchParams();
+  // § 2.8.3: by the c4rsys ID, a part of the name, the VIN and the plate.
+  const q = params.get("q") ?? "";
+  const all = useVehicles();
+  const found = useApi<{ vehicles: Vehicle[] }>(
+    ["vehicles", company.public_id, "q", q],
+    `/c/${company.public_id}/vehicles?q=${encodeURIComponent(q)}`,
+    Boolean(q),
+  );
+  const vehicles = q ? found : all;
+  const locations = useLocations();
+  const rentals = useRentals(can("rental.view"));
   const tab: Relation = RELATIONS.includes(params.get("tab") as Relation)
     ? (params.get("tab") as Relation)
     : "own";
@@ -110,6 +119,10 @@ export function VehiclesPage() {
           {t("schedule.title")}
         </Link>
       </div>
+      <SectionSearch
+        value={q}
+        onSearch={(text) => setParams(Object.fromEntries(Object.entries({ tab: tab === "own" ? "" : tab, q: text }).filter(([, v]) => v)))}
+      />
       <div className="tabs" role="tablist">
         {RELATIONS.map((key) => (
           <button

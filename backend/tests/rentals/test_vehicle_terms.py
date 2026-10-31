@@ -168,7 +168,7 @@ def test_archived_tariff_drops_out_of_vehicle_tariffs(owner: Client, setup: dict
     assert [str(t.id) for t in tariffs_for_vehicle(card)] == [setup["tariff"]]
 
     path = f"/api/c/{setup['cmp']}/tariffs/{setup['tariff']}"
-    post(owner, f"{path}/archive", {"expected_version": 1}, key())
+    post(owner, f"{path}/archive", {"expected_version": 1, "confirm_unconfigured": True}, key())
     assert not tariffs_for_vehicle(card).exists()
     assert TariffVehicleTerms.objects.count() == 1
 

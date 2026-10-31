@@ -9,6 +9,11 @@ class FinanceConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
 
     def ready(self) -> None:
+        # § 2.8.2: the records of the module in the single search line.
+        from c4rsys.finance import search as finance_search
+        from c4rsys.platform import search as platform_search
+
+        platform_search.register("payment", finance_search.provider)
         from c4rsys.companies import services as companies
         from c4rsys.finance import articles, charges, deposits, offsets, payments
         from c4rsys.orders import services as orders

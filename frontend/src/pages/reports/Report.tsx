@@ -78,6 +78,7 @@ function cellText(t: (key: string) => string, key: string, value: string | numbe
   if (value === null || value === undefined) return "—";
   if (typeof value === "boolean") return value ? t("reports.yes") : "";
   if (key === "state") return t(`reports.value_${String(value)}`);
+  if (key === "expense_kind") return t(`reports.expense_${String(value)}`);
   return String(value);
 }
 

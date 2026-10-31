@@ -420,7 +420,14 @@ def payment_cash(request: HttpRequest, cmp: str) -> JsonResponse:
 def payment_list(request: HttpRequest, cmp: str) -> JsonResponse:
     """Payments to accounts visible to the employee."""
     context, actor = _actor(request, cmp)
-    movements = MoneyMovement.objects.filter(company=context.company).order_by("-number")[:100]
+    movements = MoneyMovement.objects.filter(company=context.company)
+    if request.GET.get("q", "").strip():
+        # § 2.8.3: the search in the section, by the number or the id.
+        from c4rsys.finance import search
+        from c4rsys.platform.search import parse
+
+        movements = search.matching(movements, parse(request.GET["q"]))
+    movements = movements.order_by("-number")[:100]
     items = [_movement_payload(m) for m in movements if _visible(actor, m.cash_account_id)]
     return JsonResponse({"payments": items})
 

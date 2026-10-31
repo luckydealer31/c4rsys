@@ -401,7 +401,25 @@ def decide(
         before=before,
         after=_payload(item),
     )
+    if not confirm:
+        # § 14.3.7 (block 16): the violation is settled by a task in the queue of the issue
+        # location; an employee closes it with the result.
+        from c4rsys.rentals import notices
+        from c4rsys.tasks import services as tasks
+
+        tasks.ensure_system(
+            company_id,
+            event=EXCEPTION_REJECTED,
+            condition=f"{EXCEPTION_REJECTED}:{rental.id}",
+            location_id=rental.issue_location_id,
+            object_type="rental",
+            object_id=rental.id,
+            params={**notices.params_of(rental), "reason": text},
+        )
     return item
+
+
+EXCEPTION_REJECTED = "rental.exception_rejected"
 
 
 def payload(rental_id: UUID) -> dict[str, Any] | None:

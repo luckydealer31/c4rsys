@@ -15,6 +15,14 @@ from c4rsys.files.models import StoredFile
 from c4rsys.platform.ids import uuid7
 from c4rsys.platform.models import Currency
 
+# § 4.1.6, § 4.1.9: the modules of the first launch; a company has them all until the platform
+# administrator changes it (PROPOSAL, block 16).
+MVP_MODULES = ("rental", "service", "warehouse")
+
+
+def default_modules() -> list[str]:
+    return list(MVP_MODULES)
+
 
 class Company(models.Model):
     """Profile of § 3.1.1, § 3.1.6, § 22.1.4, § 22.1.7.
@@ -36,6 +44,9 @@ class Company(models.Model):
         Currency, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
     setup_completed_at = models.DateTimeField(null=True, blank=True)
+    # § 4.1.9: the modules connected to the company by the platform administrator; a context of
+    # another type cannot be added.
+    modules = models.JSONField(default=default_modules)
     # § 3.6.1: a voluntarily deactivated company keeps its data and ID; new activity is refused
     # until it is restored (companies.deactivation).
     deactivated_at = models.DateTimeField(null=True, blank=True)

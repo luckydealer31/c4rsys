@@ -141,6 +141,9 @@ def add_context(
     location = _lock(company_id, location_id)
     if location.deactivated_at is not None:
         raise errors.business_rule("LOCATION_DEACTIVATED")
+    # § 4.1.9: only a module connected to the company.
+    if context_type not in Company.objects.get(pk=company_id).modules:
+        raise errors.business_rule("MODULE_NOT_CONNECTED", field="type")
     if ActivityContext.objects.filter(location=location, type=context_type).exists():
         raise errors.business_rule("CONTEXT_ALREADY_EXISTS", field="type")
     try:
@@ -369,3 +372,40 @@ def location_info(company_id: UUID, location_id: UUID) -> LocationInfo | None:
         active=location_state(location, contexts) == State.ACTIVE,
         rental_context_id=rental.id if rental else None,
     )
+
+
+def set_modules(ctx: CommandContext, company: Company, modules: list[str]) -> list[str]:
+    """§ 4.1.9: the platform administrator connects the company's modules. PROPOSAL (block 16):
+    a module with enabled contexts is not disconnected — they are disabled first by § 4.4.2;
+    disabled contexts keep their history and cannot be restored until the module is connected
+    again."""
+    from c4rsys.companies.models import MVP_MODULES
+
+    if any(m not in MVP_MODULES for m in modules):
+        raise errors.validation_error("modules")
+    wanted = [m for m in MVP_MODULES if m in modules]
+    locked = Company.objects.select_for_update().get(pk=company.pk)
+    removed = [m for m in locked.modules if m not in wanted]
+    busy = sorted(
+        set(
+            ActivityContext.objects.filter(
+                company_id=locked.id, type__in=removed, state=ActivityContext.State.ENABLED
+            ).values_list("type", flat=True)
+        )
+    )
+    if busy:
+        raise errors.business_rule("MODULE_HAS_CONTEXTS", modules=busy)
+    if wanted == locked.modules:
+        raise errors.business_rule("NOTHING_CHANGED")
+    before = list(locked.modules)
+    locked.modules = wanted
+    locked.save(update_fields=["modules"])
+    ctx.audit(
+        "company.modules_changed",
+        object_type="company",
+        object_id=locked.id,
+        before={"modules": before},
+        after={"modules": wanted},
+        company_id=locked.id,
+    )
+    return wanted

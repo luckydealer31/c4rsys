@@ -13,6 +13,7 @@ import { contextAvailable } from "../contexts";
 import { ScopeContext, useAutoSync, useOfflineDatasets } from "../offline/hooks";
 import { rememberCompany } from "../offline/profile";
 import { AppShell, RailLink } from "./AppShell";
+import { SearchBox } from "../pages/search/SearchPage";
 
 type ActiveCompany = { company: Company; permissions: Set<string> };
 
@@ -129,7 +130,7 @@ export function CompanyShell({ user }: { user: User }) {
   );
 
   return (
-    <AppShell user={user} sidebar={sidebar}>
+    <AppShell user={user} sidebar={sidebar} search={data ? <SearchBox /> : null}>
       {company.isLoading ? (
         <div className="page">
           <Loading />

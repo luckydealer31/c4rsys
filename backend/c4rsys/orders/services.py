@@ -7,7 +7,7 @@ They register providers here, so this module does not read their tables (A04, DE
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -777,3 +777,71 @@ def client_view(order: Order) -> dict[str, Any]:
         "approvals": [approvals.client_payload(a) for a in approvals.of_order(order.id)],
         "amounts": amounts_of(order),
     }
+
+
+# --- Payment term and overdue debt (§ 12.2.6) -------------------------------------------------
+
+
+def today_of(company_id: UUID) -> date:
+    """Today in the time zone of the company (§ 2.7.5)."""
+    from zoneinfo import ZoneInfo
+
+    from c4rsys.companies.models import Company
+
+    zone = Company.objects.filter(pk=company_id).values_list("timezone", flat=True).first()
+    return timezone.localdate(timezone=ZoneInfo(zone or "UTC"))
+
+
+def debt_of(order: Order) -> dict[str, Decimal]:
+    """What the client still has to pay, by currency (§ 12.2.6)."""
+    return {c: m.balance for c, m in amounts_of(order).items() if m.balance > Decimal(0)}
+
+
+def is_overdue(order: Order, today: date | None = None) -> bool:
+    """The balance is unpaid after the term of payment (§ 12.2.6). Without a term — never."""
+    if order.payment_due_on is None or order.state == Order.State.CANCELLED:
+        return False
+    if order.payment_due_on >= (today or today_of(order.company_id)):
+        return False
+    return bool(debt_of(order))
+
+
+def set_payment_due(
+    ctx: CommandContext,
+    company_id: UUID,
+    order_id: UUID,
+    due_on: date | None,
+    reason: str,
+    expected_version: int,
+) -> Order:
+    """Sets, moves or removes the term of payment of the order's debt, with the history
+    (§ 12.2.6). The amounts and the payments are not changed."""
+    order = _locked(company_id, order_id, expected_version)
+    if order.state == Order.State.CANCELLED:
+        raise errors.business_rule("ORDER_CANCELLED")
+    if order.payment_due_on == due_on:
+        raise errors.business_rule("NOTHING_CHANGED")
+    before = order.payment_due_on
+    order.payment_due_on = due_on
+    _bump(order, "payment_due_on")
+    ctx.audit(
+        "order.payment_due_changed",
+        object_type="order",
+        object_id=order.id,
+        before={"payment_due_on": before.isoformat() if before else None},
+        after={"payment_due_on": due_on.isoformat() if due_on else None},
+        reason=reason,
+    )
+    return order
+
+
+def responsible_of(order_id: UUID | None) -> UUID | None:
+    """The responsible employee of the order: the first recipient of the notifications about
+    its unfinished operations (§ 12.1.10, § 20.2.2)."""
+    if order_id is None:
+        return None
+    return (
+        Order.objects.filter(pk=order_id)
+        .values_list("responsible_employment_id", flat=True)
+        .first()
+    )

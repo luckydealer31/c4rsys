@@ -9,6 +9,19 @@ class RentalsConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
 
     def ready(self) -> None:
+        # § 17.3.1 (block 16): the location and the vehicle of each charge of a rental.
+        from c4rsys.finance import attribution
+        from c4rsys.rentals import finance_links
+
+        attribution.register_source("rental_base", finance_links.rentals)
+        attribution.register_source("rental_mileage", finance_links.rentals)
+        attribution.register_source("rental_manual", finance_links.manual_charges)
+        attribution.register_source("rental_service", finance_links.service_lines)
+        # § 2.8.2: the records of the module in the single search line.
+        from c4rsys.platform import search as platform_search
+        from c4rsys.rentals import search as rentals_search
+
+        platform_search.register("rental", rentals_search.provider)
         from c4rsys.companies import locations, readiness
         from c4rsys.fleet import moves
         from c4rsys.fleet import services as fleet

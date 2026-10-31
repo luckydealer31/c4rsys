@@ -146,11 +146,14 @@ def _summary(card: VehicleCard) -> dict[str, Any]:
 def vehicle_list(request: HttpRequest, cmp: str) -> JsonResponse:
     context, actor = _actor(request, cmp)
     if request.method == "GET":
-        items = [
-            _payload(c)
-            for c in services.cards_of(context.company.id)
-            if _allowed(actor, "vehicle.view", c)
-        ]
+        cards = services.cards_of(context.company.id)
+        if request.GET.get("q", "").strip():
+            # § 2.8.3: by the c4rsys ID, a part of the name, the VIN and the plate.
+            from c4rsys.fleet import search
+            from c4rsys.platform.search import parse
+
+            cards = search.matching(cards, parse(request.GET["q"]))
+        items = [_payload(c) for c in cards if _allowed(actor, "vehicle.view", c)]
         return JsonResponse({"vehicles": items})
 
     data = parse_json(request)

@@ -114,8 +114,10 @@ def reverse(
             raise errors.business_rule("CASH_ACCOUNT_ARCHIVED")
     if movement.allocations.filter(state=PaymentAllocation.State.ACTIVE).exists():
         raise errors.business_rule("RECORD_ALLOCATED")
-    if DepositEntry.objects.filter(money_movement=movement).exists():
-        # TODO(spec): a receipt with a deposit part is corrected with the deposit (§ 14.7.3).
+    has_deposit = DepositEntry.objects.filter(
+        money_movement=movement, kind=DepositEntry.Kind.RECEIVED
+    ).exists()
+    if has_deposit and movement.kind != MoneyMovement.Kind.PAYMENT:
         raise errors.business_rule("RECORD_HAS_DEPOSIT")
     created = []
     targets = [movement]
@@ -137,6 +139,11 @@ def reverse(
         targets.append(other)
     for target in targets:
         created.append(_opposite(ctx, target, reason))
+    if has_deposit:
+        # § 14.7.3 (block 16): the deposit part leaves with its receipt, the history stays.
+        from c4rsys.finance import deposits
+
+        deposits.correct_with_receipt(ctx, movement.id, reason)
     # A reversed supplier payment no longer pays its purchases and receipts.
     for allocation in SupplierAllocation.objects.filter(
         money_movement__in=targets, state=SupplierAllocation.State.ACTIVE

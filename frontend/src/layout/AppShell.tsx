@@ -22,10 +22,12 @@ export function RailLink({ to, icon, label }: { to: string; icon: IconName; labe
 export function AppShell({
   user,
   sidebar,
+  search,
   children,
 }: {
   user: User;
   sidebar?: ReactNode;
+  search?: ReactNode;
   children: ReactNode;
 }) {
   const { t } = useTranslation();
@@ -37,6 +39,7 @@ export function AppShell({
         <Link to="/profile" className="brand">
           c4rsys
         </Link>
+        {search}
         <span className="spacer" />
         <NotificationBell />
         <UserMenu user={user} />

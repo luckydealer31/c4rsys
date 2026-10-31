@@ -17,6 +17,7 @@
 * Overlapping assignments of one driver are warned of, not refused (§ 15.2.7).
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
@@ -443,6 +444,16 @@ def start(ctx: CommandContext, d: Delivery, at: datetime) -> Delivery:
     return d
 
 
+# § 16.6.6 (block 16): what other modules do when a trip is completed (the service: the vehicle
+# handed to the contractor).
+FinishHandler = Callable[[CommandContext, Delivery], None]
+_on_finished: list[FinishHandler] = []
+
+
+def register_on_finished(handler: FinishHandler) -> None:
+    _on_finished.append(handler)
+
+
 def finish(ctx: CommandContext, d: Delivery, at: datetime, result: str, comment: str) -> Delivery:
     """«Completed» with the actual end and the result; «accepted in the location» at another
     location binds the vehicle there (decision Д-2)."""
@@ -469,6 +480,8 @@ def finish(ctx: CommandContext, d: Delivery, at: datetime, result: str, comment:
     if result == Result.ACCEPTED_IN_LOCATION:
         card = fleet.lock_card(d.company_id, d.vehicle_card_id)
         fleet.move_to_location(ctx, card, d.to_location_id, f"delivery {d.number}")
+    for handler in _on_finished:
+        handler(ctx, d)
     return d
 
 
@@ -634,6 +647,17 @@ def attach(ctx: CommandContext, d: Delivery, order_id: UUID) -> Delivery:
 def _one(query: QuerySet[Delivery]) -> Delivery | None:
     found = list(query.select_for_update()[:2])
     return found[0] if len(found) == 1 else None
+
+
+def issue_preparation(company_id: UUID, order_id: UUID, card_id: UUID) -> list[dict[str, Any]]:
+    """Deliveries of the vehicle in the same order that are on the way now: a preparation of
+    the issue that keeps a booking from the automatic cancellation (§ 14.8.1)."""
+    return [
+        {"kind": "delivery", "id": str(d.id), "number": d.number}
+        for d in deliveries_of(company_id).filter(
+            order_id=order_id, vehicle_card_id=card_id, state=State.IN_TRANSIT
+        )
+    ]
 
 
 def hand_over_on_issue(

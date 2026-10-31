@@ -5,7 +5,7 @@ import { Link } from "react-router";
 
 import type { Location, ServicePost, ServiceRate, ServiceWork } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
+import { Card, ErrorMessage, Field, Loading, UnconfiguredConfirm } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { ServiceActCard } from "../documents/Requirements";
 import { useLocations } from "../settings/LocationsPage";
@@ -169,6 +169,18 @@ function WorkForm({ work, onDone }: { work?: ServiceWork; onDone: () => void }) 
           </button>
           {work ? (
             <>
+              <UnconfiguredConfirm
+                error={archive.error}
+                pending={archive.pending}
+                onConfirm={() =>
+                  void archive.run({ expected_version: work.version, confirm_unconfigured: true }).then(async (r) => {
+                    if (r) {
+                      await refresh();
+                      onDone();
+                    }
+                  })
+                }
+              />
               <button
                 type="button"
                 className="secondary"

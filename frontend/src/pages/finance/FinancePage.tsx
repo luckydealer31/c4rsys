@@ -16,6 +16,7 @@ import { Articles, useArticleName, useArticles } from "./Articles";
 import { RelinkAllocation } from "./Corrections";
 import { CashReceipt, usePayments } from "./CashReceipt";
 import { AccountRecords, MoneyRecordForm } from "./MoneyRecords";
+import { SectionSearch } from "../search/SearchPage";
 import { Settlements } from "./Settlements";
 import { TransferForm } from "./Transfers";
 
@@ -124,7 +125,9 @@ function Receipt() {
 function PaymentsList() {
   const { t, i18n } = useTranslation();
   const company = useCompany();
-  const payments = usePayments();
+  const [params, setParams] = useSearchParams();
+  const q = params.get("q") ?? "";
+  const payments = usePayments(q);
   const accounts = useCashAccounts();
   const orders = useOrders();
   const accountName = new Map((accounts.data?.cash_accounts ?? []).map((a) => [a.id, a.name]));
@@ -135,6 +138,7 @@ function PaymentsList() {
   const items = payments.data?.payments ?? [];
   return (
     <Card title={t("payments.title")}>
+      <SectionSearch value={q} onSearch={(text) => setParams(text ? { q: text } : {})} />
       {payments.isLoading ? <Loading /> : null}
       {!payments.isLoading && items.length === 0 ? <p className="muted">{t("payments.none")}</p> : null}
       {items.length ? (

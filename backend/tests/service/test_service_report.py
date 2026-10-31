@@ -52,9 +52,10 @@ def test_service_dashboard(owner: Client, s: Scenario) -> None:
     # Accepted 07:00, finished 10:00 (Bangkok): 3 h of actual duration.
     assert blocks["service.actual_hours_avg"]["value"] == "3.0"
     lift = blocks["service.posts"]["rows"][0]
-    # The day is open 24 h by default: occupied 3 h of 11 h up to the moment of the report.
-    assert lift["busy"] is False and lift["occupied_hours"] == "3.0"
-    assert lift["working_hours"] == "11.0" and lift["utilization"] == "27.3"
+    # The day is open 24 h by default. § 16.3.5 (block 16): the post is freed when the last work
+    # ends (09:00), so it is occupied 2 h of 11 h up to the moment of the report.
+    assert lift["busy"] is False and lift["occupied_hours"] == "2.0"
+    assert lift["working_hours"] == "11.0" and lift["utilization"] == "18.2"
     assert [r["works"] for r in blocks["service.by_executor"]["rows"]] == [1]
 
 

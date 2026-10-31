@@ -8,7 +8,7 @@ import type { ApiError } from "../../api/client";
 import { useApi } from "../../api/queries";
 import type { Client, ExtraService, Order, Rental, ServiceChoice, ServiceLine } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
+import { Card, ErrorMessage, Field, Loading, UnconfiguredConfirm } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { currencies, formatMoment, fromLocalInput, toLocalInput } from "../../time";
 import { clientName } from "../clients/ClientsPage";
@@ -238,6 +238,15 @@ export function ExtraServicePage() {
       {can("tariff.archive") ? (
         <div className="actions">
           <ErrorMessage error={command.error} />
+          <UnconfiguredConfirm
+            error={archive.error}
+            pending={archive.pending}
+            onConfirm={() =>
+              void archive.run({ expected_version: data.version, confirm_unconfigured: true }).then(async (r) => {
+                if (r) await queryClient.invalidateQueries({ queryKey: ["extra-service", company.public_id] });
+              })
+            }
+          />
           <button
             type="button"
             className="secondary"

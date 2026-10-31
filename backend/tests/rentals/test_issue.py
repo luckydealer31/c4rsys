@@ -171,7 +171,12 @@ def test_tariff_must_be_assigned_to_the_vehicle(owner: Client, s: Scenario) -> N
 
 
 def test_archived_tariff_is_not_available(owner: Client, s: Scenario) -> None:
-    post(owner, f"/api/c/{s.cmp}/tariffs/{s.tariff}/archive", {"expected_version": 1}, key())
+    post(
+        owner,
+        f"/api/c/{s.cmp}/tariffs/{s.tariff}/archive",
+        {"expected_version": 1, "confirm_unconfigured": True},
+        key(),
+    )
 
     response = issue(owner, s)
 

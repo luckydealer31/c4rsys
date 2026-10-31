@@ -183,6 +183,38 @@ def company_detail(request: HttpRequest, cmp: str) -> JsonResponse:
     return JsonResponse({"company": directory.company_card(company)})
 
 
+@require_http_methods(["PUT"])
+def company_modules(request: HttpRequest, cmp: str) -> JsonResponse:
+    """§ 4.1.9 (block 16): the platform administrator connects the modules of a company, with
+    a reason; the change is in the system journal and in the company's journal."""
+    from c4rsys.companies import locations
+
+    staff = require_staff(request, "companies.modules")
+    company = directory.find_company(cmp)
+    data = parse_json(request)
+    modules = data.get("modules")
+    if not isinstance(modules, list) or not all(isinstance(m, str) for m in modules):
+        raise errors.validation_error("modules")
+    reason = get_str(data, "reason", max_length=REASON_MAX)
+
+    def handler(ctx: StaffContext) -> CommandResult:
+        before = list(company.modules)
+        after = locations.set_modules(ctx.ctx, company, modules)
+        ctx.journal(
+            "company.modules_changed",
+            object_type="company",
+            object_id=company.public_id,
+            target_company_id=company.id,
+            reason=reason,
+            before={"modules": before},
+            after={"modules": after},
+        )
+        return CommandResult(200, {"modules": after})
+
+    payload = {"company": company.public_id, "modules": modules, "reason": reason}
+    return run_staff(request, "company.modules", staff, payload, handler)
+
+
 @require_POST
 def company_reveal(request: HttpRequest, cmp: str) -> JsonResponse:
     staff = require_staff(request, "contacts.reveal")

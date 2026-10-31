@@ -241,6 +241,7 @@ def build(actor: Actor, company: Company, filters: Filters) -> list[Block]:
         blocks.append(Block(f"finance.by_{key}", "finance", "table", None, rows, where))
     if whole:
         blocks += _orders_and_debts(company, filters, where)
+        blocks += _result_by_place(company, filters, where)
     for b in blocks:
         if not whole:
             b.accounts = names
@@ -302,4 +303,132 @@ def _orders_and_debts(company: Company, filters: Filters, where: Area) -> list[B
         Block("finance.orders_paid", "finance", "money", None, _rows(paid), where, "/orders"),
         Block("finance.receivable", "finance", "money", None, _rows(receivable), where, "/clients"),
         Block("finance.payable", "finance", "money", None, _rows(payable), where, "/clients"),
+    ]
+
+
+# --- The result by locations and vehicles (§ 17.2.4, § 17.3.1–17.3.2; block 16) ---------------
+
+
+def _result_by_place(company: Company, filters: Filters, where: Area) -> list[Block]:
+    """Income charged to clients and the expenses of operations, by the location the operation
+    belongs to and by the vehicle (§ 17.3.1). PROPOSAL: by charges, not by receipts — a payment
+    of several orders is not split; the expenses are those of works (contractor, materials) and
+    manual payouts with a location or a vehicle; supplier payments are left out, they pay for
+    stock and contractor works already counted."""
+    from c4rsys.companies.models import Location
+    from c4rsys.finance import attribution
+    from c4rsys.finance.models import ChargeEntry, MoneyMovement
+    from c4rsys.fleet.models import VehicleCard
+    from c4rsys.orders.models import Order
+
+    Key = tuple[str | None, str]
+    by_location: dict[Key, dict[str, Decimal]] = defaultdict(lambda: defaultdict(Decimal))
+    by_vehicle: dict[Key, dict[str, Decimal]] = defaultdict(lambda: defaultdict(Decimal))
+
+    def wanted(location_id: UUID | None, vehicle_id: UUID | None) -> bool:
+        if filters.location_id and location_id != filters.location_id:
+            return False
+        return not (filters.vehicle_id and vehicle_id != filters.vehicle_id)
+
+    def add(column: str, place: attribution.Place, amount: Decimal, currency: str) -> None:
+        if not wanted(place.location_id, place.vehicle_id):
+            return
+        loc = str(place.location_id) if place.location_id else None
+        by_location[(loc, currency)][column] += amount
+        if place.vehicle_id is not None:
+            by_vehicle[(str(place.vehicle_id), currency)][column] += amount
+
+    charges = list(
+        ChargeEntry.objects.filter(
+            company=company, created_at__gte=filters.start_at, created_at__lt=filters.end_at
+        )
+    )
+    places = attribution.places(company.id, [(c.source_type, c.source_id) for c in charges])
+    nowhere = attribution.Place(None, None)
+    for c in charges:
+        add("income", places.get((c.source_type, c.source_id), nowhere), c.amount, c.currency_id)
+
+    costs = attribution.expenses(company.id, filters.start_at, filters.end_at)
+    for e in costs:
+        add("expenses", attribution.Place(e.location_id, e.vehicle_id), e.amount, e.currency)
+
+    payouts = MoneyMovement.objects.filter(
+        company=company,
+        state="posted",
+        posted_at__gte=filters.start_at,
+        posted_at__lt=filters.end_at,
+    ).select_related("reverses")
+    for m in payouts:
+        base = m.reverses if m.kind == "reversal" and m.reverses is not None else m
+        if base.kind != "manual" or base.direction != "out":
+            continue
+        if base.location_id is None and base.vehicle_id is None:
+            continue
+        sign = Decimal(-1) if base is not m else Decimal(1)
+        add(
+            "expenses",
+            attribution.Place(base.location_id, base.vehicle_id),
+            m.amount * sign,
+            m.currency_id,
+        )
+
+    location_names = dict(Location.objects.filter(company=company).values_list("id", "name"))
+    vehicle_names = dict(VehicleCard.objects.filter(company=company).values_list("id", "name"))
+
+    def rows(data: dict[Key, dict[str, Decimal]], names: dict[Any, str]) -> list[dict[str, Any]]:
+        result = []
+        for (key, currency), v in sorted(
+            data.items(), key=lambda kv: (names.get(UUID(kv[0][0])) if kv[0][0] else "", kv[0][1])
+        ):
+            income, spent = v.get("income", Decimal(0)), v.get("expenses", Decimal(0))
+            result.append(
+                {
+                    "name": names.get(UUID(key), "—") if key else "—",
+                    "currency": currency,
+                    "income": str(income.quantize(CENT)),
+                    "expenses": str(spent.quantize(CENT)),
+                    "result": str((income - spent).quantize(CENT)),
+                }
+            )
+        return result
+
+    numbers = dict(
+        Order.objects.filter(pk__in={e.order_id for e in costs if e.order_id}).values_list(
+            "id", "number"
+        )
+    )
+    service_rows = [
+        {
+            "order": numbers.get(e.order_id) if e.order_id else None,
+            "vehicle": vehicle_names.get(e.vehicle_id, "—") if e.vehicle_id else "—",
+            "location": location_names.get(e.location_id, "—") if e.location_id else "—",
+            "execution": location_names.get(e.execution_location_id, "—")
+            if e.execution_location_id
+            else "—",
+            "expense_kind": e.kind,
+            "currency": e.currency,
+            "amount": str(e.amount.quantize(CENT)),
+            "incomplete": not e.complete,
+        }
+        for e in sorted(costs, key=lambda x: x.at)
+        if wanted(e.location_id, e.vehicle_id)
+    ]
+    return [
+        Block(
+            "finance.result_by_location",
+            "finance",
+            "table",
+            None,
+            rows(by_location, location_names),
+            where,
+        ),
+        Block(
+            "finance.result_by_vehicle",
+            "finance",
+            "table",
+            None,
+            rows(by_vehicle, vehicle_names),
+            where,
+        ),
+        Block("finance.service_costs", "finance", "table", None, service_rows, where),
     ]

@@ -11,6 +11,7 @@ import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { SigningBadge, SigningCard } from "./Signing";
 import { MakeDocument } from "./Templates";
+import { SectionSearch } from "../search/SearchPage";
 
 type Result = { document: CompanyDocument };
 export type LinkTarget = { objectType: string; objectId: string };
@@ -39,6 +40,9 @@ export function DocumentsPage() {
   const company = useCompany();
   const can = useCan();
   const [filter, setFilter] = useState<"" | "warnings=1" | "archived=1">("");
+  // § 2.8.3: by the number or the id and a part of the title.
+  const [q, setQ] = useState("");
+  const query = [filter, q ? `q=${encodeURIComponent(q)}` : ""].filter(Boolean).join("&");
   return (
     <div className="page">
       <h1>{t("nav.documents")}</h1>
@@ -56,7 +60,8 @@ export function DocumentsPage() {
           </select>
         </Field>
       </div>
-      <DocumentList query={filter} />
+      <SectionSearch value={q} onSearch={setQ} />
+      <DocumentList query={query} />
       {can("documents.upload") ? <UploadDocument /> : null}
     </div>
   );

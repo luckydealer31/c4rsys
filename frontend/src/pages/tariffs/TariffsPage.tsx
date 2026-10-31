@@ -7,7 +7,7 @@ import { Link, useParams } from "react-router";
 import { useApi } from "../../api/queries";
 import type { PriceRange, Tariff, Vehicle, VehicleTerms } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
+import { Card, ErrorMessage, Field, Loading, UnconfiguredConfirm } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { currencies } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
@@ -303,9 +303,10 @@ export function TariffPage() {
   if (!data) return <div className="page"><ErrorMessage error={null} /></div>;
 
   const current = data;
-  async function toggle() {
+  async function toggle(confirmed = false) {
     const command = current.state === "active" ? archive : restore;
-    if ((await command.run({ expected_version: current.version })) !== null) {
+    const body = { expected_version: current.version, ...(confirmed ? { confirm_unconfigured: true } : {}) };
+    if ((await command.run(body)) !== null) {
       await client.invalidateQueries({ queryKey: ["tariff", company.public_id] });
       await client.invalidateQueries({ queryKey: ["tariffs", company.public_id] });
       await client.invalidateQueries({ queryKey: ["readiness", company.public_id] });
@@ -321,6 +322,7 @@ export function TariffPage() {
       {can("tariff.edit") ? <TariffForm key={data.version} tariff={data} /> : null}
       {can("tariff.archive") ? (
         <div className="actions" style={{ marginBottom: 16 }}>
+          <UnconfiguredConfirm error={archive.error} pending={archive.pending} onConfirm={() => void toggle(true)} />
           <button type="button" className="secondary" onClick={() => void toggle()}>
             {data.state === "active" ? t("tariffs.archive") : t("tariffs.restore")}
           </button>

@@ -29,6 +29,14 @@ def _condition(event: str, rental_id: UUID) -> str:
     return f"{event}:{rental_id}"
 
 
+def _responsible(r: Rental) -> list[UUID | None]:
+    """§ 12.1.10, § 20.2.2 (block 16): the responsible of the order receives the notifications
+    of its unfinished operations first; without one, the employees with the event's right."""
+    from c4rsys.orders import services as orders
+
+    return [orders.responsible_of(r.order_id)]
+
+
 def params_of(r: Rental) -> dict[str, Any]:
     return _params(r)
 
@@ -78,6 +86,7 @@ def _upcoming(now: datetime) -> int:
             r.company_id,
             "rental.issue_upcoming",
             condition=condition,
+            responsible=_responsible(r),
             location_id=r.issue_location_id,
             object_type="rental",
             object_id=r.id,
@@ -103,6 +112,7 @@ def _upcoming(now: datetime) -> int:
                 r.company_id,
                 "rental.return_overdue",
                 condition=condition,
+                responsible=_responsible(r),
                 location_id=place,
                 object_type="rental",
                 object_id=r.id,
@@ -118,6 +128,7 @@ def _upcoming(now: datetime) -> int:
             r.company_id,
             "rental.return_upcoming",
             condition=condition,
+            responsible=_responsible(r),
             location_id=place,
             object_type="rental",
             object_id=r.id,
@@ -195,6 +206,7 @@ def _inspections(now: datetime) -> int:
             r.company_id,
             "rental.inspection_missing",
             condition=condition,
+            responsible=_responsible(r),
             location_id=place,
             object_type="rental",
             object_id=r.id,
@@ -250,6 +262,7 @@ def _check_conflicts(now: datetime) -> int:
             r.company_id,
             event,
             condition=condition,
+            responsible=_responsible(r),
             location_id=r.return_location_id or r.issue_location_id,
             object_type="rental",
             object_id=r.id,
@@ -268,7 +281,72 @@ def run(now: datetime) -> int:
             + _check_conflicts(now)
             + _cancelled(now)
             + _missed_auto_cancel(now)
+            + _deposit_shortfall(now)
+            + _schedule_conflicts(now)
         )
+
+
+def _deposit_shortfall(now: datetime) -> int:
+    """§ 14.3.3 (block 16): a rental issued without the full deposit is a conflict with the
+    missing amount and a notification; a decision to allow it, or the full deposit, ends both."""
+    from c4rsys.finance import deposits
+
+    event = "rental.deposit_shortfall"
+    changed = 0
+    active: set[str] = set()
+    for r in Rental.objects.select_related("vehicle_card").filter(
+        state__in=(Rental.State.ACTIVE, Rental.State.RETURNED),
+        formalization_completed_at__isnull=True,
+    ):
+        data = deposits.figures(r)
+        if not data.conflict:
+            continue
+        condition = _condition(event, r.id)
+        active.add(condition)
+        changed += rules.raise_event(
+            r.company_id,
+            event,
+            condition=condition,
+            location_id=r.issue_location_id,
+            object_type="rental",
+            object_id=r.id,
+            params={**_params(r), "missing": str(data.missing), "currency": data.currency},
+            responsible=_responsible(r),
+            now=now,
+        )
+    return changed + _close_stale(event, active, "deposit_settled", now)
+
+
+def _schedule_conflicts(now: datetime) -> int:
+    """§ 14.6.2 (block 16): a late return that touches the next booking — the booking stays and
+    the responsible of its order is told; an employee resolves it by hand."""
+    from c4rsys.rentals import bookings
+
+    event = "rental.schedule_conflict"
+    changed = 0
+    active: set[str] = set()
+    for r in Rental.objects.select_related("vehicle_card").filter(
+        state=Rental.State.BOOKED,
+        planned_start__isnull=False,
+        planned_start__lte=now + timedelta(days=90),
+    ):
+        conflict = bookings.delay_conflict(r)
+        if conflict is None:
+            continue
+        condition = _condition(event, r.id)
+        active.add(condition)
+        changed += rules.raise_event(
+            r.company_id,
+            event,
+            condition=condition,
+            location_id=r.issue_location_id,
+            object_type="rental",
+            object_id=r.id,
+            params={**_params(r), "late_planned_end": conflict["planned_end"]},
+            responsible=_responsible(r),
+            now=now,
+        )
+    return changed + _close_stale(event, active, "schedule_conflict_settled", now)
 
 
 def _missed_auto_cancel(now: datetime) -> int:
@@ -276,9 +354,11 @@ def _missed_auto_cancel(now: datetime) -> int:
     booking is no longer waiting (issued or cancelled) or got a new auto-cancel moment."""
     from c4rsys.tasks import services as tasks
 
-    event = "rental.auto_cancel_missed"
     changed = 0
-    for n in Notification.objects.filter(event=event, state=Notification.State.ACTIVE):
+    for n in Notification.objects.filter(
+        event__in=("rental.auto_cancel_missed", "rental.auto_cancel_held"),
+        state=Notification.State.ACTIVE,
+    ):
         r = Rental.objects.filter(pk=str(n.object_id)).first()
         if r is not None and r.state == Rental.State.BOOKED and r.auto_cancel_at is None:
             continue

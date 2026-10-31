@@ -15,6 +15,11 @@ import { AVAILABLE_CONTEXTS, contextAvailable, moduleWorks } from "../../context
 
 // Only types whose modules work are offered (§ 4.1.9).
 const CONTEXT_TYPES = AVAILABLE_CONTEXTS;
+
+/** § 4.1.9: only the modules connected to the company by the platform administrator. */
+function connected(company: { modules?: string[] }, type: string): boolean {
+  return !company.modules || company.modules.includes(type);
+}
 const shown = (contexts: Location["contexts"]) => contexts.filter((c) => contextAvailable(c.type));
 
 export function useLocations() {
@@ -117,7 +122,7 @@ function CreateLocationForm({ onDone }: { onDone: () => void }) {
         </div>
         <div className="field">
           <span>{t("locations.contexts")}</span>
-          {CONTEXT_TYPES.map((type) => (
+          {CONTEXT_TYPES.filter((type) => connected(company, type)).map((type) => (
             <label key={type} style={{ marginRight: 16 }}>
               <input
                 type="checkbox"
@@ -243,7 +248,9 @@ function LocationCard({
   );
   const remove = useCommand<Record<string, never>, unknown>(base, "DELETE");
   const deactivated = location.state === "deactivated";
-  const missingTypes = CONTEXT_TYPES.filter((type) => !location.contexts.some((c) => c.type === type));
+  const missingTypes = CONTEXT_TYPES.filter(
+    (type) => connected(company, type) && !location.contexts.some((c) => c.type === type),
+  );
   const error =
     update.error ?? addContext.error ?? state.error ?? contextState.error ?? remove.error;
 

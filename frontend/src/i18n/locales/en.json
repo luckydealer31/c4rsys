@@ -369,7 +369,9 @@
     "edit": "Edit",
     "loading": "Loading…",
     "save": "Save",
-    "saved": "Saved."
+    "saved": "Saved.",
+    "archive_anyway": "Archive anyway",
+    "unconfigured_warning": "After this the location will be «not configured» and will take no new operations: {{locations}}. Existing bookings, rentals and orders go on."
   },
   "companies": {
     "company_id": "Company ID",
@@ -1262,7 +1264,13 @@
     "attribute_one_value": "Only one value for this attribute",
     "attribute_archived": "The attribute is archived",
     "manufacturer_exists": "Such a manufacturer exists",
-    "too_many_values": "Too many values"
+    "too_many_values": "Too many values",
+    "context_would_be_unconfigured": "This is the last one available: confirm the archive.",
+    "deposit_part_used": "The deposit part of this receipt is already used (free {{free}}): correct the deposit first.",
+    "previous_booking_not_cancelled": "Only a cancelled booking can be the previous one.",
+    "booking_unknown": "Booking not found.",
+    "module_not_connected": "This module is not connected to the company.",
+    "module_has_contexts": "The module has enabled contexts: disable them first."
   },
   "history": {
     "action": "Action",
@@ -1525,7 +1533,16 @@
     "condition_service_job_editing_service": "A work of the service is open for editing",
     "condition_service_job_editing_service_work": "A work of the service is open for editing",
     "operation_approval": "a position awaiting the client",
-    "condition_awaiting_client": "A position awaits the client's answer"
+    "condition_awaiting_client": "A position awaits the client's answer",
+    "payment_due": "Term of payment",
+    "payment_due_none": "no term",
+    "payment_due_set": "Set the term",
+    "payment_due_clear": "Remove the term",
+    "payment_due_hint": "After this date an unpaid balance is overdue.",
+    "overdue": "Payment overdue",
+    "filter_all": "All orders",
+    "filter_debt": "With debt",
+    "filter_overdue": "Overdue debt"
   },
   "payments": {
     "account": "Cash desk or account",
@@ -3156,7 +3173,8 @@
     "order": "Order",
     "reason": "Reason (required)",
     "refund_preview": "Payout ≈ {{amount}} {{currency}}",
-    "vehicle_with_client": "The vehicle is still with the client — refund anyway"
+    "vehicle_with_client": "The vehicle is still with the client — refund anyway",
+    "kind_correction": "Corrected with its receipt"
   },
   "bookings": {
     "new": "Book a vehicle",
@@ -3215,7 +3233,9 @@
     "policy_source_default": "by default",
     "action_exception": "Permit an exception",
     "deliveries_warning": "The vehicle has trips in this period; the booking is kept, check the timing:",
-    "restriction_conflict": "Conflict: the vehicle is restricted {{start}} — {{end}}; the issue is blocked while it lasts."
+    "restriction_conflict": "Conflict: the vehicle is restricted {{start}} — {{end}}; the issue is blocked while it lasts.",
+    "previous": "Made instead of booking № {{number}}",
+    "rebook": "New booking instead of this one"
   },
   "issue_rules": {
     "page_hint": "Rules of the issue and auto-cancel of bookings: for the whole company, and a location may have its own.",
@@ -3583,7 +3603,9 @@
     "open_job_hint": "The work stays done: its time and result do not change by the opening. Correct it and close it again; while it is open the service is not finished and the order is not closed.",
     "close_job": "Close",
     "job_editing": "Open for editing",
-    "blocker_service_job_editing": "A work is open for editing: close it to finish the service and close the order."
+    "blocker_service_job_editing": "A work is open for editing: close it to finish the service and close the order.",
+    "maintenance_on_create_hint": "Optional: rules by term or mileage with reminders; they can also be added later in the card.",
+    "remove_rule_draft": "Remove"
   },
   "trips": {
     "new": "New trip",
@@ -4021,7 +4043,10 @@
     "system_finance_debt": "Collect the debt of the order",
     "system_rental_auto_cancel_missed": "Decide on the booking whose auto-cancel passed during a block",
     "system_vehicle_restriction_during_operation": "Decide on the operation of the restricted vehicle",
-    "system_employee_rights_confirmation": "Confirm or decline especially broad rights"
+    "system_employee_rights_confirmation": "Confirm or decline especially broad rights",
+    "system_finance_payment_overdue": "Collect the overdue debt of the order",
+    "system_rental_auto_cancel_held": "Decide on the booking: auto-cancel held by a delivery",
+    "system_rental_exception_rejected": "Settle the violation of the rejected issue exception"
   },
   "notifications": {
     "title": "Notifications",
@@ -4114,7 +4139,15 @@
     "event_employee_rights_confirmation": "{{employee}}: especially broad rights wait for your confirmation",
     "rule_employee_rights_confirmation": "Confirmation of especially broad rights",
     "event_warehouse_low_stock": "Low stock: {{item}} in {{location}} — {{available}} of the minimum {{minimum}}",
-    "rule_warehouse_low_stock": "Stock below the minimum"
+    "rule_warehouse_low_stock": "Stock below the minimum",
+    "event_finance_payment_overdue": "The debt of order № {{number}} is overdue (term {{due_on}})",
+    "rule_finance_payment_overdue": "Overdue payment of a debt",
+    "event_rental_auto_cancel_held": "Booking № {{booking_number}} was not cancelled automatically: a delivery is on the way — decide on it ({{vehicle}})",
+    "rule_rental_auto_cancel_held": "Auto-cancel held by a delivery",
+    "event_rental_deposit_shortfall": "Rental {{vehicle}} is issued without the full deposit: {{missing}} {{currency}} missing",
+    "rule_rental_deposit_shortfall": "Issue without the full deposit",
+    "event_rental_schedule_conflict": "Booking № {{booking_number}} ({{vehicle}}): the vehicle is late from the previous rental — decide on the booking",
+    "rule_rental_schedule_conflict": "Schedule conflict with the next booking"
   },
   "reports": {
     "metric_rental_issues_today": "Issues expected today",
@@ -4273,7 +4306,20 @@
     "personal_empty": "Choose the metrics of this dashboard.",
     "personal_name": "Name",
     "personal_hint": "Only you see this dashboard. Each metric is counted by its own dashboard and your rights.",
-    "personal_remove": "Delete the dashboard"
+    "personal_remove": "Delete the dashboard",
+    "metric_finance_result_by_location": "Result by locations (charged − expenses)",
+    "metric_finance_result_by_vehicle": "Result by vehicles (charged − expenses)",
+    "metric_finance_service_costs": "Costs of service works",
+    "col_income": "Charged",
+    "col_result": "Result",
+    "col_order": "Order №",
+    "col_location": "Location of the result",
+    "col_execution": "Done in",
+    "col_expense_kind": "Expense",
+    "col_incomplete": "Cost incomplete",
+    "expense_contractor": "Contractor's work",
+    "expense_contractor_material": "Contractor's materials",
+    "expense_material": "Materials from stock"
   },
   "imports": {
     "title": "Import from XLSX",
@@ -5510,7 +5556,10 @@
     "operational_dispute_hint": "The vehicle is in the own or managed fleets of these companies. Make the needed changes with the existing tools (the correction of the ownership period; the company ends its management or archives its card), then record the decision.",
     "operational_dispute_close": "Record the decision",
     "nav_dictionaries": "Warehouse dictionaries",
-    "reason": "Reason"
+    "reason": "Reason",
+    "modules": "Connected modules",
+    "modules_hint": "The company can add only the contexts of the connected modules. A module with enabled contexts is not disconnected: they are disabled first.",
+    "save_modules": "Save the modules"
   },
   "staff_access": {
     "hint": "Date and time, the unit of c4rsys, the reason category and the viewed sections. The person of the staff member and the content of the ticket are not shown.",
@@ -5872,5 +5921,35 @@
     "value": "Value",
     "value_code": "Code of the value",
     "add_value": "One more value"
+  },
+  "search": {
+    "placeholder": "Search: number, ID, name, VIN, plate…",
+    "title": "Search",
+    "for": "Results for «{{q}}»",
+    "hint": "Type a number, an ID, a name, a VIN or a plate in the line at the top.",
+    "nothing": "Nothing found.",
+    "exact": "exact match",
+    "scope_note": "Only the records of the active company that you may open are shown.",
+    "kind_order": "Orders",
+    "kind_rental": "Bookings and rentals",
+    "kind_service_operation": "Service",
+    "kind_trip": "Trips",
+    "kind_payment": "Payments and money records",
+    "kind_document": "Documents",
+    "kind_vehicle": "Vehicles",
+    "kind_client": "Clients",
+    "kind_counterparty": "Counterparties",
+    "kind_item": "Goods",
+    "kind_task": "Tasks",
+    "numbered_order": "Order № {{number}}",
+    "numbered_rental": "Booking № {{number}}",
+    "numbered_service_operation": "Service operation № {{number}}",
+    "numbered_trip": "Trip № {{number}}",
+    "numbered_payment": "Money record № {{number}}",
+    "numbered_document": "Document № {{number}}",
+    "numbered_task": "Task № {{number}}",
+    "party_person": "person",
+    "party_company": "company",
+    "section_placeholder": "Search in the section"
   }
 }
