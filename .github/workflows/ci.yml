@@ -63,9 +63,18 @@ jobs:
       CI: "1"
     steps:
       - uses: actions/checkout@v4
-      - run: ./scripts/e2e.sh
+      - run: ./scripts/e2e.sh 2>&1 | tee e2e-dev.log
       # T20: the same scenario on the test server build (Caddy, gunicorn, DEBUG off).
-      - run: ./scripts/e2e.sh prod
+      - run: ./scripts/e2e.sh prod 2>&1 | tee e2e-prod.log
+      # The failure text as a public annotation: job logs need a signed-in account.
+      - if: failure()
+        run: |
+          for log in e2e-dev.log e2e-prod.log; do
+            [ -f "$log" ] || continue
+            text=$(grep -n -A25 -E "✘|Error|error:|exited with code" "$log" | head -80 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+            [ -n "$text" ] && echo "::error title=$log::$text"
+          done
+          true
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
