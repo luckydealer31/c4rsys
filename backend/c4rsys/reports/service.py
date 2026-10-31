@@ -56,7 +56,7 @@ def build(actor: Actor, company: Company, filters: Filters) -> list[Block]:
     from c4rsys.service import maintenance
     from c4rsys.service.models import ServiceJob, ServiceMaterial, ServiceOperation, ServicePost
 
-    where = area(actor, "service.view", company, filters)
+    where = area(actor, "service.view", company, filters, "service")
     if where is None:
         return []
     now = timezone.now()
@@ -66,11 +66,26 @@ def build(actor: Actor, company: Company, filters: Filters) -> list[Block]:
         ops = ops.filter(location_id__in=where.location_ids)
     if filters.vehicle_id:
         ops = ops.filter(vehicle_card_id=filters.vehicle_id)
+    # § 21.7.1: post, work of the system reference, executor and order. A work or an executor
+    # keeps the operations that have such a work, and only those works are counted.
+    if filters.post_id:
+        ops = ops.filter(post_id=filters.post_id)
+    if filters.order_number is not None:
+        ops = ops.filter(order__number=filters.order_number)
+    if filters.system_work:
+        ops = ops.filter(jobs__work__system_work_id=filters.system_work)
+    if filters.executor_id:
+        ops = ops.filter(jobs__executor_id=filters.executor_id)
+    ops = ops.distinct()
     period = ops.filter(created_at__gte=filters.start_at, created_at__lt=filters.end_at)
     by_state: dict[str, int] = defaultdict(int)
     for state in period.values_list("state", flat=True):
         by_state[state] += 1
     jobs = ServiceJob.objects.filter(operation__in=ops)
+    if filters.system_work:
+        jobs = jobs.filter(work__system_work_id=filters.system_work)
+    if filters.executor_id:
+        jobs = jobs.filter(executor_id=filters.executor_id)
     job_states: dict[str, int] = defaultdict(int)
     for state in jobs.filter(
         created_at__gte=filters.start_at, created_at__lt=filters.end_at
@@ -98,6 +113,8 @@ def build(actor: Actor, company: Company, filters: Filters) -> list[Block]:
     posts = ServicePost.objects.filter(company=company, state="active").select_related("location")
     if not where.whole:
         posts = posts.filter(location_id__in=where.location_ids)
+    if filters.post_id:
+        posts = posts.filter(pk=filters.post_id)
     post_rows = []
     for post in posts.order_by("location__name", "name"):
         spans = []

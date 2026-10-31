@@ -201,13 +201,32 @@ export type Location = {
   address: string;
   state: "draft" | "active" | "deactivated";
   version: number;
-  schedule: { weekly: Record<string, { from: string; to: string }[]>; exceptions: unknown[] };
+  schedule: Schedule & { version: number };
   contexts: {
     id: string;
     type: ContextType;
     state: string;
     ready: boolean;
+    /** § 4.2.4: the source of the schedule in force; `version` is 0 while it inherits. */
+    schedule: { source: "location" | "own"; version: number; own: Schedule | null };
   }[];
+};
+
+/** Weekly intervals in the local time of the location and exceptions on dates (§ 22.1.6). */
+export type ScheduleInterval = { from: string; to: string };
+export type Schedule = {
+  weekly: Record<string, ScheduleInterval[]>;
+  exceptions: { date: string; intervals: ScheduleInterval[] }[];
+};
+
+/** A future operation outside the schedule (§ 22.1.6). */
+export type ScheduleConflict = {
+  object_type: "rental" | "service_operation";
+  object_id: string;
+  number: string;
+  role: "issue" | "return" | "start" | "end";
+  at: string;
+  context_type: ContextType;
 };
 
 export type CashAccount = {
@@ -2029,6 +2048,8 @@ export type CompanyDocument = {
   /** «Show to the client» in the personal cabinet (decision Б-2). */
   show_to_client: boolean;
   locations: string[];
+  /** § 18.5.4: contexts of other locations chosen as the scope. */
+  contexts?: string[];
   valid_until: string | null;
   warn_days: number | null;
   warning: "expiring" | "expired" | null;
@@ -2123,6 +2144,8 @@ export type WorkTask = {
   state: "open" | "in_progress" | "waiting" | "paused" | "done" | "cancelled";
   state_note: string;
   location_id: string | null;
+  /** § 19.1.7: a context of the location, when the task is narrowed to it. */
+  context_id?: string | null;
   assignee_id: string | null;
   assignee_name: string | null;
   is_mine: boolean;
@@ -2151,6 +2174,8 @@ export type WorkTask = {
     ends_on: string | null;
     next_on: string | null;
     state: "active" | "paused" | "stopped";
+    /** § 19.2.2: reminders of every repetition, minutes before its deadline. */
+    reminders?: number[];
   } | null;
   series_on: string | null;
   description: string;

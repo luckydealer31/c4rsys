@@ -26,6 +26,12 @@ def _people(d: Document) -> list[UUID]:
     found: set[UUID] = set()
     for location_id in services.location_ids(d):
         found |= set(notifications.with_permission(d.company_id, "documents.view", location_id))
+    for context_id, location_id in services.scope_contexts(d):
+        found |= set(
+            notifications.with_permission(
+                d.company_id, "documents.view", location_id, context_id=context_id
+            )
+        )
     return sorted(found) or notifications.heads(d.company_id)
 
 

@@ -26,6 +26,11 @@ class ServiceConfig(AppConfig):
         from c4rsys.service import search as service_search
 
         platform_search.register("service_operation", service_search.provider)
+        # § 22.1.6 (block 16 B): planned service records for the conflicts of a schedule.
+        from c4rsys.companies import schedules
+        from c4rsys.service import schedule_points
+
+        schedules.register_points(schedule_points.points)
         from c4rsys.companies import locations, readiness
         from c4rsys.fleet import moves
         from c4rsys.fleet import services as fleet
@@ -69,6 +74,8 @@ class ServiceConfig(AppConfig):
         settlements.register_obligations(operations.contractor_obligations)
         # § 20.3.5: maintenance due and works done in the notification centre.
         notifications.register_check(notices.run)
+        # § 20.3.5, § 19.1.9 (block 16 B): overdue service works.
+        notifications.register_check(notices.overdue)
         rules.on_journal("service_operation.works_done", notices.on_works_done)
         # Chapter 10: inspections of a service operation (§ 10.1.1).
         from c4rsys.inspections import links as inspection_links

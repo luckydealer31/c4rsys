@@ -51,6 +51,14 @@ class Task(models.Model):
     location = models.ForeignKey(
         Location, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
+    # A context of the location, when needed (§ 19.1.7; block 16 B).
+    context = models.ForeignKey(
+        "companies.ActivityContext",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
     # None — the common queue (§ 19.1.2, § 19.1.6).
     assignee = models.ForeignKey(
         Employment, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
@@ -111,6 +119,10 @@ class Task(models.Model):
             models.CheckConstraint(
                 condition=Q(series__isnull=True) | Q(series_on__isnull=False),
                 name="task_series_has_date",
+            ),
+            models.CheckConstraint(
+                condition=Q(context__isnull=True) | Q(location__isnull=False),
+                name="task_context_needs_location",
             ),
             models.CheckConstraint(
                 condition=Q(source="manual", system_event="")
@@ -342,12 +354,21 @@ class TaskSeries(models.Model):
     location = models.ForeignKey(
         Location, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
+    context = models.ForeignKey(
+        "companies.ActivityContext",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
     assignee = models.ForeignKey(
         Employment, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
     object_type = models.CharField(max_length=20, blank=True, default="")
     object_id = models.UUIDField(null=True, blank=True)
     due_time = models.TimeField(null=True, blank=True)
+    # § 19.2.2 (block 16 B): reminders of every repetition, minutes before its deadline.
+    reminders = models.JSONField(default=list, blank=True)
     checklist = models.JSONField(default=list, blank=True)
     checklist_required = models.BooleanField(default=False)
     group = models.ForeignKey(

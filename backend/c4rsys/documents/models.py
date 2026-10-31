@@ -3,8 +3,8 @@
 * A document belongs to the company and has a title, a kind, a date, a number, an author and the
   state of signing; it may be linked to several objects and seen from each without copies, or
   have no links and live in the registry only (§ 18.1.9–18.1.10).
-* The scope of access is set on the document: the whole company or chosen locations; links do not
-  widen it (§ 18.5.3–18.5.4).
+* The scope of access is set on the document: the whole company or chosen locations and contexts;
+  links do not widen it (§ 18.5.3–18.5.4).
 * Each change of the content is a new version; the former versions stay (§ 18.1.14, § 18.3.5).
 * A term of validity gives one lasting warning some days before the end, until the cause is
   removed: a new version or the archive (§ 18.1.13–18.1.14).
@@ -59,7 +59,7 @@ class Document(models.Model):
     kind = models.ForeignKey(DocumentKind, on_delete=models.PROTECT, related_name="+")
     document_date = models.DateField()
     author_user_id = models.UUIDField()
-    # The scope (§ 18.5.4): the whole company, or the listed locations.
+    # The scope (§ 18.5.4): the whole company, or the listed locations and contexts.
     all_locations = models.BooleanField(default=True)
     valid_until = models.DateField(null=True, blank=True)
     warn_days = models.PositiveIntegerField(null=True, blank=True)
@@ -118,6 +118,27 @@ class DocumentLocation(models.Model):
 
     def __str__(self) -> str:
         return f"{self.document_id}@{self.location_id}"
+
+
+class DocumentContext(models.Model):
+    """A context of a location chosen as the scope of the document (§ 18.5.4, block 16 B): the
+    employee needs the right in that context. A location chosen as a whole stays in
+    `DocumentLocation`."""
+
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name="contexts")
+    context = models.ForeignKey(
+        "companies.ActivityContext", on_delete=models.PROTECT, related_name="+"
+    )
+
+    class Meta:
+        db_table = "document_context"
+        constraints = [
+            models.UniqueConstraint(fields=["document", "context"], name="document_context_uniq"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.document_id}@{self.context_id}"
 
 
 class DocumentVersion(models.Model):
@@ -218,6 +239,8 @@ class DocumentTemplate(models.Model):
         CLIENT = "client"
         VEHICLE = "vehicle"
         INSPECTION = "inspection"  # a saved inspection: the act of inspection (decision В-8.3)
+        COUNTERPARTY = "counterparty"  # § 18.1.1, § 18.1.6 (block 16 B)
+        PAYMENT = "payment"  # a settlement record of finance (§ 18.1.6, decision Р-3)
         NONE = "none"
 
     class State(models.TextChoices):

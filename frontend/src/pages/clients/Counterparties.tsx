@@ -11,6 +11,7 @@ import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { CardBadges, contactText, extraContacts, MessengerField } from "./ClientsPage";
 import { ContractorHistoryCard, ExtendedFieldsCard, MergeCard, ProvisionalForm } from "./CardExtras";
+import { LinkedDocuments } from "../documents/DocumentsPage";
 
 type Texts = { registration: string; address: string; category: string; external_id: string };
 
@@ -355,6 +356,8 @@ export function CounterpartyPage() {
         onChanged={refresh}
       />
       {data.kind === "company" ? <ContractorHistoryCard counterpartyId={data.id} /> : null}
+      {/* § 18.1.1–18.1.2: documents of the relations with the counterparty. */}
+      <LinkedDocuments objectType="counterparty" objectId={data.id} />
       <MergeCard cardType="counterparty" card={data} onChanged={refresh} />
     </div>
   );

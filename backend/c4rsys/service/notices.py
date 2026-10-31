@@ -100,3 +100,58 @@ def on_works_done(entry: AuditEvent) -> int:
             done=True,
         )
     )
+
+
+OVERDUE = "service.work_overdue"
+
+
+def overdue(now: datetime) -> int:
+    """§ 20.3.5, § 19.1.9 (block 16 B): an unfinished service operation past its planned end (as
+    the dashboard «Service» counts it). A warning while it lasts; with the company's rule — also
+    an automatic task. Both end when the operation is finished, cancelled or gets a new plan."""
+    from c4rsys.orders import services as orders
+    from c4rsys.service.models import OPEN_STATES
+    from c4rsys.tasks import services as tasks
+
+    changed = 0
+    late: set[str] = set()
+    with transaction.atomic():
+        for op in ServiceOperation.objects.select_related("vehicle_card").filter(
+            state__in=OPEN_STATES, planned_end__lt=now
+        ):
+            condition = f"{OVERDUE}:{op.id}"
+            late.add(condition)
+            params: dict[str, Any] = {
+                "number": op.number,
+                "vehicle": op.vehicle_card.name if op.vehicle_card_id else None,
+                "planned_end": op.planned_end.isoformat() if op.planned_end else None,
+            }
+            responsible = [orders.responsible_of(op.order_id)] if op.order_id else []
+            changed += rules.raise_event(
+                op.company_id,
+                OVERDUE,
+                condition=condition,
+                location_id=op.location_id,
+                object_type="service_operation",
+                object_id=op.id,
+                params=params,
+                responsible=responsible,
+                now=now,
+            )
+            if rules.rule(op.company_id, OVERDUE).auto_task and tasks.ensure_system(
+                op.company_id,
+                event=OVERDUE,
+                condition=condition,
+                location_id=op.location_id,
+                object_type="service_operation",
+                object_id=op.id,
+                params=params,
+                priority="normal",
+            ):
+                changed += 1
+        for n in Notification.objects.filter(event=OVERDUE, state=Notification.State.ACTIVE):
+            if n.condition not in late:
+                notifications.resolve(n.company_id, n.condition, "service_not_overdue", now)
+                changed += 1
+        changed += tasks.close_stale_system(OVERDUE, late, done=True, result="service_not_overdue")
+    return changed

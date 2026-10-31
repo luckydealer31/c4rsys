@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
+from django.db.models import Q
 from django.http import HttpRequest, JsonResponse
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods, require_POST
@@ -142,6 +143,33 @@ def _summary(card: VehicleCard) -> dict[str, Any]:
     }
 
 
+def _only(cards: Any, only: str) -> Any:
+    """`unavailable` — a restriction in force now (§ 8.8) or an open dispute of ownership or
+    management (В-12.3); `identifier_conflict` — a party of an open conflict (§ 8.6.1)."""
+    from c4rsys.fleet.models import (
+        IdentifierConflictParty,
+        VehicleOperationalDisputeParty,
+        VehicleRestriction,
+    )
+
+    if only == "unavailable":
+        now = timezone.now()
+        restricted = VehicleRestriction.objects.filter(period__contains=now).values(
+            "vehicle_card_id"
+        )
+        disputed = VehicleOperationalDisputeParty.objects.filter(dispute__is_open=True).values(
+            "vehicle_card_id"
+        )
+        return cards.filter(Q(pk__in=restricted) | Q(pk__in=disputed))
+    if only == "identifier_conflict":
+        return cards.filter(
+            pk__in=IdentifierConflictParty.objects.filter(
+                left_at__isnull=True, conflict__is_open=True
+            ).values("vehicle_card_id")
+        )
+    raise errors.validation_error("only")
+
+
 @require_http_methods(["GET", "POST"])
 def vehicle_list(request: HttpRequest, cmp: str) -> JsonResponse:
     context, actor = _actor(request, cmp)
@@ -153,6 +181,10 @@ def vehicle_list(request: HttpRequest, cmp: str) -> JsonResponse:
             from c4rsys.platform.search import parse
 
             cards = search.matching(cards, parse(request.GET["q"]))
+        only = request.GET.get("only", "")
+        if only:
+            # § 21.3.1: the list a block of the overview is counted from.
+            cards = _only(cards, only)
         items = [_payload(c) for c in cards if _allowed(actor, "vehicle.view", c)]
         return JsonResponse({"vehicles": items})
 

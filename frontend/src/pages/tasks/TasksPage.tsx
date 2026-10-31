@@ -185,6 +185,7 @@ export function NewTask({ target, onDone }: { target?: TaskTarget; onDone?: () =
   const [priority, setPriority] = useState("normal");
   const [assign, setAssign] = useState("self");
   const [location, setLocation] = useState("");
+  const [contextId, setContextId] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [dueTime, setDueTime] = useState("");
   const [checklist, setChecklist] = useState("");
@@ -227,7 +228,11 @@ export function NewTask({ target, onDone }: { target?: TaskTarget; onDone?: () =
     };
     // With an object the scope follows it (§ 19.1.7); without one the employee chooses.
     if (target) body.object = { object_type: target.objectType, object_id: target.objectId };
-    else body.location_id = location || null;
+    else {
+      body.location_id = location || null;
+      // § 19.1.7: optionally one context of the location.
+      if (location && contextId) body.context_id = contextId;
+    }
     const result = await create.run(body);
     if (result) {
       setTitle("");
@@ -261,13 +266,33 @@ export function NewTask({ target, onDone }: { target?: TaskTarget; onDone?: () =
         <div className="row">
           {!target ? (
             <Field label={t("tasks.scope")}>
-              <select value={location} onChange={(e) => setLocation(e.target.value)}>
+              <select
+                value={location}
+                onChange={(e) => {
+                  setLocation(e.target.value);
+                  setContextId("");
+                }}
+              >
                 <option value="">{t("tasks.whole_company")}</option>
                 {(locations.data?.locations ?? []).map((l) => (
                   <option key={l.id} value={l.id}>
                     {l.name}
                   </option>
                 ))}
+              </select>
+            </Field>
+          ) : null}
+          {!target && location ? (
+            <Field label={t("tasks.context")}>
+              <select value={contextId} onChange={(e) => setContextId(e.target.value)}>
+                <option value="">{t("tasks.all_contexts")}</option>
+                {(locations.data?.locations.find((l) => l.id === location)?.contexts ?? [])
+                  .filter((c) => c.state === "enabled")
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {t(`contexts.${c.type}`)}
+                    </option>
+                  ))}
               </select>
             </Field>
           ) : null}
@@ -399,6 +424,8 @@ export function TaskPage() {
   const [reason, setReason] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [dueTime, setDueTime] = useState("");
+  const [reminders, setReminders] = useState<number[] | null>(null);
+  const following = useCommand<Record<string, unknown>, unknown>(`${base}/repeat`);
   const [text, setText] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [uploadError, setUploadError] = useState<ApiError | null>(null);
@@ -458,7 +485,58 @@ export function TaskPage() {
           <dt>{t("tasks.due")}</dt>
           <dd>
             {x.due_at ? when(x.due_at) : "—"}
-            {x.reminders.length ? ` · ${t("tasks.reminders")}: ${x.reminders.map((m) => reminderText(t, m)).join(", ")}` : ""}
+            {x.reminders.length && reminders === null ? ` · ${t("tasks.reminders")}: ${x.reminders.map((m) => reminderText(t, m)).join(", ")}` : ""}
+            {/* § 19.2.2: reminders are changed later too; for a repetition also «this and the following». */}
+            {active && x.due_at && reminders === null && runner ? (
+              <>
+                {" "}
+                <button type="button" className="link" onClick={() => setReminders([...x.reminders])}>
+                  {t("tasks.edit_reminders")}
+                </button>
+              </>
+            ) : null}
+            {reminders !== null ? (
+              <div className="stack" style={{ marginTop: 8 }}>
+                <RemindersField value={reminders} onChange={setReminders} />
+                <div className="actions">
+                  <button
+                    type="button"
+                    disabled={change.pending}
+                    onClick={() =>
+                      void change.run({ expected_version: x.version, reminders }).then(async (r) => {
+                        if (r) {
+                          setReminders(null);
+                          await refresh();
+                        }
+                      })
+                    }
+                  >
+                    {t("tasks.save_reminders")}
+                  </button>
+                  {x.series && x.can.manage && x.series.state !== "stopped" ? (
+                    <button
+                      type="button"
+                      className="secondary"
+                      disabled={following.pending}
+                      onClick={() =>
+                        void following.run({ action: "change", expected_version: x.series?.version, reminders }).then(async (r) => {
+                          if (r) {
+                            setReminders(null);
+                            await refresh();
+                          }
+                        })
+                      }
+                    >
+                      {t("tasks.save_reminders_following")}
+                    </button>
+                  ) : null}
+                  <button type="button" className="secondary" onClick={() => setReminders(null)}>
+                    {t("tasks.cancel_edit")}
+                  </button>
+                </div>
+                <ErrorMessage error={change.error ?? following.error} />
+              </div>
+            ) : null}
           </dd>
           <dt>{t("tasks.created_by")}</dt>
           <dd>

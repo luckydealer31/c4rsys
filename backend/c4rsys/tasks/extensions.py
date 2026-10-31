@@ -70,7 +70,7 @@ def _reaches(start: UUID, target: UUID) -> bool:
 def _manage(ctx: CommandContext, t: Task) -> None:
     from c4rsys.tasks import services
 
-    if not services.has(ctx.actor, "tasks.manage", t.location_id):
+    if not services.has(ctx.actor, "tasks.manage", t.location_id, context_id=t.context_id):
         raise errors.permission_denied("tasks.manage")
 
 

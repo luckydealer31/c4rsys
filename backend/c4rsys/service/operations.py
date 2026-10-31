@@ -408,6 +408,8 @@ def create_operation(ctx: CommandContext, company: Company, data: NewOperation) 
     _check_vehicle(card)
     if data.location_id is not None:
         catalog.require_service_location(company.id, data.location_id, "location_id")
+        # TODO(spec): § 4.2.3 — a service record outside the schedule of the context: warning
+        # and a permission not named by the spec (companies.schedules.context_schedule).
     elif data.counterparty_id is None:
         raise errors.validation_error("location_id", code="FIELD_REQUIRED")
     if data.counterparty_id is not None:

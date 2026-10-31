@@ -10,7 +10,7 @@ from django.http import HttpRequest, JsonResponse
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from c4rsys.accounts.middleware import require_user
-from c4rsys.companies import access, history, locations, ownership, services
+from c4rsys.companies import access, history, locations, ownership, schedules, services
 from c4rsys.companies.models import ActivityContext, Company, Location
 from c4rsys.companies.permissions import PERMISSIONS
 from c4rsys.platform import errors
@@ -283,13 +283,19 @@ def _location_payload(location: Location) -> dict[str, Any]:
         "address": location.address,
         "state": locations.location_state(location, contexts),
         "version": location.version,
-        "schedule": {"weekly": schedule.weekly, "exceptions": schedule.exceptions},
+        "schedule": {
+            "weekly": schedule.weekly,
+            "exceptions": schedule.exceptions,
+            "version": schedule.version,
+        },
         "contexts": [
             {
                 "id": str(c.id),
                 "type": c.type,
                 "state": c.state,
                 "ready": locations.context_ready(c),
+                # § 4.2.4: the source of the schedule in force — the location or an own one.
+                "schedule": schedules.payload_of_context(c),
             }
             for c in contexts
         ],
@@ -482,3 +488,72 @@ def context_enable(
     request: HttpRequest, cmp: str, location_id: UUID, context_id: UUID
 ) -> JsonResponse:
     return _context_state_command(request, cmp, location_id, context_id, enabled=True)
+
+
+# --- Schedules (§ 4.2.3, § 4.2.4, § 22.1.6; block 16 B) -----------------------------------------
+
+
+def _schedule_body(data: dict[str, Any]) -> tuple[dict[str, list[dict[str, str]]], list[Any]]:
+    return (
+        schedules.validate_weekly(data.get("weekly")),
+        schedules.validate_exceptions(data.get("exceptions", [])),
+    )
+
+
+@require_http_methods(["GET", "PUT"])
+def location_schedule(request: HttpRequest, cmp: str, location_id: UUID) -> JsonResponse:
+    """GET — the conflicts of future operations with the schedules in force; PUT — a new weekly
+    schedule and date exceptions `{weekly, exceptions, expected_version}`. Both by the right
+    «location.edit» in the location (PROPOSAL: the conflicts name bookings and service records)."""
+    context, actor = _settings_actor(request, cmp, "location.edit", location_id)
+    location = locations.get_location(context.company.id, location_id)
+    if request.method == "GET":
+        return JsonResponse({"conflicts": schedules.conflicts(location)})
+    data = parse_json(request)
+    expected_version = get_int(data, "expected_version")
+    weekly, exceptions = _schedule_body(data)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        found = schedules.set_location_schedule(
+            ctx, context.company.id, location_id, weekly, exceptions, expected_version
+        )
+        location = locations.get_location(context.company.id, location_id)
+        return CommandResult(200, {"location": _location_payload(location), "conflicts": found})
+
+    payload = {
+        "location_id": str(location_id),
+        "weekly": weekly,
+        "exceptions": exceptions,
+        "expected_version": expected_version,
+    }
+    return run_and_respond(request, "location.set_schedule", actor, payload, handler)
+
+
+@require_http_methods(["PUT", "DELETE"])
+def context_schedule(
+    request: HttpRequest, cmp: str, location_id: UUID, context_id: UUID
+) -> JsonResponse:
+    """PUT — an own schedule of the context `{weekly, exceptions, expected_version}`; DELETE —
+    «restore inheritance» `{expected_version}` (§ 4.2.4). `expected_version` is 0 while the
+    context inherits. Right «location.edit» in the location (PROPOSAL)."""
+    context, actor = _settings_actor(request, cmp, "location.edit", location_id)
+    locations.get_location(context.company.id, location_id)
+    data = parse_json(request)
+    expected_version = get_int(data, "expected_version")
+    body = _schedule_body(data) if request.method == "PUT" else None
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        found = schedules.set_context_schedule(
+            ctx, context.company.id, location_id, context_id, body, expected_version
+        )
+        location = locations.get_location(context.company.id, location_id)
+        return CommandResult(200, {"location": _location_payload(location), "conflicts": found})
+
+    payload: dict[str, Any] = {
+        "location_id": str(location_id),
+        "context_id": str(context_id),
+        "schedule": {"weekly": body[0], "exceptions": body[1]} if body else None,
+        "expected_version": expected_version,
+    }
+    name = "location.set_context_schedule" if body else "location.inherit_context_schedule"
+    return run_and_respond(request, name, actor, payload, handler)

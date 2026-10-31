@@ -135,6 +135,7 @@ def _payload(
         "state": t.state,
         "state_note": t.state_note,
         "location_id": str(t.location_id) if t.location_id else None,
+        "context_id": str(t.context_id) if t.context_id else None,
         "assignee_id": str(t.assignee_id) if t.assignee_id else None,
         "assignee_name": names.get(t.assignee_id) if t.assignee_id else None,
         "is_mine": t.assignee_id is not None and t.assignee_id == actor.employment_id,
@@ -188,7 +189,9 @@ def _payload(
                     history.object_history(t.company_id, [("task", str(t.id))])
                 ),
                 "can": {
-                    p.replace("tasks.", ""): services.has(actor, p, t.location_id)
+                    p.replace("tasks.", ""): services.has(
+                        actor, p, t.location_id, context_id=t.context_id
+                    )
                     for p in ("tasks.manage", "tasks.own", "tasks.queue")
                 },
                 "policy": _policy_payload(services.policy_of(t.company_id)),
@@ -265,6 +268,8 @@ def task_list(request: HttpRequest, cmp: str) -> JsonResponse:
             query = query.filter(tag_links__tag_id=_uuid(params["tag"], "tag"))
         if params.get("group"):
             query = query.filter(group_id=_uuid(params["group"], "group"))
+        if params.get("context"):
+            query = query.filter(context_id=_uuid(params["context"], "context"))
         if params.get("q", "").strip():
             # § 2.8.3: by the number or the id, a part of the title and the tags.
             from c4rsys.platform.search import parse
@@ -293,6 +298,7 @@ def task_list(request: HttpRequest, cmp: str) -> JsonResponse:
         assign=get_str(data, "assign", max_length=40, required=False) or "self",
         location_id=_uuid(data.get("location_id"), "location_id"),
         location_given="location_id" in data,
+        context_id=_uuid(data.get("context_id"), "context_id"),
         main=_link(data.get("object"), "object"),
         links=[x for x in (_link(item, "links") for item in links) if x is not None],
         due=_due(data),
@@ -318,6 +324,7 @@ def task_list(request: HttpRequest, cmp: str) -> JsonResponse:
             "priority",
             "assign",
             "location_id",
+            "context_id",
             "object",
             "links",
             "due_date",
@@ -407,7 +414,7 @@ ACTIONS: dict[str, Callable[[CommandContext, Task, dict[str, Any]], Any]] = {
 def _editor(ctx: CommandContext, t: Task) -> None:
     """Choosing existing groups and tags goes with editing the task (§ 23.9.5)."""
     if t.created_by_employment_id != ctx.actor.employment_id:
-        if not services.has(ctx.actor, "tasks.manage", t.location_id):
+        if not services.has(ctx.actor, "tasks.manage", t.location_id, context_id=t.context_id):
             raise errors.permission_denied("tasks.manage")
 
 
@@ -492,9 +499,10 @@ def assignees(request: HttpRequest, cmp: str) -> JsonResponse:
     """Who may be the executor in a scope (§ 19.1.6): for «manage» and for oneself."""
     context, actor = _actor(request, cmp)
     location_id = _uuid(request.GET.get("location_id"), "location_id")
-    if not services.has(actor, "tasks.manage", location_id):
+    context_id = _uuid(request.GET.get("context_id"), "context_id")
+    if not services.has(actor, "tasks.manage", location_id, context_id=context_id):
         raise errors.permission_denied("tasks.manage")
-    ids = services.candidates(context.company.id, location_id)
+    ids = services.candidates(context.company.id, location_id, context_id)
     names = staff.employee_names(context.company.id, set(ids)) if ids else {}
     found = sorted(((str(x), names.get(x, "")) for x in ids), key=lambda pair: pair[1])
     return JsonResponse({"employees": [{"id": i, "name": n} for i, n in found]})
@@ -659,6 +667,7 @@ def task_repeat(request: HttpRequest, cmp: str, task_id: UUID) -> JsonResponse:
             checklist_required=data["checklist_required"]
             if isinstance(data.get("checklist_required"), bool)
             else None,
+            reminders=_minutes(data.get("reminders")) if "reminders" in data else None,
         )
     states = {"pause": "paused", "resume": "active", "stop": "stopped"}
 

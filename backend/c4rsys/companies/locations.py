@@ -329,6 +329,11 @@ def storage_context(company_id: UUID, context_id: UUID) -> ActivityContext | Non
     )
 
 
+def contexts_of(company_id: UUID) -> QuerySet[ActivityContext]:
+    """Every context of the company's locations (for scopes of other modules)."""
+    return ActivityContext.objects.filter(company_id=company_id)
+
+
 def location_exists(company_id: UUID, location_id: UUID) -> bool:
     return Location.objects.filter(company_id=company_id, pk=location_id).exists()
 

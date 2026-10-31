@@ -1270,7 +1270,17 @@
     "previous_booking_not_cancelled": "Предыдущей может быть только отменённая бронь.",
     "booking_unknown": "Бронь не найдена.",
     "module_not_connected": "Этот модуль не подключён компании.",
-    "module_has_contexts": "У модуля есть включённые контексты: сначала отключите их."
+    "module_has_contexts": "У модуля есть включённые контексты: сначала отключите их.",
+    "schedule_time_invalid": "Укажите время в формате ЧЧ:ММ.",
+    "schedule_intervals_invalid": "Интервалы расписания заполнены неверно (не больше 6 в день).",
+    "schedule_interval_empty": "Конец интервала должен быть позже начала.",
+    "schedule_intervals_overlap": "Интервалы одного дня пересекаются.",
+    "schedule_week_invalid": "В недельном расписании должны быть все дни недели.",
+    "schedule_exceptions_invalid": "Исключения по датам заполнены неверно.",
+    "schedule_date_repeated": "Для этой даты исключение уже задано.",
+    "schedule_already_inherited": "Контекст уже следует расписанию локации.",
+    "context_unknown": "Неизвестный контекст.",
+    "task_context_needs_location": "Для контекста нужна локация задачи."
   },
   "history": {
     "action": "Действие",
@@ -1381,7 +1391,29 @@
     "state_active": "Активна",
     "state_deactivated": "Деактивирована",
     "state_draft": "Черновик",
-    "timezone_hint": "По умолчанию — пояс компании."
+    "timezone_hint": "По умолчанию — пояс компании.",
+    "schedule_title": "Расписание",
+    "schedule_hint": "Недельное расписание локации по её местному времени и исключения по датам. Изменение не переписывает уже созданные операции.",
+    "schedule_closed": "закрыто",
+    "schedule_add_interval": "+ интервал",
+    "schedule_remove": "Удалить",
+    "schedule_exceptions": "Исключения по датам",
+    "schedule_add_exception": "Добавить дату",
+    "schedule_edit": "Изменить расписание",
+    "schedule_save": "Сохранить расписание",
+    "schedule_source_location": "как у локации",
+    "schedule_source_own": "собственное расписание",
+    "schedule_set_own": "Своё расписание",
+    "schedule_inherit": "Вернуть наследование",
+    "schedule_conflicts": "Будущие операции вне расписания",
+    "schedule_conflicts_none": "Будущих операций вне расписания нет.",
+    "schedule_conflicts_check": "Проверить конфликты",
+    "conflict_rental": "Бронь № {{number}}",
+    "conflict_service_operation": "Сервис № {{number}}",
+    "conflict_role_issue": "плановая выдача",
+    "conflict_role_return": "плановый возврат",
+    "conflict_role_start": "плановое начало",
+    "conflict_role_end": "плановое окончание"
   },
   "money": {
     "account": "Касса или счёт",
@@ -1427,7 +1459,8 @@
     "kind_reversal": "Сторно",
     "tab_settlements": "Расчёты",
     "kind_deposit": "Возврат залога",
-    "total_currency": "Показать итог в"
+    "total_currency": "Показать итог в",
+    "make_document": "Документ"
   },
   "moves": {
     "actual_end": "Фактическое окончание",
@@ -2515,7 +2548,10 @@
     "owner_data_apply": "Обновить данные",
     "owner_newer_mark": "у собственника новее: {{value}}",
     "not_owner_hint": "Ваша компания не собственник этого ТС: изменённые характеристики сохраняются только в вашей карточке, данные собственника не меняются.",
-    "operational_dispute_open": "c4rsys разбирает владение или управление этим ТС (конфликт № {{number}})."
+    "operational_dispute_open": "c4rsys разбирает владение или управление этим ТС (конфликт № {{number}}).",
+    "only_unavailable": "ТС, недоступные из-за ограничения или конфликта",
+    "only_identifier_conflict": "ТС в неразрешённых конфликтах идентификаторов",
+    "only_reset": "Показать все"
   },
   "warehouse": {
     "action_create": "Создать",
@@ -3851,7 +3887,13 @@
     "presented_by_employee": "показано на устройстве сотрудника",
     "signature_image": "Подпись",
     "signatures": "Подписи",
-    "object_employment": "Сотрудник"
+    "object_employment": "Сотрудник",
+    "source_counterparty": "Контрагент",
+    "source_payment": "Расчётная запись",
+    "scope_change": "Изменить",
+    "scope_chosen": "Выбранные локации и контексты",
+    "scope_save": "Сохранить область",
+    "scope_cancel": "Отмена"
   },
   "document_fields": {
     "company__name": "Название компании",
@@ -3918,7 +3960,24 @@
     "inspection__photo_count": "Осмотр: число снимков",
     "inspection__video_count": "Осмотр: число видео",
     "inspection__damages": "Таблица: повреждения",
-    "inspection__photos": "Таблица: фото по позициям"
+    "inspection__photos": "Таблица: фото по позициям",
+    "counterparty__full_name": "Имя или название контрагента",
+    "counterparty__phone": "Телефон контрагента",
+    "counterparty__email": "Email контрагента",
+    "counterparty__registration": "Регистрационные и налоговые данные контрагента",
+    "counterparty__address": "Адрес контрагента",
+    "payment__number": "Номер записи",
+    "payment__date": "Дата и время записи",
+    "payment__kind": "Вид записи",
+    "payment__amount": "Сумма записи",
+    "payment__method": "Способ оплаты",
+    "payment__account": "Касса или счёт",
+    "payment__payer": "Плательщик или получатель",
+    "payment__orders": "Заказы записи",
+    "payment__order_amount": "Сумма в оплату заказов",
+    "payment__deposit_amount": "Сумма в залог",
+    "payment__comment": "Комментарий записи",
+    "payment__parts": "Таблица: части записи"
   },
   "tasks": {
     "none": "Задач нет",
@@ -4046,7 +4105,17 @@
     "system_employee_rights_confirmation": "Подтвердить или отклонить особо широкие права",
     "system_finance_payment_overdue": "Взыскать просроченный долг по заказу",
     "system_rental_auto_cancel_held": "Решить по брони: автоотмена остановлена доставкой",
-    "system_rental_exception_rejected": "Урегулировать нарушение по отклонённому исключению выдачи"
+    "system_rental_exception_rejected": "Урегулировать нарушение по отклонённому исключению выдачи",
+    "context": "Контекст",
+    "all_contexts": "Все контексты локации",
+    "edit_reminders": "Изменить напоминания",
+    "save_reminders": "Сохранить для этой задачи",
+    "save_reminders_following": "Сохранить для этой и следующих",
+    "cancel_edit": "Отмена",
+    "system_warehouse_adjustment_confirmation": "Подтвердить или отклонить складскую корректировку",
+    "system_warehouse_low_stock": "Пополнить низкий остаток",
+    "system_rental_schedule_conflict": "Урегулировать конфликт расписания брони",
+    "system_service_work_overdue": "Разобраться с просроченной сервисной работой"
   },
   "notifications": {
     "title": "Уведомления",
@@ -4147,7 +4216,23 @@
     "event_rental_deposit_shortfall": "Аренда {{vehicle}} выдана без полного залога: не хватает {{missing}} {{currency}}",
     "rule_rental_deposit_shortfall": "Выдача без полного залога",
     "event_rental_schedule_conflict": "Бронь № {{booking_number}} ({{vehicle}}): ТС задерживается с прошлой аренды — примите решение по брони",
-    "rule_rental_schedule_conflict": "Конфликт расписания со следующей бронью"
+    "rule_rental_schedule_conflict": "Конфликт расписания со следующей бронью",
+    "location": "Локация",
+    "context": "Контекст",
+    "event_vehicle_identifier_conflict_opened": "ТС участвует в конфликте идентификаторов № {{number}}",
+    "rule_vehicle_identifier_conflict_opened": "Конфликт идентификаторов ТС",
+    "event_warehouse_adjustment_confirmation": "Инвентаризация № {{number}} ждёт подтверждения корректировки",
+    "rule_warehouse_adjustment_confirmation": "Подтверждение складской корректировки",
+    "event_warehouse_discrepancy": "Перемещение № {{number}} принято с недостачей — урегулируйте её",
+    "rule_warehouse_discrepancy": "Складское расхождение",
+    "event_service_work_overdue": "Сервис № {{number}} ({{vehicle}}) не завершён в плановый срок",
+    "rule_service_work_overdue": "Просроченная сервисная работа",
+    "event_company_system_blocked": "Компания заблокирована c4rsys: {{reason}}. Поддержка: {{support}}",
+    "rule_company_system_blocked": "Блокировка компании",
+    "event_company_system_unblocked": "Блокировка компании завершена",
+    "rule_company_system_unblocked": "Восстановление компании",
+    "event_account_system_unblocked": "Блокировка вашего аккаунта завершена",
+    "rule_account_system_unblocked": "Восстановление аккаунта"
   },
   "reports": {
     "metric_rental_issues_today": "Ожидаемые сегодня выдачи (брони на сегодня)",
@@ -4319,7 +4404,25 @@
     "col_incomplete": "Стоимость неполная",
     "expense_contractor": "Работа подрядчика",
     "expense_contractor_material": "Материалы подрядчика",
-    "expense_material": "Материалы со склада"
+    "expense_material": "Материалы со склада",
+    "metric_fleet_unavailable": "Недоступны из-за ограничения или конфликта",
+    "metric_fleet_identifier_conflicts": "Неразрешённые конфликты идентификаторов",
+    "metric_warehouse_unconfirmed_counts": "Неподтверждённые складские корректировки",
+    "metric_company_pending_requests": "Запросы, ожидающие ответа компании",
+    "context": "Контекст",
+    "context_hint": "Применяется только к блокам этого контекста",
+    "all_contexts": "Все контексты",
+    "category": "Категория ТС",
+    "all_categories": "Все категории",
+    "tariff": "Тариф",
+    "all_tariffs": "Все тарифы",
+    "post": "Пост",
+    "all_posts": "Все посты",
+    "system_work": "Работа справочника",
+    "all_works": "Все работы",
+    "executor": "Исполнитель",
+    "all_executors": "Все исполнители",
+    "order": "Номер заказа"
   },
   "imports": {
     "title": "Импорт из XLSX",

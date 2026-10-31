@@ -80,6 +80,26 @@ FIELDS: dict[str, str] = {
     "inspection.cleanliness": "inspection",
     "inspection.photo_count": "inspection",
     "inspection.video_count": "inspection",
+    # A counterparty: contracts and documents of the relations with it (§ 18.1.1, § 18.1.6;
+    # decision Р-3). PROPOSAL (agent): the codes below.
+    "counterparty.full_name": "counterparty",
+    "counterparty.phone": "counterparty",
+    "counterparty.email": "counterparty",
+    "counterparty.registration": "counterparty",
+    "counterparty.address": "counterparty",
+    # A settlement record: payment, deposit, set-off, refund (§ 18.1.6; decision Р-3).
+    # PROPOSAL (agent): the codes below.
+    "payment.number": "payment",
+    "payment.date": "payment",
+    "payment.kind": "payment",
+    "payment.amount": "payment",
+    "payment.method": "payment",
+    "payment.account": "payment",
+    "payment.payer": "payment",
+    "payment.orders": "payment",
+    "payment.order_amount": "payment",
+    "payment.deposit_amount": "payment",
+    "payment.comment": "payment",
 }
 
 # table code -> its columns.
@@ -92,6 +112,8 @@ TABLES: dict[str, tuple[str, ...]] = {
     # Photos by the positions of the template: names and counts; the images stay in the
     # inspection with its own rules of access (§ 18.1.8).
     "inspection.photos": ("position", "count"),
+    # The parts of a settlement record: an order, what the part is for, the amount.
+    "payment.parts": ("order", "purpose", "amount"),
 }
 
 # Values of an inspection in the language of the template (§ 10.1.1, § 10.1.5, § 10.5.1).
@@ -170,6 +192,37 @@ LABELS = {
     "damage": {"en": "Damage", "ru": "Повреждение", "th": "ความเสียหาย"},
 }
 DISCOUNT = {"en": "Discount", "ru": "Скидка", "th": "ส่วนลด"}
+PAYMENT_LABELS = {
+    "kind_payment": {"en": "Payment received", "ru": "Поступление оплаты", "th": "รับชำระเงิน"},
+    "kind_manual": {"en": "Money record", "ru": "Денежная запись", "th": "รายการเงิน"},
+    "kind_refund": {"en": "Refund", "ru": "Возврат денег", "th": "คืนเงิน"},
+    "kind_deposit": {"en": "Deposit refund", "ru": "Возврат залога", "th": "คืนเงินมัดจำ"},
+    "kind_supplier": {
+        "en": "Payment to a supplier",
+        "ru": "Оплата поставщику",
+        "th": "ชำระเงินผู้จำหน่าย",
+    },
+    "kind_opening": {"en": "Opening balance", "ru": "Начальный остаток", "th": "ยอดยกมา"},
+    "kind_transfer": {"en": "Transfer", "ru": "Перемещение", "th": "โอนระหว่างบัญชี"},
+    "kind_reversal": {"en": "Correction", "ru": "Исправление", "th": "รายการแก้ไข"},
+    "kind_offset": {"en": "Set-off", "ru": "Зачёт", "th": "หักกลบ"},
+    "kind_deposit_offset": {
+        "en": "Set-off of the deposit",
+        "ru": "Зачёт залога",
+        "th": "หักกลบเงินมัดจำ",
+    },
+    "purpose_order_payment": {"en": "Payment", "ru": "Оплата", "th": "ชำระเงิน"},
+    "purpose_deposit": {"en": "Deposit", "ru": "Залог", "th": "เงินมัดจำ"},
+    "purpose_offset": {"en": "Set-off", "ru": "Зачёт", "th": "หักกลบ"},
+    "method_cash": {"en": "cash", "ru": "наличные", "th": "เงินสด"},
+}
+
+
+def _payment_label(key: str, language: str, fallback: str) -> str:
+    found = PAYMENT_LABELS.get(key)
+    if found is None:
+        return fallback
+    return found.get(language) or found["en"]
 
 
 def _label(source_type: str, language: str) -> str:
@@ -253,6 +306,74 @@ def _client(values: Values, company_id: UUID, client_id: UUID | None) -> None:
             f"client.{contact.kind}",
             values.fields.get(f"client.{contact.kind}") or contact.value,
         )
+
+
+def _counterparty(values: Values, company_id: UUID, counterparty_id: UUID | None) -> None:
+    from c4rsys.parties import counterparties
+
+    if counterparty_id is None:
+        return
+    card = counterparties.get(company_id, counterparty_id)
+    values.links.append(("counterparty", card.id))
+    _set(values, "counterparty.full_name", counterparties.display_name(card))
+    _set(values, "counterparty.registration", card.registration)
+    _set(values, "counterparty.address", card.address)
+    for contact in card.contacts.all():
+        code = f"counterparty.{contact.kind}"
+        if code in FIELDS:
+            _set(values, code, values.fields.get(code) or contact.value)
+
+
+def _payment(values: Values, company: Company, record_id: UUID, language: str) -> None:
+    """A settlement record of finance (§ 18.1.6). The parts name the orders; the document is
+    linked to them and to the client or counterparty of the record."""
+    from c4rsys.finance import documents as finance
+    from c4rsys.orders import services as orders
+
+    company_id = company.id
+    found = finance.record(company_id, record_id)
+    zone = _location(values, company_id, found.location_id) or company.timezone
+    _set(values, "payment.number", found.number)
+    _set(values, "payment.date", _moment(found.at, zone))
+    _set(values, "payment.kind", _payment_label(f"kind_{found.kind}", language, found.kind))
+    sign = "−" if found.direction == "out" else ""
+    _set(values, "payment.amount", sign + _money(found.amount, found.currency))
+    if found.method:
+        _set(
+            values,
+            "payment.method",
+            _payment_label(f"method_{found.method}", language, found.method),
+        )
+    _set(values, "payment.account", found.account)
+    _set(values, "payment.comment", found.comment)
+    numbers: dict[UUID, str] = {}
+    rows = []
+    to_orders: dict[str, Decimal] = {}
+    to_deposit: dict[str, Decimal] = {}
+    for part in found.parts:
+        if part.order_id not in numbers:
+            order = orders.get_order(company_id, part.order_id)
+            numbers[part.order_id] = str(order.number)
+            values.links.append(("order", order.id))
+        target = to_deposit if part.purpose == "deposit" else to_orders
+        target[part.currency] = target.get(part.currency, Decimal(0)) + part.amount
+        rows.append(
+            {
+                "order": numbers[part.order_id],
+                "purpose": _payment_label(f"purpose_{part.purpose}", language, part.purpose),
+                "amount": _money(part.amount, part.currency),
+            }
+        )
+    values.tables["payment.parts"] = rows
+    _set(values, "payment.orders", ", ".join(dict.fromkeys(numbers.values())))
+    _set(values, "payment.order_amount", ", ".join(_money(v, c) for c, v in to_orders.items()))
+    _set(values, "payment.deposit_amount", ", ".join(_money(v, c) for c, v in to_deposit.items()))
+    if found.client_id is not None:
+        _client(values, company_id, found.client_id)
+        _set(values, "payment.payer", values.fields.get("client.full_name"))
+    elif found.counterparty_id is not None:
+        _counterparty(values, company_id, found.counterparty_id)
+        _set(values, "payment.payer", values.fields.get("counterparty.full_name"))
 
 
 def _vehicle(values: Values, company_id: UUID, card_id: UUID | None) -> None:
@@ -582,6 +703,10 @@ def collect(
         _vehicle(values, company.id, source_id)
     elif source_type == "inspection":
         _inspection(values, company, source_id, language)
+    elif source_type == "counterparty":
+        _counterparty(values, company.id, source_id)
+    elif source_type == "payment":
+        _payment(values, company, source_id, language)
     seen: set[tuple[str, UUID]] = set()
     values.links = [x for x in values.links if not (x in seen or seen.add(x))]  # type: ignore[func-returns-value]
     return values

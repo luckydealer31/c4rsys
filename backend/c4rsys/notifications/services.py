@@ -58,6 +58,7 @@ def notify(
     now: datetime | None = None,
     limited: Iterable[UUID] = (),
     limited_params: dict[str, Any] | None = None,
+    context_id: UUID | None = None,
 ) -> Notification:
     """`limited` — recipients without access to the object: they see `limited_params` only
     (§ 5.2.3). A recipient who is also among `recipients` sees everything."""
@@ -74,6 +75,7 @@ def notify(
             found = Notification.objects.create(
                 company_id=company_id,
                 location_id=location_id,
+                context_id=context_id,
                 kind=kind,
                 event=event,
                 condition=condition,
@@ -159,13 +161,22 @@ def active_employments(company_id: UUID) -> list[UUID]:
     )
 
 
-def with_permission(company_id: UUID, permission: str, location_id: UUID | None) -> list[UUID]:
-    """Active employees with the right in the location, or in the whole company."""
+def with_permission(
+    company_id: UUID,
+    permission: str,
+    location_id: UUID | None,
+    *,
+    context_id: UUID | None = None,
+) -> list[UUID]:
+    """Active employees with the right in the location (and its context, when given), or in the
+    whole company (§ 20.2.1)."""
     resolver = access.RightsResolver()
     found = []
     for actor in _actors(company_id):
         allowed = (
-            resolver.has_permission(actor, permission, location_id=location_id)
+            resolver.has_permission(
+                actor, permission, location_id=location_id, context_id=context_id
+            )
             if location_id is not None
             else resolver.has_permission(actor, permission, whole_company=True)
         )
@@ -194,12 +205,13 @@ def recipients(
     responsible: Iterable[UUID | None] = (),
     permission: str | None = None,
     location_id: UUID | None = None,
+    context_id: UUID | None = None,
 ) -> list[UUID]:
     chosen = [x for x in responsible if x is not None]
     if chosen:
         return sorted(set(chosen))
     if permission is not None:
-        allowed = with_permission(company_id, permission, location_id)
+        allowed = with_permission(company_id, permission, location_id, context_id=context_id)
         if allowed:
             return allowed
     return heads(company_id)

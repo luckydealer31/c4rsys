@@ -1270,7 +1270,17 @@
     "previous_booking_not_cancelled": "Only a cancelled booking can be the previous one.",
     "booking_unknown": "Booking not found.",
     "module_not_connected": "This module is not connected to the company.",
-    "module_has_contexts": "The module has enabled contexts: disable them first."
+    "module_has_contexts": "The module has enabled contexts: disable them first.",
+    "schedule_time_invalid": "Enter the time as HH:MM.",
+    "schedule_intervals_invalid": "The intervals of the schedule are not filled correctly (up to 6 a day).",
+    "schedule_interval_empty": "The end of an interval must be after its start.",
+    "schedule_intervals_overlap": "The intervals of one day overlap.",
+    "schedule_week_invalid": "The weekly schedule must contain every day of the week.",
+    "schedule_exceptions_invalid": "The date exceptions are not filled correctly.",
+    "schedule_date_repeated": "This date already has an exception.",
+    "schedule_already_inherited": "The context already follows the schedule of the location.",
+    "context_unknown": "Unknown context.",
+    "task_context_needs_location": "A context needs the location of the task."
   },
   "history": {
     "action": "Action",
@@ -1381,7 +1391,29 @@
     "state_active": "Active",
     "state_deactivated": "Deactivated",
     "state_draft": "Draft",
-    "timezone_hint": "By default the company time zone."
+    "timezone_hint": "By default the company time zone.",
+    "schedule_title": "Schedule",
+    "schedule_hint": "Weekly schedule of the location in its local time and exceptions on dates. A change does not rewrite operations already made.",
+    "schedule_closed": "closed",
+    "schedule_add_interval": "+ interval",
+    "schedule_remove": "Remove",
+    "schedule_exceptions": "Exceptions on dates",
+    "schedule_add_exception": "Add a date",
+    "schedule_edit": "Change the schedule",
+    "schedule_save": "Save the schedule",
+    "schedule_source_location": "as the location",
+    "schedule_source_own": "own schedule",
+    "schedule_set_own": "Own schedule",
+    "schedule_inherit": "Restore inheritance",
+    "schedule_conflicts": "Future operations outside the schedule",
+    "schedule_conflicts_none": "No future operations outside the schedule.",
+    "schedule_conflicts_check": "Check conflicts",
+    "conflict_rental": "Booking № {{number}}",
+    "conflict_service_operation": "Service № {{number}}",
+    "conflict_role_issue": "planned issue",
+    "conflict_role_return": "planned return",
+    "conflict_role_start": "planned start",
+    "conflict_role_end": "planned end"
   },
   "money": {
     "account": "Cash desk or account",
@@ -1427,7 +1459,8 @@
     "kind_reversal": "Reversal",
     "tab_settlements": "Settlements",
     "kind_deposit": "Deposit refund",
-    "total_currency": "Show the total in"
+    "total_currency": "Show the total in",
+    "make_document": "Document"
   },
   "moves": {
     "actual_end": "Actual end",
@@ -2515,7 +2548,10 @@
     "owner_data_apply": "Update the data",
     "owner_newer_mark": "the owner's data are newer: {{value}}",
     "not_owner_hint": "Your company is not the owner of this vehicle: the characteristics you change stay in your card only; the owner's data do not change.",
-    "operational_dispute_open": "c4rsys is reviewing the ownership or management of this vehicle (conflict № {{number}})."
+    "operational_dispute_open": "c4rsys is reviewing the ownership or management of this vehicle (conflict № {{number}}).",
+    "only_unavailable": "Vehicles unavailable because of a restriction or a conflict",
+    "only_identifier_conflict": "Vehicles in unresolved identifier conflicts",
+    "only_reset": "Show all"
   },
   "warehouse": {
     "action_create": "Create",
@@ -3851,7 +3887,13 @@
     "presented_by_employee": "presented on an employee's device",
     "signature_image": "Signature",
     "signatures": "Signatures",
-    "object_employment": "Employee"
+    "object_employment": "Employee",
+    "source_counterparty": "Counterparty",
+    "source_payment": "Settlement record",
+    "scope_change": "Change",
+    "scope_chosen": "Chosen locations and contexts",
+    "scope_save": "Save the scope",
+    "scope_cancel": "Cancel"
   },
   "document_fields": {
     "company__name": "Company name",
@@ -3918,7 +3960,24 @@
     "inspection__photo_count": "Inspection: number of photos",
     "inspection__video_count": "Inspection: number of videos",
     "inspection__damages": "Table: damages",
-    "inspection__photos": "Table: photos by positions"
+    "inspection__photos": "Table: photos by positions",
+    "counterparty__full_name": "Counterparty name",
+    "counterparty__phone": "Counterparty phone",
+    "counterparty__email": "Counterparty email",
+    "counterparty__registration": "Counterparty registration and tax details",
+    "counterparty__address": "Counterparty address",
+    "payment__number": "Record number",
+    "payment__date": "Record date and time",
+    "payment__kind": "Kind of the record",
+    "payment__amount": "Amount of the record",
+    "payment__method": "Method of payment",
+    "payment__account": "Cash desk or account",
+    "payment__payer": "Payer or recipient",
+    "payment__orders": "Orders of the record",
+    "payment__order_amount": "Amount for the orders",
+    "payment__deposit_amount": "Amount for the deposit",
+    "payment__comment": "Comment of the record",
+    "payment__parts": "Table: parts of the record"
   },
   "tasks": {
     "none": "No tasks",
@@ -4046,7 +4105,17 @@
     "system_employee_rights_confirmation": "Confirm or decline especially broad rights",
     "system_finance_payment_overdue": "Collect the overdue debt of the order",
     "system_rental_auto_cancel_held": "Decide on the booking: auto-cancel held by a delivery",
-    "system_rental_exception_rejected": "Settle the violation of the rejected issue exception"
+    "system_rental_exception_rejected": "Settle the violation of the rejected issue exception",
+    "context": "Context",
+    "all_contexts": "All contexts of the location",
+    "edit_reminders": "Change reminders",
+    "save_reminders": "Save for this task",
+    "save_reminders_following": "Save for this and the following",
+    "cancel_edit": "Cancel",
+    "system_warehouse_adjustment_confirmation": "Confirm or reject the stock adjustment",
+    "system_warehouse_low_stock": "Replenish the low stock",
+    "system_rental_schedule_conflict": "Settle the schedule conflict of the booking",
+    "system_service_work_overdue": "Settle the overdue service work"
   },
   "notifications": {
     "title": "Notifications",
@@ -4147,7 +4216,23 @@
     "event_rental_deposit_shortfall": "Rental {{vehicle}} is issued without the full deposit: {{missing}} {{currency}} missing",
     "rule_rental_deposit_shortfall": "Issue without the full deposit",
     "event_rental_schedule_conflict": "Booking № {{booking_number}} ({{vehicle}}): the vehicle is late from the previous rental — decide on the booking",
-    "rule_rental_schedule_conflict": "Schedule conflict with the next booking"
+    "rule_rental_schedule_conflict": "Schedule conflict with the next booking",
+    "location": "Location",
+    "context": "Context",
+    "event_vehicle_identifier_conflict_opened": "The vehicle is in the identifier conflict № {{number}}",
+    "rule_vehicle_identifier_conflict_opened": "An identifier conflict of a vehicle",
+    "event_warehouse_adjustment_confirmation": "The inventory № {{number}} waits for the confirmation of the adjustment",
+    "rule_warehouse_adjustment_confirmation": "Confirmation of a stock adjustment",
+    "event_warehouse_discrepancy": "The move № {{number}} was received with a shortage — settle it",
+    "rule_warehouse_discrepancy": "Stock discrepancy",
+    "event_service_work_overdue": "Service № {{number}} ({{vehicle}}) is past its planned end",
+    "rule_service_work_overdue": "Overdue service work",
+    "event_company_system_blocked": "The company is blocked by c4rsys: {{reason}}. Support: {{support}}",
+    "rule_company_system_blocked": "Block of the company",
+    "event_company_system_unblocked": "The block of the company has ended",
+    "rule_company_system_unblocked": "Restoration of the company",
+    "event_account_system_unblocked": "The block of your account has ended",
+    "rule_account_system_unblocked": "Restoration of the account"
   },
   "reports": {
     "metric_rental_issues_today": "Issues expected today",
@@ -4319,7 +4404,25 @@
     "col_incomplete": "Cost incomplete",
     "expense_contractor": "Contractor's work",
     "expense_contractor_material": "Contractor's materials",
-    "expense_material": "Materials from stock"
+    "expense_material": "Materials from stock",
+    "metric_fleet_unavailable": "Unavailable: restriction or conflict",
+    "metric_fleet_identifier_conflicts": "Unresolved identifier conflicts",
+    "metric_warehouse_unconfirmed_counts": "Unconfirmed stock adjustments",
+    "metric_company_pending_requests": "Requests awaiting the company's answer",
+    "context": "Context",
+    "context_hint": "Applies to the blocks of this context only",
+    "all_contexts": "All contexts",
+    "category": "Vehicle category",
+    "all_categories": "All categories",
+    "tariff": "Tariff",
+    "all_tariffs": "All tariffs",
+    "post": "Post",
+    "all_posts": "All posts",
+    "system_work": "Work of the reference",
+    "all_works": "All works",
+    "executor": "Executor",
+    "all_executors": "All executors",
+    "order": "Order number"
   },
   "imports": {
     "title": "Import from XLSX",

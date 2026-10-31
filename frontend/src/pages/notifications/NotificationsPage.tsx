@@ -15,6 +15,8 @@ export type CentreNotification = {
   id: string;
   company: { public_id: string; name: string };
   location: { id: string; name: string } | null;
+  /** § 20.1.5: the context of the location, when applicable. */
+  context?: { id: string; type: string } | null;
   kind: "action" | "warning" | "reminder" | "info";
   event: string;
   params: Record<string, string | number | null>;
@@ -42,6 +44,9 @@ const OBJECT_PATHS: Record<string, string> = {
   service_operation: "/service/operations/",
   delivery: "/trips/",
   employment: "/clients/employees/",
+  warehouse_inventory: "/warehouse/inventories/",
+  warehouse_operation: "/warehouse/operations/",
+  warehouse_item: "/warehouse/items/",
 };
 
 /** The mark in the header: unread active notifications (§ 20.1.5; З3). */
@@ -80,6 +85,8 @@ export function NotificationsPage() {
   const [kind, setKind] = useState("");
   const [state, setState] = useState("active");
   const [company, setCompany] = useState("");
+  const [location, setLocation] = useState<{ id: string; name: string } | null>(null);
+  const [contextType, setContextType] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [unread, setUnread] = useState(false);
@@ -91,6 +98,8 @@ export function NotificationsPage() {
     kind && `kind=${kind}`,
     state && `state=${state}`,
     company && `company=${company}`,
+    location && `location=${location.id}`,
+    contextType && `context_type=${contextType}`,
     from && `from=${from}`,
     to && `to=${to}`,
     unread && "unread=1",
@@ -103,6 +112,10 @@ export function NotificationsPage() {
   const when = (value: string) => formatMoment(value, zone, i18n.language);
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["notifications"] });
   const items = list.data?.notifications ?? [];
+  // The locations of the notifications shown: the centre is the user's own and covers companies
+  // where he may not see the list of locations.
+  const places = new Map(items.flatMap((n) => (n.location ? [[n.location.id, n.location.name] as const] : [])));
+  if (location) places.set(location.id, location.name);
 
   return (
     <div className="page">
@@ -135,6 +148,29 @@ export function NotificationsPage() {
             ))}
           </select>
         </Field>
+        <Field label={t("notifications.location")}>
+          <select
+            value={location?.id ?? ""}
+            onChange={(e) => setLocation(e.target.value ? { id: e.target.value, name: places.get(e.target.value) ?? "" } : null)}
+          >
+            <option value="">{t("notifications.all")}</option>
+            {[...places.entries()].map(([id, name]) => (
+              <option key={id} value={id}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label={t("notifications.context")}>
+          <select value={contextType} onChange={(e) => setContextType(e.target.value)}>
+            <option value="">{t("notifications.all")}</option>
+            {(["rental", "service", "warehouse"] as const).map((c) => (
+              <option key={c} value={c}>
+                {t(`contexts.${c}`)}
+              </option>
+            ))}
+          </select>
+        </Field>
         <Field label={t("notifications.from")}>
           <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
         </Field>
@@ -163,7 +199,8 @@ export function NotificationsPage() {
               {path ? <Link to={`/c/${n.company.public_id}${path}${n.object_id}`}>{text}</Link> : text}
               <div className="muted" style={{ fontWeight: 400 }}>
                 {n.company.name}
-                {n.location ? ` · ${n.location.name}` : ""} · {when(n.last_at)}
+                {n.location ? ` · ${n.location.name}` : ""}
+                {n.context ? ` · ${t(`contexts.${n.context.type}`)}` : ""} · {when(n.last_at)}
                 {n.repeats ? ` · ${t("notifications.repeats", { count: n.repeats })}` : ""}
                 {n.state === "done" ? ` · ${t("notifications.state_done")}` : ""}{" "}
                 {!n.read ? (

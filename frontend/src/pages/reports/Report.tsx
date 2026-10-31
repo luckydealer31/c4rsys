@@ -4,9 +4,13 @@ import { Link } from "react-router";
 
 import { api, ApiError, downloadFile } from "../../api/client";
 import { useApi } from "../../api/queries";
+import type { VehicleOptions } from "../../api/types";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
+import { employeeName, useEmployees } from "../settings/EmployeesPage";
 import { useLocations } from "../settings/LocationsPage";
+import { useServicePosts, useSystemWorks } from "../service/hooks";
+import { useTariffs } from "../tariffs/TariffsPage";
 import { useVehicles } from "../vehicles/VehiclesPage";
 
 export type ReportBlock = {
@@ -28,17 +32,130 @@ type Report = {
   blocks: ReportBlock[];
 };
 
-export type ReportFilters = { start: string; end: string; tz: string; location: string; vehicle: string };
+export type ReportFilters = {
+  start: string;
+  end: string;
+  tz: string;
+  location: string;
+  vehicle: string;
+  /** § 21.2.2, § 21.2.5: one context of a location; applied to the blocks of its type. */
+  context?: string;
+  /** § 21.4.1: category (the kind of the vehicle) and tariff. */
+  category?: string;
+  tariff?: string;
+  /** § 21.7.1: post, work of the system reference, executor and order number. */
+  post?: string;
+  work?: string;
+  executor?: string;
+  order?: string;
+};
+
+const EMPTY_FILTERS: ReportFilters = { start: "", end: "", tz: "", location: "", vehicle: "" };
+
+/** Extra filters of the starter dashboards that have them. */
+function RentalFilters({ value, onChange }: { value: ReportFilters; onChange: (next: ReportFilters) => void }) {
+  const { t } = useTranslation();
+  const options = useApi<VehicleOptions>(["vehicle-options"], "/catalog/vehicle-options");
+  const tariffs = useTariffs();
+  return (
+    <>
+      <Field label={t("reports.category")}>
+        <select value={value.category ?? ""} onChange={(e) => onChange({ ...value, category: e.target.value })}>
+          <option value="">{t("reports.all_categories")}</option>
+          {(options.data?.vehicle_types ?? []).map((code) => (
+            <option key={code} value={code}>
+              {t(`vehicles.type_${code}`)}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field label={t("reports.tariff")}>
+        <select value={value.tariff ?? ""} onChange={(e) => onChange({ ...value, tariff: e.target.value })}>
+          <option value="">{t("reports.all_tariffs")}</option>
+          {(tariffs.data?.tariffs ?? []).map((x) => (
+            <option key={x.id} value={x.id}>
+              {x.name}
+            </option>
+          ))}
+        </select>
+      </Field>
+    </>
+  );
+}
+
+function ServiceFilters({ value, onChange }: { value: ReportFilters; onChange: (next: ReportFilters) => void }) {
+  const { t, i18n } = useTranslation();
+  const posts = useServicePosts();
+  const works = useSystemWorks();
+  const employees = useEmployees();
+  const locations = useLocations();
+  const placeName = (id: string) => (locations.data?.locations ?? []).find((l) => l.id === id)?.name ?? "";
+  return (
+    <>
+      <Field label={t("reports.post")}>
+        <select value={value.post ?? ""} onChange={(e) => onChange({ ...value, post: e.target.value })}>
+          <option value="">{t("reports.all_posts")}</option>
+          {(posts.data?.posts ?? []).map((p) => (
+            <option key={p.id} value={p.id}>
+              {placeName(p.location_id)} · {p.name}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field label={t("reports.system_work")}>
+        <select value={value.work ?? ""} onChange={(e) => onChange({ ...value, work: e.target.value })}>
+          <option value="">{t("reports.all_works")}</option>
+          {(works.data?.system_works ?? []).map((w) => (
+            <option key={w.code} value={w.code}>
+              {w.names[i18n.language] ?? w.names.en ?? w.code}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field label={t("reports.executor")}>
+        <select value={value.executor ?? ""} onChange={(e) => onChange({ ...value, executor: e.target.value })}>
+          <option value="">{t("reports.all_executors")}</option>
+          {(employees.data?.employees ?? [])
+            .filter((x) => x.state === "active")
+            .map((x) => (
+              <option key={x.id} value={x.id}>
+                {employeeName(x, t)}
+              </option>
+            ))}
+        </select>
+      </Field>
+      <Field label={t("reports.order")}>
+        <input
+          inputMode="numeric"
+          value={value.order ?? ""}
+          placeholder="12"
+          onChange={(e) => onChange({ ...value, order: e.target.value.replace(/[^0-9]/g, "") })}
+        />
+      </Field>
+    </>
+  );
+}
 
 export function metricLabel(t: (key: string) => string, code: string): string {
   return t(`reports.metric_${code.replaceAll(".", "_")}`);
 }
 
 /** Period, zone and location of a report (§ 21.1.2, § 21.2.2, § 21.2.7). */
-function FilterBar({ value, onChange }: { value: ReportFilters; onChange: (next: ReportFilters) => void }) {
+function FilterBar({
+  code,
+  value,
+  onChange,
+}: {
+  code: string;
+  value: ReportFilters;
+  onChange: (next: ReportFilters) => void;
+}) {
   const { t } = useTranslation();
   const locations = useLocations();
   const vehicles = useVehicles();
+  const contexts = (locations.data?.locations ?? []).flatMap((l) =>
+    l.contexts.map((c) => ({ id: c.id, location: l.id, label: `${l.name} · ${t(`contexts.${c.type}`)}` })),
+  );
   return (
     <div className="row no-print">
       <Field label={t("reports.start")}>
@@ -48,7 +165,7 @@ function FilterBar({ value, onChange }: { value: ReportFilters; onChange: (next:
         <input type="date" value={value.end} onChange={(e) => onChange({ ...value, end: e.target.value })} />
       </Field>
       <Field label={t("reports.location")}>
-        <select value={value.location} onChange={(e) => onChange({ ...value, location: e.target.value })}>
+        <select value={value.location} onChange={(e) => onChange({ ...value, location: e.target.value, context: "" })}>
           <option value="">{t("reports.all_locations")}</option>
           {(locations.data?.locations ?? []).map((l) => (
             <option key={l.id} value={l.id}>
@@ -57,6 +174,20 @@ function FilterBar({ value, onChange }: { value: ReportFilters; onChange: (next:
           ))}
         </select>
       </Field>
+      {code !== "finance" ? (
+        <Field label={t("reports.context")} hint={t("reports.context_hint")}>
+          <select value={value.context ?? ""} onChange={(e) => onChange({ ...value, context: e.target.value })}>
+            <option value="">{t("reports.all_contexts")}</option>
+            {contexts
+              .filter((c) => !value.location || c.location === value.location)
+              .map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                </option>
+              ))}
+          </select>
+        </Field>
+      ) : null}
       <Field label={t("reports.vehicle")}>
         <select value={value.vehicle} onChange={(e) => onChange({ ...value, vehicle: e.target.value })}>
           <option value="">{t("reports.all_vehicles")}</option>
@@ -70,6 +201,8 @@ function FilterBar({ value, onChange }: { value: ReportFilters; onChange: (next:
       <Field label={t("reports.zone")} hint={t("reports.zone_hint")}>
         <input value={value.tz} placeholder="Asia/Bangkok" onChange={(e) => onChange({ ...value, tz: e.target.value.trim() })} />
       </Field>
+      {code === "rental" ? <RentalFilters value={value} onChange={onChange} /> : null}
+      {code === "service" ? <ServiceFilters value={value} onChange={onChange} /> : null}
     </div>
   );
 }
@@ -169,7 +302,7 @@ export function ReportView({ code, title }: { code: string; title: string }) {
   const { t } = useTranslation();
   const company = useCompany();
   const can = useCan();
-  const [filters, setFilters] = useState<ReportFilters>({ start: "", end: "", tz: "", location: "", vehicle: "" });
+  const [filters, setFilters] = useState<ReportFilters>(EMPTY_FILTERS);
   const [exportError, setExportError] = useState<ApiError | null>(null);
   const query = new URLSearchParams(Object.entries(filters).filter(([, v]) => v) as [string, string][]).toString();
   const report = useApi<Report>(["report", company.public_id, code, query], `/c/${company.public_id}/reports/${code}?${query}`);
@@ -199,7 +332,7 @@ export function ReportView({ code, title }: { code: string; title: string }) {
 
   return (
     <div>
-      <FilterBar value={filters} onChange={setFilters} />
+      <FilterBar code={code} value={filters} onChange={setFilters} />
       {data ? (
         <p className="small muted">
           {t("reports.applied", { start: data.filters.start, end: data.filters.end, zone: data.filters.zone })}

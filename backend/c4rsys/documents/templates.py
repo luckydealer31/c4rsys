@@ -40,6 +40,10 @@ SOURCES_OF = {
     "client": {"client"},
     "vehicle": {"vehicle"},
     "inspection": {"inspection", "client", "vehicle", "location"},
+    # § 18.1.1, § 18.1.6 (decision Р-3): documents of the relations with a counterparty, and
+    # settlement documents of a payment, a deposit, a set-off or a refund.
+    "counterparty": {"counterparty"},
+    "payment": {"payment", "client", "counterparty", "location"},
     "none": set(),
 }
 TABLE_SOURCES = {
@@ -49,6 +53,7 @@ TABLE_SOURCES = {
     "service.materials": "service",
     "inspection.damages": "inspection",
     "inspection.photos": "inspection",
+    "payment.parts": "payment",
 }
 COLUMN_LABELS = {
     "name": {"en": "Item", "ru": "Наименование", "th": "รายการ"},
@@ -61,6 +66,8 @@ COLUMN_LABELS = {
     "state": {"en": "State", "ru": "Состояние", "th": "สถานะ"},
     "position": {"en": "Position", "ru": "Позиция", "th": "มุมถ่าย"},
     "count": {"en": "Photos", "ru": "Снимков", "th": "จำนวนรูป"},
+    "order": {"en": "Order", "ru": "Заказ", "th": "คำสั่งซื้อ"},
+    "purpose": {"en": "Purpose", "ru": "Назначение", "th": "วัตถุประสงค์"},
 }
 
 

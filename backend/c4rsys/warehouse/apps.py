@@ -56,6 +56,10 @@ class WarehouseConfig(AppConfig):
         notifications.register_check(notices.run)
         # § 11.7.8: low stock to the chosen employees; § 11.7.1: reserves past their term.
         notifications.register_check(notices.low_stock)
+        # § 20.3.4–20.3.5, § 19.1.9 (block 16 B): adjustments waiting for the confirmation and
+        # shortages of moves.
+        notifications.register_check(notices.confirmations)
+        notifications.register_check(notices.discrepancies)
         notifications.register_check(reserves.expire)
 
         from c4rsys.fleet import odometer

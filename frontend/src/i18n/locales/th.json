@@ -1270,7 +1270,17 @@
     "previous_booking_not_cancelled": "การจองก่อนหน้าต้องเป็นการจองที่ยกเลิกแล้วเท่านั้น",
     "booking_unknown": "ไม่พบการจอง",
     "module_not_connected": "โมดูลนี้ไม่ได้เชื่อมต่อกับบริษัท",
-    "module_has_contexts": "โมดูลมีบริบทที่เปิดอยู่: ปิดก่อน"
+    "module_has_contexts": "โมดูลมีบริบทที่เปิดอยู่: ปิดก่อน",
+    "schedule_time_invalid": "ระบุเวลาในรูปแบบ HH:MM",
+    "schedule_intervals_invalid": "ช่วงเวลาของตารางไม่ถูกต้อง (ไม่เกิน 6 ช่วงต่อวัน)",
+    "schedule_interval_empty": "เวลาสิ้นสุดต้องอยู่หลังเวลาเริ่มต้น",
+    "schedule_intervals_overlap": "ช่วงเวลาในวันเดียวกันทับซ้อนกัน",
+    "schedule_week_invalid": "ตารางรายสัปดาห์ต้องมีครบทุกวัน",
+    "schedule_exceptions_invalid": "ข้อยกเว้นตามวันที่ไม่ถูกต้อง",
+    "schedule_date_repeated": "วันที่นี้มีข้อยกเว้นอยู่แล้ว",
+    "schedule_already_inherited": "บริบทนี้ใช้ตารางของสถานที่อยู่แล้ว",
+    "context_unknown": "ไม่พบบริบท",
+    "task_context_needs_location": "บริบทต้องมีสาขาของงาน"
   },
   "history": {
     "action": "Action",
@@ -1381,7 +1391,29 @@
     "state_active": "Active",
     "state_deactivated": "Deactivated",
     "state_draft": "Draft",
-    "timezone_hint": "By default the company time zone."
+    "timezone_hint": "By default the company time zone.",
+    "schedule_title": "ตารางเวลา",
+    "schedule_hint": "ตารางรายสัปดาห์ของสถานที่ตามเวลาท้องถิ่นและข้อยกเว้นตามวันที่ การเปลี่ยนแปลงไม่แก้ไขรายการที่สร้างไว้แล้ว",
+    "schedule_closed": "ปิด",
+    "schedule_add_interval": "+ ช่วงเวลา",
+    "schedule_remove": "ลบ",
+    "schedule_exceptions": "ข้อยกเว้นตามวันที่",
+    "schedule_add_exception": "เพิ่มวันที่",
+    "schedule_edit": "แก้ไขตารางเวลา",
+    "schedule_save": "บันทึกตารางเวลา",
+    "schedule_source_location": "ตามสถานที่",
+    "schedule_source_own": "ตารางของตนเอง",
+    "schedule_set_own": "ตั้งตารางของตนเอง",
+    "schedule_inherit": "กลับไปใช้ตารางของสถานที่",
+    "schedule_conflicts": "รายการในอนาคตที่อยู่นอกตารางเวลา",
+    "schedule_conflicts_none": "ไม่มีรายการในอนาคตที่อยู่นอกตารางเวลา",
+    "schedule_conflicts_check": "ตรวจสอบความขัดแย้ง",
+    "conflict_rental": "การจอง № {{number}}",
+    "conflict_service_operation": "งานบริการ № {{number}}",
+    "conflict_role_issue": "กำหนดส่งมอบ",
+    "conflict_role_return": "กำหนดคืน",
+    "conflict_role_start": "กำหนดเริ่ม",
+    "conflict_role_end": "กำหนดสิ้นสุด"
   },
   "money": {
     "account": "เงินสดหรือบัญชี",
@@ -1427,7 +1459,8 @@
     "kind_reversal": "กลับรายการ",
     "tab_settlements": "การชำระบัญชี",
     "kind_deposit": "คืนมัดจำ",
-    "total_currency": "แสดงยอดรวมเป็น"
+    "total_currency": "แสดงยอดรวมเป็น",
+    "make_document": "เอกสาร"
   },
   "moves": {
     "actual_end": "Actual end",
@@ -2515,7 +2548,10 @@
     "owner_data_apply": "อัปเดตข้อมูล",
     "owner_newer_mark": "ข้อมูลของเจ้าของใหม่กว่า: {{value}}",
     "not_owner_hint": "บริษัทของคุณไม่ใช่เจ้าของยานพาหนะนี้: ลักษณะที่คุณแก้ไขจะบันทึกเฉพาะในการ์ดของคุณ ข้อมูลของเจ้าของไม่เปลี่ยนแปลง",
-    "operational_dispute_open": "c4rsys กำลังตรวจสอบการเป็นเจ้าของหรือการบริหารยานพาหนะนี้ (ข้อขัดแย้ง № {{number}})"
+    "operational_dispute_open": "c4rsys กำลังตรวจสอบการเป็นเจ้าของหรือการบริหารยานพาหนะนี้ (ข้อขัดแย้ง № {{number}})",
+    "only_unavailable": "ยานพาหนะที่ไม่พร้อมใช้งานเนื่องจากข้อจำกัดหรือข้อขัดแย้ง",
+    "only_identifier_conflict": "ยานพาหนะที่มีข้อขัดแย้งของรหัสระบุ",
+    "only_reset": "แสดงทั้งหมด"
   },
   "warehouse": {
     "action_create": "Create",
@@ -3851,7 +3887,13 @@
     "presented_by_employee": "แสดงบนอุปกรณ์ของพนักงาน",
     "signature_image": "ลายมือชื่อ",
     "signatures": "ลายมือชื่อ",
-    "object_employment": "พนักงาน"
+    "object_employment": "พนักงาน",
+    "source_counterparty": "คู่ค้า",
+    "source_payment": "รายการชำระเงิน",
+    "scope_change": "เปลี่ยน",
+    "scope_chosen": "สาขาและบริบทที่เลือก",
+    "scope_save": "บันทึกขอบเขต",
+    "scope_cancel": "ยกเลิก"
   },
   "document_fields": {
     "company__name": "ชื่อบริษัท",
@@ -3918,7 +3960,24 @@
     "inspection__photo_count": "การตรวจสภาพ: จำนวนรูป",
     "inspection__video_count": "การตรวจสภาพ: จำนวนวิดีโอ",
     "inspection__damages": "ตาราง: ความเสียหาย",
-    "inspection__photos": "ตาราง: รูปตามมุมถ่าย"
+    "inspection__photos": "ตาราง: รูปตามมุมถ่าย",
+    "counterparty__full_name": "ชื่อคู่ค้า",
+    "counterparty__phone": "โทรศัพท์คู่ค้า",
+    "counterparty__email": "อีเมลคู่ค้า",
+    "counterparty__registration": "ข้อมูลการจดทะเบียนและภาษีของคู่ค้า",
+    "counterparty__address": "ที่อยู่คู่ค้า",
+    "payment__number": "เลขที่รายการ",
+    "payment__date": "วันที่และเวลาของรายการ",
+    "payment__kind": "ประเภทรายการ",
+    "payment__amount": "จำนวนเงินของรายการ",
+    "payment__method": "วิธีชำระเงิน",
+    "payment__account": "เงินสดหรือบัญชี",
+    "payment__payer": "ผู้ชำระหรือผู้รับ",
+    "payment__orders": "คำสั่งซื้อของรายการ",
+    "payment__order_amount": "จำนวนเงินสำหรับคำสั่งซื้อ",
+    "payment__deposit_amount": "จำนวนเงินมัดจำ",
+    "payment__comment": "หมายเหตุของรายการ",
+    "payment__parts": "ตาราง: ส่วนของรายการ"
   },
   "tasks": {
     "none": "ไม่มีงาน",
@@ -4046,7 +4105,17 @@
     "system_employee_rights_confirmation": "ยืนยันหรือปฏิเสธสิทธิ์กว้างพิเศษ",
     "system_finance_payment_overdue": "เรียกเก็บหนี้ที่เกินกำหนดของคำสั่งซื้อ",
     "system_rental_auto_cancel_held": "ตัดสินใจเรื่องการจอง: การยกเลิกอัตโนมัติถูกระงับ",
-    "system_rental_exception_rejected": "จัดการการละเมิดของข้อยกเว้นการส่งมอบที่ถูกปฏิเสธ"
+    "system_rental_exception_rejected": "จัดการการละเมิดของข้อยกเว้นการส่งมอบที่ถูกปฏิเสธ",
+    "context": "บริบท",
+    "all_contexts": "ทุกบริบทของสาขา",
+    "edit_reminders": "เปลี่ยนการแจ้งเตือน",
+    "save_reminders": "บันทึกสำหรับงานนี้",
+    "save_reminders_following": "บันทึกสำหรับงานนี้และงานถัดไป",
+    "cancel_edit": "ยกเลิก",
+    "system_warehouse_adjustment_confirmation": "ยืนยันหรือปฏิเสธการปรับปรุงสต็อก",
+    "system_warehouse_low_stock": "เติมสต็อกที่เหลือน้อย",
+    "system_rental_schedule_conflict": "แก้ไขความขัดแย้งของตารางการจอง",
+    "system_service_work_overdue": "จัดการงานบริการที่เกินกำหนด"
   },
   "notifications": {
     "title": "การแจ้งเตือน",
@@ -4147,7 +4216,23 @@
     "event_rental_deposit_shortfall": "การเช่า {{vehicle}} ส่งมอบโดยมัดจำไม่ครบ: ขาด {{missing}} {{currency}}",
     "rule_rental_deposit_shortfall": "ส่งมอบโดยมัดจำไม่ครบ",
     "event_rental_schedule_conflict": "การจอง № {{booking_number}} ({{vehicle}}): ยานพาหนะคืนช้าจากการเช่าก่อนหน้า — โปรดตัดสินใจ",
-    "rule_rental_schedule_conflict": "ตารางเวลาชนกับการจองถัดไป"
+    "rule_rental_schedule_conflict": "ตารางเวลาชนกับการจองถัดไป",
+    "location": "สาขา",
+    "context": "บริบท",
+    "event_vehicle_identifier_conflict_opened": "รถอยู่ในข้อขัดแย้งของตัวระบุ № {{number}}",
+    "rule_vehicle_identifier_conflict_opened": "ข้อขัดแย้งของตัวระบุรถ",
+    "event_warehouse_adjustment_confirmation": "การตรวจนับ № {{number}} รอการยืนยันการปรับปรุง",
+    "rule_warehouse_adjustment_confirmation": "การยืนยันการปรับปรุงสต็อก",
+    "event_warehouse_discrepancy": "การโอนย้าย № {{number}} ได้รับไม่ครบ — โปรดจัดการ",
+    "rule_warehouse_discrepancy": "ความคลาดเคลื่อนของสต็อก",
+    "event_service_work_overdue": "งานบริการ № {{number}} ({{vehicle}}) เกินเวลาสิ้นสุดตามแผน",
+    "rule_service_work_overdue": "งานบริการที่เกินกำหนด",
+    "event_company_system_blocked": "บริษัทถูกระงับโดย c4rsys: {{reason}} ติดต่อฝ่ายสนับสนุน: {{support}}",
+    "rule_company_system_blocked": "การระงับบริษัท",
+    "event_company_system_unblocked": "การระงับบริษัทสิ้นสุดแล้ว",
+    "rule_company_system_unblocked": "การคืนสถานะบริษัท",
+    "event_account_system_unblocked": "การระงับบัญชีของคุณสิ้นสุดแล้ว",
+    "rule_account_system_unblocked": "การคืนสถานะบัญชี"
   },
   "reports": {
     "metric_rental_issues_today": "การส่งมอบที่คาดว่าจะมีวันนี้",
@@ -4319,7 +4404,25 @@
     "col_incomplete": "ต้นทุนไม่ครบ",
     "expense_contractor": "งานผู้รับเหมา",
     "expense_contractor_material": "วัสดุผู้รับเหมา",
-    "expense_material": "วัสดุจากคลัง"
+    "expense_material": "วัสดุจากคลัง",
+    "metric_fleet_unavailable": "ไม่พร้อมใช้งานเนื่องจากข้อจำกัดหรือข้อขัดแย้ง",
+    "metric_fleet_identifier_conflicts": "ข้อขัดแย้งของรหัสระบุที่ยังไม่แก้ไข",
+    "metric_warehouse_unconfirmed_counts": "การปรับสต็อกที่ยังไม่ยืนยัน",
+    "metric_company_pending_requests": "คำขอที่รอการตอบของบริษัท",
+    "context": "บริบท",
+    "context_hint": "ใช้กับบล็อกของบริบทนี้เท่านั้น",
+    "all_contexts": "ทุกบริบท",
+    "category": "ประเภทยานพาหนะ",
+    "all_categories": "ทุกประเภท",
+    "tariff": "อัตราค่าเช่า",
+    "all_tariffs": "ทุกอัตรา",
+    "post": "ช่องบริการ",
+    "all_posts": "ทุกช่องบริการ",
+    "system_work": "งานจากรายการอ้างอิง",
+    "all_works": "งานทั้งหมด",
+    "executor": "ผู้ปฏิบัติงาน",
+    "all_executors": "ผู้ปฏิบัติงานทั้งหมด",
+    "order": "เลขที่คำสั่งซื้อ"
   },
   "imports": {
     "title": "นำเข้าจาก XLSX",

@@ -12,6 +12,7 @@ import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { SigningBadge, SigningCard } from "./Signing";
 import { MakeDocument } from "./Templates";
 import { SectionSearch } from "../search/SearchPage";
+import { useLocations } from "../settings/LocationsPage";
 
 type Result = { document: CompanyDocument };
 export type LinkTarget = { objectType: string; objectId: string };
@@ -294,7 +295,10 @@ export function DocumentPage() {
           <dt>{t("documents.date")}</dt>
           <dd>{d.document_date}</dd>
           <dt>{t("documents.scope")}</dt>
-          <dd>{d.all_locations ? t("documents.whole_company") : t("documents.locations_count", { count: d.locations.length })}</dd>
+          <dd>
+            <ScopeText document={d} />
+            {active && can("documents.upload") ? <ScopeEditor document={d} onSaved={refresh} /> : null}
+          </dd>
           <dt>{t("documents.valid_until")}</dt>
           <dd>
             {d.valid_until ?? "—"}
@@ -421,6 +425,104 @@ export function DocumentPage() {
           <ErrorMessage error={archive.error} />
         </Card>
       ) : null}
+    </div>
+  );
+}
+
+/** The scope of a document: the whole company, or chosen locations and contexts (§ 18.5.4). */
+function ScopeText({ document: d }: { document: CompanyDocument }) {
+  const { t } = useTranslation();
+  const locations = useLocations();
+  if (d.all_locations) return <>{t("documents.whole_company")}</>;
+  const all = locations.data?.locations ?? [];
+  const names = [
+    ...d.locations.map((id) => all.find((l) => l.id === id)?.name ?? "…"),
+    ...(d.contexts ?? []).map((id) => {
+      const place = all.find((l) => l.contexts.some((c) => c.id === id));
+      const context = place?.contexts.find((c) => c.id === id);
+      return place && context ? `${place.name} · ${t(`contexts.${context.type}`)}` : "…";
+    }),
+  ];
+  return <>{names.join(", ")}</>;
+}
+
+/** Changing the scope later; links never widen it (§ 18.5.4). */
+function ScopeEditor({ document: d, onSaved }: { document: CompanyDocument; onSaved: () => Promise<void> }) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const locations = useLocations();
+  const save = useCommand<Record<string, unknown>, unknown>(`/c/${company.public_id}/documents/${d.id}`, "PATCH");
+  const [open, setOpen] = useState(false);
+  const [whole, setWhole] = useState(d.all_locations);
+  const [chosen, setChosen] = useState<string[]>(d.locations);
+  const [contexts, setContexts] = useState<string[]>(d.contexts ?? []);
+  if (!open) {
+    return (
+      <>
+        {" "}
+        <button type="button" className="link" onClick={() => setOpen(true)}>
+          {t("documents.scope_change")}
+        </button>
+      </>
+    );
+  }
+  const toggle = (list: string[], id: string) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
+  const empty = !whole && !chosen.length && !contexts.length;
+  return (
+    <div className="stack" style={{ marginTop: 8 }}>
+      <label className="small">
+        <input type="radio" checked={whole} onChange={() => setWhole(true)} /> {t("documents.whole_company")}
+      </label>
+      <label className="small">
+        <input type="radio" checked={!whole} onChange={() => setWhole(false)} /> {t("documents.scope_chosen")}
+      </label>
+      {!whole
+        ? (locations.data?.locations ?? []).map((l) => (
+            <div key={l.id} className="small">
+              <label>
+                <input type="checkbox" checked={chosen.includes(l.id)} onChange={() => setChosen(toggle(chosen, l.id))} /> {l.name}
+              </label>
+              {!chosen.includes(l.id)
+                ? l.contexts.map((c) => (
+                    <label key={c.id} style={{ marginLeft: 16 }}>
+                      <input type="checkbox" checked={contexts.includes(c.id)} onChange={() => setContexts(toggle(contexts, c.id))} />{" "}
+                      {t(`contexts.${c.type}`)}
+                    </label>
+                  ))
+                : null}
+            </div>
+          ))
+        : null}
+      <div className="actions">
+        <button
+          type="button"
+          disabled={save.pending || empty}
+          onClick={() =>
+            void save
+              .run(
+                whole
+                  ? { expected_version: d.version, locations: "all" }
+                  : {
+                      expected_version: d.version,
+                      locations: chosen,
+                      contexts: contexts.filter((c) => !(locations.data?.locations ?? []).some((l) => chosen.includes(l.id) && l.contexts.some((x) => x.id === c))),
+                    },
+              )
+              .then(async (r) => {
+                if (r) {
+                  setOpen(false);
+                  await onSaved();
+                }
+              })
+          }
+        >
+          {t("documents.scope_save")}
+        </button>
+        <button type="button" className="secondary" onClick={() => setOpen(false)}>
+          {t("documents.scope_cancel")}
+        </button>
+      </div>
+      <ErrorMessage error={save.error} />
     </div>
   );
 }

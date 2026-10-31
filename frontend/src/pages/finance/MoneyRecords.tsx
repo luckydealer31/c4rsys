@@ -11,6 +11,7 @@ import { formatMoment } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
 import { useArticleName, useArticles } from "./Articles";
 import { RecordActions } from "./Corrections";
+import { MakeDocument } from "../documents/Templates";
 import { transferText, useCashAccounts } from "./FinancePage";
 
 function useRefreshMoney() {
@@ -176,6 +177,9 @@ export function AccountRecords({ account, onClose }: { account: CashAccount; onC
   const accounts = useCashAccounts();
   const accountName = new Map((accounts.data?.cash_accounts ?? []).map((a) => [a.id, a.name]));
   const records = data.data?.records ?? [];
+  // § 18.1.6 (block 16 B): a settlement document made from one record.
+  const [documentFor, setDocumentFor] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   // A reversed initial balance may be entered again (§ 22.1.7).
   const hasOpening = records.some((r) => r.kind === "opening" && !r.reversed_by_id);
 
@@ -225,11 +229,26 @@ export function AccountRecords({ account, onClose }: { account: CashAccount; onC
                 <td>{r.note}</td>
                 <td>
                   <RecordActions record={r} />
+                  {can("documents.create") ? (
+                    <button type="button" className="link" onClick={() => setDocumentFor(documentFor === r.id ? null : r.id)}>
+                      {t("money.make_document")}
+                    </button>
+                  ) : null}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+      ) : null}
+      {documentFor ? (
+        <MakeDocument
+          objectType="payment"
+          objectId={documentFor}
+          onDone={async () => {
+            setDocumentFor(null);
+            await queryClient.invalidateQueries({ queryKey: ["documents"] });
+          }}
+        />
       ) : null}
     </Card>
   );

@@ -33,11 +33,21 @@ State = Task.State
 # --- Rights and scope (§ 19.1.7, § 23.9) ---------------------------------------------------------
 
 
-def has(actor: Actor, permission: str, location_id: UUID | None, resolver: Any = None) -> bool:
+def has(
+    actor: Actor,
+    permission: str,
+    location_id: UUID | None,
+    resolver: Any = None,
+    context_id: UUID | None = None,
+) -> bool:
+    """The right in the scope of a task: the whole company, a location, or a context of it
+    (§ 19.1.7)."""
     resolver = resolver or access.RightsResolver()
     if location_id is None:
         return bool(resolver.has_permission(actor, permission, whole_company=True))
-    return bool(resolver.has_permission(actor, permission, location_id=location_id))
+    return bool(
+        resolver.has_permission(actor, permission, location_id=location_id, context_id=context_id)
+    )
 
 
 def _mine(actor: Actor, t: Task) -> bool:
@@ -46,19 +56,22 @@ def _mine(actor: Actor, t: Task) -> bool:
 
 def can_view(actor: Actor, t: Task, resolver: Any = None) -> bool:
     resolver = resolver or access.RightsResolver()
-    if _mine(actor, t) and has(actor, "tasks.own", t.location_id, resolver):
+    if _mine(actor, t) and has(actor, "tasks.own", t.location_id, resolver, t.context_id):
         return True
     in_queue = t.assignee_id is None and t.state == State.OPEN
-    if in_queue and has(actor, "tasks.queue", t.location_id, resolver):
+    if in_queue and has(actor, "tasks.queue", t.location_id, resolver, t.context_id):
         return True
     created = t.created_by_employment_id == actor.employment_id
-    if created and has(actor, "tasks.create", t.location_id, resolver):
+    if created and has(actor, "tasks.create", t.location_id, resolver, t.context_id):
         return True
-    return any(has(actor, p, t.location_id, resolver) for p in ("tasks.view_all", "tasks.manage"))
+    return any(
+        has(actor, p, t.location_id, resolver, t.context_id)
+        for p in ("tasks.view_all", "tasks.manage")
+    )
 
 
 def _require(actor: Actor, permission: str, t: Task) -> None:
-    if not has(actor, permission, t.location_id):
+    if not has(actor, permission, t.location_id, context_id=t.context_id):
         raise errors.permission_denied(permission)
 
 
@@ -140,7 +153,12 @@ def overdue(t: Task, now: datetime | None = None) -> bool:
 # --- Assignee ------------------------------------------------------------------------------------
 
 
-def eligible(company_id: UUID, location_id: UUID | None, employment_id: UUID) -> bool:
+def eligible(
+    company_id: UUID,
+    location_id: UUID | None,
+    employment_id: UUID,
+    context_id: UUID | None = None,
+) -> bool:
     """An executor is an active employee with access to their own tasks in the scope (§ 19.1.6)."""
     e = Employment.objects.filter(
         company_id=company_id, pk=employment_id, state=Employment.State.ACTIVE
@@ -151,23 +169,26 @@ def eligible(company_id: UUID, location_id: UUID | None, employment_id: UUID) ->
         Actor(user_id=e.user_id, company_id=company_id, employment_id=e.id),
         "tasks.own",
         location_id,
+        context_id=context_id,
     )
 
 
-def candidates(company_id: UUID, location_id: UUID | None) -> list[UUID]:
+def candidates(
+    company_id: UUID, location_id: UUID | None, context_id: UUID | None = None
+) -> list[UUID]:
     resolver = access.RightsResolver()
     result = []
     for e in Employment.objects.filter(
         company_id=company_id, state=Employment.State.ACTIVE, user__isnull=False
     ):
         actor = Actor(user_id=e.user_id or e.id, company_id=company_id, employment_id=e.id)
-        if has(actor, "tasks.own", location_id, resolver):
+        if has(actor, "tasks.own", location_id, resolver, context_id):
             result.append(e.id)
     return result
 
 
 def _assignee(t: Task, employment_id: UUID) -> None:
-    if not eligible(t.company_id, t.location_id, employment_id):
+    if not eligible(t.company_id, t.location_id, employment_id, t.context_id):
         raise errors.validation_error("assignee_id", code="TASK_ASSIGNEE_NO_ACCESS")
 
 
@@ -189,6 +210,8 @@ class NewTask:
     assign: str = "self"
     location_id: UUID | None = None
     location_given: bool = False
+    # § 19.1.7: a context of the task's location, when needed (block 16 B).
+    context_id: UUID | None = None
     main: Link | None = None
     links: list[Link] = field(default_factory=list)
     due: Due | None = None
@@ -210,6 +233,7 @@ def snapshot(t: Task) -> dict[str, Any]:
         "state": t.state,
         "state_note": t.state_note,
         "location": str(t.location_id) if t.location_id else None,
+        "context": str(t.context_id) if t.context_id else None,
         "assignee": str(t.assignee_id) if t.assignee_id else None,
         "object": f"{t.object_type}:{t.object_id}" if t.object_type else None,
         "due_at": t.due_at,
@@ -230,12 +254,29 @@ def _scope(company: Company, data: NewTask) -> UUID | None:
     return chosen
 
 
+def _context(company: Company, location_id: UUID | None, context_id: UUID | None) -> UUID | None:
+    """A context belongs to the task's location (§ 19.1.7). PROPOSAL (agent): a task with a main
+    object keeps the object's location and may be narrowed to one of its contexts."""
+    if context_id is None:
+        return None
+    if location_id is None:
+        raise errors.validation_error("context_id", code="TASK_CONTEXT_NEEDS_LOCATION")
+    if (
+        not locations.contexts_of(company.id)
+        .filter(pk=context_id, location_id=location_id)
+        .exists()
+    ):
+        raise errors.validation_error("context_id", code="CONTEXT_NOT_IN_LOCATION")
+    return context_id
+
+
 def create(ctx: CommandContext, company: Company, data: NewTask) -> Task:
     if data.priority not in Task.Priority.values:
         raise errors.validation_error("priority")
     location_id = _scope(company, data)
+    context_id = _context(company, location_id, data.context_id)
     actor = ctx.actor
-    if not has(actor, "tasks.create", location_id):
+    if not has(actor, "tasks.create", location_id, context_id=context_id):
         raise errors.permission_denied("tasks.create")
     for link in data.links:
         objects.resolve(company.id, link.object_type, link.object_id, "links")
@@ -246,6 +287,7 @@ def create(ctx: CommandContext, company: Company, data: NewTask) -> Task:
         description=data.description,
         priority=data.priority,
         location_id=location_id,
+        context_id=context_id,
         object_type=data.main.object_type if data.main else "",
         object_id=data.main.object_id if data.main else None,
         due_at=due_moment(company, location_id, data.due),
@@ -261,10 +303,10 @@ def create(ctx: CommandContext, company: Company, data: NewTask) -> Task:
         raise errors.validation_error("checklist", code="FIELD_REQUIRED")
     if data.assign == "self":
         t.assignee_id = actor.employment_id
-        if not eligible(company.id, location_id, actor.employment_id):  # type: ignore[arg-type]
+        if not eligible(company.id, location_id, actor.employment_id, context_id):  # type: ignore[arg-type]
             raise errors.validation_error("assign", code="TASK_ASSIGNEE_NO_ACCESS")
     elif data.assign != "queue":
-        if not has(actor, "tasks.manage", location_id):
+        if not has(actor, "tasks.manage", location_id, context_id=context_id):
             raise errors.permission_denied("tasks.manage")
         try:
             target = UUID(data.assign)
@@ -367,7 +409,7 @@ def _save(
 
 def executor_or_manager(ctx: CommandContext, t: Task) -> None:
     """The executor changes the state of an own task; another employee needs «manage»."""
-    if _mine(ctx.actor, t) and has(ctx.actor, "tasks.own", t.location_id):
+    if _mine(ctx.actor, t) and has(ctx.actor, "tasks.own", t.location_id, context_id=t.context_id):
         return
     _require(ctx.actor, "tasks.manage", t)
 
@@ -378,7 +420,12 @@ def take(ctx: CommandContext, t: Task) -> Task:
     if t.assignee_id is not None or t.state != State.OPEN:
         raise errors.business_rule("TASK_NOT_IN_QUEUE")
     _require(ctx.actor, "tasks.queue", t)
-    if not eligible(t.company_id, t.location_id, ctx.actor.employment_id):  # type: ignore[arg-type]
+    if not eligible(
+        t.company_id,
+        t.location_id,
+        ctx.actor.employment_id,  # type: ignore[arg-type]
+        t.context_id,
+    ):
         raise errors.permission_denied("tasks.own")
     _blocked(t)
     before = snapshot(t)
@@ -517,7 +564,7 @@ def change(ctx: CommandContext, company: Company, t: Task, changes: Changes) -> 
     the new deadline stay in the history."""
     _active(t)
     actor = ctx.actor
-    manager = has(actor, "tasks.manage", t.location_id)
+    manager = has(actor, "tasks.manage", t.location_id, context_id=t.context_id)
     if changes.title is not None or changes.description is not None:
         if t.created_by_employment_id != actor.employment_id and not manager:
             raise errors.permission_denied("tasks.manage")
@@ -645,6 +692,7 @@ def ensure_system(
     object_id: UUID,
     params: dict[str, Any],
     priority: str = Task.Priority.HIGH,
+    context_id: UUID | None = None,
 ) -> Task | None:
     """A system task of an event, once per condition, in the common queue of its scope. The
     title is the event; the interface shows it in the user's language."""
@@ -661,6 +709,7 @@ def ensure_system(
         title=event,
         priority=priority,
         location_id=location_id,
+        context_id=context_id,
         source=Task.Source.SYSTEM,
         system_event=event,
         system_condition=condition,
@@ -677,6 +726,26 @@ def ensure_system(
         after={**snapshot(t), "event": event, "params": params},
     )
     return t
+
+
+def tasks_of_event(event: str) -> QuerySet[Task]:
+    """The active system tasks of an event in every company (for the periodic checks)."""
+    return Task.objects.filter(
+        source=Task.Source.SYSTEM, system_event=event, state__in=ACTIVE_STATES
+    )
+
+
+def close_stale_system(event: str, keep: set[str], *, done: bool, result: str) -> int:
+    """The active system tasks of the event whose condition is gone (§ 19.2.1)."""
+    stale = (
+        Task.objects.filter(source=Task.Source.SYSTEM, system_event=event, state__in=ACTIVE_STATES)
+        .exclude(system_condition__in=keep)
+        .values_list("company_id", "system_condition")
+    )
+    return sum(
+        close_system(company_id, condition, done=done, result=result)
+        for company_id, condition in set(stale)
+    )
 
 
 def close_system(company_id: UUID, condition: str, *, done: bool, result: str) -> int:

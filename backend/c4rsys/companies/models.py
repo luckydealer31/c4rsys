@@ -429,12 +429,34 @@ class LocationSchedule(models.Model):
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
     weekly = models.JSONField(default=schedule_24_7)
     exceptions = models.JSONField(default=list)
+    # Block 16 B: the fresh-data check of a change of the schedule (§ 22.1.6).
+    version = models.PositiveIntegerField(default=1)
 
     class Meta:
         db_table = "location_schedule"
 
     def __str__(self) -> str:
         return f"schedule {self.location_id}"
+
+
+class ContextSchedule(models.Model):
+    """An own schedule of a context (§ 4.2.3). Without it the context inherits the schedule of
+    its location; «restore inheritance» removes the row (§ 4.2.4), the journal keeps the former
+    value."""
+
+    context = models.OneToOneField(
+        ActivityContext, on_delete=models.PROTECT, primary_key=True, related_name="own_schedule"
+    )
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    weekly = models.JSONField(default=schedule_24_7)
+    exceptions = models.JSONField(default=list)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "context_schedule"
+
+    def __str__(self) -> str:
+        return f"schedule {self.context_id}"
 
 
 class Permission(models.Model):

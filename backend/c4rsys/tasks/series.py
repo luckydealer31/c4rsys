@@ -115,10 +115,12 @@ def start(
         description=t.description,
         priority=t.priority,
         location_id=t.location_id,
+        context_id=t.context_id,
         assignee_id=t.assignee_id,
         object_type=t.object_type,
         object_id=t.object_id,
         due_time=due_time,
+        reminders=list(t.reminders),
         checklist=checklist,
         checklist_required=t.checklist_required,
         group_id=t.group_id,
@@ -157,10 +159,12 @@ def _instance(series: TaskSeries, company: Company, on: date) -> Task:
         description=series.description,
         priority=series.priority,
         location_id=series.location_id,
+        context_id=series.context_id,
         assignee_id=series.assignee_id,
         object_type=series.object_type,
         object_id=series.object_id,
         due_at=_due(series, company, on),
+        reminders=list(series.reminders),
         due_has_time=series.due_time is not None,
         checklist_required=series.checklist_required,
         group_id=series.group_id,
@@ -324,6 +328,8 @@ class SeriesChanges:
     ends_on_set: bool = False
     checklist: list[str] | None = None
     checklist_required: bool | None = None
+    # § 19.2.2: the reminders of this and the following repetitions.
+    reminders: list[int] | None = None
 
 
 def change_following(
@@ -348,6 +354,10 @@ def change_following(
             )
     if changes.due_time_set:
         series.due_time = changes.due_time
+    if changes.reminders is not None:
+        from c4rsys.tasks import services
+
+        series.reminders = services.check_reminders(changes.reminders)
     if changes.ends_on_set:
         if changes.ends_on is not None and changes.ends_on < series.starts_on:
             raise errors.validation_error("ends_on", code="DATE_INVALID")
@@ -373,6 +383,9 @@ def change_following(
         if t.series_on is not None:
             t.due_at = _due(series, company, t.series_on)
             t.due_has_time = series.due_time is not None
+        if changes.reminders is not None or changes.due_time_set:
+            t.reminders = list(series.reminders)
+            t.reminders_sent = []
         if changes.checklist is not None:
             # A new composition; the marks of the items kept by their text stay.
             marks = {x.text: x for x in TaskChecklistItem.objects.filter(task=t)}
@@ -411,6 +424,7 @@ def _series_snapshot(series: TaskSeries) -> dict[str, Any]:
         "ends_on": series.ends_on,
         "checklist": list(series.checklist),
         "checklist_required": series.checklist_required,
+        "reminders": list(series.reminders),
     }
 
 
@@ -429,4 +443,5 @@ def payload(series: TaskSeries | None) -> dict[str, Any] | None:
         "state": series.state,
         "due_time": series.due_time.isoformat(timespec="minutes") if series.due_time else None,
         "checklist": series.checklist,
+        "reminders": series.reminders,
     }

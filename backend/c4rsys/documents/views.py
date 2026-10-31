@@ -102,15 +102,20 @@ def _links(data: dict[str, Any]) -> list[services.Link]:
 
 
 def _scope(data: dict[str, Any]) -> services.Scope | None:
-    """`locations`: absent — by default; "all" — the whole company; a list — those."""
+    """`locations`: absent — by default; "all" — the whole company; a list — those, with
+    `contexts`: a list of chosen contexts of other locations (§ 18.5.4)."""
     if "locations" not in data or data["locations"] is None:
         return None
     value = data["locations"]
     if value == "all":
         return services.Scope(frozenset())
-    if not isinstance(value, list) or not value:
+    contexts = data.get("contexts") or []
+    if not isinstance(value, list) or not isinstance(contexts, list) or not (value or contexts):
         raise errors.validation_error("locations")
-    return services.Scope(frozenset(_required({"l": x}, "l") for x in value))
+    return services.Scope(
+        frozenset(_required({"l": x}, "l") for x in value),
+        frozenset(_required({"c": x}, "c") for x in contexts),
+    )
 
 
 def _iso(value: Any) -> str | None:
@@ -139,6 +144,7 @@ def _document_payload(d: Document, *, detail: bool = False) -> dict[str, Any]:
         "all_locations": d.all_locations,
         "show_to_client": d.show_to_client,
         "locations": sorted(str(x) for x in services.location_ids(d)),
+        "contexts": sorted(str(c) for c, _ in services.scope_contexts(d)),
         "valid_until": _iso(d.valid_until),
         "warn_days": d.warn_days,
         "warning": services.warning(d, today),
@@ -256,6 +262,7 @@ def document_list(request: HttpRequest, cmp: str) -> JsonResponse:
             "file_id",
             "links",
             "locations",
+            "contexts",
             "valid_until",
             "warn_days",
         )
@@ -311,6 +318,7 @@ def document_detail(request: HttpRequest, cmp: str, document_id: UUID) -> JsonRe
                 "kind_id",
                 "document_date",
                 "locations",
+                "contexts",
                 "warn_days",
                 "expected_version",
             )
@@ -594,6 +602,7 @@ def document_preview(request: HttpRequest, cmp: str) -> JsonResponse:
         raise errors.permission_denied("documents.create")
     data = parse_json(request)
     t = templates.get(context.company.id, _required(data, "template_id"))
+    _source_readable(actor, context.company.id, t, _uuid(data.get("source_id"), "source_id"))
     found = templates.preview(
         context.company,
         t,
@@ -610,6 +619,14 @@ def document_preview(request: HttpRequest, cmp: str) -> JsonResponse:
     )
 
 
+def _source_readable(actor: Actor, company_id: UUID, t: Any, source_id: UUID | None) -> None:
+    """A settlement record is read only by the employee who may see it (§ 18.5.5; PROPOSAL)."""
+    if t.source == "payment" and source_id is not None:
+        from c4rsys.finance import documents as finance_documents
+
+        finance_documents.can_read(actor, company_id, source_id)
+
+
 @require_POST
 def document_from_template(request: HttpRequest, cmp: str) -> JsonResponse:
     context, actor = _actor(request, cmp)
@@ -623,6 +640,7 @@ def document_from_template(request: HttpRequest, cmp: str) -> JsonResponse:
 
     def handler(ctx: CommandContext) -> CommandResult:
         t = templates.get(context.company.id, template_id)
+        _source_readable(actor, context.company.id, t, source_id)
         d = templates.make(ctx, context.company, t, source_id, title=title, on=on)
         _require_on(actor, "documents.create", d)
         return CommandResult(201, {"document": _document_payload(d, detail=True)})

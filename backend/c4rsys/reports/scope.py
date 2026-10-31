@@ -17,7 +17,7 @@ from django.http import QueryDict
 from django.utils import timezone
 
 from c4rsys.companies import access, locations
-from c4rsys.companies.models import Company, Location
+from c4rsys.companies.models import ActivityContext, Company, Location
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor
 
@@ -32,6 +32,17 @@ class Filters:
     location_id: UUID | None = None
     vehicle_id: UUID | None = None
     tariff_id: UUID | None = None
+    # § 21.2.2, § 21.2.5: one context of a location (its type and location follow from it).
+    context_id: UUID | None = None
+    context_type: str = ""
+    # § 21.4.1: the category of the vehicle. PROPOSAL: the «kind» of § 8.1.12 (`vehicle_type`);
+    # TODO(spec): the catalog of vehicle categories is not defined separately.
+    category: str = ""
+    # § 21.7.1: post, work of the system reference, executor (employment) and order (number).
+    post_id: UUID | None = None
+    system_work: str = ""
+    executor_id: UUID | None = None
+    order_number: int | None = None
 
     @property
     def tz(self) -> ZoneInfo:
@@ -61,6 +72,12 @@ class Filters:
             "location_id": str(self.location_id) if self.location_id else None,
             "vehicle_id": str(self.vehicle_id) if self.vehicle_id else None,
             "tariff_id": str(self.tariff_id) if self.tariff_id else None,
+            "context_id": str(self.context_id) if self.context_id else None,
+            "category": self.category or None,
+            "post_id": str(self.post_id) if self.post_id else None,
+            "system_work": self.system_work or None,
+            "executor_id": str(self.executor_id) if self.executor_id else None,
+            "order_number": self.order_number,
         }
 
 
@@ -87,6 +104,20 @@ def _date(params: QueryDict, key: str) -> date | None:
 def parse(params: QueryDict, company: Company) -> Filters:
     """By default the current month in the zone of the report."""
     location_id = _uuid(params, "location")
+    context_id = _uuid(params, "context")
+    context_type = ""
+    if context_id is not None:
+        # The context belongs to the company; it fixes the location of the report.
+        found = (
+            ActivityContext.objects.filter(location__company=company, pk=context_id)
+            .values_list("location_id", "type")
+            .first()
+        )
+        if found is None:
+            raise errors.validation_error("context", code="CONTEXT_INVALID")
+        if location_id is not None and location_id != found[0]:
+            raise errors.validation_error("context", code="CONTEXT_NOT_IN_LOCATION")
+        location_id, context_type = found
     if location_id is not None and not locations.location_exists(company.id, location_id):
         raise errors.validation_error("location", code="LOCATION_UNKNOWN")
     zone = params.get("tz") or ""
@@ -103,7 +134,24 @@ def parse(params: QueryDict, company: Company) -> Filters:
     end = _date(params, "end") or today
     if end < start or (end - start).days > MAX_DAYS:
         raise errors.validation_error("end", code="PERIOD_INVALID")
-    return Filters(start, end, zone, location_id, _uuid(params, "vehicle"), _uuid(params, "tariff"))
+    order = params.get("order") or ""
+    if order and not order.lstrip("#№ ").isdigit():
+        raise errors.validation_error("order")
+    return Filters(
+        start,
+        end,
+        zone,
+        location_id,
+        _uuid(params, "vehicle"),
+        _uuid(params, "tariff"),
+        context_id=context_id,
+        context_type=context_type,
+        category=(params.get("category") or "")[:30],
+        post_id=_uuid(params, "post"),
+        system_work=(params.get("work") or "")[:60],
+        executor_id=_uuid(params, "executor"),
+        order_number=int(order.lstrip("#№ ")) if order else None,
+    )
 
 
 @dataclass(frozen=True)
@@ -125,9 +173,21 @@ class Area:
         }
 
 
-def area(actor: Actor, permission: str, company: Company, filters: Filters) -> Area | None:
-    """None — no access at all: the block is hidden (§ 21.1.1)."""
+def area(
+    actor: Actor, permission: str, company: Company, filters: Filters, kind: str = ""
+) -> Area | None:
+    """None — no access at all: the block is hidden (§ 21.1.1). `kind` — the type of context the
+    blocks belong to: with a context filter of another type they are not applicable and are not
+    shown (§ 21.2.5; PROPOSAL); with one of its type the right is checked in that context."""
     resolver = access.RightsResolver()
+    if filters.context_id is not None and kind:
+        if kind != filters.context_type or filters.location_id is None:
+            return None
+        if resolver.has_permission(
+            actor, permission, location_id=filters.location_id, context_id=filters.context_id
+        ):
+            return Area(False, frozenset({filters.location_id}))
+        return None
     ids = list(Location.objects.filter(company=company).values_list("id", flat=True))
     allowed = {x for x in ids if resolver.has_permission(actor, permission, location_id=x)}
     whole = bool(resolver.has_permission(actor, permission, whole_company=True))

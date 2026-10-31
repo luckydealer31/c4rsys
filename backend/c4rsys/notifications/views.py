@@ -1,7 +1,7 @@
 """HTTP API of the notification centre (ТЗ § 20.1.5, § 20.2.2).
 
 The centre belongs to the user: it shows the notifications of every company where the user works,
-with filters by kind, state, company, location and period. Reading is the user's own mark.
+with filters by kind, state, company, location, context and period. Reading is the user's own mark.
 """
 
 from datetime import date, datetime, time
@@ -27,7 +27,10 @@ LIMIT = 200
 def _mine(user_id: UUID) -> QuerySet[NotificationRecipient]:
     employments = Employment.objects.filter(user_id=user_id, state=Employment.State.ACTIVE)
     return NotificationRecipient.objects.filter(employment__in=employments).select_related(
-        "notification", "notification__company", "notification__location"
+        "notification",
+        "notification__company",
+        "notification__location",
+        "notification__context",
     )
 
 
@@ -57,6 +60,7 @@ def _common(r: NotificationRecipient) -> dict[str, Any]:
         "id": str(r.id),
         "company": {"public_id": n.company.public_id, "name": n.company.display_name},
         "location": {"id": str(n.location_id), "name": n.location.name} if n.location else None,
+        "context": {"id": str(n.context_id), "type": n.context.type} if n.context else None,
         "kind": n.kind,
         "event": n.event,
         "state": n.state,
@@ -78,8 +82,9 @@ def _day(value: str, key: str, end: bool) -> datetime:
 
 @require_GET
 def notification_list(request: HttpRequest) -> JsonResponse:
-    """Filters: `kind`, `state` (active | done), `company` (public id), `location`, `from`, `to`
-    (dates of the last occurrence), `unread=1`."""
+    """Filters: `kind`, `state` (active | done), `company` (public id), `location`, `context`
+    (id) or `context_type` (rental | service | warehouse), `from`, `to` (dates of the last
+    occurrence), `unread=1` (§ 20.1.5)."""
     user, _session = require_user(request)
     params = request.GET
     query = _mine(user.id)
@@ -94,6 +99,13 @@ def notification_list(request: HttpRequest) -> JsonResponse:
             query = query.filter(notification__location_id=UUID(params["location"]))
         except ValueError as exc:
             raise errors.validation_error("location") from exc
+    if params.get("context"):
+        try:
+            query = query.filter(notification__context_id=UUID(params["context"]))
+        except ValueError as exc:
+            raise errors.validation_error("context") from exc
+    if params.get("context_type"):
+        query = query.filter(notification__context__type=params["context_type"])
     if params.get("from"):
         query = query.filter(notification__last_at__gte=_day(params["from"], "from", False))
     if params.get("to"):

@@ -172,6 +172,7 @@ def _finish(found: SystemBlock, kind: str, reason: str, by: UUID | None, now: da
     found.end_reason = reason
     found.ended_by_user_id = by
     found.save(update_fields=["ended_at", "end_kind", "end_reason", "ended_by_user_id"])
+    _centre_end(found, now)
     if found.company_id is not None:
         # § 24.2.3–24.2.4: the modules continue from now; a deactivated company stays so.
         suspension.resumed(found.company_id, found.started_at, now)
@@ -235,7 +236,62 @@ def deliver_notice(found: SystemBlock, now: datetime) -> bool:
     found.notice = Notice.SENT
     found.notified_at = now
     found.save(update_fields=["notice", "notified_at"])
+    _centre_notice(found, now)
     return True
+
+
+def _centre_notice(found: SystemBlock, now: datetime) -> None:
+    """§ 20.3.4 (block 16 B): the block of a company is also kept in the notification centre of
+    its top-authority director and full administrators while it lasts. PROPOSAL (agent): with
+    the reason that may be disclosed, once the notice is sent."""
+    from c4rsys.notifications import rules
+    from c4rsys.notifications import services as notifications
+
+    if found.company_id is None:
+        return
+    rules.raise_event(
+        found.company_id,
+        "company.system_blocked",
+        condition=f"company.system_blocked:{found.id}",
+        params={"reason": found.disclosed_reason or found.category, "support": support_contact()},
+        recipients=notifications.heads(found.company_id),
+        now=now,
+    )
+
+
+def _centre_end(found: SystemBlock, now: datetime) -> None:
+    """§ 20.3.4 (block 16 B): the end of a block — to the heads of the company, or to the user in
+    each company where he works (PROPOSAL)."""
+    from c4rsys.companies.models import Employment
+    from c4rsys.notifications import rules
+    from c4rsys.notifications import services as notifications
+
+    if found.company_id is not None:
+        notifications.resolve(
+            found.company_id, f"company.system_blocked:{found.id}", "block_ended", now
+        )
+        rules.raise_event(
+            found.company_id,
+            "company.system_unblocked",
+            condition=f"company.system_unblocked:{found.id}",
+            recipients=notifications.heads(found.company_id),
+            now=now,
+            done=True,
+        )
+        return
+    if found.user_id is None:
+        return
+    for employment in Employment.objects.filter(
+        user_id=found.user_id, state=Employment.State.ACTIVE
+    ):
+        rules.raise_event(
+            employment.company_id,
+            "account.system_unblocked",
+            condition=f"account.system_unblocked:{found.id}:{employment.id}",
+            recipients=[employment.id],
+            now=now,
+            done=True,
+        )
 
 
 def run(now: datetime) -> int:

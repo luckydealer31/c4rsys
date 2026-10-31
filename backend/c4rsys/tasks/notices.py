@@ -146,7 +146,9 @@ def _overdue_recipients(t: Task) -> tuple[list[UUID], list[UUID]]:
 def _release_lost(t: Task, now: datetime) -> bool:
     from c4rsys.tasks import services
 
-    if t.assignee_id is None or services.eligible(t.company_id, t.location_id, t.assignee_id):
+    if t.assignee_id is None or services.eligible(
+        t.company_id, t.location_id, t.assignee_id, t.context_id
+    ):
         return False
     before = str(t.assignee_id)
     t.assignee_id = None

@@ -14,6 +14,11 @@ urlpatterns = [
     path("c/<str:cmp>/locations/<uuid:location_id>/contexts", views.location_contexts),
     path("c/<str:cmp>/locations/<uuid:location_id>/deactivate", views.location_deactivate),
     path("c/<str:cmp>/locations/<uuid:location_id>/restore", views.location_restore),
+    path("c/<str:cmp>/locations/<uuid:location_id>/schedule", views.location_schedule),
+    path(
+        "c/<str:cmp>/locations/<uuid:location_id>/contexts/<uuid:context_id>/schedule",
+        views.context_schedule,
+    ),
     path(
         "c/<str:cmp>/locations/<uuid:location_id>/contexts/<uuid:context_id>/disable",
         views.context_disable,

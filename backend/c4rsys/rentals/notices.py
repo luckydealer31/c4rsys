@@ -321,6 +321,7 @@ def _schedule_conflicts(now: datetime) -> int:
     """§ 14.6.2 (block 16): a late return that touches the next booking — the booking stays and
     the responsible of its order is told; an employee resolves it by hand."""
     from c4rsys.rentals import bookings
+    from c4rsys.tasks import services as tasks
 
     event = "rental.schedule_conflict"
     changed = 0
@@ -346,6 +347,21 @@ def _schedule_conflicts(now: datetime) -> int:
             responsible=_responsible(r),
             now=now,
         )
+        # § 19.1.9 (block 16 B): the automatic task by the company's rule.
+        if rules.rule(r.company_id, event).auto_task and tasks.ensure_system(
+            r.company_id,
+            event=event,
+            condition=condition,
+            location_id=r.issue_location_id,
+            object_type="rental",
+            object_id=r.id,
+            params=_params(r),
+            priority="normal",
+        ):
+            changed += 1
+    changed += tasks.close_stale_system(
+        event, active, done=True, result="schedule_conflict_settled"
+    )
     return changed + _close_stale(event, active, "schedule_conflict_settled", now)
 
 

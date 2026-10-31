@@ -18,7 +18,7 @@ type Catalog = {
   sources: Record<string, string[]>;
 };
 
-const SOURCES = ["rental", "order", "service_operation", "delivery", "client", "vehicle", "inspection", "none"] as const;
+const SOURCES = ["rental", "order", "service_operation", "delivery", "client", "counterparty", "vehicle", "inspection", "payment", "none"] as const;
 
 export function useTemplates() {
   const company = useCompany();
@@ -263,6 +263,9 @@ const TEMPLATE_SOURCE: Record<string, string> = {
   delivery: "delivery",
   client: "client",
   vehicle: "vehicle",
+  // § 18.1.1, § 18.1.6 (block 16 B): documents of a counterparty and settlement documents.
+  counterparty: "counterparty",
+  payment: "payment",
 };
 
 /** A document made by a template for a card: preview with the fields without data, then the

@@ -77,7 +77,14 @@ export function VehiclesPage() {
     `/c/${company.public_id}/vehicles?q=${encodeURIComponent(q)}`,
     Boolean(q),
   );
-  const vehicles = q ? found : all;
+  // § 21.3.1: the list a block of the company overview is counted from.
+  const only = ["unavailable", "identifier_conflict"].includes(params.get("only") ?? "") ? (params.get("only") ?? "") : "";
+  const filtered = useApi<{ vehicles: Vehicle[] }>(
+    ["vehicles", company.public_id, "only", only],
+    `/c/${company.public_id}/vehicles?only=${only}`,
+    Boolean(only),
+  );
+  const vehicles = only ? filtered : q ? found : all;
   const locations = useLocations();
   const rentals = useRentals(can("rental.view"));
   const tab: Relation = RELATIONS.includes(params.get("tab") as Relation)
@@ -87,7 +94,7 @@ export function VehiclesPage() {
   // those without a location come last. Client vehicles have no location (§ 8.1.2).
   // Vehicles on a warehouse are stock items, shown in «Warehouse» (§ 8.1.5).
   const list = (vehicles.data?.vehicles ?? []).filter(
-    (v) => v.relation === tab && v.storage === null,
+    (v) => (only ? true : v.relation === tab) && v.storage === null,
   );
   const groups = (tab === "client"
     ? [{ id: "client", name: t("vehicles.client_group"), vehicles: list }]
@@ -123,6 +130,12 @@ export function VehiclesPage() {
         value={q}
         onSearch={(text) => setParams(Object.fromEntries(Object.entries({ tab: tab === "own" ? "" : tab, q: text }).filter(([, v]) => v)))}
       />
+      {only ? (
+        <p className="small muted">
+          {t(`vehicles.only_${only}`)} ·{" "}
+          <Link to={companyPath(company, "/vehicles")}>{t("vehicles.only_reset")}</Link>
+        </p>
+      ) : null}
       <div className="tabs" role="tablist">
         {RELATIONS.map((key) => (
           <button

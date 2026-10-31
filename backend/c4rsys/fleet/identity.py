@@ -758,3 +758,44 @@ def _notify(
             now=now,
             done=True,
         )
+
+
+OPENED_EVENT = "vehicle.identifier_conflict_opened"
+
+
+def notify_open(now: datetime) -> int:
+    """§ 20.3.4 (block 16 B): each company whose card is a party of an open conflict learns the
+    fact and the number (§ 8.6.1); the notification ends when the conflict is closed or the card
+    leaves it. The decision is told by `DECIDED_EVENT`."""
+    from c4rsys.notifications import rules
+    from c4rsys.notifications import services as notifications
+    from c4rsys.notifications.models import Notification
+
+    changed = 0
+    current: set[str] = set()
+    parties = IdentifierConflictParty.objects.select_related("vehicle_card", "conflict").filter(
+        conflict__is_open=True, left_at__isnull=True, vehicle_card__isnull=False
+    )
+    for party in parties:
+        card = party.vehicle_card
+        if card is None:
+            continue
+        condition = f"{OPENED_EVENT}:{party.conflict_id}:{card.id}"
+        if condition in current:
+            continue
+        current.add(condition)
+        changed += rules.raise_event(
+            card.company_id,
+            OPENED_EVENT,
+            condition=condition,
+            location_id=card.accounting_location_id,
+            object_type="vehicle",
+            object_id=card.id,
+            params={"number": party.conflict.number, "kind": party.conflict.kind},
+            now=now,
+        )
+    for n in Notification.objects.filter(event=OPENED_EVENT, state=Notification.State.ACTIVE):
+        if n.condition not in current:
+            notifications.resolve(n.company_id, n.condition, "conflict_closed", now)
+            changed += 1
+    return changed

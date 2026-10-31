@@ -1,8 +1,8 @@
 """The notification centre (ТЗ гл. 20; customer's decisions З-1…З-11 of 29.10.2026).
 
-* A notification belongs to a company and, when applicable, to a location; it has a kind
-  («action required», «warning», «reminder», «information»), an event with its parameters for the
-  text, the time and a link to its object (§ 20.1.3, § 20.1.5).
+* A notification belongs to a company and, when applicable, to a location and its context; it
+  has a kind («action required», «warning», «reminder», «information»), an event with its
+  parameters for the text, the time and a link to its object (§ 20.1.3, § 20.1.5).
 * While one condition lasts there is one active notification: a repetition updates it and stays
   in its history (§ 20.3.2). When the cause is removed it is done for every recipient; reading
   it does not end it (§ 20.3.3).
@@ -32,6 +32,14 @@ class Notification(models.Model):
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
     location = models.ForeignKey(
         Location, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    # The context of the location, when applicable (§ 20.1.5; block 16 B).
+    context = models.ForeignKey(
+        "companies.ActivityContext",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
     )
     kind = models.CharField(max_length=10, choices=Kind.choices)
     # The event of the catalogue (`task.overdue`) and the condition it is about: one active

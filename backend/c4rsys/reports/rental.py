@@ -77,6 +77,8 @@ def _rentals(company: Company, where: Area, filters: Filters, tariff_id: UUID | 
         found = found.filter(vehicle_card_id=filters.vehicle_id)
     if tariff_id:
         found = found.filter(tariff_id=tariff_id)
+    if filters.category:
+        found = found.filter(vehicle_card__vehicle__vehicle_type=filters.category)
     return found
 
 
@@ -249,6 +251,8 @@ def _fleet_blocks(
         query = query.filter(accounting_location_id__in=where.location_ids)
     if filters.vehicle_id:
         query = query.filter(pk=filters.vehicle_id)
+    if filters.category:
+        query = query.filter(vehicle__vehicle_type=filters.category)
     cards = list(query.order_by("name"))
     start, end = filters.start_at, min(filters.end_at, now)
     ids = [c.id for c in cards]
@@ -405,6 +409,8 @@ def _payback(actor: Actor, company: Company, where: Area, filters: Filters) -> l
         query = query.filter(accounting_location_id__in=where.location_ids)
     if filters.vehicle_id:
         query = query.filter(pk=filters.vehicle_id)
+    if filters.category:
+        query = query.filter(vehicle__vehicle_type=filters.category)
     cards = list(query.order_by("name"))
     # Money of the company is needed in full: with partial access to accounts it is hidden.
     from c4rsys.reports.overview import _all_accounts
@@ -475,7 +481,7 @@ def build(actor: Actor, company: Company, filters: Filters) -> list[Block]:
     now = timezone.now()
     tariff_id = filters.tariff_id
     blocks: list[Block] = []
-    rental = area(actor, "rental.view", company, filters)
+    rental = area(actor, "rental.view", company, filters, "rental")
     if rental is not None:
         blocks += _rental_blocks(company, rental, filters, tariff_id, now)
     fleet = area(actor, "vehicle.view", company, filters)

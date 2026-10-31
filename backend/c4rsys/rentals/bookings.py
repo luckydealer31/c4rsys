@@ -267,6 +267,9 @@ def create(ctx: CommandContext, company_id: UUID, data: BookingData) -> Rental:
     card = fleet.lock_card(company_id, data.vehicle_card_id)
     fleet.require_open_for_new(card)
     _require_free(card.id, data.planned_start, data.planned_end)
+    # TODO(spec): § 4.2.3 — a booking outside the schedule of the context gives a warning and
+    # continues only with «the corresponding permission», which the spec does not name. The
+    # check (companies.schedules.context_schedule(...).is_open) waits for that decision.
     client = parties.get_client(company_id, data.client_id) if data.client_id else None
     tariff, snap = _tariff(card, data.tariff_id) if data.tariff_id else (None, None)
     location, zone, place = _place(company_id, data)

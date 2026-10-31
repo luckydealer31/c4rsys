@@ -22,6 +22,11 @@ class RentalsConfig(AppConfig):
         from c4rsys.rentals import search as rentals_search
 
         platform_search.register("rental", rentals_search.provider)
+        # § 22.1.6 (block 16 B): planned issues and returns for the conflicts of a schedule.
+        from c4rsys.companies import schedules
+        from c4rsys.rentals import schedule_points
+
+        schedules.register_points(schedule_points.points)
         from c4rsys.companies import locations, readiness
         from c4rsys.fleet import moves
         from c4rsys.fleet import services as fleet

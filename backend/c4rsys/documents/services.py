@@ -2,9 +2,9 @@
 § 18.1, § 18.5; customer's decisions Р-5, Р-7, Р-11 of 29.10.2026).
 
 * The number is the next one inside the company (decision Р-5).
-* The scope is the whole company or chosen locations; by default the location of the linked
-  operation or vehicle, the whole company without such links (decision Р-11). Links never widen
-  it (§ 18.5.4).
+* The scope is the whole company or chosen locations and contexts; by default the location of
+  the linked operation or vehicle, the whole company without such links (decision Р-11). Links
+  never widen it (§ 18.5.4).
 * A lasting warning is active from `warn_days` before `valid_until` until the document gets a new
   version with a new term or is archived; reading it does not remove it (§ 18.1.13–18.1.14).
   Until the notification centre comes, it is shown in the registry and on the linked vehicle
@@ -25,6 +25,7 @@ from c4rsys.companies import locations
 from c4rsys.companies.models import Company
 from c4rsys.documents.models import (
     Document,
+    DocumentContext,
     DocumentKind,
     DocumentLink,
     DocumentLocation,
@@ -122,13 +123,16 @@ class Link:
 
 @dataclass(frozen=True)
 class Scope:
-    """None — by default; an empty set — the whole company; else the listed locations."""
+    """None — by default; an empty set — the whole company; else the listed locations and
+    contexts (§ 18.5.4)."""
 
     location_ids: frozenset[UUID] | None
+    context_ids: frozenset[UUID] = frozenset()
 
 
 def _apply_scope(d: Document, scope: Scope, links: list[Link]) -> None:
     chosen = scope.location_ids
+    contexts = scope.context_ids if chosen is not None else frozenset()
     if chosen is None:
         places = {
             _place_of(link.object_type, resolve(d.company_id, link.object_type, link.object_id))
@@ -139,16 +143,35 @@ def _apply_scope(d: Document, scope: Scope, links: list[Link]) -> None:
     for location_id in chosen:
         if not locations.location_exists(d.company_id, location_id):
             raise errors.validation_error("locations", code="LOCATION_UNKNOWN")
-    d.all_locations = not chosen
+    found = {c.id: c for c in locations.contexts_of(d.company_id).filter(pk__in=contexts)}
+    if len(found) != len(contexts):
+        raise errors.validation_error("contexts", code="CONTEXT_UNKNOWN")
+    # A context of a location chosen as a whole adds nothing (PROPOSAL): it is not kept.
+    kept = sorted(x for x, c in found.items() if c.location_id not in chosen)
+    d.all_locations = not chosen and not kept
     d.save(update_fields=["all_locations", "updated_at"])
     DocumentLocation.objects.filter(document=d).delete()
     DocumentLocation.objects.bulk_create(
         DocumentLocation(company_id=d.company_id, document=d, location_id=x) for x in sorted(chosen)
     )
+    DocumentContext.objects.filter(document=d).delete()
+    DocumentContext.objects.bulk_create(
+        DocumentContext(company_id=d.company_id, document=d, context_id=x) for x in kept
+    )
 
 
 def location_ids(d: Document) -> set[UUID]:
     return set(DocumentLocation.objects.filter(document=d).values_list("location_id", flat=True))
+
+
+def scope_contexts(d: Document) -> list[tuple[UUID, UUID]]:
+    """The contexts of the scope with their locations (§ 18.5.4)."""
+    return [
+        (c, loc)
+        for c, loc in DocumentContext.objects.filter(document=d).values_list(
+            "context_id", "context__location_id"
+        )
+    ]
 
 
 def links_of(d: Document) -> list[DocumentLink]:
@@ -228,6 +251,7 @@ def snapshot(d: Document) -> dict[str, Any]:
         "document_date": d.document_date,
         "all_locations": d.all_locations,
         "locations": sorted(str(x) for x in location_ids(d)),
+        "contexts": sorted(str(c) for c, _ in scope_contexts(d)),
         "valid_until": d.valid_until,
         "warn_days": d.warn_days,
         "state": d.state,
@@ -556,7 +580,12 @@ def can(actor: Any, permission: str, d: Document, resolver: Any = None) -> bool:
     resolver = resolver or access.RightsResolver()
     if d.all_locations:
         return bool(resolver.has_permission(actor, permission, whole_company=True))
-    return any(resolver.has_permission(actor, permission, location_id=x) for x in location_ids(d))
+    if any(resolver.has_permission(actor, permission, location_id=x) for x in location_ids(d)):
+        return True
+    return any(
+        resolver.has_permission(actor, permission, location_id=loc, context_id=c)
+        for c, loc in scope_contexts(d)
+    )
 
 
 def safe_file_name(name: str, fallback: str) -> str:

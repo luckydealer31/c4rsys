@@ -1,9 +1,11 @@
 """The starter dashboard «Company overview» (ТЗ § 21.3.1; customer's decisions О-1, О-5).
 
 Each block is counted by the right of its section over the area the employee may see (§ 21.1.1)
-and links to the list it is counted from. Blocks whose functions are not in the system yet —
-unconfirmed corrections and requests, conflicts of identifiers — are not shown (О-5): they are
-not zeros.
+and links to the list it is counted from, filtered by the block where the list has such a filter.
+Decision О-5 kept the blocks of functions not yet in the system hidden; block 16 Б adds them now
+that the functions exist: vehicles unavailable because of a restriction or a conflict,
+unconfirmed adjustments of inventories, requests to the company awaiting its answer and
+unresolved conflicts of identifiers.
 """
 
 from collections import defaultdict
@@ -11,6 +13,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
+from uuid import UUID
 
 from django.utils import timezone
 
@@ -114,13 +117,16 @@ def _fleet(company: Company, where: Area, filters: Filters) -> list[Block]:
             vehicle_card_id__in=ids, state__in=("accepted", "in_progress")
         ).values_list("vehicle_card_id", flat=True)
     )
+    unavailable = unavailable_cards(ids, timezone.now())
+    conflicts = conflict_cards(ids)
     return [
         Block("fleet.total", "fleet", "count", len(ids), area=where, link="/vehicles"),
         Block(
             "fleet.available",
             "fleet",
             "count",
-            len(ids - in_rental - in_service),
+            # PROPOSAL: a vehicle unavailable by a restriction or a dispute is not available.
+            len(ids - in_rental - in_service - unavailable),
             area=where,
             link="/vehicles",
         ),
@@ -133,7 +139,55 @@ def _fleet(company: Company, where: Area, filters: Filters) -> list[Block]:
             link="/rentals",
         ),
         Block("fleet.in_service", "fleet", "count", len(in_service), area=where, link="/service"),
+        Block(
+            "fleet.unavailable",
+            "fleet",
+            "count",
+            len(unavailable),
+            area=where,
+            link="/vehicles?only=unavailable",
+        ),
+        Block(
+            "fleet.identifier_conflicts",
+            "fleet",
+            "count",
+            len(conflicts),
+            area=where,
+            link="/vehicles?only=identifier_conflict",
+        ),
     ]
+
+
+def unavailable_cards(card_ids: set[UUID], now: datetime) -> set[UUID]:
+    """§ 21.3.1: cards with a restriction in force now (§ 8.8) or in an open dispute of ownership
+    or management (В-12.3). PROPOSAL: a conflict of identifiers alone is a warning and does not
+    make the vehicle unavailable (§ 8.6.3); it has its own block."""
+    from c4rsys.fleet.models import VehicleOperationalDisputeParty, VehicleRestriction
+
+    restricted = set(
+        VehicleRestriction.objects.filter(
+            vehicle_card_id__in=card_ids, period__contains=now
+        ).values_list("vehicle_card_id", flat=True)
+    )
+    disputed = set(
+        VehicleOperationalDisputeParty.objects.filter(
+            vehicle_card_id__in=card_ids, dispute__is_open=True
+        ).values_list("vehicle_card_id", flat=True)
+    )
+    return restricted | disputed
+
+
+def conflict_cards(card_ids: set[UUID]) -> set[UUID]:
+    """Cards that take part in an open conflict of identifiers (§ 8.6.1)."""
+    from c4rsys.fleet.models import IdentifierConflictParty
+
+    return {
+        x
+        for x in IdentifierConflictParty.objects.filter(
+            vehicle_card_id__in=card_ids, left_at__isnull=True, conflict__is_open=True
+        ).values_list("vehicle_card_id", flat=True)
+        if x is not None
+    }
 
 
 def _maintenance(company: Company, where: Area, filters: Filters) -> list[Block]:
@@ -316,22 +370,72 @@ def _low_stock(company: Company, where: Area) -> list[Block]:
     ]
 
 
+def _unconfirmed_counts(company: Company, where: Area) -> list[Block]:
+    """§ 21.3.1, § 11.6.3: inventories submitted and waiting for the confirmation of the
+    adjustment."""
+    from c4rsys.warehouse.models import InventoryCount
+
+    counts = InventoryCount.objects.filter(company=company, state=InventoryCount.State.SUBMITTED)
+    if not where.whole:
+        counts = counts.filter(context__location_id__in=where.location_ids)
+    return [
+        Block(
+            "warehouse.unconfirmed_counts",
+            "warehouse",
+            "count",
+            counts.count(),
+            area=where,
+            link="/warehouse?tab=inventory",
+        )
+    ]
+
+
+def _requests(company: Company, now: datetime) -> list[Block]:
+    """§ 21.3.1, § 6.3.8, § 6.4.4, § 8.3.1: requests addressed to the company and waiting for its
+    answer — to link a card with its profile, for fresh data of the profile, to the company as
+    the owner of a vehicle. PROPOSAL: counted for those who answer them («company.link.answer»
+    for the whole company), since the requests are not bound to a location."""
+    from c4rsys.fleet import owner_requests
+    from c4rsys.parties import data_requests, links
+
+    count = (
+        links.for_company(company.id).filter(state="pending", expires_at__gt=now).count()
+        + data_requests.for_company(company.id).filter(state="pending", expires_at__gt=now).count()
+        + owner_requests.for_company(company.id).filter(state="open", expires_at__gt=now).count()
+    )
+    return [
+        Block(
+            "company.pending_requests",
+            "company",
+            "count",
+            count,
+            area=Area(True, frozenset()),
+            link="/link-requests",
+        )
+    ]
+
+
 def build(actor: Actor, company: Company, filters: Filters) -> list[Block]:
     now = timezone.now()
     blocks: list[Block] = []
-    rental = area(actor, "rental.view", company, filters)
+    rental = area(actor, "rental.view", company, filters, "rental")
     if rental is not None:
         blocks += _rentals(company, rental, filters, now)
     fleet = area(actor, "vehicle.view", company, filters)
     if fleet is not None:
         blocks += _fleet(company, fleet, filters)
     blocks += _money_blocks(actor, company, filters)
-    service = area(actor, "service.view", company, filters)
+    service = area(actor, "service.view", company, filters, "service")
     if service is not None:
         blocks += _maintenance(company, service, filters)
-    stock = area(actor, "warehouse.view", company, filters)
+    stock = area(actor, "warehouse.view", company, filters, "warehouse")
     if stock is not None:
         blocks += _low_stock(company, stock)
+        blocks += _unconfirmed_counts(company, stock)
+    if filters.location_id is None and access.RightsResolver().has_permission(
+        actor, "company.link.answer", whole_company=True
+    ):
+        blocks += _requests(company, now)
     docs = area(actor, "documents.view", company, filters)
     if docs is not None:
         blocks += _documents(actor, company, docs)

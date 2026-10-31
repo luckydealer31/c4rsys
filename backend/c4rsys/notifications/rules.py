@@ -66,6 +66,10 @@ EVENTS: dict[str, Event] = {
     # § 8.2.1: the company is told the decision on its proposal. PROPOSAL: mandatory, to those
     # who see the vehicle.
     "vehicle.identifier_conflict_decided": Event(Kind.INFO, "vehicle.view", mandatory=True),
+    # § 20.3.4 (block 16 B): a card of the company is a party of an open conflict of identifiers —
+    # the fact and the number only (§ 8.6.1); it ends when the conflict is closed. PROPOSAL: to
+    # those who see the vehicle in its location.
+    "vehicle.identifier_conflict_opened": Event(Kind.WARNING, "vehicle.view", mandatory=True),
     "vehicle.characteristic_decided": Event(Kind.INFO, "vehicle.view", mandatory=True),
     # В-12.3: a dispute of ownership or management after the link of one vehicle in the fleets
     # of two companies — the number of the conflict only (§ 8.6.1). PROPOSAL: mandatory, to
@@ -78,6 +82,17 @@ EVENTS: dict[str, Event] = {
     "vehicle.restriction_during_operation": Event(
         Kind.ACTION, "vehicle.restriction.lift", mandatory=True, task=True
     ),
+    # § 20.3.4, § 19.1.9 (block 16 B): a submitted inventory waits for the confirmation of the
+    # adjustment; a system task in the queue of its location (closed by the decision).
+    "warehouse.adjustment_confirmation": Event(
+        Kind.ACTION, "warehouse.adjust.confirm", mandatory=True
+    ),
+    # § 20.3.4 (block 16 B): a system block of the company and its end, to the top-authority
+    # director and the full administrators; the end of a block of an account, to the user in
+    # each company. PROPOSAL: only when the notice of the block is not deferred (§ 24.2.2).
+    "company.system_blocked": Event(Kind.WARNING, None, mandatory=True),
+    "company.system_unblocked": Event(Kind.INFO, None, mandatory=True),
+    "account.system_unblocked": Event(Kind.INFO, None, mandatory=True),
     # Confirmations of share transfers and owners' approvals of deactivation (§ 3.4.1, § 3.6.2).
     "ownership.approval_requested": Event(Kind.ACTION, None, mandatory=True),
     "company.state_approval_requested": Event(Kind.ACTION, None, mandatory=True),
@@ -110,15 +125,23 @@ EVENTS: dict[str, Event] = {
     # § 14.3.3, § 14.6.2, § 20.3.5 (block 16; PROPOSAL: working, on by default): an issue with a
     # deposit not fully paid; a late return touching the next booking («schedule conflict»).
     "rental.deposit_shortfall": Event(Kind.WARNING, "finance.deposit.manage"),
-    "rental.schedule_conflict": Event(Kind.WARNING, "rental.book"),
+    # § 19.1.9 (block 16 B): the company may switch on an automatic task for it.
+    "rental.schedule_conflict": Event(Kind.WARNING, "rental.book", task=True),
     "service.maintenance_due": Event(Kind.WARNING, "service.create", task=True),
     "service.works_done": Event(Kind.INFO, "service.view"),
+    # § 20.3.5, § 19.1.9 (block 16 B): an unfinished service operation past its planned end.
+    # PROPOSAL: working, on by default, to the responsible of the order, else to those who see
+    # the service in the location; an automatic task by the company's rule.
+    "service.work_overdue": Event(Kind.WARNING, "service.view", task=True),
     "warehouse.expiry": Event(
         Kind.WARNING, "warehouse.view", lead_minutes=7 * 24 * HOUR, has_lead=True
     ),
     # § 11.7.8 (block 15, PROPOSAL: a working event, on by default, to the chosen employees or
     # by the right to view the stock of the location).
-    "warehouse.low_stock": Event(Kind.WARNING, "warehouse.view"),
+    "warehouse.low_stock": Event(Kind.WARNING, "warehouse.view", task=True),
+    # § 20.3.5 (block 16 B): a move received with less than sent, until the shortage is settled.
+    # PROPOSAL: working, on by default, to those who move stock in the receiving location.
+    "warehouse.discrepancy": Event(Kind.WARNING, "warehouse.move"),
     "finance.debt": Event(Kind.WARNING, "finance.account.view", task=True),
     # § 12.2.6, § 20.3.5 (block 16): the debt of an order is unpaid after its term of payment.
     # PROPOSAL: a working event, on by default, repeated daily, to the responsible of the order,
@@ -228,17 +251,40 @@ def recipients_for(
     *,
     location_id: UUID | None = None,
     responsible: Iterable[UUID | None] = (),
+    context_id: UUID | None = None,
 ) -> list[UUID]:
     spec = EVENTS[event]
     chosen = rule(company_id, event).recipient_ids
     if chosen and spec.permission is not None:
-        allowed = set(services.with_permission(company_id, spec.permission, location_id))
+        allowed = set(
+            services.with_permission(
+                company_id, spec.permission, location_id, context_id=context_id
+            )
+        )
         chosen = [x for x in chosen if x in allowed]
     if chosen:
         return chosen
     return services.recipients(
-        company_id, responsible=responsible, permission=spec.permission, location_id=location_id
+        company_id,
+        responsible=responsible,
+        permission=spec.permission,
+        location_id=location_id,
+        context_id=context_id,
     )
+
+
+# § 20.1.5 (block 16 B): the context of a notification is the enabled context of its section in
+# the location of the notification. PROPOSAL (agent): by the first part of the event's code.
+CONTEXT_TYPES = {"rental": "rental", "service": "service", "warehouse": "warehouse"}
+
+
+def context_of(company_id: UUID, event: str, location_id: UUID) -> UUID | None:
+    from c4rsys.companies import locations
+
+    context_type = CONTEXT_TYPES.get(event.split(".", 1)[0])
+    if context_type is None:
+        return None
+    return locations.enabled_context_id(company_id, location_id, context_type)
 
 
 def raise_event(
@@ -254,9 +300,12 @@ def raise_event(
     recipients: list[UUID] | None = None,
     now: datetime | None = None,
     done: bool = False,
+    context_id: UUID | None = None,
 ) -> bool:
     """Raises the event by the company's rule; repeats it by the rule's interval. `done` — an
     instant event with no cause to remove: it stays in the history, done at once."""
+    if context_id is None and location_id is not None:
+        context_id = context_of(company_id, event, location_id)
     current = rule(company_id, event)
     if not current.enabled:
         services.resolve(company_id, condition, "rule_disabled")
@@ -273,7 +322,13 @@ def raise_event(
     people = (
         recipients
         if recipients is not None
-        else recipients_for(company_id, event, location_id=location_id, responsible=responsible)
+        else recipients_for(
+            company_id,
+            event,
+            location_id=location_id,
+            responsible=responsible,
+            context_id=context_id,
+        )
     )
     if not people:
         return False
@@ -284,6 +339,7 @@ def raise_event(
         kind=EVENTS[event].kind,
         recipients=people,
         location_id=location_id,
+        context_id=context_id,
         object_type=object_type,
         object_id=object_id,
         params=params,

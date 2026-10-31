@@ -29,6 +29,10 @@ class FleetConfig(AppConfig):
         from c4rsys.fleet import restrictions
 
         notifications.register_check(restrictions.run)
+        # § 20.3.4 (block 16 B): open conflicts of identifiers of the company's cards.
+        from c4rsys.fleet import identity
+
+        notifications.register_check(identity.notify_open)
         # § 8.2.3: the files of the global documents are read by the owner.
         from c4rsys.files import services as files
         from c4rsys.fleet import vehicle_documents

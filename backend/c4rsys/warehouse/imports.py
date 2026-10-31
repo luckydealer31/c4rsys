@@ -42,6 +42,7 @@ from c4rsys.files.models import StoredFile
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext
 from c4rsys.platform.models import AuditEvent
+from c4rsys.warehouse import import_help_th
 from c4rsys.warehouse.models import ImportOperation
 
 META_SHEET = "c4rsys"
@@ -205,10 +206,12 @@ def _book(kind: Adapter, company_id: UUID | None) -> Workbook:
         del book[extra]
     sheet.append(list(kind.columns))
     help_sheet = book.create_sheet(HELP_SHEET)
-    help_sheet.append(["code", "required", "en", "ru", "example"])
+    # § 22.2.6, decision Б-7: the explanations in the three languages of the interface.
+    help_sheet.append(["code", "required", "en", "ru", "th", "example"])
     for code in kind.columns:
         en, ru, example = kind.help[code]
-        help_sheet.append([code, "yes" if code in kind.required else "", en, ru, example])
+        th = import_help_th.thai(en)
+        help_sheet.append([code, "yes" if code in kind.required else "", en, ru, th, example])
     if company_id is not None:
         for title, rows in kind.references(company_id):
             reference = book.create_sheet(title)
@@ -241,6 +244,7 @@ def template(kind: str = "items", company_id: UUID | None = None) -> bytes:
             "",
             f"The second row of the «{found.sheet}» sheet is an example: replace or delete it.",
             f"Вторая строка листа «{found.sheet}» — пример: замените или удалите её.",
+            import_help_th.EXAMPLE_NOTE.format(sheet=found.sheet),
             "",
         ]
     )

@@ -12,6 +12,7 @@ import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { Icon, type IconName } from "../../components/icons";
 import { TimeZoneSelect } from "../../components/TimeZoneSelect";
 import { AVAILABLE_CONTEXTS, contextAvailable, moduleWorks } from "../../contexts";
+import { ScheduleEditor } from "./ScheduleEditor";
 
 // Only types whose modules work are offered (§ 4.1.9).
 const CONTEXT_TYPES = AVAILABLE_CONTEXTS;
@@ -267,9 +268,6 @@ function LocationCard({
     if ((await command.run(body)) !== null) await refresh();
   }
 
-  const weekly = Object.values(location.schedule.weekly);
-  const isAllDay = weekly.every((day) => day.length === 1 && day[0]?.from === "00:00" && day[0]?.to === "24:00");
-
   return (
     <Card>
       <h2>
@@ -278,9 +276,6 @@ function LocationCard({
           {t(`locations.state_${location.state}`)}
         </span>
       </h2>
-      <p className="muted small">
-        {t("locations.schedule")}: {isAllDay ? t("locations.schedule_24_7") : t("locations.schedule_custom")}
-      </p>
       <table>
         <tbody>
           {shown(location.contexts).length === 0 ? (
@@ -330,6 +325,8 @@ function LocationCard({
           ))}
         </div>
       ) : null}
+      {/* § 4.2.3, § 22.1.6 (block 16 B): weekly schedule, date exceptions, contexts' own ones. */}
+      <ScheduleEditor location={location} editable={editable && !deactivated} />
       {!editable && (contexts || error) ? <Refusal error={error} /> : null}
       {editable ? (
         <form className="stack" onSubmit={save}>
