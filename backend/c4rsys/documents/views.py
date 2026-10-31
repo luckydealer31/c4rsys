@@ -20,9 +20,10 @@ from c4rsys.companies.views import run_and_respond
 from c4rsys.documents import fields, inspection_act, requirements, services, signing, templates
 from c4rsys.documents.models import Document, DocumentLink, DocumentTemplate
 from c4rsys.files import services as files
-from c4rsys.platform import errors
+from c4rsys.platform import audit, errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import client_ip, get_int, get_str, parse_json
+from c4rsys.platform.middleware import get_request_id
 
 LIST_LIMIT = 300
 
@@ -268,7 +269,16 @@ def document_detail(request: HttpRequest, cmp: str, document_id: UUID) -> JsonRe
     context, actor = _actor(request, cmp)
     d = _document_for(context, actor, document_id)
     if request.method == "GET":
-        return JsonResponse({"document": _document_payload(d, detail=True)})
+        body = _document_payload(d, detail=True)
+        # § 24.4.1: the view of a document is journaled before it is shown.
+        audit.record(
+            "document.viewed",
+            object_type="document",
+            object_id=d.id,
+            actor=actor,
+            request_id=get_request_id(request),
+        )
+        return JsonResponse({"document": body})
     _require_on(actor, "documents.upload", d)
     data = parse_json(request)
     changes = services.Changes(
@@ -1029,9 +1039,9 @@ def link_file(request: HttpRequest, token: str) -> HttpResponse:
     item = files.of_company(invitation.company_id, version.file_id) if version.file_id else None
     if item is None:
         raise errors.not_found()
-    response = HttpResponse(files.content(item), content_type=item.content_type)
-    response["Cache-Control"] = "private, no-store"
-    response["Content-Disposition"] = "inline"
+    response = files.file_response(item)
+    # § 24.4.1: the signer's view of the document is journaled in the company's journal.
+    signing.journal_link_read(invitation, item)
     return response
 
 

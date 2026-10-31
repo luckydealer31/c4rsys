@@ -49,4 +49,15 @@ class CompaniesConfig(AppConfig):
         from c4rsys.platform import commands
 
         commands.register_guard(deactivation.guard)
+        # § 24.1.8: places of work, positions and shares move with the merge of accounts.
+        from c4rsys.companies.userlinks import CompanyLinks
+        from c4rsys.platform import userlinks
+
+        userlinks.register(CompanyLinks())
+        # § 2.8.1: an unavailable object on an address of the active company is journaled as a
+        # security event of that company.
+        from c4rsys.companies.services import request_scope
+        from c4rsys.platform import security
+
+        security.register_scope_resolver(request_scope)
         notifications.register_check(ownership_notices.run)

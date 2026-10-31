@@ -122,17 +122,24 @@ def normalize_email(value: str) -> str:
     return email
 
 
-def _email_owner(email: str) -> UserAccount | None:
-    contact = (
-        LoginContact.objects.select_related("user")
-        .filter(kind=LoginContact.Kind.EMAIL, value=email)
-        .first()
+def _email_owner(email: str, *, usable: bool = False) -> UserAccount | None:
+    """The profile the address is bound to; `usable` — only if the address still signs in (a
+    contact marked unavailable by a recovery does not, § 2.3.1)."""
+    query = LoginContact.objects.select_related("user").filter(
+        kind=LoginContact.Kind.EMAIL, value=email
     )
+    if usable:
+        query = query.filter(unavailable_at__isnull=True)
+    contact = query.first()
     return contact.user if contact else None
 
 
 def _primary_email(user: UserAccount) -> str:
-    contact = user.contacts.filter(kind=LoginContact.Kind.EMAIL).order_by("verified_at").first()
+    contact = (
+        user.contacts.filter(kind=LoginContact.Kind.EMAIL, unavailable_at__isnull=True)
+        .order_by("verified_at")
+        .first()
+    )
     if contact is None:
         raise RuntimeError(f"Account {user.public_id} has no confirmed email")
     return contact.value
@@ -305,7 +312,7 @@ def start_login(email_input: str, client: Client) -> StartedFlow:
     email = normalize_email(email_input)
     now = timezone.now()
     with transaction.atomic():
-        owner = _email_owner(email)
+        owner = _email_owner(email, usable=True)
         active = owner if owner and owner.state == UserAccount.State.ACTIVE else None
         flow, token = _new_flow(AuthFlow.Purpose.LOGIN, email, client, now, user=active)
         # Same response and same limits whether or not the account exists (§ 24.4.2).
@@ -607,8 +614,12 @@ def replace_email(ctx: CommandContext, user: UserAccount, token: str) -> str:
 
 
 def find_active_user(public_id: str) -> UserAccount | None:
-    """Active account by its USR ID (§ 2.1.4)."""
-    return UserAccount.objects.filter(public_id=public_id, state=UserAccount.State.ACTIVE).first()
+    """Active account by its USR ID (§ 2.1.4). The ID of an account merged into another refers to
+    the main account (§ 24.1.8)."""
+    found = UserAccount.objects.filter(public_id=public_id).first()
+    if found is not None and found.state == UserAccount.State.MERGED:
+        found = UserAccount.objects.filter(pk=resolve(found.id)).first()
+    return found if found is not None and found.state == UserAccount.State.ACTIVE else None
 
 
 def find_active_user_by_username(username: str) -> UserAccount | None:
@@ -633,7 +644,9 @@ def confirmed_emails(user: UserAccount) -> list[str]:
 def confirmed_emails_of(user_id: UUID) -> list[str]:
     """Confirmed emails of a profile, for a one-time code of another module."""
     return list(
-        LoginContact.objects.filter(user_id=user_id, kind=LoginContact.Kind.EMAIL)
+        LoginContact.objects.filter(
+            user_id=user_id, kind=LoginContact.Kind.EMAIL, unavailable_at__isnull=True
+        )
         .order_by("verified_at")
         .values_list("value", flat=True)
     )
@@ -695,3 +708,319 @@ def names(user_ids: set[UUID]) -> dict[UUID, str]:
             "id", "first_name", "last_name"
         )
     }
+
+
+# --- Merged accounts (§ 24.1.8) -------------------------------------------------------------------
+
+MERGE_DEPTH = 10
+
+
+def resolve(user_id: UUID) -> UUID:
+    """The account a record of `user_id` leads to: the main account after a merge. Records keep
+    the account that made them; only the lookup follows the merge."""
+    current = user_id
+    for _ in range(MERGE_DEPTH):
+        target = (
+            UserAccount.objects.filter(pk=current, state=UserAccount.State.MERGED)
+            .values_list("merged_into_id", flat=True)
+            .first()
+        )
+        if target is None:
+            return current
+        current = target
+    return current
+
+
+def merge_account(secondary_id: UUID, main_id: UUID, now: datetime) -> int:
+    """Run inside the staff command, after the links were moved: the second account no longer
+    signs in and refers to the main one; its sessions end. Returns how many ended."""
+    accounts = {
+        u.id: u
+        for u in UserAccount.objects.select_for_update().filter(pk__in=[secondary_id, main_id])
+    }
+    secondary, main = accounts.get(secondary_id), accounts.get(main_id)
+    if secondary is None or main is None:
+        raise errors.not_found()
+    if secondary.state != UserAccount.State.ACTIVE or main.state != UserAccount.State.ACTIVE:
+        raise errors.business_rule("MERGE_ACCOUNT_NOT_ACTIVE")
+    secondary.state = UserAccount.State.MERGED
+    secondary.merged_into = main
+    secondary.save(update_fields=["state", "merged_into", "updated_at"])
+    AuthFlow.objects.filter(user_id=secondary_id, completed_at__isnull=True).update(
+        completed_at=now
+    )
+    return end_all_sessions(secondary_id, UserSession.EndReason.MERGED, now)
+
+
+def split_account(secondary_id: UUID, main_id: UUID) -> None:
+    """The split of an erroneous merge: the second account is active again (§ 24.1.8)."""
+    secondary = UserAccount.objects.select_for_update().filter(pk=secondary_id).first()
+    if secondary is None or secondary.merged_into_id != main_id:
+        raise errors.business_rule("SPLIT_NOT_MERGED")
+    secondary.state = UserAccount.State.ACTIVE
+    secondary.merged_into = None
+    secondary.save(update_fields=["state", "merged_into", "updated_at"])
+
+
+class ContactLinks:
+    """The login contacts of an account for the merge and the split (c4rsys.platform.userlinks).
+    One phone per profile (PROPOSAL): two phones are a conflict; several confirmed emails may
+    belong to the main account after the merge."""
+
+    module = "accounts"
+
+    def links(self, user_id: UUID) -> list[Any]:
+        from c4rsys.platform.userlinks import UserLink
+
+        result = []
+        for c in LoginContact.objects.filter(user_id=user_id).order_by("verified_at"):
+            result.append(
+                UserLink(
+                    module=self.module,
+                    kind="login_contact",
+                    record_id=c.id,
+                    label={
+                        "contact_kind": c.kind,
+                        "value": mask_contact(c.kind, c.value),
+                        "unavailable": c.unavailable_at is not None,
+                    },
+                    conflict_key="contact:phone" if c.kind == LoginContact.Kind.PHONE else "",
+                )
+            )
+        return result
+
+    def move(self, kind: str, record_ids: list[UUID], source: UUID, target: UUID) -> int:
+        ids = list(
+            LoginContact.objects.select_for_update()
+            .filter(pk__in=record_ids, user_id=source)
+            .values_list("id", flat=True)
+        )
+        return LoginContact.objects.filter(pk__in=ids).update(user_id=target)
+
+
+def unlink_contact(user_id: UUID, contact_id: UUID, now: datetime) -> tuple[str, str, int]:
+    """The system verification unbinds a disputed login contact from a profile after its check
+    (§ 24.1.7, § 2.3.4): the contact may then be confirmed by its holder in his own account. The
+    profile keeps a confirmed email (§ 2.1.2); all its sessions end (§ 2.3.3). Returns the kind,
+    the value and how many sessions ended."""
+    lock_user(user_id)
+    contact = (
+        LoginContact.objects.select_for_update().filter(pk=contact_id, user_id=user_id).first()
+    )
+    if contact is None:
+        raise errors.not_found()
+    if contact.kind == LoginContact.Kind.EMAIL and not (
+        LoginContact.objects.filter(
+            user_id=user_id, kind=LoginContact.Kind.EMAIL, unavailable_at__isnull=True
+        )
+        .exclude(pk=contact.pk)
+        .exists()
+    ):
+        raise errors.business_rule("CONTACT_LAST_EMAIL")
+    kind, value = contact.kind, contact.value
+    contact.delete()
+    ended = end_all_sessions(user_id, UserSession.EndReason.CONTACT_CHANGED, now)
+    return kind, value, ended
+
+
+def mask_contact(kind: str, value: str) -> str:
+    """A contact shown in an administrative list before a permitted view (§ 24.4.3)."""
+    if not value:
+        return ""
+    if kind == LoginContact.Kind.EMAIL:
+        name, _, domain = value.partition("@")
+        return f"{name[:1]}***@{domain}" if domain else "***"
+    digits = [c for c in value if c.isdigit()]
+    return f"{'+' if value.startswith('+') else ''}***{''.join(digits[-2:])}"
+
+
+# --- Recovery through the support (§ 2.3.1, § 2.3.3) ----------------------------------------------
+
+# § 2.3.1: for 72 hours after the recovery the transfer of ownership and the grant of the highest
+# rights are restricted.
+RECOVERY_RESTRICTION = timedelta(hours=72)
+# PROPOSAL: the link to set the new cloud password is valid 24 hours.
+RECOVERY_LINK_TTL = timedelta(hours=24)
+
+
+def recently_recovered(user_id: UUID, now: datetime | None = None) -> bool:
+    moment = UserAccount.objects.filter(pk=user_id).values_list("recovered_at", flat=True).first()
+    return moment is not None and moment > (now or timezone.now()) - RECOVERY_RESTRICTION
+
+
+def require_not_recently_recovered(user_id: UUID) -> None:
+    """Refuses a transfer of ownership or a grant of the highest rights within 72 hours after a
+    recovery through the support (§ 2.3.1)."""
+    if recently_recovered(user_id):
+        raise errors.business_rule("RECENTLY_RECOVERED")
+
+
+def recovery_email_start(new_email_input: str, client: Client) -> StartedFlow:
+    """A code to the new address given in a recovery request. Whether it is taken is not told
+    (§ 24.4.2); it is attached only after the check (§ 2.3.1)."""
+    email = normalize_email(new_email_input)
+    now = timezone.now()
+    with transaction.atomic():
+        flow, token = _new_flow(AuthFlow.Purpose.RECOVERY_EMAIL, email, client, now)
+        otp.issue_code(flow, now, deliver=True, ip=client.ip)
+        journal(
+            "auth.code_requested",
+            object_type="auth_flow",
+            object_id=flow.id,
+            after={"purpose": flow.purpose},
+        )
+    return StartedFlow(token)
+
+
+def recovery_email_verify(token: str, code: str) -> None:
+    _verify(token, AuthFlow.Purpose.RECOVERY_EMAIL, code)
+
+
+def recovery_email_take(token: str) -> str:
+    """Run inside the command that creates the recovery request: the confirmed address."""
+    flow = _locked_flow(token, AuthFlow.Purpose.RECOVERY_EMAIL, timezone.now())
+    if flow.code_verified_at is None:
+        raise errors.business_rule("CODE_NOT_CONFIRMED")
+    flow.completed_at = timezone.now()
+    flow.save(update_fields=["completed_at"])
+    return flow.contact_value
+
+
+def find_for_recovery(identifier: str) -> UserAccount | None:
+    """The account named by a c4rsys ID or a username in a recovery request; the applicant is not
+    told whether it exists."""
+    from c4rsys.platform.ids import normalize_public_id
+
+    text = identifier.strip()
+    public_id = normalize_public_id(text)
+    if public_id:
+        found = UserAccount.objects.filter(public_id=public_id).first()
+        if found is not None:
+            return found
+    return UserAccount.objects.filter(username__iexact=text.lstrip("@")).first() if text else None
+
+
+def contacts_of(user_id: UUID) -> list[LoginContact]:
+    return list(LoginContact.objects.filter(user_id=user_id).order_by("verified_at"))
+
+
+def known_contact_matches(user_id: UUID, contact: str) -> bool:
+    """Whether the contact the applicant knows is a contact of the account (one fact for the
+    support among others; it does not prove the ownership by itself, § 2.3.1)."""
+    value = contact.strip().lower()
+    digits = "".join(c for c in value if c.isdigit() or c == "+")
+    return LoginContact.objects.filter(user_id=user_id, value__in={value, digits} - {""}).exists()
+
+
+@dataclass(frozen=True)
+class Recovered:
+    email: str
+    sessions_ended: int
+    unavailable: list[str]
+    previous_emails: list[str]
+
+
+def recover(
+    user_id: UUID, *, new_email: str, unavailable_ids: list[UUID], now: datetime
+) -> Recovered:
+    """Run inside the staff command when the recovery takes effect (§ 2.3.1, § 2.3.3): the new
+    email is attached, the unavailable contacts are marked, all sessions and earlier recovery
+    links end, the link to set a new cloud password goes to the email; the 72 hours start."""
+    user = UserAccount.objects.select_for_update().filter(pk=user_id).first()
+    if user is None or user.state != UserAccount.State.ACTIVE:
+        raise errors.business_rule("RECOVERY_ACCOUNT_NOT_ACTIVE")
+    contacts = list(LoginContact.objects.select_for_update().filter(user_id=user_id))
+    known = {c.id for c in contacts}
+    if not set(unavailable_ids) <= known:
+        raise errors.validation_error("unavailable_contacts")
+    marked = []
+    for contact in contacts:
+        if contact.id in unavailable_ids and contact.unavailable_at is None:
+            contact.unavailable_at = now
+            contact.save(update_fields=["unavailable_at"])
+            marked.append(mask_contact(contact.kind, contact.value))
+    # § 2.3.1: the previous contacts are told, if available.
+    previous = confirmed_emails_of(user_id)
+    if new_email:
+        if _email_owner(new_email) is not None:
+            raise errors.business_rule("EMAIL_ALREADY_REGISTERED", field="email")
+        try:
+            with transaction.atomic():
+                LoginContact.objects.create(
+                    user=user, kind=LoginContact.Kind.EMAIL, value=new_email, verified_at=now
+                )
+        except IntegrityError as exc:
+            raise errors.business_rule("EMAIL_ALREADY_REGISTERED", field="email") from exc
+    emails = confirmed_emails_of(user_id)
+    if not emails:
+        # § 2.1.2: an account keeps a confirmed email; a new one is needed.
+        raise errors.business_rule("RECOVERY_EMAIL_REQUIRED")
+    AuthFlow.objects.filter(
+        user_id=user_id, purpose=AuthFlow.Purpose.RECOVERY_PASSWORD, completed_at__isnull=True
+    ).update(completed_at=now)
+    ended = end_all_sessions(user_id, UserSession.EndReason.RECOVERED, now)
+    user.recovered_at = now
+    user.save(update_fields=["recovered_at", "updated_at"])
+    target = new_email or emails[0]
+    token, digest = security.new_token()
+    AuthFlow.objects.create(
+        purpose=AuthFlow.Purpose.RECOVERY_PASSWORD,
+        token_hash=digest,
+        contact_value=target,
+        user=user,
+        created_at=now,
+        expires_at=now + RECOVERY_LINK_TTL,
+    )
+    from django.conf import settings
+
+    from c4rsys.accounts import mail
+
+    url = f"{settings.C4R_PUBLIC_URL}/recover/{token}"
+    transaction.on_commit(lambda: mail.send_recovery_link(target, url))
+    return Recovered(
+        email=mask_contact(LoginContact.Kind.EMAIL, target),
+        sessions_ended=ended,
+        unavailable=marked,
+        previous_emails=[e for e in previous if e != target],
+    )
+
+
+def recovery_link_valid(token: str) -> bool:
+    return (
+        AuthFlow.objects.filter(
+            token_hash=security.token_hash(token),
+            purpose=AuthFlow.Purpose.RECOVERY_PASSWORD,
+            completed_at__isnull=True,
+            expires_at__gt=timezone.now(),
+        )
+        .exclude(user__isnull=True)
+        .exists()
+    )
+
+
+def recovery_set_password(token: str, password: str) -> str:
+    """The new cloud password by the recovery link; a new backup code replaces the lost one
+    (PROPOSAL, as in § 2.3.5). Returns the backup code, shown once."""
+    _check_password_strength(password)
+    now = timezone.now()
+    with transaction.atomic():
+        flow = _locked_flow(token, AuthFlow.Purpose.RECOVERY_PASSWORD, now)
+        if flow.user_id is None:
+            raise errors.business_rule("FLOW_EXPIRED")
+        user = UserAccount.objects.select_for_update().get(pk=flow.user_id)
+        if user.state != UserAccount.State.ACTIVE:
+            raise errors.business_rule("FLOW_EXPIRED")
+        backup_code = security.generate_backup_code()
+        user.password_hash = make_password(password)
+        user.backup_code_hash = make_password(backup_code)
+        user.save(update_fields=["password_hash", "backup_code_hash", "updated_at"])
+        flow.completed_at = now
+        flow.save(update_fields=["completed_at"])
+        end_all_sessions(user.id, UserSession.EndReason.PASSWORD_CHANGED, now)
+        journal(
+            "account.password_recovered",
+            object_type="user_account",
+            object_id=user.public_id,
+            user=user,
+        )
+    return backup_code

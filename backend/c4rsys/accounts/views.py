@@ -182,7 +182,11 @@ def login_complete(request: HttpRequest) -> JsonResponse:
 def code_resend(request: HttpRequest) -> JsonResponse:
     data = parse_json(request)
     purpose = get_str(data, "purpose", max_length=20)
-    if purpose not in {AuthFlow.Purpose.REGISTER, AuthFlow.Purpose.LOGIN}:
+    if purpose not in {
+        AuthFlow.Purpose.REGISTER,
+        AuthFlow.Purpose.LOGIN,
+        AuthFlow.Purpose.RECOVERY_EMAIL,
+    }:
         raise errors.validation_error("purpose")
     started = services.resend_code(get_str(data, "flow"), purpose, _client(request))
     return JsonResponse(started.as_dict())

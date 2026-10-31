@@ -145,3 +145,68 @@ def send_block_notice(email: str, *, company_name: str | None, reason: str, supp
         support=support or settings.C4R_PUBLIC_URL,
     )
     _deliver(email, SUBJECT_BLOCK, body, "block notice")
+
+
+# PROPOSAL: the texts of the recovery through the support (§ 2.3.1).
+SUBJECT_RECOVERY = "c4rsys: восстановление доступа / access recovery"
+BODY_RECOVERY_LINK = (
+    "Доступ к вашему аккаунту c4rsys восстановлен поддержкой. Установите новый облачный пароль "
+    "по персональной ссылке:\n{url}\n"
+    "Все прежние сессии завершены. Не пересылайте ссылку.\n\n"
+    "Access to your c4rsys account has been recovered by the support. Set a new cloud password "
+    "with this personal link:\n{url}\n"
+    "All previous sessions have ended. Do not forward the link.\n"
+)
+BODY_RECOVERY_NOTICE = (
+    "Поддержка c4rsys одобрила восстановление доступа к аккаунту, связанному с этим адресом. "
+    "Доступ будет восстановлен после {when} (UTC). Если вы не обращались в поддержку, срочно "
+    "свяжитесь с ней: {support}\n\n"
+    "The c4rsys support approved the recovery of access to the account linked with this address. "
+    "Access will be recovered after {when} (UTC). If you did not contact the support, reach it at "
+    "once: {support}\n"
+)
+BODY_RECOVERY_DONE = (
+    "Доступ к аккаунту c4rsys, связанному с этим адресом, восстановлен поддержкой, все сессии "
+    "завершены. Если вы не обращались в поддержку, срочно свяжитесь с ней: {support}\n\n"
+    "Access to the c4rsys account linked with this address has been recovered by the support and "
+    "all sessions have ended. If you did not contact the support, reach it at once: {support}\n"
+)
+BODY_RECOVERY_REFUSED = (
+    "Поддержка c4rsys рассмотрела ваше обращение о восстановлении доступа № {number} и не может "
+    "его удовлетворить.\nПричина: {reason}\nОбращение в поддержку: {support}\n\n"
+    "The c4rsys support reviewed your access recovery request No. {number} and cannot grant it.\n"
+    "Reason: {reason}\nContact support: {support}\n"
+)
+
+
+def send_recovery_link(email: str, url: str) -> None:
+    """The personal link to set a new cloud password after the recovery (§ 2.3.1)."""
+    if settings.C4R_MAIL_MODE == "console":
+        logger.warning("DEV MAIL to %s: recovery link %s", email, url)
+        return
+    _deliver(email, SUBJECT_RECOVERY, BODY_RECOVERY_LINK.format(url=url), "recovery link")
+
+
+def send_recovery_notice(email: str, *, done: bool, when: str, support: str) -> None:
+    """The notice to a previous contact of the account (§ 2.3.1: «if available»)."""
+    if settings.C4R_MAIL_MODE == "console":
+        logger.warning("DEV MAIL to %s: recovery notice (done=%s)", email, done)
+        return
+    support = support or settings.C4R_PUBLIC_URL
+    body = (
+        BODY_RECOVERY_DONE.format(support=support)
+        if done
+        else BODY_RECOVERY_NOTICE.format(when=when, support=support)
+    )
+    _deliver(email, SUBJECT_RECOVERY, body, "recovery notice")
+
+
+def send_recovery_refused(email: str, *, number: int, reason: str, support: str) -> None:
+    """The refusal with its reason, without closed data of the account (§ 2.3.1)."""
+    if settings.C4R_MAIL_MODE == "console":
+        logger.warning("DEV MAIL to %s: recovery request %s refused", email, number)
+        return
+    body = BODY_RECOVERY_REFUSED.format(
+        number=number, reason=reason, support=support or settings.C4R_PUBLIC_URL
+    )
+    _deliver(email, SUBJECT_RECOVERY, body, "recovery refused")

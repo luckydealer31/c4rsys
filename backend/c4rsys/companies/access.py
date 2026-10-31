@@ -275,6 +275,14 @@ def replace_rights(
     added = [s for s in specs if s not in current]
     removed = [a for s, a in current.items() if s not in wanted]
     require_broad_rights_authority(added, is_top_authority=is_top_authority)
+    if any(s.is_broad for s in added):
+        # § 2.3.1: the highest rights are not granted within 72 hours after a recovery through
+        # the support, neither by the recovered person nor to him (PROPOSAL: both directions).
+        from c4rsys.accounts import services as accounts
+
+        accounts.require_not_recently_recovered(ctx.actor.user_id)
+        if employment.user_id is not None:
+            accounts.require_not_recently_recovered(employment.user_id)
 
     now = timezone.now()
     for assignment in removed:

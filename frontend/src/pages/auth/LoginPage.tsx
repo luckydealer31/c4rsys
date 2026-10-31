@@ -114,9 +114,15 @@ export function LoginPage({
         )}
       </Card>
       {allowRegister ? (
-        <p className="muted">
-          {t("auth.no_account")} <Link to="/register">{t("auth.register_link")}</Link>
-        </p>
+        <>
+          <p className="muted">
+            {t("auth.no_account")} <Link to="/register">{t("auth.register_link")}</Link>
+          </p>
+          {/* § 2.3.1: recovery through the support when the email or the password is lost. */}
+          <p className="muted">
+            <Link to="/recover">{t("recovery.link")}</Link>
+          </p>
+        </>
       ) : null}
     </div>
   );

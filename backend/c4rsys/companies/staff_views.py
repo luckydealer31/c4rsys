@@ -1,12 +1,14 @@
 """HTTP API of employees, their rights and invitations (ТЗ § 5.1, гл. 23)."""
 
+import csv
+import io
 from datetime import datetime
 from typing import Any
 from uuid import UUID
 
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
-from django.http import HttpRequest, JsonResponse
+from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
@@ -16,10 +18,11 @@ from c4rsys.companies import access, history, orgstructure, services, staff
 from c4rsys.companies.models import Employment, Invitation, Position
 from c4rsys.companies.permissions import PERMISSIONS, SYSTEM_SETS
 from c4rsys.companies.views import run_and_respond
-from c4rsys.platform import errors
+from c4rsys.platform import audit, errors
 from c4rsys.platform.access import require_permission
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
+from c4rsys.platform.middleware import get_request_id
 
 POSITION_NAME_MAX = 150
 
@@ -60,19 +63,27 @@ def _personal_phone(user: Any) -> str | None:
     return user.contact_phone or _first(accounts.confirmed_phones(user))
 
 
-def _employee_payload(employment: Employment) -> dict[str, Any]:
+def _employee_payload(employment: Employment, *, masked: bool = False) -> dict[str, Any]:
+    """`masked`: the list of employees shows the personal contacts masked; the card shows them
+    to whoever may view it (§ 24.4.3, PROPOSAL)."""
     user = employment.user
     person = None
     if user is not None:
+        email = _first(accounts.confirmed_emails(user)) if employment.shares_email else None
+        phone = _personal_phone(user) if employment.shares_phone else None
+        if masked:
+            email = accounts.mask_contact("email", email) if email else email
+            phone = accounts.mask_contact("phone", phone) if phone else phone
         # First and last name always; middle name and email only if the user chose so (§ 5.1.7).
         person = {
             "public_id": user.public_id,
             "first_name": user.first_name,
             "last_name": user.last_name,
             "middle_name": user.middle_name if employment.shares_middle_name else None,
-            "email": _first(accounts.confirmed_emails(user)) if employment.shares_email else None,
+            "email": email,
             "photo": str(user.avatar_id) if employment.shares_photo and user.avatar_id else None,
-            "phone": _personal_phone(user) if employment.shares_phone else None,
+            "phone": phone,
+            "contacts_masked": masked,
         }
     last_invitation = employment.invitations.order_by("-created_at").first()
     position = employment.position
@@ -114,7 +125,7 @@ def _employee_payload(employment: Employment) -> dict[str, Any]:
 @require_GET
 def employee_list(request: HttpRequest, cmp: str) -> JsonResponse:
     context, _actor = _company_actor(request, cmp, *EMPLOYEE_VIEW_PERMISSIONS)
-    items = [_employee_payload(e) for e in staff.employments_of(context.company.id)]
+    items = [_employee_payload(e, masked=True) for e in staff.employments_of(context.company.id)]
     return JsonResponse({"employees": items})
 
 
@@ -483,6 +494,57 @@ def employee_journal(request: HttpRequest, cmp: str, employment_id: UUID) -> Jso
         action=request.GET.get("action", "")[:100],
     )
     return JsonResponse({"journal": history.payload(events, show_financial=show_financial)})
+
+
+@require_GET
+def employee_journal_export(request: HttpRequest, cmp: str, employment_id: UUID) -> HttpResponse:
+    """The journal of an employee as CSV (§ 24.4.5: the export needs its own right besides the
+    view and keeps the scope of the view). The export itself is journaled before the file."""
+    context, actor = _company_actor(request, cmp, "employee.journal.view")
+    resolver = access.RightsResolver()
+    require_permission(resolver, actor, "employee.journal.export")
+    if not history.employment_exists(context.company.id, employment_id):
+        raise errors.not_found()
+    show_financial = any(
+        resolver.has_permission(actor, p)
+        for p in ("finance.payment.receive", "finance.cash_account.manage")
+    )
+    events = history.employee_journal(
+        context.company.id,
+        employment_id,
+        since=_moment(request.GET.get("from", ""), "from"),
+        until=_moment(request.GET.get("to", ""), "to"),
+        section=request.GET.get("section", "")[:40],
+        action=request.GET.get("action", "")[:100],
+    )
+    rows = history.payload(events, show_financial=show_financial)
+    audit.record(
+        "employee.journal_exported",
+        object_type="employment",
+        object_id=employment_id,
+        actor=actor,
+        request_id=get_request_id(request),
+        after={"rows": len(rows), "filters": {k: v for k, v in request.GET.items()}},
+    )
+    out = io.StringIO()
+    writer = csv.writer(out)
+    writer.writerow(["occurred_at", "actor", "action", "object_type", "object_id", "reason"])
+    for row in rows:
+        writer.writerow(
+            [
+                row["occurred_at"],
+                row["actor"].get("name") or row["actor"].get("system_process") or "",
+                row["action"],
+                row["object"]["type"],
+                row["object"]["id"],
+                row.get("reason") or "",
+            ]
+        )
+    response = HttpResponse(out.getvalue(), content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = 'attachment; filename="employee-journal.csv"'
+    response["Cache-Control"] = "private, no-store"
+    response["X-Content-Type-Options"] = "nosniff"
+    return response
 
 
 @require_GET

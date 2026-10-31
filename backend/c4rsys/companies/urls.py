@@ -31,6 +31,10 @@ urlpatterns = [
     path("c/<str:cmp>/employees/<uuid:employment_id>", staff_views.employee_detail),
     path("c/<str:cmp>/employees/<uuid:employment_id>/rights", staff_views.employee_rights),
     path("c/<str:cmp>/employees/<uuid:employment_id>/journal", staff_views.employee_journal),
+    path(
+        "c/<str:cmp>/employees/<uuid:employment_id>/journal/export",
+        staff_views.employee_journal_export,
+    ),
     path("c/<str:cmp>/employees/<uuid:employment_id>/block", staff_views.employee_block),
     path("c/<str:cmp>/employees/<uuid:employment_id>/restore", staff_views.employee_restore),
     path("c/<str:cmp>/employees/<uuid:employment_id>/terminate", staff_views.employee_terminate),

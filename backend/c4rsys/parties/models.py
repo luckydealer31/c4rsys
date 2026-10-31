@@ -261,6 +261,8 @@ class ProfileLink(models.Model):
     class Initiator(models.TextChoices):
         COMPANY = "company"
         CLIENT = "client"
+        # § 24.1.7: ended by the system verification after a check.
+        PLATFORM = "platform"
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")

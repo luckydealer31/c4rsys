@@ -223,6 +223,30 @@ def resolve_company(user: UserAccount, public_id: str, session_id: UUID | None) 
     return CompanyContext(company=employment.company, employment=employment)
 
 
+def request_scope(request: Any, cmp: str) -> Any:
+    """Who asks and in which of his companies, for a security event (c4rsys.platform.security).
+    Only a current employment counts; a denied company is journaled by `resolve_company`."""
+    from c4rsys.accounts.middleware import current_session
+    from c4rsys.platform.security import RequestScope
+
+    session = current_session(request)
+    if session is None:
+        return None
+    if not cmp:
+        return RequestScope(session.user_id, session.id, None, None)
+    normalized = normalize_public_id(cmp)
+    employment = (
+        Employment.objects.filter(
+            company__public_id=normalized, user_id=session.user_id, state=Employment.State.ACTIVE
+        ).first()
+        if normalized
+        else None
+    )
+    if employment is None:
+        return RequestScope(session.user_id, session.id, None, None)
+    return RequestScope(session.user_id, session.id, employment.company_id, employment.id)
+
+
 def company_actor(user: UserAccount, context: CompanyContext, session_id: UUID | None) -> Actor:
     return Actor(
         user_id=user.id,

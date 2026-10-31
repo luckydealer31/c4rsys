@@ -454,3 +454,38 @@ class VehicleOwnership(models.Model):
 
     def __str__(self) -> str:
         return f"ownership {self.vehicle_id}"
+
+
+class VehicleOwnershipDecision(models.Model):
+    """The decision of the system verification on a dispute of ownership (§ 8.3.12, § 8.3.16,
+    § 24.1.7): «the vehicle is mine» answered while another owner was confirmed. The decision
+    keeps the current owner or ends his period and starts the claimant's one; the earlier period
+    stays as history with the initiator, the reason and the ticket."""
+
+    class Kind(models.TextChoices):
+        KEEP = "keep"
+        TRANSFER = "transfer"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    request = models.OneToOneField(
+        VehicleOwnerRequest, on_delete=models.PROTECT, related_name="dispute_decision"
+    )
+    vehicle = models.ForeignKey(Vehicle, on_delete=models.PROTECT, related_name="+")
+    kind = models.CharField(max_length=10, choices=Kind.choices)
+    reason = models.TextField()
+    previous_ownership = models.ForeignKey(
+        VehicleOwnership, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    new_ownership = models.ForeignKey(
+        VehicleOwnership, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    effective_at = models.DateTimeField(null=True, blank=True)
+    ticket_id = models.UUIDField(null=True, blank=True)
+    decided_by_user_id = models.UUIDField()
+    decided_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "vehicle_ownership_decision"
+
+    def __str__(self) -> str:
+        return f"{self.kind}:{self.request_id}"

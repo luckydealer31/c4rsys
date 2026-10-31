@@ -376,3 +376,202 @@ class SystemBlock(models.Model):
 
     def __str__(self) -> str:
         return f"block {self.id}"
+
+
+# --- Merge and split of global accounts (§ 24.1.8) ------------------------------------------------
+
+
+class AccountMerge(models.Model):
+    """The merge of a second personal account into the main one by the support. The moved links
+    are kept (`AccountMergeItem`) so that a split returns them to their accounts."""
+
+    class State(models.TextChoices):
+        MERGED = "merged"
+        SPLITTING = "splitting"
+        SPLIT = "split"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    main_user = models.ForeignKey(UserAccount, on_delete=models.PROTECT, related_name="+")
+    secondary_user = models.ForeignKey(UserAccount, on_delete=models.PROTECT, related_name="+")
+    # The basis: why both accounts belong to one person (§ 24.1.8).
+    reason = models.TextField()
+    ticket = models.ForeignKey(
+        SupportTicket, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    state = models.CharField(max_length=10, choices=State.choices, default=State.MERGED)
+    merged_at = models.DateTimeField(default=timezone.now)
+    merged_by_user_id = models.UUIDField()
+    split_reason = models.TextField(blank=True, default="")
+    split_started_at = models.DateTimeField(null=True, blank=True)
+    split_started_by_user_id = models.UUIDField(null=True, blank=True)
+    split_at = models.DateTimeField(null=True, blank=True)
+    split_by_user_id = models.UUIDField(null=True, blank=True)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "account_merge"
+        constraints = [
+            models.CheckConstraint(
+                condition=~Q(main_user=models.F("secondary_user")), name="account_merge_two_users"
+            ),
+            models.UniqueConstraint(
+                fields=["secondary_user"],
+                condition=~Q(state="split"),
+                name="account_merge_one_open_per_secondary",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"merge {self.secondary_user_id}->{self.main_user_id}"
+
+
+class AccountMergeItem(models.Model):
+    """A link at the moment of the merge: moved from the second account, or already of the main
+    one. It is the history the split restores from (§ 24.1.8)."""
+
+    class Phase(models.TextChoices):
+        MOVED = "moved"
+        KEPT = "kept"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    merge = models.ForeignKey(AccountMerge, on_delete=models.PROTECT, related_name="items")
+    phase = models.CharField(max_length=10, choices=Phase.choices)
+    module = models.CharField(max_length=30)
+    kind = models.CharField(max_length=30)
+    record_id = models.UUIDField()
+    label = models.JSONField(default=dict, encoder=DjangoJSONEncoder)
+
+    class Meta:
+        db_table = "account_merge_item"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["merge", "module", "kind", "record_id"], name="account_merge_item_uniq"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.phase} {self.module}.{self.kind}:{self.record_id}"
+
+
+class AccountSplitAssignment(models.Model):
+    """The decision of the support on a link that appeared after the merge: which account it
+    belongs to (§ 24.1.8). A new decision on the same link replaces the earlier one only until the
+    split is completed; the earlier one stays."""
+
+    class Target(models.TextChoices):
+        MAIN = "main"
+        SECONDARY = "secondary"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    merge = models.ForeignKey(AccountMerge, on_delete=models.PROTECT, related_name="assignments")
+    module = models.CharField(max_length=30)
+    kind = models.CharField(max_length=30)
+    record_id = models.UUIDField()
+    label = models.JSONField(default=dict, encoder=DjangoJSONEncoder)
+    target = models.CharField(max_length=10, choices=Target.choices)
+    decided_by_user_id = models.UUIDField()
+    decided_at = models.DateTimeField(default=timezone.now)
+    replaced_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "account_split_assignment"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["merge", "module", "kind", "record_id"],
+                condition=Q(replaced_at__isnull=True),
+                name="account_split_assignment_current_uniq",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.module}.{self.kind}:{self.record_id}->{self.target}"
+
+
+# --- Recovery of access through the support (§ 2.3.1; decision В-11.2) ---------------------------
+
+
+class RecoveryCase(models.Model):
+    """A request to recover access through the support. The applicant names the account by its
+    c4rsys ID or username and a contact he knows; a new email is confirmed by a code and attached
+    only after the check. Two authorized staff members confirm, the initiator of the decision
+    does not; the recovery takes effect 24 hours after the second confirmation, at once only for
+    an urgent recovery with its own basis."""
+
+    class State(models.TextChoices):
+        NEW = "new"
+        IN_REVIEW = "in_review"
+        INFO_REQUESTED = "info_requested"
+        PROPOSED = "proposed"  # a decision to recover waits for the two confirmations
+        APPROVED = "approved"  # confirmed; waits for the 24 hours
+        COMPLETED = "completed"
+        REFUSED = "refused"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    number = models.BigIntegerField(unique=True)
+    # As the applicant wrote them; the account is found by the support.
+    identifier = models.CharField(max_length=100)
+    known_contact = models.CharField(max_length=254)
+    new_email = models.CharField(max_length=254, blank=True, default="")
+    description = models.TextField(blank=True, default="")
+    user = models.ForeignKey(
+        UserAccount, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    ticket = models.ForeignKey(
+        SupportTicket, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    state = models.CharField(max_length=20, choices=State.choices, default=State.NEW)
+    created_at = models.DateTimeField(default=timezone.now)
+    ip = models.GenericIPAddressField(null=True, blank=True)
+    # The decision to recover: its initiator, the assessment, the unavailable contacts.
+    proposed_by = models.ForeignKey(
+        SystemStaffMember, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    proposed_at = models.DateTimeField(null=True, blank=True)
+    assessment = models.TextField(blank=True, default="")
+    unavailable_contact_ids = ArrayField(models.UUIDField(), default=list, blank=True)
+    urgent = models.BooleanField(default=False)
+    urgent_basis = models.TextField(blank=True, default="")
+    approved_at = models.DateTimeField(null=True, blank=True)
+    effective_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    refused_at = models.DateTimeField(null=True, blank=True)
+    refused_by_user_id = models.UUIDField(null=True, blank=True)
+    # Told to the applicant; no closed data of the account (§ 2.3.1).
+    refusal_reason = models.TextField(blank=True, default="")
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "recovery_case"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(urgent=False) | ~Q(urgent_basis=""), name="recovery_case_urgent_basis"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"recovery {self.number}"
+
+
+class RecoveryApproval(models.Model):
+    """A confirmation of the decision to recover by an authorized staff member (§ 2.3.1)."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    case = models.ForeignKey(RecoveryCase, on_delete=models.PROTECT, related_name="approvals")
+    member = models.ForeignKey(SystemStaffMember, on_delete=models.PROTECT, related_name="+")
+    comment = models.TextField(blank=True, default="")
+    approved_at = models.DateTimeField(default=timezone.now)
+    # A new decision (after a change of the proposal) makes earlier confirmations void.
+    void_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "recovery_approval"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["case", "member"],
+                condition=Q(void_at__isnull=True),
+                name="recovery_approval_once_per_member",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.case_id}:{self.member_id}"

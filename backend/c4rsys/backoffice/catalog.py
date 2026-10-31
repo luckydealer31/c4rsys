@@ -29,6 +29,15 @@ PERMISSIONS: tuple[str, ...] = (
     # System blocks (§ 24.2.2) and the deferral of their notice.
     "block.manage",
     "block.notice_defer",
+    # The merge and the split of two global accounts: a separate permission (§ 24.1.8).
+    "accounts.merge",
+    # Verification of links and disputed records (§ 24.1.5, § 24.1.7): decisions on disputes of
+    # ownership, corrections of system links, unlinking a disputed contact.
+    "verification.resolve",
+    # Recovery of access through the support (§ 2.3.1): keeping the requests and proposing a
+    # decision; the confirmation by an authorized member is a separate permission.
+    "recovery.manage",
+    "recovery.approve",
 )
 
 PLATFORM_ADMIN = "platform_admin"
@@ -51,13 +60,35 @@ STARTER_SETS: dict[str, tuple[str, ...]] = {
         "privileged.documents",
         "privileged.files",
         "block.manage",
+        "accounts.merge",
+        "verification.resolve",
+        "recovery.manage",
+        "recovery.approve",
     ),
     # § 24.1.5: finds users and companies, keeps tickets, views what a ticket needs after a reason;
     # no business operations, no system roles. The reveal of contacts: PROPOSAL.
-    SUPPORT: ("directory.search", "contacts.reveal", "tickets.manage", "privileged.open"),
+    # Block 11 П5 (PROPOSAL): the merge of accounts and the recovery requests.
+    SUPPORT: (
+        "directory.search",
+        "contacts.reveal",
+        "tickets.manage",
+        "privileged.open",
+        "accounts.merge",
+        "recovery.manage",
+    ),
     # § 24.1.5, § 24.1.7: reviews links and disputes, unlinks a disputed contact; no finances
     # and documents without a separate reason and permission. Tickets and contacts: PROPOSAL.
-    VERIFICATION: ("directory.search", "contacts.reveal", "tickets.manage", "privileged.open"),
+    # Block 11 П5 (PROPOSAL): the decisions on disputes and the confirmation of a recovery
+    # («restoration after the check», § 24.1.7).
+    VERIFICATION: (
+        "directory.search",
+        "contacts.reveal",
+        "tickets.manage",
+        "privileged.open",
+        "verification.resolve",
+        "recovery.manage",
+        "recovery.approve",
+    ),
 }
 # The deferrals of a notice (§ 24.2.2, § 24.3.2) are in no starter set: «only by a separate
 # system permission» (TODO(spec): who holds them). A platform administrator gives them through a

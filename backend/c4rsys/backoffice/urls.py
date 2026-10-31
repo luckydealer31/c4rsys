@@ -1,6 +1,6 @@
 from django.urls import path
 
-from c4rsys.backoffice import company_views, views
+from c4rsys.backoffice import account_views, company_views, recovery_views, views
 
 S = "staff/"
 P = "staff/privileged/<uuid:session_id>/"
@@ -45,6 +45,39 @@ urlpatterns = [
     path(f"{S}blocks", views.block_list),
     path(f"{S}blocks/<uuid:block_id>/restore", views.block_restore),
     path(f"{S}blocks/<uuid:block_id>/notice/release", views.block_release),
+    # Block 11 П5: merge and split of accounts (§ 24.1.8).
+    path(f"{S}merges/preview", account_views.merge_preview),
+    path(f"{S}merges", account_views.merge_list),
+    path(f"{S}merges/<uuid:merge_id>", account_views.merge_detail),
+    path(f"{S}merges/<uuid:merge_id>/split/start", account_views.split_start),
+    path(f"{S}merges/<uuid:merge_id>/split/assign", account_views.split_assign),
+    path(f"{S}merges/<uuid:merge_id>/split/complete", account_views.split_complete),
+    # Verification of links and disputed records (§ 24.1.5, § 24.1.7).
+    path(f"{S}verification", account_views.verification_queue),
+    path(f"{S}verification/ownership/<uuid:request_id>", account_views.ownership_decide),
+    path(f"{S}verification/profile-links/<uuid:link_id>", account_views.profile_link_detail),
+    path(f"{S}verification/profile-links/<uuid:link_id>/end", account_views.profile_link_break),
+    path(f"{S}verification/users/<str:usr>/contacts", account_views.user_login_contacts),
+    path(
+        f"{S}verification/users/<str:usr>/contacts/<uuid:contact_id>/unlink",
+        account_views.user_contact_unlink,
+    ),
+    # Recovery through the support (§ 2.3.1; decision В-11.2).
+    path(f"{S}recovery", account_views.recovery_list),
+    path(f"{S}recovery/<uuid:case_id>", account_views.recovery_detail),
+    path(f"{S}recovery/<uuid:case_id>/account", account_views.recovery_account),
+    path(f"{S}recovery/<uuid:case_id>/ticket", account_views.recovery_ticket),
+    path(f"{S}recovery/<uuid:case_id>/info", account_views.recovery_info),
+    path(f"{S}recovery/<uuid:case_id>/propose", account_views.recovery_propose),
+    path(f"{S}recovery/<uuid:case_id>/approve", account_views.recovery_approve),
+    path(f"{S}recovery/<uuid:case_id>/refuse", account_views.recovery_refuse),
+    # The public request on the ordinary domain (§ 2.3.1).
+    path("recovery", recovery_views.status),
+    path("recovery/email/start", recovery_views.email_start),
+    path("recovery/email/verify", recovery_views.email_verify),
+    path("recovery/requests", recovery_views.submit),
+    path("recovery/password", recovery_views.password_set),
+    path("recovery/password/<str:token>", recovery_views.password_link),
     # The company side (§ 24.3.2), on the ordinary domain.
     path("c/<str:cmp>/staff-access", company_views.staff_access),
 ]

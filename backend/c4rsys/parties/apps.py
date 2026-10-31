@@ -17,3 +17,8 @@ class PartiesConfig(AppConfig):
         notifications.register_check(notices.requests)
         rules.on_journal("profile_link.accepted", notices.on_answer)
         rules.on_journal("profile_link.declined", notices.on_answer)
+        # § 24.1.8: the cards linked with a profile move with the merge of accounts.
+        from c4rsys.parties.userlinks import PartyLinks
+        from c4rsys.platform import userlinks
+
+        userlinks.register(PartyLinks())

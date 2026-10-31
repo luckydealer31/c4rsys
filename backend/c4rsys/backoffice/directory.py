@@ -111,6 +111,10 @@ def user_summary(user: UserAccount) -> dict[str, Any]:
         "name": _name(user),
         "username": user.username or None,
         "state": user.state,
+        # § 24.1.8: the ID of a merged account refers to the main one.
+        "merged_into": user.merged_into.public_id
+        if user.merged_into_id and user.merged_into
+        else None,
         "created_at": user.created_at.isoformat(),
         "email_masked": mask_email(_login_email(user)),
         "blocked": _active_block(user=user) is not None,

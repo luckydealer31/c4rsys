@@ -15,6 +15,8 @@ from uuid import UUID
 
 from django.conf import settings
 from django.db import transaction
+from django.http import HttpResponse
+from django.http.response import HttpResponseBase
 from django.utils import timezone
 
 from c4rsys.files.models import StoredFile
@@ -35,6 +37,21 @@ _readers: dict[str, Reader] = {}
 
 def register_reader(purpose: str, reader: Reader) -> None:
     _readers[purpose] = reader
+
+
+# (user_id, file, kind) -> None: the module owning the purpose journals a read (§ 24.4.1).
+ReadHook = Callable[[UUID, StoredFile, str], None]
+_read_hooks: dict[str, ReadHook] = {}
+
+
+def register_read_hook(purpose: str, hook: ReadHook) -> None:
+    _read_hooks[purpose] = hook
+
+
+def read_hooks(user_id: UUID, item: StoredFile, kind: str) -> None:
+    hook = _read_hooks.get(item.purpose)
+    if hook is not None:
+        hook(user_id, item, kind)
 
 
 def _root() -> Path:
@@ -169,14 +186,16 @@ def signature_type(content: bytes) -> str:
 
 
 def store(*, purpose: str, uploaded_by: UUID, content: bytes, content_type: str) -> StoredFile:
-    """Writes the content, then the details. Call inside the command's transaction: if it is
-    rolled back, an unreferenced file may remain on disk, but no record points to it."""
+    """Writes the content, then the details, in the state «checking» (§ 24.4.4); the caller
+    finishes the check (`checked`). Call inside the command's transaction: if it is rolled back,
+    an unreferenced file may remain on disk, but no record points to it."""
     item = StoredFile(
         purpose=purpose,
         uploaded_by=uploaded_by,
         content_type=content_type,
         size=len(content),
         sha256=hashlib.sha256(content).hexdigest(),
+        state=StoredFile.State.CHECKING,
     )
     _root().mkdir(parents=True, exist_ok=True)
     _path(item.id).write_bytes(content)
@@ -184,9 +203,62 @@ def store(*, purpose: str, uploaded_by: UUID, content: bytes, content_type: str)
     return item
 
 
+def checked(item: StoredFile, *, state: str = StoredFile.State.READY) -> StoredFile:
+    """The check passed: the file becomes available by its purpose's rules (§ 24.4.4)."""
+    item.state = state
+    item.checked_at = timezone.now()
+    item.save(update_fields=["state", "checked_at"])
+    return item
+
+
+def record_blocked(
+    *,
+    purpose: str,
+    uploaded_by: UUID,
+    session_id: UUID | None,
+    content: bytes,
+    content_type: str,
+    reason: str,
+    size: int | None = None,
+    sha256: str | None = None,
+) -> StoredFile:
+    """§ 24.4.4: a dangerous or unsupported file is blocked and the event journaled. The content
+    is not kept; the details of the attempt stay, so a new upload does not replace its history.
+    Written in its own transaction: the upload itself is refused."""
+    from c4rsys.platform.models import AuditEvent
+
+    with transaction.atomic():
+        item = StoredFile.objects.create(
+            purpose=purpose,
+            uploaded_by=uploaded_by,
+            content_type=content_type[:100] or "application/octet-stream",
+            size=max(size if size is not None else len(content), 1),
+            sha256=sha256 or hashlib.sha256(content).hexdigest(),
+            state=StoredFile.State.BLOCKED,
+            blocked_reason=reason[:40],
+            checked_at=timezone.now(),
+        )
+        AuditEvent.objects.create(
+            actor_user_id=uploaded_by,
+            session_id=session_id,
+            action="file.blocked",
+            object_type="stored_file",
+            object_id=str(item.id),
+            result="blocked",
+            after={"purpose": purpose, "reason": reason, "size": item.size, "sha256": item.sha256},
+        )
+    return item
+
+
+# States in which other users may read a file; the uploader also reads it while it is checked.
+AVAILABLE = (StoredFile.State.READY, StoredFile.State.PROCESSING, StoredFile.State.FAILED)
+
+
 def usable(file_id: UUID, *, purpose: str, user_id: UUID, company_id: UUID | None = None) -> None:
     """A file may be linked only by its uploader, for its purpose, and not to another company."""
-    item = StoredFile.objects.filter(pk=file_id, purpose=purpose, uploaded_by=user_id).first()
+    item = StoredFile.objects.filter(
+        pk=file_id, purpose=purpose, uploaded_by=user_id, state__in=AVAILABLE
+    ).first()
     if item is None or (item.company_id is not None and item.company_id != company_id):
         raise errors.validation_error("file", code="FILE_NOT_USABLE")
 
@@ -197,18 +269,20 @@ def attach_to_company(file_id: UUID, company_id: UUID) -> None:
 
 
 def readable(user_id: UUID, file_id: UUID) -> StoredFile | None:
-    item = StoredFile.objects.filter(pk=file_id).first()
+    item = StoredFile.objects.filter(pk=file_id).exclude(state=StoredFile.State.BLOCKED).first()
     if item is None:
         return None
     if item.uploaded_by == user_id:
         return item
+    if item.state not in AVAILABLE:
+        return None
     reader = _readers.get(item.purpose)
     return item if reader is not None and reader(user_id, item) else None
 
 
 def of_company(company_id: UUID, file_id: UUID) -> StoredFile | None:
     """A file of the company for a module that has checked the access itself (a signing link)."""
-    return StoredFile.objects.filter(pk=file_id, company_id=company_id).first()
+    return StoredFile.objects.filter(pk=file_id, company_id=company_id, state__in=AVAILABLE).first()
 
 
 def content_path(item: StoredFile) -> tuple[Path, str]:
@@ -224,6 +298,37 @@ def content_path(item: StoredFile) -> tuple[Path, str]:
 
 def content(item: StoredFile) -> bytes:
     return content_path(item)[0].read_bytes()
+
+
+# § 24.4.4: what a browser may show in place; everything else is only saved.
+INLINE_TYPES = ("image/png", "image/jpeg", "image/webp", "video/mp4", "video/quicktime")
+INLINE_DOCUMENTS = ("application/pdf",)
+# A user file opened directly runs nothing: no scripts, no frames, no forms (PROPOSAL).
+SANDBOX = "sandbox; default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'"
+
+
+def safe_headers(
+    response: HttpResponseBase, content_type: str, *, attachment: bool = False
+) -> None:
+    """Headers for the content of a user file (§ 24.4.4): the stored type only, never sniffed;
+    active content is not run in the interface. Only checked types are ever stored, so no HTML,
+    SVG or script is served from a user file."""
+    inline = not attachment and content_type in (*INLINE_TYPES, *INLINE_DOCUMENTS)
+    response["X-Content-Type-Options"] = "nosniff"
+    response["Content-Disposition"] = "inline" if inline else "attachment"
+    if content_type not in INLINE_DOCUMENTS:
+        # The browser's PDF viewer does not work in a sandbox; a PDF with active content is
+        # blocked by the check instead (files.checks).
+        response["Content-Security-Policy"] = SANDBOX
+    response["Cross-Origin-Opener-Policy"] = "same-origin"
+
+
+def file_response(item: StoredFile, *, attachment: bool = False) -> HttpResponse:
+    """The whole content of a checked file with the safe headers, not cached."""
+    response = HttpResponse(content(item), content_type=item.content_type)
+    response["Cache-Control"] = "private, no-store"
+    safe_headers(response, item.content_type, attachment=attachment)
+    return response
 
 
 def remove(file_id: UUID) -> None:

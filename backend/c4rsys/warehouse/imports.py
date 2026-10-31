@@ -24,7 +24,7 @@ import hashlib
 import io
 from collections import Counter
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any, Protocol
 from uuid import UUID
 from zipfile import BadZipFile
@@ -342,12 +342,20 @@ def _apply_check(row: dict[str, Any], checked: Checked) -> None:
 
 
 def _store(ctx: CommandContext, company: Company, content: bytes) -> StoredFile:
+    from c4rsys.files import checks
+
+    # § 24.4.4: the import file is checked like any upload. Inside the command a refusal rolls
+    # everything back, so the attempt is explained to the user but not kept (TODO(spec)).
+    reason = checks.inspect(XLSX, content)
+    if reason:
+        raise errors.validation_error("file", code="FILE_BLOCKED", reason=reason)
     stored = files.store(
         purpose=StoredFile.Purpose.IMPORT_FILE,
         uploaded_by=ctx.actor.user_id,
         content=content,
         content_type=XLSX,
     )
+    files.checked(stored)
     files.attach_to_company(stored.id, company.id)
     return stored
 
@@ -867,11 +875,15 @@ def remove_old_files(now: datetime | None = None) -> int:
     """The source and corrected files of imports first uploaded six months ago or earlier; the
     operation and its rows stay (§ 22.2.4). Journaled as a system process."""
     moment = now or timezone.now()
-    border = shift_months(moment, -KEEP_FILES_MONTHS)
+    # The term counts forward from the first upload: counting back from now loses the end of a
+    # month (31.10 + 6 months is 30.04, but 30.04 − 6 months is 30.10). The query only narrows.
+    border = shift_months(moment, -KEEP_FILES_MONTHS) + timedelta(days=4)
     removed = 0
-    for candidate in ImportOperation.objects.filter(
+    for candidate, created_at in ImportOperation.objects.filter(
         created_at__lte=border, files_removed_at__isnull=True
-    ).values_list("pk", flat=True):
+    ).values_list("pk", "created_at"):
+        if shift_months(created_at, KEEP_FILES_MONTHS) > moment:
+            continue
         with transaction.atomic():
             # Locked and read again: a corrected file uploaded meanwhile is removed too.
             operation = (

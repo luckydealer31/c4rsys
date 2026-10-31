@@ -25,6 +25,9 @@ class UserAccount(models.Model):
     class State(models.TextChoices):
         ACTIVE = "active"
         DEACTIVATED = "deactivated"
+        # § 24.1.8: merged into another account by the support; it no longer signs in and its ID
+        # refers to the main account (`merged_into`).
+        MERGED = "merged"
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     public_id = models.CharField(max_length=40, unique=True)
@@ -55,6 +58,13 @@ class UserAccount(models.Model):
     session_idle_limit_min = models.PositiveIntegerField(default=DEFAULT_IDLE_MINUTES)
     session_total_limit_min = models.PositiveIntegerField(default=DEFAULT_TOTAL_MINUTES)
     state = models.CharField(max_length=20, choices=State.choices, default=State.ACTIVE)
+    # § 24.1.8: the main account this one was merged into; cleared by the split.
+    merged_into = models.ForeignKey(
+        "self", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    # § 2.3.1: the moment of the last recovery through the support; for 72 hours after it the
+    # transfer of ownership and the grant of the highest rights are restricted.
+    recovered_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -70,6 +80,11 @@ class UserAccount(models.Model):
                 condition=Q(session_idle_limit_min__gte=1)
                 & Q(session_idle_limit_min__lte=DEFAULT_IDLE_MINUTES),
                 name="user_account_idle_limit_range",
+            ),
+            models.CheckConstraint(
+                condition=(Q(state="merged") & Q(merged_into__isnull=False))
+                | (~Q(state="merged") & Q(merged_into__isnull=True)),
+                name="user_account_merged_into_state",
             ),
             models.CheckConstraint(
                 condition=Q(session_total_limit_min__gte=1)
@@ -118,6 +133,9 @@ class LoginContact(models.Model):
     kind = models.CharField(max_length=10, choices=Kind.choices)
     value = models.CharField(max_length=254)
     verified_at = models.DateTimeField(default=timezone.now)
+    # § 2.3.1: marked unavailable by the recovery through the support; it no longer signs in nor
+    # receives codes, but stays bound to the profile (the history and § 2.3.4 stay).
+    unavailable_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "login_contact"
@@ -140,6 +158,11 @@ class AuthFlow(models.Model):
         LOGIN = "login"
         CRITICAL = "critical"
         CHANGE_EMAIL = "change_email"  # confirmation of the new address (§ 2.3.2)
+        # § 2.3.1: the new address of a recovery request through the support, confirmed by a
+        # code and attached only after the check.
+        RECOVERY_EMAIL = "recovery_email"
+        # § 2.3.1: the link to set a new cloud password after the recovery is approved.
+        RECOVERY_PASSWORD = "recovery_password"  # noqa: S105
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     purpose = models.CharField(max_length=20, choices=Purpose.choices)
@@ -220,6 +243,10 @@ class UserSession(models.Model):
         CONTACT_CHANGED = "contact_changed"
         # § 24.2.2: a system block of the user ends all his sessions at once.
         BLOCKED = "blocked"
+        # § 2.3.3: the recovery of access through the support ends all sessions.
+        RECOVERED = "recovered"
+        # § 24.1.8: the merged account no longer signs in.
+        MERGED = "merged"
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     user = models.ForeignKey(UserAccount, on_delete=models.PROTECT, related_name="sessions")

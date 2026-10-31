@@ -184,6 +184,9 @@ C4R_STAFF_HOSTS = [
 C4R_STAFF_URL = os.environ.get("C4R_STAFF_URL", "http://staff.localhost:5173")
 # TODO(spec): the support contact given in a block notice (§ 24.2.2); set on the server.
 C4R_SUPPORT_CONTACT = os.environ.get("C4R_SUPPORT_CONTACT", "")
+# Decision В-11.2: the recovery of access through the support (§ 2.3.1) is built but switched off
+# until the regulation of the check is ready.
+C4R_SUPPORT_RECOVERY_ENABLED = env_bool("C4R_SUPPORT_RECOVERY_ENABLED", False)
 
 LOGGING = {
     "version": 1,

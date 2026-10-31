@@ -26,3 +26,7 @@ class BackofficeConfig(AppConfig):
         # hour and the notices to the companies (run with the notification checks).
         notifications.register_check(blocking.run)
         notifications.register_check(privileged.run)
+        # § 2.3.1: the approved recoveries take effect after their 24 hours.
+        from c4rsys.backoffice import recovery
+
+        notifications.register_check(recovery.run)

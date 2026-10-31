@@ -36,6 +36,11 @@ class ApiMiddleware:
         request_id = get_request_id(request)
         if isinstance(exception, ApiError):
             error = exception
+            if error.status == 404:
+                # § 2.8.1: an attempt to open an unavailable object is a security event.
+                from c4rsys.platform import security
+
+                security.on_not_found(request, request_id)
         else:
             logger.exception("Unhandled error (request %s)", request_id, exc_info=exception)
             error = errors.internal_error()

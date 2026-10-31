@@ -13,7 +13,7 @@ export function CodeStep({
   onConfirmed,
 }: {
   flow: StartedFlow;
-  purpose: "register" | "login";
+  purpose: "register" | "login" | "recovery_email";
   contact: string;
   onConfirmed: () => void;
 }) {
@@ -34,7 +34,8 @@ export function CodeStep({
     setPending(true);
     setError(null);
     try {
-      await api(`/auth/${purpose}/verify`, { method: "POST", body: { flow: flow.flow, code } });
+      const path = purpose === "recovery_email" ? "/recovery/email/verify" : `/auth/${purpose}/verify`;
+      await api(path, { method: "POST", body: { flow: flow.flow, code } });
       onConfirmed();
     } catch (caught) {
       setError(caught as ApiError);

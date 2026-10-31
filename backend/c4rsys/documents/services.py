@@ -509,6 +509,45 @@ def file_reader(user_id: UUID, item: Any) -> bool:
     return cabinet.may_read_file(user_id, d, item.id)
 
 
+def journal_file_read(user_id: UUID, item: Any, kind: str) -> None:
+    """§ 24.4.1: a download of a document's file through the files API, in the company's journal
+    with the employee who read it (or the client from the cabinet)."""
+    from c4rsys.companies.models import Employment
+    from c4rsys.documents.models import DocumentSigner
+    from c4rsys.platform import audit
+    from c4rsys.platform.commands import Actor
+
+    version = DocumentVersion.objects.select_related("document").filter(file_id=item.id).first()
+    scan = (
+        DocumentSigner.objects.select_related("document")
+        .filter(Q(paper_file_id=item.id) | Q(signature_file_id=item.id))
+        .first()
+    )
+    holder = version or scan
+    if holder is None:
+        return
+    d = holder.document
+    employment = Employment.objects.filter(
+        company_id=d.company_id, user_id=user_id, state=Employment.State.ACTIVE
+    ).first()
+    audit.record(
+        "document.file_downloaded",
+        object_type="document",
+        object_id=d.id,
+        company_id=d.company_id,
+        actor=Actor(user_id=user_id, company_id=d.company_id, employment_id=employment.id)
+        if employment
+        else None,
+        user_id=user_id,
+        after={
+            "file": str(item.id),
+            "version": version.number if version else None,
+            "by": "employee" if employment else "client",
+            "kind": kind,
+        },
+    )
+
+
 def can(actor: Any, permission: str, d: Document, resolver: Any = None) -> bool:
     """The right in the document's scope: anywhere for the whole company, else in one of its
     locations (§ 18.5.4)."""

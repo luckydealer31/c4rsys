@@ -440,6 +440,8 @@ def _validate_successor(
 
 def start_transfer(ctx: CommandContext, company_id: UUID, new: NewTransfer) -> ShareTransfer:
     """The current owner starts the transfer; the caller has checked the one-time code."""
+    # § 2.3.1: no transfer of ownership within 72 hours after a recovery through the support.
+    accounts.require_not_recently_recovered(ctx.actor.user_id)
     company = _lock_company(company_id)
     now = timezone.now()
     own = share_of(company.id, new.sender)
@@ -670,6 +672,10 @@ def decide_transfer(
         raise errors.not_found()
     if approval.state != ShareTransferApproval.State.PENDING:
         raise errors.business_rule("TRANSFER_ALREADY_DECIDED")
+    if approve:
+        # § 2.3.1: within 72 hours after a recovery through the support the person neither gives
+        # nor takes ownership or the highest powers (PROPOSAL: every confirmation).
+        accounts.require_not_recently_recovered(user.id)
     if approve and approval.role == Role.RECIPIENT and not user.has_full_name:
         # The owners see the first and last name of a new owner (§ 3.3.6).
         raise errors.business_rule("NAME_REQUIRED")

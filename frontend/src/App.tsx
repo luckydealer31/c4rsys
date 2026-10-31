@@ -16,6 +16,7 @@ import { AppShell } from "./layout/AppShell";
 import { CompanyShell } from "./layout/CompanyShell";
 import { ProfilePage } from "./pages/account/ProfilePage";
 import { LoginPage } from "./pages/auth/LoginPage";
+import { RecoveryPasswordPage, RecoveryRequestPage } from "./pages/auth/RecoveryPage";
 import { NotificationsPage } from "./pages/notifications/NotificationsPage";
 import { SignByLinkPage } from "./pages/documents/Signing";
 import { RegisterPage } from "./pages/auth/RegisterPage";
@@ -126,6 +127,8 @@ function MainApp({ cabinet }: { cabinet: boolean }) {
       <Routes>
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/sign/:token" element={<SignByLinkPage />} />
+        <Route path="/recover" element={<RecoveryRequestPage />} />
+        <Route path="/recover/:token" element={<RecoveryPasswordPage />} />
         <Route path="*" element={<LoginPage />} />
       </Routes>
     );

@@ -756,10 +756,7 @@ def pv_document_file(request: HttpRequest, session_id: UUID, document_id: UUID) 
     privileged.record(
         request, staff, s, "documents", scope="files", object_id=document_id, download=True
     )
-    response = HttpResponse(files.content(item), content_type=item.content_type)
-    response["Cache-Control"] = "private, no-store"
-    response["Content-Disposition"] = "attachment"
-    return response
+    return files.file_response(item, attachment=True)
 
 
 @require_GET

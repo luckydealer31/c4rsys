@@ -259,7 +259,7 @@ def cancel(ctx: CommandContext, company_id: UUID, link_id: UUID) -> ProfileLink:
 def break_link(ctx: CommandContext, company_id: UUID, link_id: UUID, initiator: str) -> ProfileLink:
     """By the company's initiative or after the client asked (§ 6.6.2); the initiator and the time
     are recorded (§ 6.6.6). Data and history of the card stay (§ 6.6.1)."""
-    if initiator not in ProfileLink.Initiator.values:
+    if initiator not in (ProfileLink.Initiator.COMPANY, ProfileLink.Initiator.CLIENT):
         raise errors.validation_error("initiator")
     query = ProfileLink.objects.filter(company_id=company_id)
     peek = query.filter(pk=link_id).first()
@@ -287,6 +287,75 @@ def break_link(ctx: CommandContext, company_id: UUID, link_id: UUID, initiator: 
         after={"initiator": initiator},
     )
     return link
+
+
+def find(link_id: UUID) -> ProfileLink | None:
+    """A link for the system verification (§ 24.1.7), whatever the company."""
+    return ProfileLink.objects.select_related("company").filter(pk=link_id).first()
+
+
+def break_by_platform(ctx: CommandContext, link_id: UUID, reason: str) -> ProfileLink:
+    """The system verification ends a disputed link after its check (§ 24.1.7): the same effect
+    as § 6.6.2, with the initiator «platform»; the company sees it in its journal. Data and history
+    of the card stay (§ 6.6.1); the access already given is not revoked here (§ 6.5.5 is the
+    company's correction)."""
+    peek = find(link_id)
+    if peek is None:
+        raise errors.not_found()
+    card = _lock_card(peek.company_id, card_type_of(peek), card_id_of(peek))
+    link = ProfileLink.objects.select_for_update().get(pk=link_id)
+    if link.state not in (State.ACCEPTED, State.PENDING):
+        raise errors.business_rule("LINK_NOT_OPEN")
+    now = timezone.now()
+    before = link.state
+    if link.state == State.ACCEPTED:
+        card.linked_user_id = None
+        card.linked_company_id = None
+        card.version += 1
+        card.save(update_fields=["linked_user_id", "linked_company_id", "version", "updated_at"])
+        link.state = State.BROKEN
+        link.broken_at = now
+        link.broken_by_user_id = ctx.actor.user_id
+        link.broken_initiator = ProfileLink.Initiator.PLATFORM
+        link.save(update_fields=["state", "broken_at", "broken_by_user_id", "broken_initiator"])
+    else:
+        link.state = State.CANCELLED
+        link.decided_at = now
+        link.save(update_fields=["state", "decided_at"])
+    ctx.audit(
+        "profile_link.broken" if before == State.ACCEPTED else "profile_link.cancelled",
+        object_type="profile_link",
+        object_id=link.id,
+        before={"state": before},
+        after={"state": link.state, "initiator": "platform"},
+        reason=reason,
+        company_id=link.company_id,
+    )
+    return link
+
+
+def verification_payload(link: ProfileLink) -> dict[str, Any]:
+    """What the verification sees of a link: the company, the kind of card and the profile, not
+    the card's data."""
+    target = None
+    if link.target_user_id is not None:
+        user = accounts.get_user(link.target_user_id)
+        target = {"type": "user", "public_id": user.public_id if user else ""}
+    elif link.target_company_id is not None:
+        company = Company.objects.filter(pk=link.target_company_id).first()
+        target = {"type": "company", "public_id": company.public_id if company else ""}
+    return {
+        "id": str(link.id),
+        "company": {"public_id": link.company.public_id, "name": link.company.display_name},
+        "card_type": card_type_of(link),
+        "profile": link.profile,
+        "target": target,
+        "state": link.state,
+        "created_at": link.created_at.isoformat(),
+        "decided_at": link.decided_at.isoformat() if link.decided_at else None,
+        "broken_at": link.broken_at.isoformat() if link.broken_at else None,
+        "broken_initiator": link.broken_initiator or None,
+    }
 
 
 # --- The recipient's answer (§ 6.2.5, § 6.3.8) ------------------------------------------------

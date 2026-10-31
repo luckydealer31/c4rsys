@@ -584,6 +584,7 @@ export function JournalTable({ entries, timeZone }: { entries: JournalEntry[]; t
 function JournalCard({ employmentId }: { employmentId: string }) {
   const { t } = useTranslation();
   const company = useCompany();
+  const can = useCan();
   const [section, setSection] = useState("");
   const query = section ? `?section=${encodeURIComponent(section)}` : "";
   const journal = useApi<{ journal: JournalEntry[] }>(
@@ -604,6 +605,17 @@ function JournalCard({ employmentId }: { employmentId: string }) {
           )}
         </select>
       </Field>
+      {can("employee.journal.export") ? (
+        // § 24.4.5: the export is a separate right; the server journals it.
+        <div className="actions">
+          <a
+            className="button secondary"
+            href={`/api/c/${company.public_id}/employees/${employmentId}/journal/export${query}`}
+          >
+            {t("employees.journal_export")}
+          </a>
+        </div>
+      ) : null}
       {journal.isLoading ? <Loading /> : null}
       <JournalTable entries={journal.data?.journal ?? []} timeZone={company.timezone ?? "UTC"} />
     </Card>

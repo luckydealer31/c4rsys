@@ -600,6 +600,21 @@ def _journal(invitation: SigningInvitation, action: str, after: dict[str, Any]) 
     )
 
 
+def journal_link_read(invitation: SigningInvitation, item: Any) -> None:
+    """§ 24.4.1: the view of the document by a personal signing link, in the company's journal;
+    the signer has no account here, the link is the actor."""
+    from c4rsys.platform import audit
+
+    audit.record(
+        "document.file_viewed",
+        object_type="document",
+        object_id=invitation.signer.document_id,
+        company_id=invitation.company_id,
+        system_process="signing_link",
+        after={"by": "signer", "signer": str(invitation.signer_id), "file": str(item.id)},
+    )
+
+
 def by_token(token: str, *, lock: bool = False) -> SigningInvitation:
     """An unknown token answers as not found; a used, revoked or expired link says so."""
     query = SigningInvitation.objects.select_related(

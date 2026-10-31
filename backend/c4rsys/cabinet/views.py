@@ -156,9 +156,9 @@ def document_file(request: HttpRequest, document_id: UUID) -> HttpResponse:
 
     user, _session = require_user(request)
     item, _name = documents.file_of(user.id, document_id)
-    response = HttpResponse(files.content(item), content_type=item.content_type)
-    response["Cache-Control"] = "private, no-store"
-    response["Content-Disposition"] = "inline"
+    response = files.file_response(item)
+    # § 24.4.1: the client's view of the document is journaled in the company's journal.
+    documents.journal_client_read(user.id, document_id, item)
     return response
 
 

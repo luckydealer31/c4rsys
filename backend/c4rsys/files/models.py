@@ -37,6 +37,10 @@ class StoredFile(models.Model):
         READY = "ready"
         PROCESSING = "processing"
         FAILED = "failed"
+        # § 24.4.4: a new file is checked before anyone else may read it; a dangerous or
+        # unsupported one is blocked: its content is not kept and it is never attached.
+        CHECKING = "checking"
+        BLOCKED = "blocked"
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     purpose = models.CharField(max_length=30, choices=Purpose.choices)
@@ -53,6 +57,9 @@ class StoredFile(models.Model):
     processing_started_at = models.DateTimeField(null=True, blank=True)
     # Duration of a video in seconds, measured at the upload (§ 10.4.2).
     duration_seconds = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    # § 24.4.4: why the check blocked the file (a code of `files.checks`).
+    blocked_reason = models.CharField(max_length=40, blank=True, default="")
+    checked_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "stored_file"

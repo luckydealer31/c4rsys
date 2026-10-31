@@ -24,3 +24,8 @@ class FleetConfig(AppConfig):
         orders.register_operations(moves.operations_for_order)
         orders.register_history(moves.history_for_order)
         orders.register_on_cancel(moves.on_order_cancel)
+        # § 24.1.8: the ownership of vehicles moves with the merge of accounts.
+        from c4rsys.fleet.userlinks import VehicleLinks
+        from c4rsys.platform import userlinks
+
+        userlinks.register(VehicleLinks())

@@ -34,7 +34,8 @@ def test_only_png_jpeg_webp_are_accepted(client: Client) -> None:
 
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "FILE_TYPE_NOT_ALLOWED"
-    assert not StoredFile.objects.exists()
+    # § 24.4.4: nothing usable is stored; the blocked attempt is kept without its content.
+    assert not StoredFile.objects.exclude(state=StoredFile.State.BLOCKED).exists()
 
 
 def test_image_over_two_megabytes_is_refused(client: Client) -> None:

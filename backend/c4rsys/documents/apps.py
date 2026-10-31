@@ -19,6 +19,9 @@ class DocumentsConfig(AppConfig):
         files.register_reader(StoredFile.Purpose.COMPANY_DOCUMENT, services.file_reader)
         # A signature drawn on the screen is read like the document it signs (§ 10.2.2).
         files.register_reader(StoredFile.Purpose.DOCUMENT_SIGNATURE, services.file_reader)
+        # § 24.4.1: downloads of a document's files are journaled.
+        files.register_read_hook(StoredFile.Purpose.COMPANY_DOCUMENT, services.journal_file_read)
+        files.register_read_hook(StoredFile.Purpose.DOCUMENT_SIGNATURE, services.journal_file_read)
         # Decision Р-7: the warnings of terms go to the notification centre (part З3).
         notifications.register_check(notices.run)
         # § 20.3.4: the request and the result of signing are mandatory notifications.

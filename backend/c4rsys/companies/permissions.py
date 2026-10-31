@@ -23,6 +23,9 @@ PERMISSIONS: dict[str, str] = {
     "employee.invite": "employee",
     "employee.rights.manage": "employee",
     "employee.journal.view": "employee",
+    # § 24.4.5: the export of a journal is a separate right from its view; only in «Company
+    # administrator» (PROPOSAL).
+    "employee.journal.export": "employee",
     "employee.access.block": "employee",
     "employee.access.restore": "employee",
     # § 23.3.9, § 23.3.1 (block 10, part B): editing the employee card, managing the positions

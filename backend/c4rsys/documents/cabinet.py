@@ -228,6 +228,21 @@ def file_of(user_id: UUID, document_id: UUID) -> tuple[Any, str]:
     return item, version.file_name
 
 
+def journal_client_read(user_id: UUID, document_id: UUID, item: Any) -> None:
+    """§ 24.4.1: the client's view of a document given to him, in the company's journal."""
+    from c4rsys.platform import audit
+
+    d = get(user_id, document_id)
+    audit.record(
+        "document.file_viewed",
+        object_type="document",
+        object_id=d.id,
+        company_id=d.company_id,
+        user_id=user_id,
+        after={"by": "client", "file": str(item.id)},
+    )
+
+
 def may_read_file(user_id: UUID, d: Document, file_id: UUID) -> bool:
     """The file is the one of the version shown to the client in the cabinet (Б-2)."""
     if not visible_to(user_id, d):

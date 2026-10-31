@@ -15,7 +15,7 @@ from django.http import FileResponse, HttpRequest, HttpResponse, JsonResponse, S
 from django.views.decorators.http import require_GET, require_POST
 
 from c4rsys.accounts.middleware import require_user
-from c4rsys.files import services, video
+from c4rsys.files import checks, services, video
 from c4rsys.files.models import StoredFile
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult, run_command
@@ -43,6 +43,40 @@ def _content_type(purpose: str, data: bytes) -> str:
     if purpose == services.DOCUMENT_SIGNATURE:
         return services.signature_type(data)
     return services.image_type(data)
+
+
+BLOCKING_CODES = {"FILE_TYPE_NOT_ALLOWED"}
+
+
+def _checked_type(purpose: str, data: bytes, user_id: UUID, session_id: UUID) -> str:
+    """The actual type allowed for the purpose, then the inspection of the content (§ 24.4.4).
+    A dangerous or unsupported file is blocked and journaled; an empty or too large one is only
+    explained (§ 10.4.2, § 18.1.3)."""
+    try:
+        content_type = _content_type(purpose, data)
+    except errors.ApiError as exc:
+        if exc.code in BLOCKING_CODES:
+            services.record_blocked(
+                purpose=purpose,
+                uploaded_by=user_id,
+                session_id=session_id,
+                content=data,
+                content_type="",
+                reason="type_not_allowed",
+            )
+        raise
+    reason = checks.inspect(content_type, data)
+    if reason:
+        services.record_blocked(
+            purpose=purpose,
+            uploaded_by=user_id,
+            session_id=session_id,
+            content=data,
+            content_type=content_type,
+            reason=reason,
+        )
+        raise errors.validation_error("file", code="FILE_BLOCKED", reason=reason)
+    return content_type
 
 
 def _file_body(item: StoredFile) -> dict[str, object]:
@@ -73,18 +107,26 @@ def upload(request: HttpRequest) -> JsonResponse:
     if purpose == services.INSPECTION_VIDEO:
         return _upload_video(request, user.id, session.id, uploaded)
     data = uploaded.read()
-    content_type = _content_type(purpose, data)
+    content_type = _checked_type(purpose, data, user.id, session.id)
     payload = {"purpose": purpose, "sha256": hashlib.sha256(data).hexdigest()}
 
     def handler(ctx: CommandContext) -> CommandResult:
         item = services.store(
             purpose=purpose, uploaded_by=user.id, content=data, content_type=content_type
         )
+        # § 24.4.4: the check ran on the content before the command; nothing else is pending,
+        # so the file leaves «checking» in the same transaction.
+        services.checked(item)
         ctx.audit(
             "file.uploaded",
             object_type="stored_file",
             object_id=item.id,
-            after={"purpose": purpose, "content_type": content_type, "size": item.size},
+            after={
+                "purpose": purpose,
+                "content_type": content_type,
+                "size": item.size,
+                "state": item.state,
+            },
         )
         return CommandResult(201, {"file": _file_body(item)})
 
@@ -107,7 +149,23 @@ def _upload_video(
     kept until the server compresses it, outside the command's transaction (`video`)."""
     stream: BinaryIO = uploaded.file  # type: ignore[assignment]
     stream.seek(0)
-    content_type = services.inspection_video_type(stream.read(16))
+    head = stream.read(16)
+    try:
+        content_type = services.inspection_video_type(head)
+    except errors.ApiError as exc:
+        if exc.code in BLOCKING_CODES:
+            stream.seek(0)
+            services.record_blocked(
+                purpose=services.INSPECTION_VIDEO,
+                uploaded_by=user_id,
+                session_id=session_id,
+                content=b"",
+                content_type="",
+                reason="type_not_allowed",
+                size=uploaded.size or 1,
+                sha256=video.digest(stream),
+            )
+        raise
     size = uploaded.size or 0
     if size <= 0:
         raise errors.validation_error("file", code="FIELD_REQUIRED")
@@ -185,6 +243,7 @@ def download(request: HttpRequest, file_id: UUID) -> HttpResponse | StreamingHtt
     size = path.stat().st_size
     match = RANGE.match(request.headers.get("Range", "").strip())
     response: HttpResponse | StreamingHttpResponse
+    whole = True
     if match and (match.group(1) or match.group(2)):
         first, last = match.group(1), match.group(2)
         if first:
@@ -197,6 +256,7 @@ def download(request: HttpRequest, file_id: UUID) -> HttpResponse | StreamingHtt
             response = HttpResponse(status=416)
             response["Content-Range"] = f"bytes */{size}"
             return response
+        whole = start == 0
         handle = path.open("rb")
         handle.seek(start)
         response = StreamingHttpResponse(
@@ -211,7 +271,11 @@ def download(request: HttpRequest, file_id: UUID) -> HttpResponse | StreamingHtt
         response = HttpResponse(path.read_bytes(), content_type=content_type)
     response["Accept-Ranges"] = "bytes"
     response["Cache-Control"] = "private, max-age=86400"
-    response["Content-Disposition"] = "inline"
+    services.safe_headers(response, content_type)
+    if whole:
+        # § 24.4.1: a read of a document's file is journaled by its module (once per reading,
+        # not per byte range).
+        services.read_hooks(user.id, item, "download")
     return response
 
 

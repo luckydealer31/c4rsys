@@ -10,8 +10,11 @@ import { LoginPage } from "../pages/auth/LoginPage";
 import { BlocksPage, JournalPage, MembersPage } from "./Admin";
 import { STAFF_ME, StaffContext, useStaff, useStaffCan, useStaffMe } from "./common";
 import { CompanyCard, DirectoryPage, UserCard } from "./Directory";
+import { MergePage, MergesPage } from "./Merges";
 import { SessionPage, SessionsPage } from "./Privileged";
+import { RecoveryCasePage, RecoveryCasesPage } from "./Recovery";
 import { TicketPage, TicketsPage } from "./Tickets";
+import { VerificationPage } from "./Verification";
 
 /** The internal interface of the system staff of c4rsys on its own subdomain (ТЗ гл. 24;
  * decision В-11.1): its own sign-in, search of users and companies, tickets, privileged sessions,
@@ -81,6 +84,11 @@ export function StaffApp() {
           <Route path="/sessions" element={<SessionsPage />} />
           <Route path="/sessions/:id" element={<SessionPage />} />
           <Route path="/blocks" element={<BlocksPage />} />
+          <Route path="/merges" element={<MergesPage />} />
+          <Route path="/merges/:id" element={<MergePage />} />
+          <Route path="/verification" element={<VerificationPage />} />
+          <Route path="/recovery" element={<RecoveryCasesPage />} />
+          <Route path="/recovery/:id" element={<RecoveryCasePage />} />
           <Route path="/members" element={<MembersPage />} />
           <Route path="/journal" element={<JournalPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
@@ -120,6 +128,9 @@ function StaffShell({ children }: { children: ReactNode }) {
     ["/tickets", "staff.nav_tickets", can("tickets.manage")],
     ["/sessions", "staff.nav_sessions", can("privileged.open")],
     ["/blocks", "staff.nav_blocks", can("block.manage")],
+    ["/verification", "staff.nav_verification", can("verification.resolve")],
+    ["/merges", "staff.nav_merges", can("accounts.merge")],
+    ["/recovery", "staff.nav_recovery", can("recovery.manage")],
     ["/members", "staff.nav_members", can("staff.manage")],
     ["/journal", "staff.nav_journal", can("journal.view")],
   ];
