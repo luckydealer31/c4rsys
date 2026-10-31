@@ -55,6 +55,11 @@ EVENTS: dict[str, Event] = {
     # Requests to the owner of a vehicle and the answers (§ 8.3.1, part К5).
     "vehicle.owner_requested": Event(Kind.ACTION, "company.link.answer", mandatory=True),
     "vehicle.owner_answered": Event(Kind.INFO, None, mandatory=True),
+    # § 8.6.2: the parties of a conflict of identifiers are told the decision by its number;
+    # § 8.2.1: the company is told the decision on its proposal. PROPOSAL: mandatory, to those
+    # who see the vehicle.
+    "vehicle.identifier_conflict_decided": Event(Kind.INFO, "vehicle.view", mandatory=True),
+    "vehicle.characteristic_decided": Event(Kind.INFO, "vehicle.view", mandatory=True),
     # Confirmations of share transfers and owners' approvals of deactivation (§ 3.4.1, § 3.6.2).
     "ownership.approval_requested": Event(Kind.ACTION, None, mandatory=True),
     "company.state_approval_requested": Event(Kind.ACTION, None, mandatory=True),

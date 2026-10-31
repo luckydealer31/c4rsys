@@ -20,6 +20,11 @@ class InspectionsConfig(AppConfig):
         companies.register_created(templates.create_starting)
         files.register_reader(files.INSPECTION_PHOTO, file_reader)
         files.register_reader(files.INSPECTION_VIDEO, file_reader)
+        # § 8.6.5: inspections made after a merge of cards are assigned at its split.
+        from c4rsys.fleet import merges
+        from c4rsys.inspections import card_records
+
+        merges.register_card_records(card_records.PROVIDER)
 
 
 def file_reader(user_id: UUID, item: Any) -> bool:

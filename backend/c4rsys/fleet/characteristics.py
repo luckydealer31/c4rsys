@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from c4rsys.fleet.models import Vehicle, VehicleMake, VehicleModel, VehiclePlate
+from c4rsys.fleet.models import Vehicle, VehicleMake, VehicleModel
 from c4rsys.platform import errors
 
 # Ground vehicles first (§ 8.1.8); air and water come later.
@@ -112,6 +112,8 @@ class Characteristics:
     engine_number: str = ""
     plate: str = ""
     plate_country: str = ""
+    # The region or the registration authority of the plate, where it applies (§ 8.6.1).
+    plate_region: str = ""
     color: str = ""
     body_type: str = ""
     fuel_type: str = ""
@@ -122,10 +124,12 @@ class Characteristics:
     seats: int | None = None
     doors: int | None = None
     warnings: list[str] = field(default_factory=list)
+    # The identifiers as they were entered, before the normalization (§ 8.6.1).
+    originals: dict[str, str] = field(default_factory=dict)
 
     def payload(self) -> dict[str, Any]:
         """For the stored request of the command (A07)."""
-        body = {k: v for k, v in self.__dict__.items() if k != "warnings"}
+        body = {k: v for k, v in self.__dict__.items() if k not in ("warnings", "originals")}
         body["engine_volume_l"] = str(self.engine_volume_l) if self.engine_volume_l else None
         return body
 
@@ -163,6 +167,7 @@ def parse(data: dict[str, Any], this_year: int) -> Characteristics:
         engine_number=_text(data, "engine_number", 40).upper(),
         plate=_text(data, "plate", 20),
         plate_country=plate_country,
+        plate_region=_text(data, "plate_region", 60),
         color=_text(data, "color", 60),
         body_type=_choice(data, "body_type", BODY_TYPES),
         fuel_type=_choice(data, "fuel_type", FUEL_TYPES),
@@ -175,6 +180,10 @@ def parse(data: dict[str, Any], this_year: int) -> Characteristics:
     )
     if vin and not VIN_FORMAT.match(vin):
         result.warnings.append("VIN_FORMAT")
+    for key in ("vin", *NUMBERS):
+        raw = data.get(key)
+        if isinstance(raw, str) and raw.strip():
+            result.originals[key] = raw[:60]
     return result
 
 
@@ -219,39 +228,11 @@ def apply(vehicle: Vehicle, value: Characteristics) -> None:
 
 
 def matches(vehicle: Vehicle) -> list[str]:
-    """Identifiers that coincide with another vehicle (§ 8.6.1, § 8.6.3): a reason to check, not
-    proof of one vehicle. Only the fact is told, not whose the other record is."""
-    found = []
-    if vehicle.vin and Vehicle.objects.filter(vin=vehicle.vin).exclude(pk=vehicle.pk).exists():
-        found.append("vin")
-    plate = vehicle.plates.filter(valid_to__isnull=True).first()
-    if (
-        plate is not None
-        and VehiclePlate.objects.filter(
-            number_normalized=plate.number_normalized,
-            country=plate.country,
-            valid_to__isnull=True,
-        )
-        .exclude(vehicle=vehicle)
-        .exists()
-    ):
-        found.append("plate")
-    # Each number within its own kind; vehicles registered in different known countries do not
-    # coincide (§ 8.6.1).
-    country = plate.country if plate is not None else ""
-    for key in NUMBERS:
-        value = getattr(vehicle, key)
-        if not value:
-            continue
-        others = Vehicle.objects.filter(**{key: value}).exclude(pk=vehicle.pk)[:20]
-        if any(not country or _country(other) in ("", country) for other in others):
-            found.append(key)
-    return found
+    """Identifiers that coincide with another global entity (§ 8.6.1, § 8.6.3): a reason to
+    check, not proof of one vehicle. Only the fact is told, not whose the other record is."""
+    from c4rsys.fleet import identity
 
-
-def _country(vehicle: Vehicle) -> str:
-    plate = vehicle.plates.filter(valid_to__isnull=True).first()
-    return plate.country if plate is not None else ""
+    return identity.matches(vehicle)
 
 
 def describe(vehicle: Vehicle) -> dict[str, Any]:
@@ -273,6 +254,7 @@ def describe(vehicle: Vehicle) -> dict[str, Any]:
         "engine_number": vehicle.engine_number,
         "plate": plate.number if plate else "",
         "plate_country": plate.country if plate else "",
+        "plate_region": plate.region if plate else "",
         "color": vehicle.color,
         "body_type": vehicle.body_type,
         "fuel_type": vehicle.fuel_type,
@@ -284,3 +266,110 @@ def describe(vehicle: Vehicle) -> dict[str, Any]:
         "doors": vehicle.doors,
         "identifier_matches": matches(vehicle),
     }
+
+
+# --- Values of single characteristics (§ 8.2.1, § 8.6.2) ------------------------------------
+
+# The characteristics a working value of a card can hold: the keys of the API.
+FIELDS = (
+    "vehicle_type",
+    "make",
+    "model",
+    "year",
+    "vin",
+    "body_number",
+    "chassis_number",
+    "frame_number",
+    "engine_number",
+    "color",
+    "body_type",
+    "fuel_type",
+    "transmission",
+    "drive",
+    "engine_volume_l",
+    "power_hp",
+    "seats",
+    "doors",
+)
+# The basic factory characteristics that the c4rsys staff may confirm (§ 8.2.1). PROPOSAL: the
+# ТЗ does not list them; the colour (it may be repainted) and the plate (periods, § 8.2.11) are
+# not among them. TODO(spec): the list of the basic factory characteristics.
+FACTORY_FIELDS = tuple(f for f in FIELDS if f != "color")
+
+
+def value_of(vehicle: Vehicle, name: str) -> Any:
+    """A comparable JSON value of one characteristic of the global vehicle."""
+    if name == "make":
+        return {"code": vehicle.make_id or "", "other": vehicle.make_other}
+    if name == "model":
+        return {"code": vehicle.model_id or "", "other": vehicle.model_other}
+    if name == "engine_volume_l":
+        return str(vehicle.engine_volume_l) if vehicle.engine_volume_l is not None else None
+    return getattr(vehicle, name)
+
+
+def value_in(details: Characteristics, name: str) -> Any:
+    """The same value as entered (parsed) in a form."""
+    if name == "make":
+        return {"code": details.make_code, "other": details.make_other}
+    if name == "model":
+        return {"code": details.model_code, "other": details.model_other}
+    if name == "engine_volume_l":
+        return str(details.engine_volume_l) if details.engine_volume_l is not None else None
+    return getattr(details, name)
+
+
+def is_empty(value: Any) -> bool:
+    if isinstance(value, dict):
+        return not value.get("code") and not value.get("other")
+    return value in (None, "")
+
+
+def set_value(vehicle: Vehicle, name: str, value: Any) -> None:
+    if name == "make":
+        vehicle.make_id = value.get("code") or None
+        vehicle.make_other = "" if value.get("code") else value.get("other", "")
+    elif name == "model":
+        vehicle.model_id = value.get("code") or None
+        vehicle.model_other = "" if value.get("code") else value.get("other", "")
+    elif name == "engine_volume_l":
+        vehicle.engine_volume_l = Decimal(value) if value not in (None, "") else None
+    else:
+        setattr(vehicle, name, value)
+
+
+def input_of(name: str, value: Any) -> dict[str, Any]:
+    """The value back as input of `parse`."""
+    if name in ("make", "model"):
+        value = value or {}
+        return {name: value.get("code", ""), f"{name}_other": value.get("other", "")}
+    return {name: value}
+
+
+def display(name: str, value: Any) -> str:
+    """A text of a value for the interface."""
+    if name in ("make", "model") and isinstance(value, dict):
+        code = value.get("code")
+        if not code:
+            return str(value.get("other", ""))
+        table = VehicleMake if name == "make" else VehicleModel
+        found = table.objects.filter(code=code).values_list("name", flat=True).first()
+        return str(found or code)
+    return "" if value is None else str(value)
+
+
+def parse_one(name: str, data: dict[str, Any], vehicle: Vehicle, this_year: int) -> Any:
+    """One characteristic given by `data`, checked as in the full form: the other values are
+    taken from the vehicle, so a model is checked against the make."""
+    if name not in FIELDS:
+        raise errors.validation_error("field")
+    base: dict[str, Any] = {"transport_class": vehicle.transport_class}
+    for other in FIELDS:
+        base.update(input_of(other, value_of(vehicle, other)))
+    if name in ("make", "model"):
+        base.update({k: data.get(k, "") for k in (name, f"{name}_other")})
+        if name == "make":
+            base.update({"model": "", "model_other": ""})
+    else:
+        base[name] = data.get(name)
+    return value_in(parse(base, this_year), name)

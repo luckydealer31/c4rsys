@@ -24,6 +24,7 @@ type Form = {
   year: string;
   plate: string;
   plate_country: string;
+  plate_region: string;
   vin: string;
   body_number: string;
   chassis_number: string;
@@ -63,6 +64,7 @@ const EMPTY: Form = {
   year: "",
   plate: "",
   plate_country: "",
+  plate_region: "",
   vin: "",
   body_number: "",
   chassis_number: "",
@@ -119,7 +121,7 @@ function formOf(vehicle: Vehicle): Form {
   const c = vehicle.characteristics;
   const o = vehicle.owner;
   const text = (value: number | string | null) => (value === null ? "" : String(value));
-  return {
+  const form: Form = {
     ...EMPTY,
     transport_class: c.transport_class || "ground",
     vehicle_type: c.vehicle_type || "passenger_car",
@@ -153,7 +155,20 @@ function formOf(vehicle: Vehicle): Form {
     owner_contact: o?.contact ?? "",
     owner_client_id: o?.client?.id ?? "",
     client_owner_kind: o && vehicle.relation === "client" && o.kind !== "none" ? o.kind : "client",
+    plate_region: c.plate_region ?? "",
   };
+  // § 8.2.1: the card's own working values are edited in place of the global ones.
+  const values = form as unknown as Record<string, string>;
+  for (const [field, item] of Object.entries(vehicle.working_values ?? {})) {
+    if (field === "make" || field === "model") {
+      const v = (item.value ?? {}) as { code?: string; other?: string };
+      values[field] = v.code || (v.other ? OTHER : "");
+      values[`${field}_other`] = v.code ? "" : (v.other ?? "");
+    } else {
+      values[field] = item.value === null || item.value === undefined ? "" : String(item.value);
+    }
+  }
+  return form;
 }
 
 function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
@@ -188,6 +203,10 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
     vehicle ? "PUT" : "POST",
   );
   const set = (changes: Partial<Form>) => setForm({ ...form, ...changes });
+  // § 8.2.1: a value confirmed by c4rsys is not edited directly, unless the card keeps its own
+  // working value for it.
+  const confirmed = new Set(vehicle?.confirmed_fields ?? []);
+  const locked = (field: string) => confirmed.has(field) && !(vehicle?.working_values ?? {})[field];
 
   const hasCatalog = options.data?.catalog_types.includes(form.vehicle_type) ?? false;
   const makes = useApi<{ makes: CatalogMake[] }>(
@@ -225,6 +244,7 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
       year: number(form.year),
       plate: form.plate,
       plate_country: form.plate_country,
+      plate_region: form.plate_region,
       vin: form.vin,
       body_number: form.body_number,
       chassis_number: form.chassis_number,
@@ -294,7 +314,7 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
   const o = options.data;
   const popular = (makes.data?.makes ?? []).filter((m) => m.popular);
   const choose = (key: keyof Form, list: string[], prefix: string) => (
-    <select value={form[key]} onChange={(e) => set({ [key]: e.target.value })}>
+    <select value={form[key]} disabled={locked(key)} onChange={(e) => set({ [key]: e.target.value })}>
       <option value="">—</option>
       {list.map((code) => (
         <option key={code} value={code}>
@@ -316,6 +336,7 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
         </Link>
       </p>
       <h1>{vehicle ? t("vehicles.edit_title") : t("vehicles.create_title")}</h1>
+      {confirmed.size ? <div className="alert">{t("vehicles.confirmed_locked_hint")}</div> : null}
       <form className="stack" onSubmit={submit}>
         <Card title={t("vehicles.section_kind")}>
           {/* Only ground transport exists for now, so its class is not asked (decision of
@@ -323,6 +344,7 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
           <Field label={t("vehicles.vehicle_type")}>
             <select
               value={form.vehicle_type}
+              disabled={locked("vehicle_type")}
               onChange={(e) =>
                 set({ vehicle_type: e.target.value, make: "", model: "", make_other: "", model_other: "" })
               }
@@ -342,6 +364,7 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
               <Field label={t("vehicles.make")}>
                 <select
                   value={form.make}
+                  disabled={locked("make")}
                   onChange={(e) => set({ make: e.target.value, model: "", model_other: "" })}
                 >
                   <option value="">—</option>
@@ -367,12 +390,12 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
             ) : null}
             {!hasCatalog || form.make === OTHER ? (
               <Field label={hasCatalog ? t("vehicles.make_other") : t("vehicles.make")}>
-                <input value={form.make_other} onChange={(e) => set({ make_other: e.target.value })} />
+                <input value={form.make_other} disabled={locked("make")} onChange={(e) => set({ make_other: e.target.value })} />
               </Field>
             ) : null}
             {usesCatalogMake ? (
               <Field label={t("vehicles.model")}>
-                <select value={form.model} onChange={(e) => set({ model: e.target.value })}>
+                <select value={form.model} disabled={locked("model")} onChange={(e) => set({ model: e.target.value })}>
                   <option value="">—</option>
                   {(models.data?.models ?? []).map((m) => (
                     <option key={m.code} value={m.code}>
@@ -386,13 +409,14 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
             ) : null}
             {!usesCatalogMake || form.model === OTHER ? (
               <Field label={usesCatalogMake ? t("vehicles.model_other") : t("vehicles.model")}>
-                <input value={form.model_other} onChange={(e) => set({ model_other: e.target.value })} />
+                <input value={form.model_other} disabled={locked("model")} onChange={(e) => set({ model_other: e.target.value })} />
               </Field>
             ) : null}
             <Field label={t("vehicles.year")}>
               <input
                 type="number"
                 inputMode="numeric"
+                disabled={locked("year")}
                 value={form.year}
                 onChange={(e) => set({ year: e.target.value })}
               />
@@ -404,7 +428,7 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
         <Card title={t("vehicles.section_identification")}>
           <div className="row">
             <Field label={t("vehicles.vin")} hint={t("vehicles.vin_hint")}>
-              <input value={form.vin} onChange={(e) => set({ vin: e.target.value })} />
+              <input value={form.vin} disabled={locked("vin")} onChange={(e) => set({ vin: e.target.value })} />
             </Field>
             <Field label={t("vehicles.plate")}>
               <input value={form.plate} onChange={(e) => set({ plate: e.target.value })} />
@@ -419,19 +443,22 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
                 ))}
               </select>
             </Field>
+            <Field label={t("vehicles.plate_region")} hint={t("vehicles.plate_region_hint")}>
+              <input value={form.plate_region} onChange={(e) => set({ plate_region: e.target.value })} />
+            </Field>
           </div>
           <div className="row">
             <Field label={t("vehicles.body_number")}>
-              <input value={form.body_number} onChange={(e) => set({ body_number: e.target.value })} />
+              <input value={form.body_number} disabled={locked("body_number")} onChange={(e) => set({ body_number: e.target.value })} />
             </Field>
             <Field label={t("vehicles.chassis_number")}>
-              <input value={form.chassis_number} onChange={(e) => set({ chassis_number: e.target.value })} />
+              <input value={form.chassis_number} disabled={locked("chassis_number")} onChange={(e) => set({ chassis_number: e.target.value })} />
             </Field>
             <Field label={t("vehicles.frame_number")}>
-              <input value={form.frame_number} onChange={(e) => set({ frame_number: e.target.value })} />
+              <input value={form.frame_number} disabled={locked("frame_number")} onChange={(e) => set({ frame_number: e.target.value })} />
             </Field>
             <Field label={t("vehicles.engine_number")}>
-              <input value={form.engine_number} onChange={(e) => set({ engine_number: e.target.value })} />
+              <input value={form.engine_number} disabled={locked("engine_number")} onChange={(e) => set({ engine_number: e.target.value })} />
             </Field>
           </div>
         </Card>
@@ -452,18 +479,19 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
             <Field label={t("vehicles.engine_volume_l")}>
               <input
                 inputMode="decimal"
+                disabled={locked("engine_volume_l")}
                 value={form.engine_volume_l}
                 onChange={(e) => set({ engine_volume_l: e.target.value.replace(",", ".") })}
               />
             </Field>
             <Field label={t("vehicles.power_hp")}>
-              <input type="number" value={form.power_hp} onChange={(e) => set({ power_hp: e.target.value })} />
+              <input type="number" value={form.power_hp} disabled={locked("power_hp")} onChange={(e) => set({ power_hp: e.target.value })} />
             </Field>
             <Field label={t("vehicles.seats")}>
-              <input type="number" value={form.seats} onChange={(e) => set({ seats: e.target.value })} />
+              <input type="number" value={form.seats} disabled={locked("seats")} onChange={(e) => set({ seats: e.target.value })} />
             </Field>
             <Field label={t("vehicles.doors")}>
-              <input type="number" value={form.doors} onChange={(e) => set({ doors: e.target.value })} />
+              <input type="number" value={form.doors} disabled={locked("doors")} onChange={(e) => set({ doors: e.target.value })} />
             </Field>
           </div>
         </Card>

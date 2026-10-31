@@ -90,9 +90,24 @@ class Vehicle(models.Model):
     power_hp = models.PositiveSmallIntegerField(null=True, blank=True)
     seats = models.PositiveSmallIntegerField(null=True, blank=True)
     doors = models.PositiveSmallIntegerField(null=True, blank=True)
+    # Factory characteristics confirmed by the c4rsys staff (§ 8.2.1): not changed by a direct
+    # edit of a company; the history of each change is `VehicleCharacteristicEvent`.
+    confirmed_fields = models.JSONField(default=list, blank=True)
+    # A system duplicate linked to the main entity after the verification found one physical
+    # vehicle (§ 8.6.2): its ID stays as an archive reference, its history is not deleted.
+    merged_into = models.ForeignKey(
+        "self", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    merged_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "vehicle"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(merged_into__isnull=True) | ~Q(merged_into=models.F("id")),
+                name="vehicle_not_merged_into_itself",
+            ),
+        ]
 
     def __str__(self) -> str:
         return self.public_id
@@ -107,6 +122,8 @@ class VehiclePlate(models.Model):
     number = models.CharField(max_length=20)
     number_normalized = models.CharField(max_length=20, db_index=True)
     country = models.CharField(max_length=2, blank=True, default="")
+    # The region or the registration authority, where it applies (§ 8.6.1).
+    region = models.CharField(max_length=60, blank=True, default="")
     valid_from = models.DateTimeField(default=now)
     valid_to = models.DateTimeField(null=True, blank=True)
 
@@ -141,6 +158,9 @@ class VehicleCard(models.Model):
     class State(models.TextChoices):
         ACTIVE = "active"
         ARCHIVED = "archived"
+        # A duplicate merged into the main card of the company (§ 8.6.6): closed for new
+        # operations, redirects to the main card; its ID is kept and never reused.
+        MERGED = "merged"
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
@@ -166,6 +186,10 @@ class VehicleCard(models.Model):
     )
     # Created by an import as a possible duplicate of another card (§ 22.2.3).
     possible_duplicate = models.BooleanField(default=False)
+    merged_into = models.ForeignKey(
+        "self", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    merged_at = models.DateTimeField(null=True, blank=True)
     created_by_user_id = models.UUIDField()
     created_at = models.DateTimeField(default=now)
     updated_at = models.DateTimeField(auto_now=True)
@@ -191,6 +215,11 @@ class VehicleCard(models.Model):
                 condition=Q(acquisition_cost__isnull=True, acquisition_currency__isnull=True)
                 | Q(relation="own", acquisition_cost__gte=0, acquisition_currency__isnull=False),
                 name="vehicle_card_acquisition_of_own",
+            ),
+            models.CheckConstraint(
+                condition=Q(state="merged", merged_into__isnull=False)
+                | (~Q(state="merged") & Q(merged_into__isnull=True)),
+                name="vehicle_card_merged_has_main",
             ),
         ]
 
@@ -432,6 +461,9 @@ class VehicleOwnership(models.Model):
     owner_company_id = models.UUIDField(null=True, blank=True)
     started_at = models.DateTimeField()
     ended_at = models.DateTimeField(null=True, blank=True)
+    # An approximate date of old incomplete history, with its mark (§ 8.3.16).
+    started_approx = models.BooleanField(default=False)
+    ended_approx = models.BooleanField(default=False)
     request = models.ForeignKey(
         VehicleOwnerRequest, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
@@ -489,3 +521,395 @@ class VehicleOwnershipDecision(models.Model):
 
     def __str__(self) -> str:
         return f"{self.kind}:{self.request_id}"
+
+
+# --- Identity of vehicles: conflicts of identifiers (ТЗ § 8.6.1–8.6.3) ----------------------
+
+
+class IdentifierConflict(models.Model):
+    """A recorded match of an identifier between different global vehicles (§ 8.6.1): a reason
+    to check, never a block of a card. It keeps the kind, the normalized value, the participating
+    cards (`IdentifierConflictParty`, each with its original value), the moment of detection and
+    the state of the review. Until it is resolved another company sees only the fact of a match
+    and the number of the conflict."""
+
+    class Kind(models.TextChoices):
+        VIN = "vin"
+        PLATE = "plate"
+        BODY = "body_number"
+        CHASSIS = "chassis_number"
+        FRAME = "frame_number"
+
+    class Review(models.TextChoices):
+        NEW = "new"  # not reviewed yet
+        # § 8.6.2, R3: the data are wrong; the conflict stays on the records until corrected.
+        AWAITING_CORRECTION = "awaiting_correction"
+        INSUFFICIENT = "insufficient"  # not enough evidence: stays open
+        SAME_VEHICLE = "same_vehicle"  # the cards are linked to one global entity
+        EXCEPTION = "exception"  # different vehicles; confirmed exception
+        CAUSE_REMOVED = "cause_removed"  # the values no longer match
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    # The ID shown to the companies (PROPOSAL: a number, № 17).
+    number = models.PositiveIntegerField(unique=True)
+    kind = models.CharField(max_length=20, choices=Kind.choices)
+    normalized_value = models.CharField(max_length=40)
+    # For a plate: the country and the region of registration (§ 8.6.1).
+    country = models.CharField(max_length=2, blank=True, default="")
+    region = models.CharField(max_length=60, blank=True, default="")
+    is_open = models.BooleanField(default=True)
+    review = models.CharField(max_length=20, choices=Review.choices, default=Review.NEW)
+    detected_at = models.DateTimeField(default=now)
+    closed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "vehicle_identifier_conflict"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["kind", "normalized_value", "country", "region"],
+                condition=Q(is_open=True),
+                name="vehicle_identifier_conflict_one_open",
+            ),
+            models.CheckConstraint(
+                condition=Q(is_open=True, closed_at__isnull=True)
+                | Q(is_open=False, closed_at__isnull=False),
+                name="vehicle_identifier_conflict_closed_at",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"conflict {self.number}"
+
+
+class IdentifierConflictParty(models.Model):
+    """A card (or a global vehicle without a card) in a conflict with the value it was entered
+    with. A party whose value no longer matches leaves the conflict; the row stays."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    conflict = models.ForeignKey(
+        IdentifierConflict, on_delete=models.PROTECT, related_name="parties"
+    )
+    vehicle = models.ForeignKey(Vehicle, on_delete=models.PROTECT, related_name="+")
+    company = models.ForeignKey(
+        Company, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    vehicle_card = models.ForeignKey(
+        VehicleCard, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    original_value = models.CharField(max_length=60)
+    normalized_value = models.CharField(max_length=40)
+    joined_at = models.DateTimeField(default=now)
+    left_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "vehicle_identifier_conflict_party"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["conflict", "vehicle", "vehicle_card"],
+                condition=Q(left_at__isnull=True),
+                name="vehicle_identifier_conflict_party_once",
+                nulls_distinct=False,
+            ),
+            models.CheckConstraint(
+                condition=Q(vehicle_card__isnull=True, company__isnull=True)
+                | Q(vehicle_card__isnull=False, company__isnull=False),
+                name="vehicle_identifier_conflict_party_card_company",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.conflict_id}:{self.vehicle_card_id or self.vehicle_id}"
+
+
+class IdentifierConflictDecision(models.Model):
+    """A result of the check (§ 8.6.2) with its basis, evidence, staff member and moment; a
+    revision is a new decision, the earlier one is never deleted. A decision of the system — the
+    cause removed — has no staff member."""
+
+    class Outcome(models.TextChoices):
+        SAME_VEHICLE = "same_vehicle"
+        EXCEPTION = "exception"
+        ERROR = "error"
+        INSUFFICIENT = "insufficient"
+        CAUSE_REMOVED = "cause_removed"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    conflict = models.ForeignKey(
+        IdentifierConflict, on_delete=models.PROTECT, related_name="decisions"
+    )
+    outcome = models.CharField(max_length=20, choices=Outcome.choices)
+    reason = models.TextField(blank=True, default="")
+    evidence = models.TextField(blank=True, default="")
+    ticket_id = models.UUIDField(null=True, blank=True)
+    primary_vehicle = models.ForeignKey(
+        Vehicle, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    details = models.JSONField(default=dict, blank=True)
+    revises = models.ForeignKey(
+        "self", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    decided_by_user_id = models.UUIDField(null=True, blank=True)
+    decided_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "vehicle_identifier_conflict_decision"
+
+    def __str__(self) -> str:
+        return f"{self.outcome}:{self.conflict_id}"
+
+
+class IdentifierException(models.Model):
+    """Different vehicles with the same identifier, confirmed by the system staff (§ 8.6.1,
+    § 8.6.2): the same match between them does not open a new conflict. A revision revokes it."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    kind = models.CharField(max_length=20, choices=IdentifierConflict.Kind.choices)
+    normalized_value = models.CharField(max_length=40)
+    country = models.CharField(max_length=2, blank=True, default="")
+    region = models.CharField(max_length=60, blank=True, default="")
+    vehicle_a = models.ForeignKey(Vehicle, on_delete=models.PROTECT, related_name="+")
+    vehicle_b = models.ForeignKey(Vehicle, on_delete=models.PROTECT, related_name="+")
+    decision = models.ForeignKey(
+        IdentifierConflictDecision, on_delete=models.PROTECT, related_name="+"
+    )
+    created_at = models.DateTimeField(default=now)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    revoked_by = models.ForeignKey(
+        IdentifierConflictDecision,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+
+    class Meta:
+        db_table = "vehicle_identifier_exception"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(vehicle_a__lt=models.F("vehicle_b")),
+                name="vehicle_identifier_exception_ordered_pair",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["kind", "normalized_value"], name="identifier_exception_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.kind}:{self.normalized_value}"
+
+
+# --- Confirmed characteristics (ТЗ § 8.2.1) ---------------------------------------------------
+
+
+class VehicleCharacteristicProposal(models.Model):
+    """A correction of a confirmed value proposed by the owner or the managing company with a
+    basis or a supporting document (§ 8.2.1); decided by an authorized c4rsys staff member."""
+
+    class State(models.TextChoices):
+        OPEN = "open"
+        ACCEPTED = "accepted"
+        REJECTED = "rejected"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    vehicle = models.ForeignKey(Vehicle, on_delete=models.PROTECT, related_name="+")
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    vehicle_card = models.ForeignKey(VehicleCard, on_delete=models.PROTECT, related_name="+")
+    field = models.CharField(max_length=30)
+    current_value = models.JSONField(null=True, blank=True)
+    proposed_value = models.JSONField(null=True, blank=True)
+    reason = models.TextField()
+    file_id = models.UUIDField(null=True, blank=True)
+    state = models.CharField(max_length=10, choices=State.choices, default=State.OPEN)
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+    decided_by_user_id = models.UUIDField(null=True, blank=True)
+    decided_at = models.DateTimeField(null=True, blank=True)
+    decision_reason = models.TextField(blank=True, default="")
+
+    class Meta:
+        db_table = "vehicle_characteristic_proposal"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["vehicle_card", "field"],
+                condition=Q(state="open"),
+                name="vehicle_characteristic_proposal_one_open",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.field}:{self.state}"
+
+
+class VehicleCharacteristicEvent(models.Model):
+    """The history of a confirmed factory characteristic: the earlier and the new value, the
+    initiator, the basis, the decision, the moment (§ 8.2.1). Append-only."""
+
+    class Action(models.TextChoices):
+        CONFIRMED = "confirmed"  # the staff confirmed (and possibly set) the value
+        CORRECTED = "corrected"  # a proposal of a company was accepted
+        REJECTED = "rejected"  # a proposal was rejected; the value stays
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    vehicle = models.ForeignKey(Vehicle, on_delete=models.PROTECT, related_name="+")
+    field = models.CharField(max_length=30)
+    action = models.CharField(max_length=12, choices=Action.choices)
+    before = models.JSONField(null=True, blank=True)
+    after = models.JSONField(null=True, blank=True)
+    proposal = models.ForeignKey(
+        VehicleCharacteristicProposal,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    initiator_company_id = models.UUIDField(null=True, blank=True)
+    initiator_user_id = models.UUIDField(null=True, blank=True)
+    reason = models.TextField()
+    ticket_id = models.UUIDField(null=True, blank=True)
+    decided_by_user_id = models.UUIDField()
+    decided_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "vehicle_characteristic_event"
+
+    def __str__(self) -> str:
+        return f"{self.field}:{self.action}"
+
+
+class VehicleCardWorkingValue(models.Model):
+    """A working value of a characteristic in the card of one company with an explicit mark of
+    the discrepancy from the global value (§ 8.2.1). Ended rows stay as history."""
+
+    class Origin(models.TextChoices):
+        PROPOSAL = "proposal"  # used until the decision on the company's proposal
+        LINK = "link"  # the card's own value kept when it was linked to another entity
+        CARD = "card"  # entered later in the card over a value kept by one of the above
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    vehicle_card = models.ForeignKey(
+        VehicleCard, on_delete=models.PROTECT, related_name="working_values"
+    )
+    field = models.CharField(max_length=30)
+    value = models.JSONField(null=True, blank=True)
+    origin = models.CharField(max_length=10, choices=Origin.choices)
+    proposal = models.ForeignKey(
+        VehicleCharacteristicProposal,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    created_by_user_id = models.UUIDField(null=True, blank=True)
+    created_at = models.DateTimeField(default=now)
+    ended_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "vehicle_card_working_value"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["vehicle_card", "field"],
+                condition=Q(ended_at__isnull=True),
+                name="vehicle_card_working_value_one_current",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.vehicle_card_id}:{self.field}"
+
+
+class VehicleOwnershipRevision(models.Model):
+    """A correction of a confirmed period of ownership by the system verification (§ 8.3.16):
+    a new version of the history; the earlier one, the initiator, the evidence and the decision
+    are kept."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    ownership = models.ForeignKey(VehicleOwnership, on_delete=models.PROTECT, related_name="+")
+    vehicle = models.ForeignKey(Vehicle, on_delete=models.PROTECT, related_name="+")
+    before = models.JSONField()
+    after = models.JSONField()
+    initiator = models.CharField(max_length=300)
+    reason = models.TextField()
+    evidence = models.TextField(blank=True, default="")
+    ticket_id = models.UUIDField(null=True, blank=True)
+    decided_by_user_id = models.UUIDField()
+    decided_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "vehicle_ownership_revision"
+
+    def __str__(self) -> str:
+        return f"revision {self.ownership_id}"
+
+
+# --- Merge and split of cards inside a company (ТЗ § 8.6.5–8.6.6) -----------------------------
+
+
+class VehicleCardMerge(models.Model):
+    """A duplicate card merged into the main card of the same company. The duplicate is not
+    rewritten: it gets the state «merged» and refers to the main card; the records of other
+    modules keep their origin. `chosen` keeps the values taken from the duplicate and `before`
+    the values of both cards, so a split restores them (§ 8.6.5)."""
+
+    class State(models.TextChoices):
+        MERGED = "merged"
+        SPLIT = "split"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    primary = models.ForeignKey(VehicleCard, on_delete=models.PROTECT, related_name="+")
+    duplicate = models.ForeignKey(VehicleCard, on_delete=models.PROTECT, related_name="+")
+    state = models.CharField(max_length=10, choices=State.choices, default=State.MERGED)
+    reason = models.TextField(blank=True, default="")
+    chosen = models.JSONField(default=dict, blank=True)
+    before = models.JSONField(default=dict, blank=True)
+    merged_by_user_id = models.UUIDField()
+    merged_at = models.DateTimeField(default=now)
+    split_by_user_id = models.UUIDField(null=True, blank=True)
+    split_at = models.DateTimeField(null=True, blank=True)
+    split_reason = models.TextField(blank=True, default="")
+    # The records made after the merge and the card each was assigned to by hand at the split.
+    assignments = models.JSONField(default=list, blank=True)
+
+    class Meta:
+        db_table = "vehicle_card_merge"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["duplicate"],
+                condition=Q(state="merged"),
+                name="vehicle_card_merge_one_current",
+            ),
+            models.CheckConstraint(
+                condition=~Q(primary=models.F("duplicate")), name="vehicle_card_merge_two_cards"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.duplicate_id} → {self.primary_id}"
+
+
+class VehicleActionCode(models.Model):
+    """The repeated one-time code of a protected action on a vehicle card (§ 8.6.6: the merge of
+    duplicates). Only its hash is kept."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    user_id = models.UUIDField()
+    purpose = models.CharField(max_length=30)
+    subject = models.CharField(max_length=120)
+    code_hash = models.CharField(max_length=200, blank=True, default="")
+    code_expires_at = models.DateTimeField(null=True, blank=True)
+    code_attempts = models.PositiveSmallIntegerField(default=0)
+    created_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "vehicle_action_code"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "user_id", "purpose", "subject"],
+                name="vehicle_action_code_once",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.purpose}:{self.subject}"

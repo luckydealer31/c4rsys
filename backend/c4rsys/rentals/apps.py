@@ -23,6 +23,11 @@ class RentalsConfig(AppConfig):
         deactivation.register_blocker(rentals.company_blockers)
         moves.register_busy(rentals.vehicle_busy)
         fleet.register_later_operations(rentals.started_after)
+        # § 8.6.5: rentals made after a merge of cards are assigned at its split.
+        from c4rsys.fleet import merges
+        from c4rsys.rentals import card_records
+
+        merges.register_card_records(card_records.PROVIDER)
         fleet.register_context_blockers(rentals.vehicle_context_blockers)
         orders.register_operations(rentals.operations_for_order)
         orders.register_client_view(rentals.client_view_for_order)

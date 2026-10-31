@@ -66,6 +66,11 @@ PERMISSIONS: dict[str, str] = {
     "vehicle.move": "vehicle",
     # Decision of 24.10.2026: a separate right; only in «Company administrator» (PROPOSAL).
     "vehicle.transfer_to_warehouse": "vehicle",
+    # § 8.6.6: merging duplicate cards — a separate right with a repeated one-time code; § 8.6.5:
+    # splitting a merge — an elevated right of «Company administrator» (CONFIRMED 18.10.2026).
+    # The merge only in «Company administrator» is a PROPOSAL.
+    "vehicle.merge": "vehicle",
+    "vehicle.split": "vehicle",
     # Warehouse (§ 23.7.3–23.7.5, § 23.2.6). Scope — the warehouse of a location. `catalog.manage`
     # (creating and changing items) is a PROPOSAL: the ТЗ lets an item be created at receipt.
     "warehouse.view": "warehouse",

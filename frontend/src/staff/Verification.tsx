@@ -24,7 +24,7 @@ type Queue = {
   ownership_disputes: Dispute[];
   decided_disputes: Dispute[];
   ticket_records: { ticket_id: string; ticket_number: number; record_type: string; record_ref: string }[];
-  identifier_conflicts: null;
+  identifier_conflicts: { id: string; number: number; kind: string; value: string; review: string }[];
 };
 type ProfileLink = {
   id: string;
@@ -106,8 +106,21 @@ export function VerificationPage() {
       <ProfileLinkCard />
       <ContactCard />
       <Card title={t("staff.verify_identifiers")}>
-        {/* TODO(spec): conflicts of VIN and other identifiers — block 12. */}
-        <p className="muted">{t("staff.verify_identifiers_todo")}</p>
+        {queue.data?.identifier_conflicts.length ? (
+          <ul className="plain">
+            {queue.data.identifier_conflicts.map((c) => (
+              <li key={c.id}>
+                <Link to={`/vehicle-conflicts/${c.id}`}>№ {c.number}</Link> · {t(`staff.identifier_${c.kind}`)} {c.value} ·{" "}
+                {t(`staff.conflict_review_${c.review}`)}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="muted">{t("staff.none")}</p>
+        )}
+        <p>
+          <Link to="/vehicle-conflicts">{t("staff.nav_conflicts")}</Link>
+        </p>
       </Card>
     </div>
   );

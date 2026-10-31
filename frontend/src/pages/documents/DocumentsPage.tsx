@@ -191,7 +191,7 @@ function UploadDocument({ target }: { target?: LinkTarget }) {
 
 /** Documents of a card: the same documents, seen through the link, by the rights on documents
  * (§ 18.1.9, § 18.5.3). */
-export function LinkedDocuments({ objectType, objectId }: LinkTarget) {
+export function LinkedDocuments({ objectType, objectId, readOnly = false }: LinkTarget & { readOnly?: boolean }) {
   const { t } = useTranslation();
   const can = useCan();
   const refresh = useRefresh();
@@ -201,8 +201,8 @@ export function LinkedDocuments({ objectType, objectId }: LinkTarget) {
     <>
       <h2>{t("nav.documents")}</h2>
       {can("documents.view") ? <DocumentList query="" target={{ objectType, objectId }} /> : null}
-      {can("documents.create") ? <MakeDocument objectType={objectType} objectId={objectId} onDone={refresh} /> : null}
-      {can("documents.upload") ? (
+      {!readOnly && can("documents.create") ? <MakeDocument objectType={objectType} objectId={objectId} onDone={refresh} /> : null}
+      {!readOnly && can("documents.upload") ? (
         adding ? (
           <UploadDocument target={{ objectType, objectId }} />
         ) : (

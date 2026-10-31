@@ -14,7 +14,7 @@ from django.utils import timezone
 from c4rsys.companies import locations
 from c4rsys.companies.models import Employment
 from c4rsys.fleet.models import VehicleCard, VehicleMove
-from c4rsys.fleet.services import lock_card, move_to_location
+from c4rsys.fleet.services import lock_card, move_to_location, require_open_for_new
 from c4rsys.orders import services as orders
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
@@ -44,6 +44,7 @@ class MoveRequest:
 
 def record_move(ctx: CommandContext, company_id: UUID, request: MoveRequest) -> VehicleMove:
     card = lock_card(company_id, request.vehicle_card_id)
+    require_open_for_new(card)
     if card.storage_context_id is not None:
         # A vehicle on a warehouse is a stock item, not moved as a garage vehicle (§ 8.1.5).
         raise errors.business_rule("VEHICLE_IN_WAREHOUSE")

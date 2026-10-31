@@ -13,7 +13,7 @@ from c4rsys.companies import access, locations
 from c4rsys.companies import services as companies
 from c4rsys.companies.models import Employment
 from c4rsys.companies.views import run_and_respond
-from c4rsys.fleet import characteristics, moves, owners, services
+from c4rsys.fleet import characteristics, confirmations, identity, merges, moves, owners, services
 from c4rsys.fleet.models import Vehicle, VehicleCard, VehicleMake, VehicleModel, VehicleMove
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
@@ -35,7 +35,31 @@ def _allowed(actor: Actor, permission: str, card: VehicleCard) -> bool:
     )
 
 
-def _payload(card: VehicleCard) -> dict[str, Any]:
+def _payload(card: VehicleCard, *, detail: bool = False) -> dict[str, Any]:
+    body = _summary(card)
+    body["identifier_conflict_kinds"] = identity.open_kinds(card)
+    if not detail:
+        return body
+    # § 8.6.1: the conflicts of the card — the fact of a match and the number only.
+    body["identifier_conflicts"] = identity.for_card(card)
+    # § 8.2.1: confirmed factory values, the card's working values and its proposals.
+    body["confirmed_fields"] = list(card.vehicle.confirmed_fields)
+    body["factory_fields"] = list(characteristics.FACTORY_FIELDS)
+    body["working_values"] = confirmations.working_values(card)
+    body["proposals"] = confirmations.proposals_of(card)
+    # § 8.6.2, § 8.6.6: one entity, the cards merged into this one, a card waiting for a merge.
+    body["pending_local_merge"] = identity.pending_local_merge(card)
+    body["merge_candidates"] = merges.candidates(card) if card.state == "active" else []
+    body["merged_cards"] = merges.merged_cards(card)
+    body["merged_into"] = (
+        {"id": str(card.merged_into_id), "name": card.merged_into.name}
+        if card.merged_into_id and card.merged_into
+        else None
+    )
+    return body
+
+
+def _summary(card: VehicleCard) -> dict[str, Any]:
     reading = services.current_reading(card.id)
     return {
         "id": str(card.id),
@@ -114,7 +138,7 @@ def vehicle_list(request: HttpRequest, cmp: str) -> JsonResponse:
         return CommandResult(
             201,
             {
-                "vehicle": _payload(services.get_card(context.company.id, card.id)),
+                "vehicle": _payload(services.get_card(context.company.id, card.id), detail=True),
                 "warnings": details.warnings,
             },
         )
@@ -201,7 +225,7 @@ def vehicle_detail(request: HttpRequest, cmp: str, card_id: UUID) -> JsonRespons
     if not _allowed(actor, "vehicle.view", card):
         raise errors.not_found()
     if request.method == "GET":
-        return JsonResponse({"vehicle": _payload(card)})
+        return JsonResponse({"vehicle": _payload(card, detail=True)})
 
     if not _allowed(actor, "vehicle.edit", card):
         raise errors.permission_denied("vehicle.edit")
@@ -219,7 +243,8 @@ def vehicle_detail(request: HttpRequest, cmp: str, card_id: UUID) -> JsonRespons
     def handler(ctx: CommandContext) -> CommandResult:
         services.update_vehicle(ctx, context.company.id, card_id, changes, expected_version)
         return CommandResult(
-            200, {"vehicle": _payload(services.get_card(context.company.id, card_id))}
+            200,
+            {"vehicle": _payload(services.get_card(context.company.id, card_id), detail=True)},
         )
 
     payload: dict[str, Any] = {"card_id": str(card_id), "expected_version": expected_version}
@@ -253,7 +278,7 @@ def vehicle_details(request: HttpRequest, cmp: str, card_id: UUID) -> JsonRespon
         return CommandResult(
             200,
             {
-                "vehicle": _payload(services.get_card(context.company.id, card_id)),
+                "vehicle": _payload(services.get_card(context.company.id, card_id), detail=True),
                 "warnings": details.warnings,
             },
         )

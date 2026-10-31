@@ -456,6 +456,55 @@ export type Vehicle = {
     company?: { public_id: string; display_name: string; legal_name: string };
     client?: { id: string; name: string };
   } | null;
+  /** Kinds of identifiers in open conflicts (§ 8.6.1). */
+  identifier_conflict_kinds?: string[];
+  /** Only in the detail of a card (block 12). */
+  identifier_conflicts?: IdentifierConflictMark[];
+  confirmed_fields?: string[];
+  factory_fields?: string[];
+  working_values?: Record<string, WorkingValue>;
+  proposals?: CharacteristicProposal[];
+  pending_local_merge?: { vehicle_id: string; cards: { id: string; name: string }[] } | null;
+  merge_candidates?: { id: string; name: string; relation: string }[];
+  merged_cards?: { id: string; name: string; vehicle_id: string; merged_at: string | null }[];
+  merged_into?: { id: string; name: string } | null;
+};
+
+/** What a company sees of a conflict of identifiers: the fact and the number (§ 8.6.1). */
+export type IdentifierConflictMark = {
+  id: string;
+  number: number;
+  kind: string;
+  value: string;
+  open: boolean;
+  review: string;
+  detected_at: string;
+  closed_at: string | null;
+  left_at: string | null;
+  decided_at: string | null;
+  own_cards: { id: string; name: string }[];
+};
+
+export type ShownValue = { value: unknown; display: string };
+
+/** The card's own value of a characteristic with the mark of the discrepancy (§ 8.2.1). */
+export type WorkingValue = ShownValue & {
+  origin: "proposal" | "link" | "card";
+  proposal_id: string | null;
+  global: ShownValue;
+  since: string;
+};
+
+export type CharacteristicProposal = {
+  id: string;
+  field: string;
+  current: ShownValue;
+  proposed: ShownValue;
+  reason: string;
+  state: "open" | "accepted" | "rejected";
+  created_at: string;
+  decided_at: string | null;
+  decision_reason: string;
 };
 
 /** Identification data and characteristics of § 8.1.8–8.1.12; all optional. */
@@ -474,6 +523,7 @@ export type VehicleCharacteristics = {
   engine_number: string;
   plate: string;
   plate_country: string;
+  plate_region?: string;
   color: string;
   body_type: string;
   fuel_type: string;

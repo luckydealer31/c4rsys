@@ -539,6 +539,7 @@ def snapshot(inspection: Inspection) -> dict[str, Any]:
 def create(ctx: CommandContext, company_id: UUID, data: NewInspection) -> Inspection:
     """A draft, or a planned inspection when its planned moment is given (§ 10.6.3)."""
     card = fleet.lock_card(company_id, data.vehicle_card_id)
+    fleet.require_open_for_new(card)
     _link(company_id, card, data)
     _offline_draft(company_id, card, data)
     version = templates.version_for(company_id, card, data.template_id)

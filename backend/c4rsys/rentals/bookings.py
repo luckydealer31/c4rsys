@@ -247,6 +247,7 @@ def create(ctx: CommandContext, company_id: UUID, data: BookingData) -> Rental:
     if data.planned_end <= data.planned_start:
         raise errors.validation_error("planned_end", code="PERIOD_INVALID")
     card = fleet.lock_card(company_id, data.vehicle_card_id)
+    fleet.require_open_for_new(card)
     _require_free(card.id, data.planned_start, data.planned_end)
     client = parties.get_client(company_id, data.client_id) if data.client_id else None
     tariff, snap = _tariff(card, data.tariff_id) if data.tariff_id else (None, None)
@@ -421,6 +422,7 @@ def replace_vehicle(
         raise errors.validation_error("vehicle_card_id", code="VEHICLE_SAME")
     before = snapshot(rental)
     card = fleet.lock_card(company_id, vehicle_card_id)
+    fleet.require_open_for_new(card)
     if rental.planned_start is None or rental.planned_end is None:  # a booking has both
         raise errors.business_rule("BOOKING_NOT_ACTIVE")
     _require_free(card.id, rental.planned_start, rental.planned_end, exclude=rental.id)

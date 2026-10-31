@@ -15,6 +15,7 @@ import { SessionPage, SessionsPage } from "./Privileged";
 import { RecoveryCasePage, RecoveryCasesPage } from "./Recovery";
 import { TicketPage, TicketsPage } from "./Tickets";
 import { VerificationPage } from "./Verification";
+import { CatalogPage, ConflictPage, ConflictsPage, GlobalVehiclePage, VehiclesPage } from "./Vehicles";
 
 /** The internal interface of the system staff of c4rsys on its own subdomain (ТЗ гл. 24;
  * decision В-11.1): its own sign-in, search of users and companies, tickets, privileged sessions,
@@ -87,6 +88,11 @@ export function StaffApp() {
           <Route path="/merges" element={<MergesPage />} />
           <Route path="/merges/:id" element={<MergePage />} />
           <Route path="/verification" element={<VerificationPage />} />
+          <Route path="/vehicle-conflicts" element={<ConflictsPage />} />
+          <Route path="/vehicle-conflicts/:id" element={<ConflictPage />} />
+          <Route path="/vehicles" element={<VehiclesPage />} />
+          <Route path="/vehicles/:vhl" element={<GlobalVehiclePage />} />
+          <Route path="/vehicle-catalog" element={<CatalogPage />} />
           <Route path="/recovery" element={<RecoveryCasesPage />} />
           <Route path="/recovery/:id" element={<RecoveryCasePage />} />
           <Route path="/members" element={<MembersPage />} />
@@ -129,6 +135,9 @@ function StaffShell({ children }: { children: ReactNode }) {
     ["/sessions", "staff.nav_sessions", can("privileged.open")],
     ["/blocks", "staff.nav_blocks", can("block.manage")],
     ["/verification", "staff.nav_verification", can("verification.resolve")],
+    ["/vehicle-conflicts", "staff.nav_conflicts", can("verification.resolve")],
+    ["/vehicles", "staff.nav_vehicles", can("verification.resolve") || can("vehicles.characteristics")],
+    ["/vehicle-catalog", "staff.nav_catalog", can("vehicles.catalog")],
     ["/merges", "staff.nav_merges", can("accounts.merge")],
     ["/recovery", "staff.nav_recovery", can("recovery.manage")],
     ["/members", "staff.nav_members", can("staff.manage")],

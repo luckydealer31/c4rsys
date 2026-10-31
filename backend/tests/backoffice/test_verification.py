@@ -54,8 +54,8 @@ def dispute(owner: Client, cmp: str) -> dict[str, Any]:
 def test_the_queue_needs_the_verification_permission(admin: Member, support: Member) -> None:
     assert support.client.get("/api/staff/verification").status_code == 403
     queue = admin.client.get("/api/staff/verification").json()
-    # Conflicts of identifiers come with block 12.
-    assert queue["identifier_conflicts"] is None
+    # Conflicts of identifiers (block 12): none open.
+    assert queue["identifier_conflicts"] == []
 
 
 def test_an_ownership_dispute_is_decided_by_the_verification(

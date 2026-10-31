@@ -1,6 +1,6 @@
 from django.urls import path
 
-from c4rsys.backoffice import account_views, company_views, recovery_views, views
+from c4rsys.backoffice import account_views, company_views, recovery_views, vehicle_views, views
 
 S = "staff/"
 P = "staff/privileged/<uuid:session_id>/"
@@ -62,6 +62,23 @@ urlpatterns = [
         f"{S}verification/users/<str:usr>/contacts/<uuid:contact_id>/unlink",
         account_views.user_contact_unlink,
     ),
+    # Block 12: conflicts of identifiers, confirmed characteristics, catalog, ownership periods.
+    path(f"{S}vehicle-conflicts", vehicle_views.conflict_list),
+    path(f"{S}vehicle-conflicts/<uuid:conflict_id>", vehicle_views.conflict_detail),
+    path(f"{S}vehicle-conflicts/<uuid:conflict_id>/decide", vehicle_views.conflict_decide),
+    path(f"{S}vehicles", vehicle_views.vehicle_search),
+    path(f"{S}vehicles/<str:vhl>", vehicle_views.vehicle_detail),
+    path(f"{S}vehicles/<str:vhl>/confirm", vehicle_views.vehicle_confirm),
+    path(
+        f"{S}vehicles/<str:vhl>/ownerships/<uuid:ownership_id>/correct",
+        vehicle_views.ownership_correct,
+    ),
+    path(f"{S}vehicle-proposals", vehicle_views.proposal_list),
+    path(f"{S}vehicle-proposals/<uuid:proposal_id>/decide", vehicle_views.proposal_decide),
+    path(f"{S}vehicle-catalog/other", vehicle_views.catalog_other),
+    path(f"{S}vehicle-catalog/makes", vehicle_views.catalog_makes),
+    path(f"{S}vehicle-catalog/models", vehicle_views.catalog_models),
+    path(f"{S}vehicle-catalog/link", vehicle_views.catalog_link),
     # Recovery through the support (§ 2.3.1; decision В-11.2).
     path(f"{S}recovery", account_views.recovery_list),
     path(f"{S}recovery/<uuid:case_id>", account_views.recovery_detail),

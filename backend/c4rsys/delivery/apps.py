@@ -27,3 +27,8 @@ class DeliveryConfig(AppConfig):
         fleet.register_occupancy(services.occupancy)
         fleet.register_schedule("delivery", services.schedule)
         fleet.register_later_operations(services.started_after)
+        # § 8.6.5: deliveries made after a merge of cards are assigned at its split.
+        from c4rsys.delivery import card_records
+        from c4rsys.fleet import merges
+
+        merges.register_card_records(card_records.PROVIDER)

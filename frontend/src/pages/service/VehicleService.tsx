@@ -34,7 +34,7 @@ export function VehicleService({ vehicle }: { vehicle: Vehicle }) {
   const managed = vehicle.relation === "own" || vehicle.relation === "managed";
   return (
     <>
-      {can("service.create") || can("service.external") ? (
+      {vehicle.state === "active" && (can("service.create") || can("service.external")) ? (
         <div className="actions" style={{ marginBottom: 16 }}>
           {can("service.create") ? (
             <Link className="button secondary" to={companyPath(company, `/service/operations/new?vehicle=${vehicle.id}`)}>
@@ -51,7 +51,7 @@ export function VehicleService({ vehicle }: { vehicle: Vehicle }) {
           ) : null}
         </div>
       ) : null}
-      {managed && can("vehicle.view") ? <Maintenance vehicle={vehicle} /> : null}
+      {managed && vehicle.state === "active" && can("vehicle.view") ? <Maintenance vehicle={vehicle} /> : null}
       {can("service.view") ? <History vehicleId={vehicle.id} /> : null}
     </>
   );

@@ -18,7 +18,7 @@ from c4rsys.backoffice import directory, merging, recovery, tickets
 from c4rsys.backoffice.core import StaffContext, logged_read, require_staff, run_staff
 from c4rsys.backoffice.models import AccountSplitAssignment, RecoveryCase, SupportTicket, TicketLink
 from c4rsys.backoffice.views import REASON_MAX, TEXT_MAX, _moment, _uuid, _version
-from c4rsys.fleet import disputes
+from c4rsys.fleet import disputes, identity
 from c4rsys.parties import links as profile_links
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandResult
@@ -176,13 +176,17 @@ def verification_queue(request: HttpRequest) -> JsonResponse:
     records linked to tickets, and the place of the conflicts of identifiers (block 12)."""
     staff = require_staff(request, "verification.resolve")
     open_disputes = disputes.open_disputes()
+    open_conflicts = identity.conflicts("open")
     logged_read(
         request,
         staff,
         "verification.queue_viewed",
         object_type="verification",
         object_id="queue",
-        after={"ownership_disputes": len(open_disputes)},
+        after={
+            "ownership_disputes": len(open_disputes),
+            "identifier_conflicts": len(open_conflicts),
+        },
     )
     records = (
         TicketLink.objects.select_related("ticket")
@@ -205,8 +209,8 @@ def verification_queue(request: HttpRequest) -> JsonResponse:
                 }
                 for link in records
             ],
-            # TODO(spec): conflicts of VIN and other identifiers come with block 12.
-            "identifier_conflicts": None,
+            # Conflicts of VIN and other identifiers (§ 8.6.1–8.6.2, block 12): the open ones.
+            "identifier_conflicts": [identity.staff_payload(c) for c in open_conflicts],
         }
     )
 

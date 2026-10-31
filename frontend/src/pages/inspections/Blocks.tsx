@@ -30,7 +30,7 @@ export function VehicleInspectionsCard({ vehicle }: { vehicle: Vehicle }) {
       {!list.isLoading && items.length === 0 ? <p className="muted">{t("inspections.none")}</p> : null}
       <InspectionList items={items.slice(0, 10)} />
       <div className="actions">
-        {can("inspection.create") ? (
+        {can("inspection.create") && vehicle.state === "active" ? (
           <Link className="button" to={companyPath(company, newPath({ vehicle: vehicle.id }))}>
             {t("inspections.new")}
           </Link>

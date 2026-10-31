@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useParams, useSearchParams } from "react-router";
+import { Link, Navigate, useParams, useSearchParams } from "react-router";
 
 import { useApi } from "../../api/queries";
 import type { RentalSummary, Tariff, Vehicle, VehicleTerms } from "../../api/types";
@@ -17,6 +17,14 @@ import { VehicleService } from "../service/VehicleService";
 import { OwnerRequestCard } from "./OwnerRequestCard";
 import { VehicleMoves } from "./VehicleMoves";
 import { VehicleDamagesCard, VehicleInspectionsCard } from "../inspections/Blocks";
+import {
+  ConflictsCard,
+  MergeCard,
+  MergedHistory,
+  MergesCard,
+  PendingMergeBanner,
+  ProposalsCard,
+} from "./VehicleIdentity";
 
 // Only operational contexts are switched for a vehicle — rental now (decision of 24.10.2026):
 // service is implied, the warehouse is reached by a transfer of an own vehicle (§ 8.1.5).
@@ -174,7 +182,9 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
         : owner.kind === "none"
           ? t("vehicles.owner_not_given")
           : [owner.name, owner.contact].filter(Boolean).join(", ");
-  const facts: [string, string][] = [
+  const working = vehicle.working_values ?? {};
+  const confirmed = new Set(vehicle.confirmed_fields ?? []);
+  const facts: [string, string, string?][] = [
     [t("vehicles.relation"), t(`vehicles.relation_${vehicle.relation}`)],
     [
       t("vehicles.section_owner"),
@@ -183,25 +193,25 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
         ? `${ownerText} (${t("vehicles.owner_unconfirmed")})`
         : ownerText,
     ],
-    [t("vehicles.vehicle_type"), c.vehicle_type ? t(`vehicles.type_${c.vehicle_type}`) : ""],
-    [t("vehicles.make"), c.make_name],
-    [t("vehicles.model"), c.model_name],
-    [t("vehicles.year"), c.year ? String(c.year) : ""],
-    [t("vehicles.plate"), [c.plate, country].filter(Boolean).join(", ")],
-    [t("vehicles.vin"), c.vin],
-    [t("vehicles.body_number"), c.body_number],
-    [t("vehicles.chassis_number"), c.chassis_number],
-    [t("vehicles.frame_number"), c.frame_number],
-    [t("vehicles.engine_number"), c.engine_number],
-    [t("vehicles.color"), c.color],
-    [t("vehicles.body_type"), option("vehicles.body", c.body_type)],
-    [t("vehicles.fuel_type"), option("vehicles.fuel", c.fuel_type)],
-    [t("vehicles.transmission"), option("vehicles.gearbox", c.transmission)],
-    [t("vehicles.drive"), option("vehicles.drives", c.drive)],
-    [t("vehicles.engine_volume_l"), c.engine_volume_l ?? ""],
-    [t("vehicles.power_hp"), c.power_hp ? String(c.power_hp) : ""],
-    [t("vehicles.seats"), c.seats ? String(c.seats) : ""],
-    [t("vehicles.doors"), c.doors !== null ? String(c.doors) : ""],
+    [t("vehicles.vehicle_type"), c.vehicle_type ? t(`vehicles.type_${c.vehicle_type}`) : "", "vehicle_type"],
+    [t("vehicles.make"), c.make_name, "make"],
+    [t("vehicles.model"), c.model_name, "model"],
+    [t("vehicles.year"), c.year ? String(c.year) : "", "year"],
+    [t("vehicles.plate"), [c.plate, country, c.plate_region].filter(Boolean).join(", ")],
+    [t("vehicles.vin"), c.vin, "vin"],
+    [t("vehicles.body_number"), c.body_number, "body_number"],
+    [t("vehicles.chassis_number"), c.chassis_number, "chassis_number"],
+    [t("vehicles.frame_number"), c.frame_number, "frame_number"],
+    [t("vehicles.engine_number"), c.engine_number, "engine_number"],
+    [t("vehicles.color"), c.color, "color"],
+    [t("vehicles.body_type"), option("vehicles.body", c.body_type), "body_type"],
+    [t("vehicles.fuel_type"), option("vehicles.fuel", c.fuel_type), "fuel_type"],
+    [t("vehicles.transmission"), option("vehicles.gearbox", c.transmission), "transmission"],
+    [t("vehicles.drive"), option("vehicles.drives", c.drive), "drive"],
+    [t("vehicles.engine_volume_l"), c.engine_volume_l ?? "", "engine_volume_l"],
+    [t("vehicles.power_hp"), c.power_hp ? String(c.power_hp) : "", "power_hp"],
+    [t("vehicles.seats"), c.seats ? String(c.seats) : "", "seats"],
+    [t("vehicles.doors"), c.doors !== null ? String(c.doors) : "", "doors"],
   ];
   return (
     <Card title={t("vehicles.section_characteristics")}>
@@ -212,13 +222,33 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
       ) : null}
       <dl className="facts">
         {facts
-          .filter(([, value]) => value)
-          .map(([label, value]) => (
-            <div key={label} style={{ display: "contents" }}>
-              <dt>{label}</dt>
-              <dd>{value}</dd>
-            </div>
-          ))}
+          .filter(([, value, field]) => value || (field && working[field]))
+          .map(([label, value, field]) => {
+            // § 8.2.1: the card's own working value is shown with the mark of the discrepancy.
+            const own = field ? working[field] : undefined;
+            return (
+              <div key={label} style={{ display: "contents" }}>
+                <dt>{label}</dt>
+                <dd>
+                  {own ? (
+                    <>
+                      {own.display || "—"}{" "}
+                      <span className="badge warn">
+                        {t("vehicles.working_value_mark", { value: own.global.display || "—" })}
+                      </span>
+                    </>
+                  ) : (
+                    value
+                  )}
+                  {field && confirmed.has(field) ? (
+                    <span className="badge ok" style={{ marginLeft: 6 }}>
+                      {t("vehicles.confirmed_mark")}
+                    </span>
+                  ) : null}
+                </dd>
+              </div>
+            );
+          })}
       </dl>
       {can("vehicle.edit") ? (
         <div className="actions">
@@ -239,6 +269,7 @@ export function VehiclePage() {
   const company = useCompany();
   const can = useCan();
   const client = useQueryClient();
+  const [search] = useSearchParams();
   const vehicle = useApi<{ vehicle: Vehicle }>(["vehicle", company.public_id, id], `/c/${company.public_id}/vehicles/${id}`);
   const locations = useLocations();
   const rentals = useRentals(can("rental.view"));
@@ -247,9 +278,15 @@ export function VehiclePage() {
   if (vehicle.isLoading) return <div className="page"><Loading /></div>;
   const data = vehicle.data?.vehicle;
   if (!data) return <div className="page"><ErrorMessage error={null} /></div>;
+  // § 8.6.6: a merged duplicate redirects to the main card.
+  if (data.state === "merged" && data.merged_into) {
+    return <Navigate to={companyPath(company, `/vehicles/${data.merged_into.id}`)} replace />;
+  }
   const location = locations.data?.locations.find((l) => l.id === data.location_id);
   const timeZone = location?.timezone ?? company.timezone ?? "UTC";
-  const own = (rentals.data?.rentals ?? []).filter((r) => r.vehicle_card_id === data.id);
+  // The rentals of the duplicates merged into this card are shown here too (§ 8.6.6).
+  const family = new Set([data.id, ...(data.merged_cards ?? []).map((m) => m.id)]);
+  const own = (rentals.data?.rentals ?? []).filter((r) => family.has(r.vehicle_card_id));
   // Rental, moves, tariffs and contexts concern only own and managed vehicles in the garage
   // (§ 8.1.2, § 8.1.5).
   const stored = data.storage !== null;
@@ -282,7 +319,10 @@ export function VehiclePage() {
           })}
         </div>
       ) : null}
+      <PendingMergeBanner vehicle={data} />
       <VehicleFacts vehicle={data} />
+      <ConflictsCard vehicle={data} />
+      <ProposalsCard vehicle={data} />
       <Card>
         <p>
           {data.vehicle_id} · {t(`vehicles.relation_${data.relation}`)}
@@ -343,6 +383,9 @@ export function VehiclePage() {
       {stored ? null : <VehicleService vehicle={data} />}
       {stored ? null : <VehicleInspectionsCard vehicle={data} />}
       {stored ? null : <VehicleDamagesCard vehicle={data} />}
+      <MergeCard key={search.get("merge") ?? ""} vehicle={data} preselected={search.get("merge")} />
+      <MergesCard vehicle={data} />
+      <MergedHistory vehicle={data} />
       {data.relation === "managed" ? <OwnerRequestCard vehicle={data} /> : null}
       <LinkedDocuments objectType="vehicle" objectId={data.id} />
       <LinkedTasks objectType="vehicle" objectId={data.id} />

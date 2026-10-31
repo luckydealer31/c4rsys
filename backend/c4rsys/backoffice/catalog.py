@@ -38,6 +38,12 @@ PERMISSIONS: tuple[str, ...] = (
     # decision; the confirmation by an authorized member is a separate permission.
     "recovery.manage",
     "recovery.approve",
+    # Block 12 (PROPOSAL): confirming and correcting factory characteristics of a global vehicle
+    # and deciding companies' proposals (§ 8.2.1, «an authorized c4rsys employee»); extending the
+    # catalog of makes and models and linking «Other» values to it (§ 8.1.11, «authorized
+    # support»). The conflicts of identifiers are decided with verification.resolve (§ 24.1.5).
+    "vehicles.characteristics",
+    "vehicles.catalog",
 )
 
 PLATFORM_ADMIN = "platform_admin"
@@ -64,6 +70,8 @@ STARTER_SETS: dict[str, tuple[str, ...]] = {
         "verification.resolve",
         "recovery.manage",
         "recovery.approve",
+        "vehicles.characteristics",
+        "vehicles.catalog",
     ),
     # § 24.1.5: finds users and companies, keeps tickets, views what a ticket needs after a reason;
     # no business operations, no system roles. The reveal of contacts: PROPOSAL.
@@ -75,6 +83,7 @@ STARTER_SETS: dict[str, tuple[str, ...]] = {
         "privileged.open",
         "accounts.merge",
         "recovery.manage",
+        "vehicles.catalog",
     ),
     # § 24.1.5, § 24.1.7: reviews links and disputes, unlinks a disputed contact; no finances
     # and documents without a separate reason and permission. Tickets and contacts: PROPOSAL.
@@ -88,6 +97,7 @@ STARTER_SETS: dict[str, tuple[str, ...]] = {
         "verification.resolve",
         "recovery.manage",
         "recovery.approve",
+        "vehicles.characteristics",
     ),
 }
 # The deferrals of a notice (§ 24.2.2, § 24.3.2) are in no starter set: «only by a separate

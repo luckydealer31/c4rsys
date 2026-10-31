@@ -27,6 +27,11 @@ class ServiceConfig(AppConfig):
         fleet.register_occupancy(operations.occupancy)
         moves.register_busy(operations.vehicle_busy)
         fleet.register_later_operations(operations.started_after)
+        # § 8.6.5: operations made after a merge of cards are assigned at its split.
+        from c4rsys.fleet import merges
+        from c4rsys.service import card_records
+
+        merges.register_card_records(card_records.PROVIDER)
         orders.register_operations(operations.operations_for_order)
         orders.register_client_view(operations.client_view_for_order)
         from c4rsys.fleet import services as fleet_services

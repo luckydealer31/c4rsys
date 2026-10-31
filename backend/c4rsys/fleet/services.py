@@ -13,13 +13,14 @@ from django.utils import timezone
 
 from c4rsys.companies import locations
 from c4rsys.companies.models import Company
-from c4rsys.fleet import characteristics, owners
+from c4rsys.fleet import characteristics, identity, owners
 from c4rsys.fleet.characteristics import Characteristics
 from c4rsys.fleet.models import (
     OdometerReading,
     Vehicle,
     VehicleCard,
     VehicleCardContext,
+    VehicleCardWorkingValue,
     VehiclePlate,
 )
 from c4rsys.platform import errors
@@ -102,17 +103,21 @@ def later_operations(company_id: UUID, card_id: UUID, moment: datetime) -> list[
     return [item for p in _later for item in p(company_id, card_id, moment)]
 
 
-def cards_of(company_id: UUID) -> QuerySet[VehicleCard]:
+def cards_of(company_id: UUID, *, include_merged: bool = False) -> QuerySet[VehicleCard]:
+    """Cards of the company; a duplicate merged into another card is left out of the lists: it
+    redirects to the main card (§ 8.6.6)."""
+    found = VehicleCard.objects.filter(company_id=company_id)
+    if not include_merged:
+        found = found.exclude(state=VehicleCard.State.MERGED)
     return (
-        VehicleCard.objects.filter(company_id=company_id)
-        .select_related("vehicle", "vehicle__make", "vehicle__model")
+        found.select_related("vehicle", "vehicle__make", "vehicle__model")
         .prefetch_related("contexts")
         .order_by("name", "created_at")
     )
 
 
 def get_card(company_id: UUID, card_id: UUID) -> VehicleCard:
-    card = cards_of(company_id).filter(pk=card_id).first()
+    card = cards_of(company_id, include_merged=True).filter(pk=card_id).first()
     if card is None:
         raise errors.not_found()
     return card
@@ -165,6 +170,7 @@ def create_vehicle(ctx: CommandContext, company: Company, data: NewVehicle) -> V
             number=data.details.plate,
             number_normalized=characteristics.normalize_plate(data.details.plate),
             country=data.details.plate_country,
+            region=data.details.plate_region,
             valid_from=now,
         )
     card = VehicleCard.objects.create(
@@ -205,6 +211,8 @@ def create_vehicle(ctx: CommandContext, company: Company, data: NewVehicle) -> V
             "identifier_matches": characteristics.matches(vehicle),
         },
     )
+    # A match is recorded as a conflict; it never blocks the card (§ 8.6.3).
+    identity.refresh(vehicle, now, data.details.originals)
     owners.declare(ctx, company, card, data.owner)
     return card
 
@@ -234,15 +242,20 @@ def update_details(
     if card.version != expected_version:
         raise errors.version_conflict()
     vehicle = Vehicle.objects.select_for_update().get(pk=card.vehicle_id)
+    if identity.resolve(vehicle.id) != vehicle.id:
+        # Linked to another entity, waiting for the company's merge of its two cards (§ 8.6.2).
+        raise errors.business_rule("VEHICLE_PENDING_LOCAL_MERGE")
     before = characteristics.describe(vehicle)
     before_name = card.name
-    characteristics.apply(vehicle, details)
-    vehicle.save()
     now = timezone.now()
+    before_working, after_working = _apply_details(ctx, card, vehicle, details, now)
+    vehicle.save()
     current = vehicle.plates.filter(valid_to__isnull=True).first()
-    plate_changed = (current.number if current else "") != details.plate or (
-        current.country if current else ""
-    ) != details.plate_country
+    plate_changed = (
+        (current.number if current else "") != details.plate
+        or (current.country if current else "") != details.plate_country
+        or (current.region if current else "") != details.plate_region
+    )
     if plate_changed:
         if current is not None:
             current.valid_to = now
@@ -253,6 +266,7 @@ def update_details(
                 number=details.plate,
                 number_normalized=characteristics.normalize_plate(details.plate),
                 country=details.plate_country,
+                region=details.plate_region,
                 valid_from=now,
             )
     card.name = name or characteristics.make_name(details) or card.name
@@ -260,16 +274,83 @@ def update_details(
     card.save(update_fields=["name", "version", "updated_at"])
     after = characteristics.describe(vehicle)
     changed = [k for k in after if before.get(k) != after[k] and k != "identifier_matches"]
+    working_changed = before_working != after_working
     ctx.audit(
         "vehicle.details_changed",
         object_type="vehicle_card",
         object_id=card.id,
-        before={"name": before_name, **{k: before.get(k) for k in changed}},
-        after={"name": card.name, **{k: after[k] for k in changed}},
+        before={
+            "name": before_name,
+            **{k: before.get(k) for k in changed},
+            **({"working_values": before_working} if working_changed else {}),
+        },
+        after={
+            "name": card.name,
+            **{k: after[k] for k in changed},
+            **({"working_values": after_working} if working_changed else {}),
+        },
     )
+    identity.refresh(vehicle, now, details.originals)
     if not owners.is_current(card, owner):
         owners.declare(ctx, company, card, owner)
     return card
+
+
+def _apply_details(
+    ctx: CommandContext,
+    card: VehicleCard,
+    vehicle: Vehicle,
+    details: Characteristics,
+    now: datetime,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """The form's values go to the global vehicle, except where the card keeps its own working
+    value: there the value of the card changes (or ends when it equals the global one). A
+    confirmed factory value is not changed directly: a correction is proposed (§ 8.2.1)."""
+    working = {
+        w.field: w
+        for w in VehicleCardWorkingValue.objects.select_for_update().filter(
+            vehicle_card=card, ended_at__isnull=True
+        )
+    }
+    before = {name: w.value for name, w in working.items()}
+    after = dict(before)
+    vehicle.transport_class = details.transport_class
+    for name in characteristics.FIELDS:
+        new = characteristics.value_in(details, name)
+        current = characteristics.value_of(vehicle, name)
+        kept = working.get(name)
+        if kept is not None:
+            if new == kept.value:
+                continue
+            kept.ended_at = now
+            kept.save(update_fields=["ended_at"])
+            after.pop(name)
+            if new != current:
+                VehicleCardWorkingValue.objects.create(
+                    company_id=card.company_id,
+                    vehicle_card=card,
+                    field=name,
+                    value=new,
+                    origin=VehicleCardWorkingValue.Origin.CARD,
+                    created_by_user_id=ctx.actor.user_id,
+                    created_at=now,
+                )
+                after[name] = new
+            continue
+        if new == current:
+            continue
+        if name in vehicle.confirmed_fields:
+            raise errors.business_rule("VEHICLE_CHARACTERISTIC_CONFIRMED", field=name)
+        characteristics.set_value(vehicle, name, new)
+    return before, after
+
+
+def require_open_for_new(card: VehicleCard) -> None:
+    """A duplicate merged into the main card is closed for new operations (§ 8.6.6)."""
+    if card.state == VehicleCard.State.MERGED:
+        raise errors.business_rule(
+            "VEHICLE_CARD_MERGED", field="vehicle_card_id", main=str(card.merged_into_id)
+        )
 
 
 @dataclass(frozen=True)
@@ -547,7 +628,9 @@ def rental_readiness(card: VehicleCard) -> dict[str, Any]:
     An enabled context counts without a tariff; the tariff is checked at issue (decision
     22.10.2026). Documents and optional characteristics are not required (§ 8.7.7)."""
     missing = []
-    if card.state != VehicleCard.State.ACTIVE:
+    if card.state == VehicleCard.State.MERGED:
+        missing.append("card_merged")
+    elif card.state != VehicleCard.State.ACTIVE:
         missing.append("card_archived")
     if card.storage_context_id is not None:
         missing.append("in_warehouse")
@@ -717,12 +800,14 @@ def remove_imported(company_id: UUID, card_ids: list[UUID]) -> None:
     reference raises ProtectedError and the caller refuses the cancel."""
     from c4rsys.fleet.models import VehicleOwnerClaim
 
+    identity.leave(card_ids, timezone.now())
     for card in VehicleCard.objects.select_for_update().filter(
         company_id=company_id, pk__in=card_ids
     ):
         vehicle = card.vehicle
         VehicleCardContext.objects.filter(vehicle_card=card).delete()
         VehicleOwnerClaim.objects.filter(vehicle_card=card).delete()
+        VehicleCardWorkingValue.objects.filter(vehicle_card=card).delete()
         OdometerReading.objects.filter(vehicle_card=card).delete()
         card.delete()
         if not VehicleCard.objects.filter(vehicle=vehicle).exists():

@@ -400,6 +400,7 @@ def snapshot(op: ServiceOperation) -> dict[str, Any]:
 def create_operation(ctx: CommandContext, company: Company, data: NewOperation) -> ServiceOperation:
     data.plan.validate()
     card = fleet.lock_card(company.id, data.vehicle_card_id)  # vehicle → operation → order
+    fleet.require_open_for_new(card)
     _check_vehicle(card)
     if data.location_id is not None:
         catalog.require_service_location(company.id, data.location_id, "location_id")

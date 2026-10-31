@@ -1,8 +1,18 @@
 from django.urls import path
 
-from c4rsys.fleet import owner_views, views
+from c4rsys.fleet import identity_views, owner_views, views
+
+V = "c/<str:cmp>/vehicles/<uuid:card_id>/"
 
 urlpatterns = [
+    # Block 12: merge and split of cards, proposals of corrections (§ 8.6.5–8.6.6, § 8.2.1).
+    path(f"{V}merge", identity_views.merge),
+    path(f"{V}merge/preview", identity_views.merge_preview),
+    path(f"{V}merge/code", identity_views.merge_code),
+    path(f"{V}merges", identity_views.merge_list),
+    path(f"{V}merges/<uuid:merge_id>/split", identity_views.split),
+    path(f"{V}merges/<uuid:merge_id>/split/preview", identity_views.split_preview),
+    path(f"{V}proposals", identity_views.propose),
     path("catalog/vehicle-options", views.catalog_options),
     path("catalog/vehicle-makes", views.catalog_makes),
     path("catalog/vehicle-makes/<str:make>/models", views.catalog_models),

@@ -314,6 +314,7 @@ def create(ctx: CommandContext, company: Company, data: NewDelivery) -> Delivery
     """A planned move or delivery (§ 15.1.3–15.1.6)."""
     _plan(data.planned_start, data.planned_end, required=True)
     card = fleet.lock_card(company.id, data.vehicle_card_id)  # vehicle → delivery → order
+    fleet.require_open_for_new(card)
     _check_vehicle(card)
     d = Delivery(company=company, vehicle_card=card, created_by_user_id=ctx.actor.user_id)
     _apply_route(d, card, data)
@@ -529,6 +530,7 @@ def record(ctx: CommandContext, company: Company, data: Record) -> Delivery:
         raise errors.validation_error("actual_end", code="PERIOD_INVALID")
     _not_future(data.actual_end, "actual_end")
     card = fleet.lock_card(company.id, data.vehicle_card_id)
+    fleet.require_open_for_new(card)
     _check_vehicle(card)
     d = Delivery(company=company, vehicle_card=card, created_by_user_id=ctx.actor.user_id)
     _apply_route(
