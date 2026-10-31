@@ -8,6 +8,7 @@ import { useApi } from "../api/queries";
 import { useCommand } from "../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../components/ui";
 import { ReasonForm, useWhen } from "./common";
+import { OperationalDisputeCard, type OperationalDispute } from "./Vehicles";
 
 type Party = { type: "user" | "company"; public_id: string; name: string } | null;
 type Dispute = {
@@ -25,6 +26,7 @@ type Queue = {
   decided_disputes: Dispute[];
   ticket_records: { ticket_id: string; ticket_number: number; record_type: string; record_ref: string }[];
   identifier_conflicts: { id: string; number: number; kind: string; value: string; review: string }[];
+  operational_disputes: OperationalDispute[];
 };
 type ProfileLink = {
   id: string;
@@ -88,6 +90,14 @@ export function VerificationPage() {
               </>
             ) : null}
           </Card>
+          {queue.data.operational_disputes.length ? (
+            <>
+              <h2>{t("staff.operational_disputes")}</h2>
+              {queue.data.operational_disputes.map((d) => (
+                <OperationalDisputeCard key={d.id} dispute={d} />
+              ))}
+            </>
+          ) : null}
           <Card title={t("staff.verify_records")}>
             {queue.data.ticket_records.length ? (
               <ul className="plain">

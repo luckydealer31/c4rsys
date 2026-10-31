@@ -336,7 +336,15 @@ def _apply_details(
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """The form's values go to the global vehicle, except where the card keeps its own working
     value: there the value of the card changes (or ends when it equals the global one). A
-    confirmed factory value is not changed directly: a correction is proposed (§ 8.2.1)."""
+    confirmed factory value is not changed directly: a correction is proposed (§ 8.2.1).
+
+    В-12.2: of a shared vehicle only the owner changes the global unconfirmed values, and the
+    cards of the other companies keep what they showed until they apply the owner's data; a
+    company that is not the owner changes the working values of its card."""
+    from c4rsys.fleet import shared
+
+    owner = shared.changes_global(card)
+    changed: list[tuple[str, Any]] = []
     working = {
         w.field: w
         for w in VehicleCardWorkingValue.objects.select_for_update().filter(
@@ -356,6 +364,16 @@ def _apply_details(
             kept.ended_at = now
             kept.save(update_fields=["ended_at"])
             after.pop(name)
+            if (
+                owner
+                and kept.origin != VehicleCardWorkingValue.Origin.PROPOSAL
+                and name not in vehicle.confirmed_fields
+            ):
+                # The owner's change of a value its card kept goes to the global vehicle.
+                if new != current:
+                    changed.append((name, current))
+                    characteristics.set_value(vehicle, name, new)
+                continue
             if new != current:
                 VehicleCardWorkingValue.objects.create(
                     company_id=card.company_id,
@@ -372,7 +390,22 @@ def _apply_details(
             continue
         if name in vehicle.confirmed_fields:
             raise errors.business_rule("VEHICLE_CHARACTERISTIC_CONFIRMED", field=name)
+        if not owner:
+            VehicleCardWorkingValue.objects.create(
+                company_id=card.company_id,
+                vehicle_card=card,
+                field=name,
+                value=new,
+                origin=VehicleCardWorkingValue.Origin.CARD,
+                created_by_user_id=ctx.actor.user_id,
+                created_at=now,
+            )
+            after[name] = new
+            continue
+        changed.append((name, current))
         characteristics.set_value(vehicle, name, new)
+    for name, earlier in changed:
+        shared.mark_owner_change(vehicle, name, earlier, card.company_id, now)
     return before, after
 
 

@@ -18,7 +18,7 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 from c4rsys.backoffice.account_views import _ticket
 from c4rsys.backoffice.core import StaffContext, logged_read, require_staff, run_staff
 from c4rsys.backoffice.views import REASON_MAX, TEXT_MAX, _moment
-from c4rsys.fleet import confirmations, identity
+from c4rsys.fleet import confirmations, disputes, identity
 from c4rsys.fleet.models import VehicleMake, VehicleOwnership
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandResult
@@ -106,6 +106,44 @@ def conflict_decide(request: HttpRequest, conflict_id: UUID) -> JsonResponse:
         "ticket_number": data.get("ticket_number"),
     }
     return run_staff(request, "verification.identifier_conflict", staff, payload, handler)
+
+
+@require_POST
+def dispute_close(request: HttpRequest, dispute_id: UUID) -> JsonResponse:
+    """The decision of the verification on a dispute of ownership or management (В-12.3)."""
+    staff = require_staff(request, VERIFY)
+    data = parse_json(request)
+    reason = get_str(data, "reason", max_length=REASON_MAX)
+    evidence = get_str(data, "evidence", max_length=TEXT_MAX, required=False)
+    ticket = _ticket(data)
+
+    def handler(ctx: StaffContext) -> CommandResult:
+        dispute, change = disputes.close_operational(
+            dispute_id,
+            reason=reason,
+            evidence=evidence,
+            by_user_id=ctx.staff.user.id,
+            ticket_id=ticket.id if ticket else None,
+            now=timezone.now(),
+        )
+        ctx.journal(
+            "verification.operational_dispute_decided",
+            object_type="vehicle_operational_dispute",
+            object_id=dispute.id,
+            ticket_id=ticket.id if ticket else None,
+            reason=reason,
+            before=change["before"],
+            after=change["after"],
+        )
+        return CommandResult(200, {"dispute": disputes.operational_payload(dispute)})
+
+    payload = {
+        "dispute": str(dispute_id),
+        "reason": reason,
+        "evidence": evidence,
+        "ticket_number": data.get("ticket_number"),
+    }
+    return run_staff(request, "verification.operational_dispute", staff, payload, handler)
 
 
 # --- The global vehicle (§ 8.2.1, § 8.3.16) -----------------------------------------------------

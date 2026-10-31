@@ -368,6 +368,8 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
       </p>
       <h1>{vehicle ? t("vehicles.edit_title") : t("vehicles.create_title")}</h1>
       {confirmed.size ? <div className="alert">{t("vehicles.confirmed_locked_hint")}</div> : null}
+      {/* В-12.2: only the owner changes the shared values; others change their card. */}
+      {vehicle?.changes_global === false ? <div className="alert">{t("vehicles.not_owner_hint")}</div> : null}
       <form className="stack" onSubmit={submit}>
         <Card title={t("vehicles.section_kind")}>
           {/* Only ground transport exists for now, so its class is not asked (decision of

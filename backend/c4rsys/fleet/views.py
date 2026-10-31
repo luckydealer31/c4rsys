@@ -47,6 +47,13 @@ def _payload(card: VehicleCard, *, detail: bool = False) -> dict[str, Any]:
     body["factory_fields"] = list(characteristics.FACTORY_FIELDS)
     body["working_values"] = confirmations.working_values(card)
     body["proposals"] = confirmations.proposals_of(card)
+    # В-12.2: whether the company changes the shared values, and where the owner's are newer.
+    from c4rsys.fleet import disputes, shared
+
+    body["changes_global"] = shared.changes_global(card)
+    body["owner_data_newer"] = shared.owner_newer(card)
+    # В-12.3: the disputes of ownership or management — the number of the conflict only.
+    body["operational_disputes"] = disputes.operational_for_card(card)
     # § 8.6.2, § 8.6.6: one entity, the cards merged into this one, a card waiting for a merge.
     body["pending_local_merge"] = identity.pending_local_merge(card)
     body["merge_candidates"] = merges.candidates(card) if card.state == "active" else []
@@ -627,3 +634,27 @@ def vehicle_schedule(request: HttpRequest, cmp: str) -> JsonResponse:
             "items": items,
         }
     )
+
+
+@require_POST
+def vehicle_owner_data(request: HttpRequest, cmp: str, card_id: UUID) -> JsonResponse:
+    """«Update the data»: the card takes the owner's newer values (decision В-12.2)."""
+    from c4rsys.fleet import shared
+
+    context, actor = _actor(request, cmp)
+    card = services.get_card(context.company.id, card_id)
+    if not _allowed(actor, "vehicle.view", card):
+        raise errors.not_found()
+    if not _allowed(actor, "vehicle.edit", card):
+        raise errors.permission_denied("vehicle.edit")
+    data = parse_json(request)
+    expected_version = get_int(data, "expected_version")
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        shared.apply_owner_data(ctx, context.company.id, card_id, expected_version, timezone.now())
+        return CommandResult(
+            200, {"vehicle": _payload(services.get_card(context.company.id, card_id), detail=True)}
+        )
+
+    payload = {"card_id": str(card_id), "expected_version": expected_version}
+    return run_and_respond(request, "vehicle.apply_owner_data", actor, payload, handler)

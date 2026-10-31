@@ -60,6 +60,11 @@ EVENTS: dict[str, Event] = {
     # who see the vehicle.
     "vehicle.identifier_conflict_decided": Event(Kind.INFO, "vehicle.view", mandatory=True),
     "vehicle.characteristic_decided": Event(Kind.INFO, "vehicle.view", mandatory=True),
+    # В-12.3: a dispute of ownership or management after the link of one vehicle in the fleets
+    # of two companies — the number of the conflict only (§ 8.6.1). PROPOSAL: mandatory, to
+    # those who see the vehicle; the decision is told the same way.
+    "vehicle.operational_dispute_opened": Event(Kind.INFO, "vehicle.view", mandatory=True),
+    "vehicle.operational_dispute_decided": Event(Kind.INFO, "vehicle.view", mandatory=True),
     # § 8.8.7: a restriction that begins while an operation runs does not stop it — the
     # responsible gets a notification and a task. PROPOSAL: mandatory; without the responsible,
     # to those who lift restrictions.

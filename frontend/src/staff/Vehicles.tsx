@@ -57,7 +57,106 @@ type ConflictDetail = ConflictSummary & {
     by_system: boolean;
   }[];
   operational_companies: number;
+  operational_disputes: OperationalDispute[];
 };
+
+/** В-12.3: a dispute of ownership or management after the link of one vehicle in the own or
+ * managed fleets of two companies. */
+export type OperationalDispute = {
+  id: string;
+  number: number;
+  conflict_id: string;
+  vehicle: string;
+  open: boolean;
+  opened_at: string;
+  closed_at: string | null;
+  reason: string;
+  evidence: string;
+  current_owner: { type: "user" | "company"; public_id: string; name: string } | null;
+  parties: {
+    company: { public_id: string; name: string };
+    card: { id: string; name: string; relation_at_link: string; relation: string; state: string };
+  }[];
+};
+
+/** В-12.3: the parties of the dispute and the decision of the verification. */
+export function OperationalDisputeCard({ dispute: d }: { dispute: OperationalDispute }) {
+  const { t } = useTranslation();
+  const when = useWhen();
+  const client = useQueryClient();
+  const [reason, setReason] = useState("");
+  const [evidence, setEvidence] = useState("");
+  const [ticket, setTicket] = useState("");
+  const close = useCommand<Record<string, unknown>, { dispute: OperationalDispute }>(
+    `/staff/vehicle-disputes/${d.id}/close`,
+  );
+  return (
+    <Card title={t("staff.operational_dispute_title", { number: d.number })}>
+      <p>
+        <span className={d.open ? "badge warn" : "badge"}>
+          {d.open ? t("staff.operational_dispute_open") : t("staff.operational_dispute_closed", { at: when(d.closed_at) })}
+        </span>{" "}
+        <Link to={`/vehicles/${d.vehicle}`}>{d.vehicle}</Link> ·{" "}
+        <Link to={`/vehicle-conflicts/${d.conflict_id}`}>№ {d.number}</Link> ·{" "}
+        <span className="muted small">{when(d.opened_at)}</span>
+      </p>
+      <p className="small">
+        {t("staff.operational_dispute_owner")}:{" "}
+        {d.current_owner ? `${d.current_owner.name || "—"} (${d.current_owner.public_id})` : t("staff.none")}
+      </p>
+      <ul className="plain">
+        {d.parties.map((p) => (
+          <li key={p.card.id} className="small">
+            {p.company.name} ({p.company.public_id}) · «{p.card.name}» ·{" "}
+            {t(`staff.relation_${p.card.relation_at_link}`, { defaultValue: p.card.relation_at_link })}
+            {p.card.relation !== p.card.relation_at_link || p.card.state !== "active"
+              ? ` → ${t(`staff.relation_${p.card.relation}`, { defaultValue: p.card.relation })} · ${p.card.state}`
+              : ""}
+          </li>
+        ))}
+      </ul>
+      {d.open ? (
+        <form
+          className="stack"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            const done = await close.run({
+              reason,
+              evidence,
+              ticket_number: ticket ? Number(ticket) : undefined,
+            });
+            if (done) {
+              setReason("");
+              await client.invalidateQueries({ queryKey: ["staff"] });
+            }
+          }}
+        >
+          <p className="muted small">{t("staff.operational_dispute_hint")}</p>
+          <Field label={t("staff.verify_reason")}>
+            <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} />
+          </Field>
+          <Field label={t("staff.conflict_evidence")}>
+            <textarea value={evidence} onChange={(e) => setEvidence(e.target.value)} rows={2} />
+          </Field>
+          <Field label={t("staff.ticket_number")}>
+            <input value={ticket} inputMode="numeric" onChange={(e) => setTicket(e.target.value.replace(/\D/g, ""))} />
+          </Field>
+          <ErrorMessage error={close.error} />
+          <div className="actions">
+            <button type="submit" disabled={close.pending || !reason.trim()}>
+              {t("staff.operational_dispute_close")}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <p className="small">
+          {d.reason}
+          {d.evidence ? ` · ${d.evidence}` : ""}
+        </p>
+      )}
+    </Card>
+  );
+}
 
 const OUTCOMES = ["same_vehicle", "exception", "error", "insufficient"] as const;
 const CHOICE_LABELS: Record<string, string> = {
@@ -143,7 +242,12 @@ export function ConflictPage() {
         <span className={c.open ? "badge warn" : "badge"}>{t(`staff.conflict_review_${c.review}`)}</span>{" "}
         <span className="muted small">{when(c.detected_at)}</span>
       </p>
-      {c.operational_companies > 1 ? <div className="alert warn">{t("staff.conflict_operational_twice")}</div> : null}
+      {c.operational_companies > 1 && c.open ? (
+        <div className="alert warn">{t("staff.conflict_operational_twice")}</div>
+      ) : null}
+      {(c.operational_disputes ?? []).map((d) => (
+        <OperationalDisputeCard key={d.id} dispute={d} />
+      ))}
       <Card title={t("staff.conflict_parties")}>
         <table>
           <thead>

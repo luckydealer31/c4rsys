@@ -256,14 +256,16 @@ def _client(values: Values, company_id: UUID, client_id: UUID | None) -> None:
 
 
 def _vehicle(values: Values, company_id: UUID, card_id: UUID | None) -> None:
-    from c4rsys.fleet import characteristics
     from c4rsys.fleet import services as fleet
+    from c4rsys.fleet import shared
 
     if card_id is None:
         return
     card = fleet.get_card(company_id, card_id)
     values.links.append(("vehicle", card.id))
-    described = characteristics.describe(card.vehicle)
+    # The values as the company's card shows them: its working values over the global ones
+    # (§ 8.2.1, В-12.2).
+    described = shared.card_values(card)
     _set(values, "vehicle.name", card.name)
     _set(values, "vehicle.make", described.get("make_name"))
     _set(values, "vehicle.model", described.get("model_name"))

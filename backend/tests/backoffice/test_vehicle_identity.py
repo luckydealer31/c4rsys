@@ -298,24 +298,6 @@ def test_one_physical_vehicle_links_the_cards(
     assert err(again) == "CONFLICT_CLOSED"
 
 
-def test_two_operational_records_are_not_linked(
-    owner: Client, two: dict[str, str], verifier: Member
-) -> None:
-    first = create(owner, two["a"], two["la"], vin=VIN).json()["vehicle"]
-    create(owner, two["b"], two["lb"], vin=VIN)
-    conflict = IdentifierConflict.objects.get()
-
-    response = sp(
-        verifier,
-        f"vehicle-conflicts/{conflict.id}/decide",
-        {"outcome": "same_vehicle", "reason": "Same", "primary": first["vehicle_id"]},
-    )
-
-    assert err(response) == "VEHICLE_LINK_OPERATIONAL_TWICE"
-    conflict.refresh_from_db()
-    assert conflict.is_open
-
-
 def test_the_entity_with_owners_is_the_main_one(
     owner: Client, two: dict[str, str], verifier: Member
 ) -> None:

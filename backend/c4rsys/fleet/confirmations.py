@@ -60,6 +60,8 @@ def working_values(card: VehicleCard) -> dict[str, dict[str, Any]]:
             "proposal_id": str(w.proposal_id) if w.proposal_id else None,
             "global": _value(w.field, global_value),
             "since": w.created_at.isoformat(),
+            # В-12.2: the owner changed the value after this one.
+            "owner_newer": w.owner_newer_at is not None,
         }
     return result
 

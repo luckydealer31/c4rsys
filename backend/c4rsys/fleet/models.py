@@ -816,7 +816,12 @@ class VehicleCardWorkingValue(models.Model):
     class Origin(models.TextChoices):
         PROPOSAL = "proposal"  # used until the decision on the company's proposal
         LINK = "link"  # the card's own value kept when it was linked to another entity
-        CARD = "card"  # entered later in the card over a value kept by one of the above
+        # Entered in the card over a value kept by one of the above, or by a company that is
+        # not the owner of a shared vehicle (decision В-12.2).
+        CARD = "card"
+        # В-12.2: the value the card showed before the owner changed the global one; it stays
+        # until the company applies the owner's data.
+        PREVIOUS = "previous"
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
@@ -835,7 +840,12 @@ class VehicleCardWorkingValue(models.Model):
     )
     created_by_user_id = models.UUIDField(null=True, blank=True)
     created_at = models.DateTimeField(default=now)
+    # В-12.2: the owner changed the global value after this one; the card shows that the owner's
+    # data are newer until the company applies them («update the data»).
+    owner_newer_at = models.DateTimeField(null=True, blank=True)
     ended_at = models.DateTimeField(null=True, blank=True)
+    # Why it ended: «applied» — the company applied the owner's data (В-12.2).
+    ended_reason = models.CharField(max_length=12, blank=True, default="")
 
     class Meta:
         db_table = "vehicle_card_working_value"
@@ -849,6 +859,66 @@ class VehicleCardWorkingValue(models.Model):
 
     def __str__(self) -> str:
         return f"{self.vehicle_card_id}:{self.field}"
+
+
+class VehicleOperationalDispute(models.Model):
+    """A dispute of ownership or management for the system verification (decision В-12.3): the
+    verification found one physical vehicle while it is in the own or managed fleet of two
+    different companies (§ 8.3.2). The cards are linked to one global vehicle; the companies are
+    told the number of the conflict only (§ 8.6.1). The decision keeps the reason, the evidence,
+    the staff member, the ticket and the moment."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    vehicle = models.ForeignKey(Vehicle, on_delete=models.PROTECT, related_name="+")
+    conflict = models.ForeignKey(
+        IdentifierConflict, on_delete=models.PROTECT, related_name="operational_disputes"
+    )
+    conflict_decision = models.OneToOneField(
+        IdentifierConflictDecision, on_delete=models.PROTECT, related_name="operational_dispute"
+    )
+    is_open = models.BooleanField(default=True)
+    opened_at = models.DateTimeField(default=now)
+    closed_at = models.DateTimeField(null=True, blank=True)
+    reason = models.TextField(blank=True, default="")
+    evidence = models.TextField(blank=True, default="")
+    ticket_id = models.UUIDField(null=True, blank=True)
+    decided_by_user_id = models.UUIDField(null=True, blank=True)
+
+    class Meta:
+        db_table = "vehicle_operational_dispute"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(is_open=True, closed_at__isnull=True)
+                | Q(is_open=False, closed_at__isnull=False),
+                name="vehicle_operational_dispute_closed_at",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"operational dispute {self.conflict_id}"
+
+
+class VehicleOperationalDisputeParty(models.Model):
+    """A company in a dispute of В-12.3 with its own or managed card at the moment of the link."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    dispute = models.ForeignKey(
+        VehicleOperationalDispute, on_delete=models.PROTECT, related_name="parties"
+    )
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    vehicle_card = models.ForeignKey(VehicleCard, on_delete=models.PROTECT, related_name="+")
+    relation = models.CharField(max_length=10)
+
+    class Meta:
+        db_table = "vehicle_operational_dispute_party"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["dispute", "vehicle_card"], name="vehicle_operational_dispute_party_once"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.dispute_id}:{self.vehicle_card_id}"
 
 
 class VehicleOwnershipRevision(models.Model):

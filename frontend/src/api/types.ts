@@ -469,6 +469,12 @@ export type Vehicle = {
   factory_fields?: string[];
   working_values?: Record<string, WorkingValue>;
   proposals?: CharacteristicProposal[];
+  /** В-12.2: whether the company changes the shared values (it is the owner or alone). */
+  changes_global?: boolean;
+  /** В-12.2: the characteristics where the owner's data are newer than the card's. */
+  owner_data_newer?: string[];
+  /** В-12.3: disputes of ownership or management — the number of the conflict only. */
+  operational_disputes?: { number: number; open: boolean; opened_at: string; closed_at: string | null }[];
   pending_local_merge?: { vehicle_id: string; cards: { id: string; name: string }[] } | null;
   merge_candidates?: { id: string; name: string; relation: string }[];
   merged_cards?: { id: string; name: string; vehicle_id: string; merged_at: string | null }[];
@@ -645,10 +651,13 @@ export type ShownValue = { value: unknown; display: string };
 
 /** The card's own value of a characteristic with the mark of the discrepancy (§ 8.2.1). */
 export type WorkingValue = ShownValue & {
-  origin: "proposal" | "link" | "card";
+  /** «previous» — the value the card showed before the owner changed it (В-12.2). */
+  origin: "proposal" | "link" | "card" | "previous";
   proposal_id: string | null;
   global: ShownValue;
   since: string;
+  /** В-12.2: the owner changed the value after this one. */
+  owner_newer?: boolean;
 };
 
 export type CharacteristicProposal = {

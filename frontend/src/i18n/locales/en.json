@@ -1153,7 +1153,6 @@
     "conflict_another_open": "Another conflict with this value is open: decide it instead.",
     "conflict_one_entity": "Only one vehicle is left in the conflict.",
     "conflict_primary_not_party": "Choose the main vehicle among the parties of the conflict.",
-    "vehicle_link_operational_twice": "The vehicle is in the operational fleet of {{companies}} companies; one vehicle is operated by one company at a time.",
     "vehicle_link_secondary_has_owners": "The other vehicle has confirmed owners: choose it as the main one or decide the ownership first.",
     "vehicle_link_open_owner_request": "A request to the owner of the other vehicle is open.",
     "vehicle_link_open_proposal": "A proposal of a correction of the other vehicle waits for the decision.",
@@ -1191,7 +1190,8 @@
     "odometer_replacement_exists": "An odometer replacement at this moment already exists.",
     "odometer_replacement_not_correctable": "A recorded odometer replacement is not corrected here.",
     "copy_already_decided": "This copy is already decided.",
-    "datetime_in_past": "The moment may not be in the past."
+    "datetime_in_past": "The moment may not be in the past.",
+    "vehicle_owner_data_not_newer": "The owner has no newer data for this card."
   },
   "history": {
     "action": "Action",
@@ -2356,7 +2356,12 @@
     "owner_new_after_change": "New owner after the change of ownership",
     "history_owner_kind_person": "a person",
     "history_owner_kind_this_company": "this company",
-    "history_owner_kind_company": "another company"
+    "history_owner_kind_company": "another company",
+    "owner_data_newer": "The owner's data are newer: {{fields}}. Your card keeps its values until you update them.",
+    "owner_data_apply": "Update the data",
+    "owner_newer_mark": "the owner's data are newer: {{value}}",
+    "not_owner_hint": "Your company is not the owner of this vehicle: the characteristics you change stay in your card only; the owner's data do not change.",
+    "operational_dispute_open": "c4rsys is reviewing the ownership or management of this vehicle (conflict № {{number}})."
   },
   "warehouse": {
     "action_create": "Create",
@@ -3944,7 +3949,11 @@
     "rule_vehicle_identifier_conflict_decided": "Decisions on identifier conflicts",
     "rule_vehicle_characteristic_decided": "Decisions on proposals of corrections",
     "event_vehicle_restriction_during_operation": "{{vehicle}} is restricted ({{reason}}) during a running operation",
-    "rule_vehicle_restriction_during_operation": "Restriction during a running operation"
+    "rule_vehicle_restriction_during_operation": "Restriction during a running operation",
+    "event_vehicle_operational_dispute_opened": "c4rsys opened a review of the ownership or management (conflict № {{number}})",
+    "rule_vehicle_operational_dispute_opened": "Disputes of ownership or management",
+    "event_vehicle_operational_dispute_decided": "A decision on the ownership or management (conflict № {{number}})",
+    "rule_vehicle_operational_dispute_decided": "Decisions on disputes of ownership or management"
   },
   "reports": {
     "metric_rental_issues_today": "Issues expected today",
@@ -5269,7 +5278,7 @@
     "conflict_review_same_vehicle": "one vehicle",
     "conflict_review_exception": "confirmed exception",
     "conflict_review_cause_removed": "cause removed",
-    "conflict_operational_twice": "The vehicles are in the operational fleets of several companies: one physical vehicle is operated by one company at a time (§ 8.3.2).",
+    "conflict_operational_twice": "The vehicles are in the operational fleets of several companies (§ 8.3.2): the decision «one vehicle» links the cards and opens a dispute of ownership or management.",
     "conflict_parties": "Parties",
     "conflict_company": "Company and card",
     "conflict_identifiers": "Identifiers",
@@ -5328,7 +5337,14 @@
     "catalog_link": "Link the chosen vehicles",
     "permission_vehicles_characteristics": "Confirm vehicle characteristics",
     "permission_vehicles_catalog": "Catalog of makes and models",
-    "conflict_vehicle_column": "Vehicle"
+    "conflict_vehicle_column": "Vehicle",
+    "operational_disputes": "Disputes of ownership or management",
+    "operational_dispute_title": "Dispute of ownership or management · conflict № {{number}}",
+    "operational_dispute_open": "open",
+    "operational_dispute_closed": "decided {{at}}",
+    "operational_dispute_owner": "Confirmed owner",
+    "operational_dispute_hint": "The vehicle is in the own or managed fleets of these companies. Make the needed changes with the existing tools (the correction of the ownership period; the company ends its management or archives its card), then record the decision.",
+    "operational_dispute_close": "Record the decision"
   },
   "staff_access": {
     "hint": "Date and time, the unit of c4rsys, the reason category and the viewed sections. The person of the staff member and the content of the ticket are not shown.",

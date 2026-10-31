@@ -18,7 +18,9 @@
   open. When the values no longer match the system closes the conflict. A revision is a new
   decision; the earlier ones are kept. The parties are notified without others' data.
 * One global vehicle is in the operational fleet of one company at a time (§ 8.3.2); service
-  cards of other companies are allowed.
+  cards of other companies are allowed. В-12.3: when the verification finds one vehicle in the
+  own or managed fleet of two companies, the cards are linked and a dispute of ownership or
+  management is opened for the verification (`c4rsys.fleet.disputes`).
 """
 
 from collections.abc import Iterable
@@ -477,6 +479,11 @@ def staff_payload(conflict: IdentifierConflict, *, detail: bool = False) -> dict
     body["operational_companies"] = len(
         {c for e in _entities(conflict) for c in operational_companies(e)}
     )
+    from c4rsys.fleet import disputes
+
+    body["operational_disputes"] = [
+        disputes.operational_payload(d) for d in conflict.operational_disputes.order_by("opened_at")
+    ]
     return body
 
 
@@ -588,6 +595,13 @@ def decide(
         decision.details = link(main, [e for e in entities if e != main.id], now)
         decision.save()
         _close(conflict, Review.SAME_VEHICLE, now)
+        if decision.details["operational_companies"] > 1:
+            from c4rsys.fleet import disputes
+
+            # В-12.3: the companies are told the number of the conflict only (§ 8.6.1).
+            dispute = disputes.open_operational(main, conflict, decision, now)
+            decision.details = {**decision.details, "operational_dispute": str(dispute.id)}
+            decision.save(update_fields=["details"])
     elif outcome == Outcome.EXCEPTION:
         decision.save()
         for a, b in _pairs(entities):
@@ -637,10 +651,10 @@ def link(main: Vehicle, others: list[UUID], now: datetime) -> dict[str, Any]:
     of a company that already has a card of the main entity stays on its reference until the
     company merges the two itself (§ 8.6.2, § 8.6.6)."""
     entities = [main.id, *others]
-    # One global vehicle is operated by one company at a time (§ 8.3.2).
+    # § 8.3.2: one global vehicle is operated by one company at a time. В-12.3: the link is not
+    # refused when two companies keep it in their own or managed fleet — the caller opens a
+    # dispute of ownership or management for the verification.
     operating = {c for e in entities for c in operational_companies(e)}
-    if len(operating) > 1:
-        raise errors.business_rule("VEHICLE_LINK_OPERATIONAL_TWICE", companies=len(operating))
     secondary = [v for e in others for v in family(e)]
     # TODO(spec): the ownership history of two entities is not combined automatically; the
     # entity with the confirmed owners is chosen as the main one (PROPOSAL).
@@ -714,6 +728,7 @@ def link(main: Vehicle, others: list[UUID], now: datetime) -> dict[str, Any]:
         "moved_cards": moved,
         "pending_local_merge": pending,
         "filled": sorted(set(filled)),
+        "operational_companies": len(operating),
     }
 
 

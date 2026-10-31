@@ -1153,7 +1153,6 @@
     "conflict_another_open": "Открыт другой конфликт с этим значением: решите его.",
     "conflict_one_entity": "В конфликте осталось одно ТС.",
     "conflict_primary_not_party": "Выберите основное ТС среди участников конфликта.",
-    "vehicle_link_operational_twice": "ТС в эксплуатационном парке {{companies}} компаний; одно ТС одновременно эксплуатирует только одна компания.",
     "vehicle_link_secondary_has_owners": "У другого ТС есть подтверждённые владельцы: выберите его основным или сначала решите вопрос владения.",
     "vehicle_link_open_owner_request": "По другому ТС открыт запрос владельцу.",
     "vehicle_link_open_proposal": "По другому ТС ожидает решения предложение исправления.",
@@ -1191,7 +1190,8 @@
     "odometer_replacement_exists": "Замена одометра в этот момент уже есть.",
     "odometer_replacement_not_correctable": "Оформленная замена одометра здесь не исправляется.",
     "copy_already_decided": "По этой копии уже принято решение.",
-    "datetime_in_past": "Момент не может быть в прошлом."
+    "datetime_in_past": "Момент не может быть в прошлом.",
+    "vehicle_owner_data_not_newer": "У собственника нет более новых данных для этой карточки."
   },
   "history": {
     "action": "Действие",
@@ -2356,7 +2356,12 @@
     "owner_new_after_change": "Новый владелец после смены владения",
     "history_owner_kind_person": "физическое лицо",
     "history_owner_kind_this_company": "эта компания",
-    "history_owner_kind_company": "другая компания"
+    "history_owner_kind_company": "другая компания",
+    "owner_data_newer": "Данные собственника новее: {{fields}}. Карточка сохраняет свои значения, пока вы их не обновите.",
+    "owner_data_apply": "Обновить данные",
+    "owner_newer_mark": "у собственника новее: {{value}}",
+    "not_owner_hint": "Ваша компания не собственник этого ТС: изменённые характеристики сохраняются только в вашей карточке, данные собственника не меняются.",
+    "operational_dispute_open": "c4rsys разбирает владение или управление этим ТС (конфликт № {{number}})."
   },
   "warehouse": {
     "action_create": "Создать",
@@ -3944,7 +3949,11 @@
     "rule_vehicle_identifier_conflict_decided": "Решения по конфликтам идентификаторов",
     "rule_vehicle_characteristic_decided": "Решения по предложениям исправлений",
     "event_vehicle_restriction_during_operation": "На {{vehicle}} установлено ограничение ({{reason}}) во время действующей операции",
-    "rule_vehicle_restriction_during_operation": "Ограничение во время действующей операции"
+    "rule_vehicle_restriction_during_operation": "Ограничение во время действующей операции",
+    "event_vehicle_operational_dispute_opened": "c4rsys открыл разбор владения или управления (конфликт № {{number}})",
+    "rule_vehicle_operational_dispute_opened": "Споры о владении или управлении",
+    "event_vehicle_operational_dispute_decided": "Решение по владению или управлению (конфликт № {{number}})",
+    "rule_vehicle_operational_dispute_decided": "Решения по спорам о владении или управлении"
   },
   "reports": {
     "metric_rental_issues_today": "Ожидаемые сегодня выдачи (брони на сегодня)",
@@ -5269,7 +5278,7 @@
     "conflict_review_same_vehicle": "одно ТС",
     "conflict_review_exception": "подтверждённое исключение",
     "conflict_review_cause_removed": "причина устранена",
-    "conflict_operational_twice": "ТС состоят в эксплуатационном парке нескольких компаний: одно физическое ТС одновременно эксплуатирует только одна компания (§ 8.3.2).",
+    "conflict_operational_twice": "ТС состоят в эксплуатационном парке нескольких компаний (§ 8.3.2): решение «одно ТС» свяжет карточки и откроет спор о владении или управлении.",
     "conflict_parties": "Участники",
     "conflict_company": "Компания и карточка",
     "conflict_identifiers": "Идентификаторы",
@@ -5328,7 +5337,14 @@
     "catalog_link": "Связать выбранные ТС",
     "permission_vehicles_characteristics": "Подтверждение характеристик ТС",
     "permission_vehicles_catalog": "Каталог марок и моделей",
-    "conflict_vehicle_column": "ТС"
+    "conflict_vehicle_column": "ТС",
+    "operational_disputes": "Споры о владении или управлении",
+    "operational_dispute_title": "Спор о владении или управлении · конфликт № {{number}}",
+    "operational_dispute_open": "открыт",
+    "operational_dispute_closed": "решён {{at}}",
+    "operational_dispute_owner": "Подтверждённый собственник",
+    "operational_dispute_hint": "ТС числится в собственном или управляемом парке этих компаний. Внесите нужные изменения существующими средствами (исправление периода владения; компания прекращает управление или архивирует карточку), затем зафиксируйте решение.",
+    "operational_dispute_close": "Зафиксировать решение"
   },
   "staff_access": {
     "hint": "Дата и время, подразделение c4rsys, категория причины и просмотренные разделы. Личность сотрудника и содержание обращения не показываются.",

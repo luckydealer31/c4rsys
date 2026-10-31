@@ -66,6 +66,8 @@ urlpatterns = [
     path(f"{S}vehicle-conflicts", vehicle_views.conflict_list),
     path(f"{S}vehicle-conflicts/<uuid:conflict_id>", vehicle_views.conflict_detail),
     path(f"{S}vehicle-conflicts/<uuid:conflict_id>/decide", vehicle_views.conflict_decide),
+    # В-12.3: the disputes of ownership or management after a link.
+    path(f"{S}vehicle-disputes/<uuid:dispute_id>/close", vehicle_views.dispute_close),
     path(f"{S}vehicles", vehicle_views.vehicle_search),
     path(f"{S}vehicles/<str:vhl>", vehicle_views.vehicle_detail),
     path(f"{S}vehicles/<str:vhl>/confirm", vehicle_views.vehicle_confirm),

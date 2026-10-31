@@ -22,6 +22,8 @@ import {
   MergeCard,
   MergedHistory,
   MergesCard,
+  OperationalDisputeBanner,
+  OwnerDataBanner,
   PendingMergeBanner,
   ProposalsCard,
 } from "./VehicleIdentity";
@@ -259,7 +261,9 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
                     <>
                       {own.display || "—"}{" "}
                       <span className="badge warn">
-                        {t("vehicles.working_value_mark", { value: own.global.display || "—" })}
+                        {t(own.owner_newer ? "vehicles.owner_newer_mark" : "vehicles.working_value_mark", {
+                          value: own.global.display || "—",
+                        })}
                       </span>
                     </>
                   ) : (
@@ -275,6 +279,9 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
             );
           })}
       </dl>
+      {vehicle.changes_global === false ? (
+        <p className="muted small">{t("vehicles.not_owner_hint")}</p>
+      ) : null}
       {can("vehicle.edit") && vehicle.state !== "archived" ? (
         <div className="actions">
           <Link className="button secondary" to={companyPath(company, `/vehicles/${vehicle.id}/edit`)}>
@@ -345,6 +352,8 @@ export function VehiclePage() {
         </div>
       ) : null}
       <PendingMergeBanner vehicle={data} />
+      <OperationalDisputeBanner vehicle={data} />
+      <OwnerDataBanner vehicle={data} />
       {data.state === "archived" ? (
         <div className="alert">{t("vehicles.archived_read_only")}</div>
       ) : null}

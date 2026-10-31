@@ -40,6 +40,8 @@ urlpatterns = [
     path("c/<str:cmp>/vehicles/schedule", views.vehicle_schedule),
     path("c/<str:cmp>/vehicles/<uuid:card_id>", views.vehicle_detail),
     path("c/<str:cmp>/vehicles/<uuid:card_id>/details", views.vehicle_details),
+    # В-12.2: the card applies the owner's newer data.
+    path("c/<str:cmp>/vehicles/<uuid:card_id>/owner-data", views.vehicle_owner_data),
     path("c/<str:cmp>/vehicles/<uuid:card_id>/acquisition", views.vehicle_acquisition),
     path("c/<str:cmp>/vehicles/<uuid:card_id>/to-warehouse", views.vehicle_to_warehouse),
     path("c/<str:cmp>/vehicles/<uuid:card_id>/to-garage", views.vehicle_to_garage),

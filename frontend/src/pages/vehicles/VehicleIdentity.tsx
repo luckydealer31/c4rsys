@@ -73,6 +73,53 @@ export function ConflictsCard({ vehicle }: { vehicle: Vehicle }) {
   );
 }
 
+/** В-12.2: the owner changed shared characteristics after the card's values; the card keeps
+ * its values until the company applies the owner's data. */
+export function OwnerDataBanner({ vehicle }: { vehicle: Vehicle }) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const can = useCan();
+  const refresh = useRefreshVehicle(vehicle.id);
+  const apply = useCommand<{ expected_version: number }, { vehicle: Vehicle }>(
+    `/c/${company.public_id}/vehicles/${vehicle.id}/owner-data`,
+  );
+  const fields = vehicle.owner_data_newer ?? [];
+  if (!fields.length) return null;
+  return (
+    <div className="alert warn">
+      {t("vehicles.owner_data_newer", {
+        fields: fields.map((f) => t(`vehicles.${f}`)).join(", "),
+      })}{" "}
+      {can("vehicle.edit") && vehicle.state === "active" ? (
+        <button
+          type="button"
+          className="secondary"
+          disabled={apply.pending}
+          onClick={async () => {
+            if ((await apply.run({ expected_version: vehicle.version })) !== null) await refresh();
+          }}
+        >
+          {t("vehicles.owner_data_apply")}
+        </button>
+      ) : null}
+      <ErrorMessage error={apply.error} />
+    </div>
+  );
+}
+
+/** В-12.3: one vehicle in the own or managed fleet of two companies — the cards are linked and
+ * the verification decides the dispute; the company sees only the number of the conflict. */
+export function OperationalDisputeBanner({ vehicle }: { vehicle: Vehicle }) {
+  const { t } = useTranslation();
+  const open = (vehicle.operational_disputes ?? []).filter((d) => d.open);
+  if (!open.length) return null;
+  return (
+    <div className="alert warn">
+      {open.map((d) => t("vehicles.operational_dispute_open", { number: d.number })).join(" ")}
+    </div>
+  );
+}
+
 /** § 8.6.2: the verification found one physical vehicle and the company has two cards of it —
  * it merges them itself, choosing the main one. */
 export function PendingMergeBanner({ vehicle }: { vehicle: Vehicle }) {

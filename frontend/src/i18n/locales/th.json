@@ -1153,7 +1153,6 @@
     "conflict_another_open": "มีข้อขัดแย้งอื่นที่มีค่านี้เปิดอยู่: ตัดสินข้อขัดแย้งนั้นแทน",
     "conflict_one_entity": "เหลือยานพาหนะเพียงคันเดียวในข้อขัดแย้ง",
     "conflict_primary_not_party": "เลือกยานพาหนะหลักจากผู้เกี่ยวข้องในข้อขัดแย้ง",
-    "vehicle_link_operational_twice": "ยานพาหนะอยู่ในกองยานใช้งานของ {{companies}} บริษัท; ยานพาหนะหนึ่งคันใช้งานได้ครั้งละหนึ่งบริษัท",
     "vehicle_link_secondary_has_owners": "ยานพาหนะอีกคันมีเจ้าของที่ยืนยันแล้ว: เลือกเป็นคันหลักหรือตัดสินเรื่องการเป็นเจ้าของก่อน",
     "vehicle_link_open_owner_request": "มีคำขอถึงเจ้าของยานพาหนะอีกคันเปิดอยู่",
     "vehicle_link_open_proposal": "มีข้อเสนอการแก้ไขของยานพาหนะอีกคันรอการตัดสิน",
@@ -1191,7 +1190,8 @@
     "odometer_replacement_exists": "มีการเปลี่ยนเรือนไมล์ในเวลานี้แล้ว",
     "odometer_replacement_not_correctable": "ไม่สามารถแก้ไขการเปลี่ยนเรือนไมล์ที่บันทึกไว้ที่นี่",
     "copy_already_decided": "สำเนานี้มีการตัดสินใจแล้ว",
-    "datetime_in_past": "เวลาต้องไม่อยู่ในอดีต"
+    "datetime_in_past": "เวลาต้องไม่อยู่ในอดีต",
+    "vehicle_owner_data_not_newer": "เจ้าของไม่มีข้อมูลที่ใหม่กว่าสำหรับการ์ดนี้"
   },
   "history": {
     "action": "Action",
@@ -2356,7 +2356,12 @@
     "owner_new_after_change": "เจ้าของใหม่หลังการเปลี่ยนกรรมสิทธิ์",
     "history_owner_kind_person": "บุคคล",
     "history_owner_kind_this_company": "บริษัทนี้",
-    "history_owner_kind_company": "บริษัทอื่น"
+    "history_owner_kind_company": "บริษัทอื่น",
+    "owner_data_newer": "ข้อมูลของเจ้าของใหม่กว่า: {{fields}} การ์ดของคุณคงค่าเดิมไว้จนกว่าคุณจะอัปเดต",
+    "owner_data_apply": "อัปเดตข้อมูล",
+    "owner_newer_mark": "ข้อมูลของเจ้าของใหม่กว่า: {{value}}",
+    "not_owner_hint": "บริษัทของคุณไม่ใช่เจ้าของยานพาหนะนี้: ลักษณะที่คุณแก้ไขจะบันทึกเฉพาะในการ์ดของคุณ ข้อมูลของเจ้าของไม่เปลี่ยนแปลง",
+    "operational_dispute_open": "c4rsys กำลังตรวจสอบการเป็นเจ้าของหรือการบริหารยานพาหนะนี้ (ข้อขัดแย้ง № {{number}})"
   },
   "warehouse": {
     "action_create": "Create",
@@ -3944,7 +3949,11 @@
     "rule_vehicle_identifier_conflict_decided": "การตัดสินข้อขัดแย้งของตัวระบุ",
     "rule_vehicle_characteristic_decided": "การตัดสินข้อเสนอการแก้ไข",
     "event_vehicle_restriction_during_operation": "{{vehicle}} มีข้อจำกัด ({{reason}}) ระหว่างการดำเนินการ",
-    "rule_vehicle_restriction_during_operation": "ข้อจำกัดระหว่างการดำเนินการ"
+    "rule_vehicle_restriction_during_operation": "ข้อจำกัดระหว่างการดำเนินการ",
+    "event_vehicle_operational_dispute_opened": "c4rsys เปิดการตรวจสอบการเป็นเจ้าของหรือการบริหาร (ข้อขัดแย้ง № {{number}})",
+    "rule_vehicle_operational_dispute_opened": "ข้อพิพาทเรื่องการเป็นเจ้าของหรือการบริหาร",
+    "event_vehicle_operational_dispute_decided": "คำตัดสินเรื่องการเป็นเจ้าของหรือการบริหาร (ข้อขัดแย้ง № {{number}})",
+    "rule_vehicle_operational_dispute_decided": "คำตัดสินข้อพิพาทเรื่องการเป็นเจ้าของหรือการบริหาร"
   },
   "reports": {
     "metric_rental_issues_today": "การส่งมอบที่คาดว่าจะมีวันนี้",
@@ -5269,7 +5278,7 @@
     "conflict_review_same_vehicle": "คันเดียวกัน",
     "conflict_review_exception": "ข้อยกเว้นที่ยืนยัน",
     "conflict_review_cause_removed": "สาเหตุถูกแก้ไขแล้ว",
-    "conflict_operational_twice": "ยานพาหนะอยู่ในกองยานใช้งานของหลายบริษัท: ยานพาหนะหนึ่งคันใช้งานได้ครั้งละหนึ่งบริษัท (§ 8.3.2)",
+    "conflict_operational_twice": "ยานพาหนะอยู่ในกองยานใช้งานของหลายบริษัท (§ 8.3.2): คำตัดสิน «คันเดียวกัน» จะเชื่อมการ์ดและเปิดข้อพิพาทเรื่องการเป็นเจ้าของหรือการบริหาร",
     "conflict_parties": "ผู้เกี่ยวข้อง",
     "conflict_company": "บริษัทและการ์ด",
     "conflict_identifiers": "ตัวระบุ",
@@ -5328,7 +5337,14 @@
     "catalog_link": "เชื่อมยานพาหนะที่เลือก",
     "permission_vehicles_characteristics": "ยืนยันคุณลักษณะยานพาหนะ",
     "permission_vehicles_catalog": "แคตตาล็อกยี่ห้อและรุ่น",
-    "conflict_vehicle_column": "ยานพาหนะ"
+    "conflict_vehicle_column": "ยานพาหนะ",
+    "operational_disputes": "ข้อพิพาทเรื่องการเป็นเจ้าของหรือการบริหาร",
+    "operational_dispute_title": "ข้อพิพาทเรื่องการเป็นเจ้าของหรือการบริหาร · ข้อขัดแย้ง № {{number}}",
+    "operational_dispute_open": "เปิดอยู่",
+    "operational_dispute_closed": "ตัดสินแล้ว {{at}}",
+    "operational_dispute_owner": "เจ้าของที่ยืนยันแล้ว",
+    "operational_dispute_hint": "ยานพาหนะอยู่ในกองยานของตนเองหรือที่บริหารของบริษัทเหล่านี้ ทำการเปลี่ยนแปลงที่จำเป็นด้วยเครื่องมือที่มีอยู่ (แก้ไขช่วงการเป็นเจ้าของ; บริษัทยุติการบริหารหรือเก็บการ์ดเข้าคลัง) แล้วบันทึกคำตัดสิน",
+    "operational_dispute_close": "บันทึกคำตัดสิน"
   },
   "staff_access": {
     "hint": "Date and time, the unit of c4rsys, the reason category and the viewed sections. The person of the staff member and the content of the ticket are not shown.",

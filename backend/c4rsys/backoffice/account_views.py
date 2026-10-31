@@ -177,6 +177,7 @@ def verification_queue(request: HttpRequest) -> JsonResponse:
     staff = require_staff(request, "verification.resolve")
     open_disputes = disputes.open_disputes()
     open_conflicts = identity.conflicts("open")
+    operational = disputes.open_operational_disputes()
     logged_read(
         request,
         staff,
@@ -186,6 +187,7 @@ def verification_queue(request: HttpRequest) -> JsonResponse:
         after={
             "ownership_disputes": len(open_disputes),
             "identifier_conflicts": len(open_conflicts),
+            "operational_disputes": len(operational),
         },
     )
     records = (
@@ -211,6 +213,8 @@ def verification_queue(request: HttpRequest) -> JsonResponse:
             ],
             # Conflicts of VIN and other identifiers (§ 8.6.1–8.6.2, block 12): the open ones.
             "identifier_conflicts": [identity.staff_payload(c) for c in open_conflicts],
+            # В-12.3: disputes of ownership or management after the link of one vehicle.
+            "operational_disputes": [disputes.operational_payload(d) for d in operational],
         }
     )
 
