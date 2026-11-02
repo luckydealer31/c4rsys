@@ -34,8 +34,8 @@ trap - EXIT
 find "$DIR" -mindepth 1 -maxdepth 1 -type d -name '20*' -mtime +"$KEEP_DAYS" -exec rm -rf {} +
 echo "Backup $DIR/$stamp: $(du -sh "$DIR/$stamp" | cut -f1)"
 
-# The second copy goes off the server to S3 storage (customer decision 03.11.2026: Timeweb S3).
-# Settings are in .env.backup (template: deploy/env.backup.example), apart from .env.prod, so the
+# The second copy off the server to S3 storage. Customer decision 03.11.2026: postponed on the test
+# server, copies stay local; the code is ready for Timeweb S3. Settings are in .env.backup (template: deploy/env.backup.example), apart from .env.prod, so the
 # application containers never see the storage keys. Without the file the copy stays local only.
 [ -f .env.backup ] || { echo "No .env.backup: the copy is not sent off the server"; exit 0; }
 setting() { grep -E "^$1=" .env.backup | tail -1 | cut -d= -f2-; }
