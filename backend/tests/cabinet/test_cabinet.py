@@ -129,8 +129,12 @@ def test_garage_and_the_cabinet_domain(owner: Client, s: Scenario) -> None:
     assert [v["vehicle_id"] for v in garage] == [card.vehicle.public_id]
 
     # Decision of 30.10.2026: the cabinet domain serves only the personal interface.
-    assert ivan.get("/api/site", HTTP_HOST=CABINET).json() == {"cabinet": True, "staff": False}
-    assert ivan.get("/api/site").json() == {"cabinet": False, "staff": False}
+    assert ivan.get("/api/site", HTTP_HOST=CABINET).json() == {
+        "cabinet": True,
+        "staff": False,
+        "captcha_site_key": None,
+    }
+    assert ivan.get("/api/site").json()["cabinet"] is False
     blocked: Any = owner.get(f"/api/c/{s.cmp}/orders", HTTP_HOST=CABINET)
     assert blocked.status_code == 404 and blocked.json()["error"]["code"] == "CABINET_HOST"
     assert owner.get("/api/cabinet/companies", HTTP_HOST=CABINET).status_code == 200

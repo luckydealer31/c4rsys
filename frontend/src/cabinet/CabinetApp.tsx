@@ -23,7 +23,7 @@ import { GarageVehicle } from "./GarageVehicle";
 export function useSite() {
   return useQuery({
     queryKey: ["site"],
-    queryFn: () => api<{ cabinet: boolean; staff?: boolean }>("/site"),
+    queryFn: () => api<{ cabinet: boolean; staff?: boolean; captcha_site_key?: string | null }>("/site"),
     staleTime: Infinity,
     retry: false,
     networkMode: "always",

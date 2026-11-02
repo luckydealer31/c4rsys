@@ -6,6 +6,7 @@ import { Link, useNavigate } from "react-router";
 import { api, ApiError } from "../../api/client";
 import type { StartedFlow, User } from "../../api/types";
 import { ME_KEY } from "../../auth";
+import { useCaptcha } from "../../components/Captcha";
 import { Card, ErrorMessage, Field } from "../../components/ui";
 import { CodeStep } from "./CodeStep";
 
@@ -26,16 +27,23 @@ export function LoginPage({
   const [password, setPassword] = useState("");
   const [error, setError] = useState<ApiError | null>(null);
   const [pending, setPending] = useState(false);
+  const captcha = useCaptcha();
 
   async function start(event: FormEvent) {
     event.preventDefault();
     setPending(true);
     setError(null);
     try {
-      setFlow(await api<StartedFlow>("/auth/login/start", { method: "POST", body: { email } }));
+      setFlow(
+        await api<StartedFlow>("/auth/login/start", {
+          method: "POST",
+          body: { email, ...captcha.body },
+        }),
+      );
     } catch (caught) {
       setError(caught as ApiError);
     } finally {
+      captcha.reset();
       setPending(false);
     }
   }
@@ -78,9 +86,13 @@ export function LoginPage({
                 autoFocus
               />
             </Field>
+            {captcha.element}
             <ErrorMessage error={error} />
             <div className="actions">
-              <button type="submit" disabled={pending || !email.trim()}>
+              <button
+                type="submit"
+                disabled={pending || !email.trim() || !captcha.ready}
+              >
                 {t("auth.get_code")}
               </button>
             </div>
@@ -116,7 +128,8 @@ export function LoginPage({
       {allowRegister ? (
         <>
           <p className="muted">
-            {t("auth.no_account")} <Link to="/register">{t("auth.register_link")}</Link>
+            {t("auth.no_account")}{" "}
+            <Link to="/register">{t("auth.register_link")}</Link>
           </p>
           {/* § 2.3.1: recovery through the support when the email or the password is lost. */}
           <p className="muted">
@@ -132,13 +145,27 @@ export function LoginPage({
  * support. */
 export function BlockedNotice({ error }: { error: ApiError | null }) {
   const { t } = useTranslation();
-  if (!error || (error.code !== "USER_BLOCKED" && error.code !== "COMPANY_BLOCKED")) return null;
-  const params = error.params as { support?: string; category?: string; reason?: string };
-  const reason = params.reason || (params.category ? t(`staff.block_category_${params.category}`) : "");
+  if (
+    !error ||
+    (error.code !== "USER_BLOCKED" && error.code !== "COMPANY_BLOCKED")
+  )
+    return null;
+  const params = error.params as {
+    support?: string;
+    category?: string;
+    reason?: string;
+  };
+  const reason =
+    params.reason ||
+    (params.category ? t(`staff.block_category_${params.category}`) : "");
   return (
     <div className="alert warn" role="status">
       {reason ? <div>{t("blocked.reason", { reason })}</div> : null}
-      <div>{params.support ? t("blocked.support", { support: params.support }) : t("blocked.support_generic")}</div>
+      <div>
+        {params.support
+          ? t("blocked.support", { support: params.support })
+          : t("blocked.support_generic")}
+      </div>
     </div>
   );
 }

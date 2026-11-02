@@ -305,7 +305,8 @@
     "register_title": "Create an account",
     "resend": "Send a new code",
     "resend_in": "New code in {{seconds}} s",
-    "sign_in": "Sign in"
+    "sign_in": "Sign in",
+    "captcha_failed": "ไม่สามารถเริ่มการตรวจสอบว่าคุณไม่ใช่บอทได้ โปรดโหลดหน้าใหม่"
   },
   "cash": {
     "archive": "Archive",
@@ -1280,7 +1281,10 @@
     "schedule_date_repeated": "วันที่นี้มีข้อยกเว้นอยู่แล้ว",
     "schedule_already_inherited": "บริบทนี้ใช้ตารางของสถานที่อยู่แล้ว",
     "context_unknown": "ไม่พบบริบท",
-    "task_context_needs_location": "บริบทต้องมีสาขาของงาน"
+    "task_context_needs_location": "บริบทต้องมีสาขาของงาน",
+    "captcha_required": "โปรดยืนยันว่าคุณไม่ใช่บอท",
+    "captcha_failed": "การตรวจสอบว่าคุณไม่ใช่บอทไม่ผ่าน โปรดลองอีกครั้ง",
+    "captcha_unavailable": "การตรวจสอบบอทไม่พร้อมใช้งานในขณะนี้ โปรดลองอีกครั้งในอีกสักครู่"
   },
   "history": {
     "action": "Action",

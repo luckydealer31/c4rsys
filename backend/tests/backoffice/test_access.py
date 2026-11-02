@@ -30,7 +30,11 @@ def test_internal_api_answers_only_on_the_staff_host(admin: Member, owner: Clien
     assert owner.get("/api/staff/me", HTTP_HOST="cabinet.localhost").status_code == 404
     # On the staff host only its own API, sign-in, the site and the health answer.
     anyone = staff_client()
-    assert anyone.get("/api/site").json() == {"cabinet": False, "staff": True}
+    assert anyone.get("/api/site").json() == {
+        "cabinet": False,
+        "staff": True,
+        "captcha_site_key": None,
+    }
     assert anyone.get("/api/health").status_code == 200
     assert anyone.get("/api/auth/csrf").status_code == 200
     assert err(admin.client.get("/api/companies")) == "STAFF_HOST"

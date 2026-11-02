@@ -187,6 +187,10 @@ C4R_SUPPORT_CONTACT = os.environ.get("C4R_SUPPORT_CONTACT", "")
 # Decision В-11.2: the recovery of access through the support (§ 2.3.1) is built but switched off
 # until the regulation of the check is ready.
 C4R_SUPPORT_RECOVERY_ENABLED = env_bool("C4R_SUPPORT_RECOVERY_ENABLED", False)
+# Cloudflare Turnstile before a code is sent to an address typed by an anonymous visitor
+# (customer decision 02.11.2026). Without the secret key the check is off.
+C4R_TURNSTILE_SITE_KEY = os.environ.get("C4R_TURNSTILE_SITE_KEY", "")
+C4R_TURNSTILE_SECRET_KEY = os.environ.get("C4R_TURNSTILE_SECRET_KEY", "")
 
 LOGGING = {
     "version": 1,

@@ -40,10 +40,15 @@ def is_cabinet_host(request: HttpRequest) -> bool:
 def site(request: HttpRequest) -> JsonResponse:
     """Which interface this address serves: the personal cabinet, the internal interface of the
     system staff (decision В-11.1) or the B2B one."""
+    from c4rsys.accounts import captcha
     from c4rsys.platform import sites
 
     return JsonResponse(
-        {"cabinet": is_cabinet_host(request), "staff": sites.is_staff_host(request)}
+        {
+            "cabinet": is_cabinet_host(request),
+            "staff": sites.is_staff_host(request),
+            "captcha_site_key": captcha.site_key(),
+        }
     )
 
 

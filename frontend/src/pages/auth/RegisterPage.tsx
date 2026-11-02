@@ -6,6 +6,7 @@ import { Link, useNavigate } from "react-router";
 import { api, ApiError } from "../../api/client";
 import type { StartedFlow, User } from "../../api/types";
 import { ME_KEY } from "../../auth";
+import { useCaptcha } from "../../components/Captcha";
 import { Card, ErrorMessage, Field } from "../../components/ui";
 import { CodeStep } from "./CodeStep";
 
@@ -22,16 +23,23 @@ export function RegisterPage() {
   const [user, setUser] = useState<User | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [pending, setPending] = useState(false);
+  const captcha = useCaptcha();
 
   async function start(event: FormEvent) {
     event.preventDefault();
     setPending(true);
     setError(null);
     try {
-      setFlow(await api<StartedFlow>("/auth/register/start", { method: "POST", body: { email } }));
+      setFlow(
+        await api<StartedFlow>("/auth/register/start", {
+          method: "POST",
+          body: { email, ...captcha.body },
+        }),
+      );
     } catch (caught) {
       setError(caught as ApiError);
     } finally {
+      captcha.reset();
       setPending(false);
     }
   }
@@ -42,10 +50,13 @@ export function RegisterPage() {
     setPending(true);
     setError(null);
     try {
-      const result = await api<{ user: User; backup_code: string }>("/auth/register/complete", {
-        method: "POST",
-        body: { flow: flow.flow, password },
-      });
+      const result = await api<{ user: User; backup_code: string }>(
+        "/auth/register/complete",
+        {
+          method: "POST",
+          body: { flow: flow.flow, password },
+        },
+      );
       setUser(result.user);
       setBackupCode(result.backup_code);
     } catch (caught) {
@@ -61,7 +72,9 @@ export function RegisterPage() {
   }
 
   function download() {
-    const blob = new Blob([`c4rsys backup code: ${backupCode ?? ""}\n`], { type: "text/plain" });
+    const blob = new Blob([`c4rsys backup code: ${backupCode ?? ""}\n`], {
+      type: "text/plain",
+    });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
     link.download = "c4rsys-backup-code.txt";
@@ -89,7 +102,11 @@ export function RegisterPage() {
               <button type="button" className="secondary" onClick={download}>
                 {t("auth.download")}
               </button>
-              <button type="button" className="secondary" onClick={() => window.print()}>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => window.print()}
+              >
                 {t("auth.print")}
               </button>
             </div>
@@ -111,9 +128,13 @@ export function RegisterPage() {
                 autoFocus
               />
             </Field>
+            {captcha.element}
             <ErrorMessage error={error} />
             <div className="actions">
-              <button type="submit" disabled={pending || !email.trim()}>
+              <button
+                type="submit"
+                disabled={pending || !email.trim() || !captcha.ready}
+              >
                 {t("auth.get_code")}
               </button>
             </div>
@@ -127,7 +148,10 @@ export function RegisterPage() {
           />
         ) : (
           <form className="stack" onSubmit={complete}>
-            <Field label={t("auth.new_password")} hint={t("auth.password_rules")}>
+            <Field
+              label={t("auth.new_password")}
+              hint={t("auth.password_rules")}
+            >
               <input
                 type="password"
                 autoComplete="new-password"

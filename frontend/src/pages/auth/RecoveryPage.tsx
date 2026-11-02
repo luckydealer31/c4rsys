@@ -5,6 +5,7 @@ import { Link, useParams } from "react-router";
 
 import { api, ApiError } from "../../api/client";
 import type { StartedFlow } from "../../api/types";
+import { useCaptcha } from "../../components/Captcha";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { CodeStep } from "./CodeStep";
 
@@ -20,7 +21,13 @@ function useRecoveryStatus() {
 
 function SupportContact({ support }: { support: string }) {
   const { t } = useTranslation();
-  return <p className="muted">{support ? t("recovery.support", { support }) : t("recovery.support_generic")}</p>;
+  return (
+    <p className="muted">
+      {support
+        ? t("recovery.support", { support })
+        : t("recovery.support_generic")}
+    </p>
+  );
 }
 
 /** «I cannot sign in»: a request to the support to recover access (§ 2.3.1). It names the
@@ -36,6 +43,7 @@ export function RecoveryRequestPage() {
   const [newEmail, setNewEmail] = useState("");
   const [flow, setFlow] = useState<StartedFlow | null>(null);
   const [emailConfirmed, setEmailConfirmed] = useState(false);
+  const captcha = useCaptcha();
   const [number, setNumber] = useState<number | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [pending, setPending] = useState(false);
@@ -44,10 +52,16 @@ export function RecoveryRequestPage() {
     setPending(true);
     setError(null);
     try {
-      setFlow(await api<StartedFlow>("/recovery/email/start", { method: "POST", body: { email: newEmail } }));
+      setFlow(
+        await api<StartedFlow>("/recovery/email/start", {
+          method: "POST",
+          body: { email: newEmail, ...captcha.body },
+        }),
+      );
     } catch (caught) {
       setError(caught as ApiError);
     } finally {
+      captcha.reset();
       setPending(false);
     }
   }
@@ -74,7 +88,12 @@ export function RecoveryRequestPage() {
     }
   }
 
-  if (status.isLoading) return <div className="narrow"><Loading /></div>;
+  if (status.isLoading)
+    return (
+      <div className="narrow">
+        <Loading />
+      </div>
+    );
   const support = status.data?.support ?? "";
   return (
     <div className="narrow">
@@ -94,39 +113,76 @@ export function RecoveryRequestPage() {
         <Card>
           <p className="muted">{t("recovery.intro")}</p>
           <form className="stack" onSubmit={submit}>
-            <Field label={t("recovery.identifier")} hint={t("recovery.identifier_hint")}>
-              <input value={identifier} onChange={(e) => setIdentifier(e.target.value)} autoFocus />
+            <Field
+              label={t("recovery.identifier")}
+              hint={t("recovery.identifier_hint")}
+            >
+              <input
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                autoFocus
+              />
             </Field>
-            <Field label={t("recovery.known_contact")} hint={t("recovery.known_contact_hint")}>
+            <Field
+              label={t("recovery.known_contact")}
+              hint={t("recovery.known_contact_hint")}
+            >
               <input value={known} onChange={(e) => setKnown(e.target.value)} />
             </Field>
             <Field label={t("recovery.description")}>
-              <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={3}
+              />
             </Field>
             <fieldset className="stack">
               <legend>{t("recovery.new_email")}</legend>
               <p className="muted small">{t("recovery.new_email_hint")}</p>
               {!flow ? (
-                <div className="row">
-                  <input
-                    type="email"
-                    value={newEmail}
-                    onChange={(e) => setNewEmail(e.target.value)}
-                    aria-label={t("recovery.new_email")}
-                  />
-                  <button type="button" className="secondary" disabled={pending || !newEmail.trim()} onClick={() => void sendCode()}>
-                    {t("auth.get_code")}
-                  </button>
-                </div>
+                <>
+                  <div className="row">
+                    <input
+                      type="email"
+                      value={newEmail}
+                      onChange={(e) => setNewEmail(e.target.value)}
+                      aria-label={t("recovery.new_email")}
+                    />
+                    <button
+                      type="button"
+                      className="secondary"
+                      disabled={pending || !newEmail.trim() || !captcha.ready}
+                      onClick={() => void sendCode()}
+                    >
+                      {t("auth.get_code")}
+                    </button>
+                  </div>
+                  {captcha.element}
+                </>
               ) : !emailConfirmed ? (
-                <CodeStep flow={flow} purpose="recovery_email" contact={newEmail} onConfirmed={() => setEmailConfirmed(true)} />
+                <CodeStep
+                  flow={flow}
+                  purpose="recovery_email"
+                  contact={newEmail}
+                  onConfirmed={() => setEmailConfirmed(true)}
+                />
               ) : (
-                <p className="small">{t("recovery.new_email_confirmed", { email: newEmail })}</p>
+                <p className="small">
+                  {t("recovery.new_email_confirmed", { email: newEmail })}
+                </p>
               )}
             </fieldset>
             <ErrorMessage error={error} />
             <div className="actions">
-              <button type="submit" disabled={pending || !identifier.trim() || !known.trim() || (flow !== null && !emailConfirmed)}>
+              <button
+                type="submit"
+                disabled={
+                  pending ||
+                  !identifier.trim() ||
+                  !known.trim() ||
+                  (flow !== null && !emailConfirmed)
+                }
+              >
                 {t("recovery.submit")}
               </button>
             </div>
@@ -147,7 +203,10 @@ export function RecoveryPasswordPage() {
   const { token = "" } = useParams();
   const link = useQuery({
     queryKey: ["recovery-link", token],
-    queryFn: () => api<{ valid: boolean }>(`/recovery/password/${encodeURIComponent(token)}`),
+    queryFn: () =>
+      api<{ valid: boolean }>(
+        `/recovery/password/${encodeURIComponent(token)}`,
+      ),
     retry: false,
   });
   const [password, setPassword] = useState("");
@@ -189,7 +248,10 @@ export function RecoveryPasswordPage() {
           <ErrorMessage error={link.error as ApiError} />
         ) : (
           <form className="stack" onSubmit={submit}>
-            <Field label={t("auth.new_password")} hint={t("auth.password_rules")}>
+            <Field
+              label={t("auth.new_password")}
+              hint={t("auth.password_rules")}
+            >
               <input
                 type="password"
                 autoComplete="new-password"

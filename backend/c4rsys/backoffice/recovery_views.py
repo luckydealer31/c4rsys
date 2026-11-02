@@ -9,6 +9,7 @@ from django.db import transaction
 from django.http import HttpRequest, JsonResponse
 from django.views.decorators.http import require_GET, require_POST
 
+from c4rsys.accounts import captcha
 from c4rsys.accounts import services as accounts
 from c4rsys.backoffice import recovery
 from c4rsys.backoffice.blocking import support_contact
@@ -33,6 +34,7 @@ def email_start(request: HttpRequest) -> JsonResponse:
     """A code to the new email the applicant wants instead of the unavailable one."""
     recovery.require_enabled()
     data = parse_json(request)
+    captcha.require_human(data)
     started = accounts.recovery_email_start(get_str(data, "email"), _client(request))
     return JsonResponse(started.as_dict())
 

@@ -305,7 +305,8 @@
     "register_title": "Create an account",
     "resend": "Send a new code",
     "resend_in": "New code in {{seconds}} s",
-    "sign_in": "Sign in"
+    "sign_in": "Sign in",
+    "captcha_failed": "Could not run the check that you are not a bot. Reload the page."
   },
   "cash": {
     "archive": "Archive",
@@ -1280,7 +1281,10 @@
     "schedule_date_repeated": "This date already has an exception.",
     "schedule_already_inherited": "The context already follows the schedule of the location.",
     "context_unknown": "Unknown context.",
-    "task_context_needs_location": "A context needs the location of the task."
+    "task_context_needs_location": "A context needs the location of the task.",
+    "captcha_required": "Confirm that you are not a bot.",
+    "captcha_failed": "The check that you are not a bot failed. Try again.",
+    "captcha_unavailable": "The bot check is unavailable right now. Try again in a few minutes."
   },
   "history": {
     "action": "Action",

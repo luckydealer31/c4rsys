@@ -11,7 +11,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
-from c4rsys.accounts import services
+from c4rsys.accounts import captcha, services
 from c4rsys.accounts.middleware import (
     current_session,
     mark_session_cleared,
@@ -135,6 +135,7 @@ def csrf(request: HttpRequest) -> JsonResponse:
 @require_POST
 def register_start(request: HttpRequest) -> JsonResponse:
     data = parse_json(request)
+    captcha.require_human(data)
     started = services.start_registration(get_str(data, "email"), _client(request))
     return JsonResponse(started.as_dict())
 
@@ -158,6 +159,7 @@ def register_complete(request: HttpRequest) -> JsonResponse:
 @require_POST
 def login_start(request: HttpRequest) -> JsonResponse:
     data = parse_json(request)
+    captcha.require_human(data)
     started = services.start_login(get_str(data, "email"), _client(request))
     return JsonResponse(started.as_dict())
 
