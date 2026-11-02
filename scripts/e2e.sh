@@ -8,6 +8,7 @@ cd "$(dirname "$0")/.."
 
 if [ "${1:-}" = "prod" ]; then
   export POSTGRES_PASSWORD=local-check-only
+  export C4R_DB_APP_PASSWORD=local-check-only-app
   compose="docker compose -p c4rsys-prodcheck -f docker-compose.prod.yml -f deploy/prod-check.yml"
   trap '$compose --profile e2e down -v --remove-orphans' EXIT
   echo "== e2e on the test server build"

@@ -72,6 +72,7 @@ if [ ! -f "$ENV" ]; then
   sed \
     -e "s|^DJANGO_SECRET_KEY=.*|DJANGO_SECRET_KEY=$(openssl rand -hex 32)|" \
     -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(openssl rand -hex 24)|" \
+    -e "s|^C4R_DB_APP_PASSWORD=.*|C4R_DB_APP_PASSWORD=$(openssl rand -hex 24)|" \
     -e "s|^C4R_SITE_ADDRESS=.*|C4R_SITE_ADDRESS=${SITE}|" \
     -e "s|^C4R_PUBLIC_URL=.*|C4R_PUBLIC_URL=https://${SITE}|" \
     -e "s|^DJANGO_ALLOWED_HOSTS=.*|DJANGO_ALLOWED_HOSTS=${SITE},127.0.0.1|" \

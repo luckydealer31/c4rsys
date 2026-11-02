@@ -10,3 +10,7 @@ RUN npm run build
 FROM caddy:2.10.2-alpine
 COPY --from=build /app/dist /srv
 COPY Caddyfile /etc/caddy/Caddyfile
+# Audit item 38: not root. /data keeps the certificates, /config the autosaved configuration.
+RUN addgroup -S -g 1000 caddy && adduser -S -D -H -u 1000 -G caddy caddy \
+    && chown -R caddy:caddy /data /config
+USER caddy

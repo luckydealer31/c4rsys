@@ -11,7 +11,16 @@ git fetch origin main
 git checkout -q main
 git merge --ff-only origin/main
 
+# Audit item 38: the password of the application database role, made once and never printed.
+if ! grep -q '^C4R_DB_APP_PASSWORD=.' .env.prod; then
+  sed -i '/^C4R_DB_APP_PASSWORD=/d' .env.prod
+  echo "C4R_DB_APP_PASSWORD=$(openssl rand -hex 24)" >> .env.prod
+fi
+
 compose="docker compose -f docker-compose.prod.yml --env-file .env.prod"
-$compose up -d --build --wait
+$compose build
+# Audit item 38: Caddy runs as caddy (uid 1000); volumes made while it ran as root are handed over.
+$compose run --rm --no-deps -T --user root --cap-add CHOWN --entrypoint chown web -R 1000:1000 /data /config
+$compose up -d --wait
 $compose ps
 echo "Deployed $(git rev-parse --short HEAD)"
