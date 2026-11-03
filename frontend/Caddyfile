@@ -35,8 +35,17 @@
 		file_server
 	}
 
+	# Audit item 40. CSP: scripts, styles and requests only from this site; Cloudflare Turnstile
+	# (its script and frame) is the one outside source. blob: and data: are the photos, videos and
+	# files shown before upload or after download. frame-ancestors: no other site can embed the
+	# pages (clickjacking). HSTS: browsers come back over HTTPS only, for a year (PROPOSAL, агент,
+	# не подтверждено); without HTTPS (a local check on :80) browsers ignore it.
 	header {
 		X-Content-Type-Options nosniff
 		Referrer-Policy strict-origin-when-cross-origin
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		Content-Security-Policy "default-src 'self'; script-src 'self' https://challenges.cloudflare.com; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self' data:; connect-src 'self'; frame-src https://challenges.cloudflare.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		Permissions-Policy "geolocation=(self), camera=(self), microphone=(), payment=(), usb=()"
+		Cross-Origin-Opener-Policy same-origin
 	}
 }
