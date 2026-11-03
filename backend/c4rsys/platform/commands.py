@@ -11,11 +11,13 @@ import json
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import IntegrityError, transaction
+from django.utils import timezone
 
 from c4rsys.platform import errors
 from c4rsys.platform.errors import ApiError
@@ -24,6 +26,9 @@ from c4rsys.platform.models import AuditEvent, IdempotencyRecord
 logger = logging.getLogger(__name__)
 
 MAX_IDEMPOTENCY_KEY_LENGTH = 200
+# Audit item 48, CONFIRMED by the customer 04.11.2026: a stored result answers repeats for 30 days;
+# a repeat after that runs as a new command.
+KEEP_IDEMPOTENCY_RECORDS = timedelta(days=30)
 
 
 @dataclass(frozen=True)
@@ -238,3 +243,11 @@ def run_system[T](company_id: UUID, process: str, handler: Callable[[CommandCont
             raise RuntimeError(f"System process {process} produced no journal entry")
         AuditEvent.objects.bulk_create(context.audit_entries)
     return result
+
+
+def remove_old_idempotency_records(now: datetime | None = None) -> int:
+    """Stored results older than KEEP_IDEMPOTENCY_RECORDS (audit item 48). Technical records, like
+    the counters of c4rsys.platform.ratelimit: removed without a journal entry."""
+    border = (now or timezone.now()) - KEEP_IDEMPOTENCY_RECORDS
+    removed, _ = IdempotencyRecord.objects.filter(created_at__lt=border).delete()
+    return removed

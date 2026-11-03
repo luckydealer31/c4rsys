@@ -3,10 +3,18 @@
 #   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 name: c4rsys-test
 
+# Audit item 48 (PROPOSAL): the log of each container keeps 5 files of 10 MB; the oldest is dropped.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   db:
     image: postgres:18.6
     restart: unless-stopped
+    logging: *logging
     environment:
       POSTGRES_DB: c4rsys
       POSTGRES_USER: c4rsys
@@ -23,6 +31,7 @@ services:
   db-role:
     image: postgres:18.6
     restart: "no"
+    logging: *logging
     environment:
       PGHOST: db
       PGUSER: c4rsys
@@ -44,6 +53,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile.prod
     restart: unless-stopped
+    logging: *logging
     env_file:
       - path: .env.prod
         required: false
@@ -77,6 +87,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile.prod
     restart: unless-stopped
+    logging: *logging
     env_file:
       - path: .env.prod
         required: false
@@ -111,6 +122,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile.prod
     restart: unless-stopped
+    logging: *logging
     env_file:
       - path: .env.prod
         required: false
@@ -143,6 +155,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile.prod
     restart: unless-stopped
+    logging: *logging
     env_file:
       - path: .env.prod
         required: false
@@ -163,7 +176,7 @@ services:
     # A shell as the first process ignores the stop signal; init passes it on, so a deploy does
     # not wait 10 s for each loop (audit item 47).
     init: true
-    command: sh -c "while true; do python manage.py run_task_schedule; python manage.py run_notifications; python manage.py remove_import_files; python manage.py process_videos; python manage.py heartbeat schedule; sleep 300; done"
+    command: sh -c "while true; do python manage.py run_task_schedule; python manage.py run_notifications; python manage.py remove_import_files; python manage.py remove_old_auth_records; python manage.py remove_old_idempotency_records; python manage.py process_videos; python manage.py heartbeat schedule; sleep 300; done"
     healthcheck:
       disable: true
     depends_on:
@@ -177,6 +190,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile.prod
     restart: unless-stopped
+    logging: *logging
     environment:
       C4R_SITE_ADDRESS: ${C4R_SITE_ADDRESS:-:80}
     # Audit item 38: Caddy runs as the user caddy, not root; ports 80 and 443 open to it through the

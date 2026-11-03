@@ -93,6 +93,8 @@ class IdempotencyRecord(models.Model):
                 nulls_distinct=False,
             ),
         ]
+        # The removal of old records (commands.remove_old_idempotency_records).
+        indexes = [models.Index(fields=["created_at"], name="idempotency_record_created_idx")]
 
     def __str__(self) -> str:
         return f"{self.command}:{self.key}"

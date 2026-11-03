@@ -182,6 +182,8 @@ class AuthFlow(models.Model):
 
     class Meta:
         db_table = "auth_flow"
+        # The removal of expired flows (c4rsys.accounts.retention).
+        indexes = [models.Index(fields=["expires_at"], name="auth_flow_expires_idx")]
 
     def __str__(self) -> str:
         return f"{self.purpose}:{self.id}"
@@ -224,6 +226,8 @@ class OtpSendLog(models.Model):
         db_table = "otp_send_log"
         indexes = [
             models.Index(fields=["contact_value", "sent_at"], name="otp_send_log_contact_idx"),
+            # The removal of old sends (c4rsys.accounts.retention).
+            models.Index(fields=["sent_at"], name="otp_send_log_sent_idx"),
         ]
 
     def __str__(self) -> str:
