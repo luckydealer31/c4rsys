@@ -26,11 +26,14 @@ services:
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-c4rsys}:${POSTGRES_PASSWORD:-c4rsys_dev_only}@db:5432/${POSTGRES_DB:-c4rsys}
       DJANGO_DEBUG: "1"
+      # Audit item 42: tests/test_api_contract.py writes the real answers next to the types.
+      C4R_CONTRACT_FILE: /frontend-api/contract.generated.ts
     command: sh -c "python manage.py migrate --noinput && python manage.py runserver 0.0.0.0:8000"
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
       - ./backend:/app
+      - ./frontend/src/api:/frontend-api
     depends_on:
       db:
         condition: service_healthy

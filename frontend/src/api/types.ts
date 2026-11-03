@@ -381,6 +381,8 @@ export type Employee = {
     email: string | null;
     photo?: string | null;
     phone?: string | null;
+    /** The contacts are shown hidden in part to this viewer (§ 24.4.3). */
+    contacts_masked: boolean;
   } | null;
   started_at: string | null;
   /** Work contacts, kept apart from the contacts used to sign in (§ 5.1.7). */
@@ -397,6 +399,8 @@ export type Employee = {
     /** § 23.1.3: the set changed since the assignment; applied only by a separate action. */
     set_update?: { added: string[]; removed: string[] } | null;
   })[];
+  /** Rights held through the owner's seat, in the same form as `rights`. */
+  owner_seat_rights: Employee["rights"];
   invitation: Invitation | null;
   /** § 23.3.5: especially broad rights waiting for the director's confirmation. */
   rights_requests?: RightsRequest[];
@@ -530,6 +534,23 @@ export type VehicleTerms = {
   version: number;
   mileage: { mode: "unlimited" | "included"; included_per_unit: string | null; overage_price: string | null };
   deposit: { required: boolean; amount: string | null; hold_days: number | null };
+};
+
+/** A tariff as it was fixed in a rental (§ 13.6.1); the full answer of the server (audit item 42). */
+export type TariffSnapshot = {
+  tariff_id: string;
+  tariff_version: number;
+  name: string;
+  state: string;
+  currency: string;
+  currency_minor_units: number;
+  unit: string;
+  day_mode: string;
+  day_boundary: string | null;
+  all_locations: boolean;
+  locations: string[];
+  ranges: PriceRange[];
+  vehicle_terms: Pick<VehicleTerms, "mileage_unit" | "mileage" | "deposit">;
 };
 
 export type Vehicle = {
@@ -1049,6 +1070,8 @@ export type Booking = {
   restriction_conflict?: { restriction: string; reason: string; starts_at: string; ends_at: string | null } | null;
   vehicle_location_id: string | null;
   client_missing: boolean;
+  /** § 14.8.1: a new booking made instead of a cancelled one refers to it. */
+  previous_booking: string | null;
 };
 
 export type BookingConflict = {
@@ -1157,7 +1180,8 @@ export type Rental = RentalSummary & {
     missing_reasons: { kind: "issue" | "return"; reason: string; created_by_user_id: string; created_at: string }[];
   };
   formalization: { completed_at: string | null; missing: string[] };
-  tariff_snapshot: { name: string; currency: string; ranges: PriceRange[] } | null;
+  /** The terms of the tariff fixed at the booking or the issue (§ 13.6.1). */
+  tariff_snapshot: TariffSnapshot | null;
   calculation: Calculation | null;
   free_intervals?: FreeInterval[];
   mileage?: Mileage | null;
@@ -1274,7 +1298,8 @@ export type Payment = {
   currency: string;
   state: string;
   method: string;
-  kind: "payment" | "opening" | "manual" | "transfer" | "supplier" | "refund" | "reversal";
+  /** «deposit» — a deposit paid back to the client (§ 14.7.3). */
+  kind: "payment" | "opening" | "manual" | "transfer" | "supplier" | "refund" | "deposit" | "reversal";
   direction: "in" | "out";
   counterparty_id: string | null;
   /** The client was corrected after the payment (§ 17.2.12); `client_id` is the current one. */
