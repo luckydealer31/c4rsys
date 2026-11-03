@@ -201,3 +201,14 @@ LOGGING = {
     "handlers": {"console": {"class": "logging.StreamHandler"}},
     "root": {"handlers": ["console"], "level": os.environ.get("DJANGO_LOG_LEVEL", "INFO")},
 }
+
+# Server errors to Sentry (audit item 21): c4rsys.platform.monitoring. Off without SENTRY_DSN.
+SENTRY_DSN = os.environ.get("SENTRY_DSN", "")
+if SENTRY_DSN:
+    from c4rsys.platform import monitoring
+
+    monitoring.init(
+        SENTRY_DSN,
+        environment=os.environ.get("C4R_SENTRY_ENVIRONMENT", "test"),
+        release=os.environ.get("C4R_RELEASE", ""),
+    )

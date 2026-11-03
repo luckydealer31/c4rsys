@@ -17,6 +17,9 @@ if ! grep -q '^C4R_DB_APP_PASSWORD=.' .env.prod; then
   echo "C4R_DB_APP_PASSWORD=$(openssl rand -hex 24)" >> .env.prod
 fi
 
+# The version of the code in the reports of errors (audit item 21).
+C4R_RELEASE="$(git rev-parse --short HEAD)"
+export C4R_RELEASE
 compose="docker compose -f docker-compose.prod.yml --env-file .env.prod"
 $compose build
 # Audit item 38: Caddy runs as caddy (uid 1000); volumes made while it ran as root are handed over.

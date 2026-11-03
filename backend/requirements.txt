@@ -9,5 +9,7 @@ argon2-cffi>=23.1,<30
 django-anymail>=15.2,<16
 boto3>=1.43.6,<2
 gunicorn>=26.2,<27
+# Server errors to Sentry (audit item 21, customer decision 03.11.2026); off without SENTRY_DSN.
+sentry-sdk[django]>=2.20,<3
 # XLSX import (§ 22.2).
 openpyxl>=3.1,<4
