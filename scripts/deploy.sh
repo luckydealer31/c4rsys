@@ -20,7 +20,9 @@ fi
 compose="docker compose -f docker-compose.prod.yml --env-file .env.prod"
 $compose build
 # Audit item 38: Caddy runs as caddy (uid 1000); volumes made while it ran as root are handed over.
-$compose run --rm --no-deps -T --user root --cap-add CHOWN --entrypoint chown web -R 1000:1000 /data /config
+# DAC_OVERRIDE: the folders already handed over are closed to everyone but caddy.
+$compose run --rm --no-deps -T --user root --cap-add CHOWN --cap-add DAC_OVERRIDE \
+  --entrypoint chown web -R 1000:1000 /data /config
 $compose up -d --wait
 $compose ps
 echo "Deployed $(git rev-parse --short HEAD)"
