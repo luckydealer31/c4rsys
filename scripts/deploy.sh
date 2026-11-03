@@ -7,7 +7,8 @@
 # main (ghcr.io, .github/workflows/ci.yml); this script waits for them, downloads them and
 # restarts the services; Caddy holds the requests while the backend restarts. The versions put on
 # the server are listed in .deploy-history. Migrations run when the backend starts; going back
-# does not undo them, so a version older than a migration that removed something may not start.
+# does not undo them, so a version older than a migration that removed something may not start:
+# before a version with migrations the database is copied (audit item 24, below).
 # Needs .env.prod (template: deploy/env.prod.example).
 set -eu
 cd "$(dirname "$0")/.."
@@ -56,9 +57,39 @@ done
 # DAC_OVERRIDE: the folders already handed over are closed to everyone but caddy.
 $compose run --rm --no-deps -T --user root --cap-add CHOWN --cap-add DAC_OVERRIDE \
   --entrypoint chown web -R 1000:1000 /data /config
+$compose up -d --no-build --wait db
+
+# Audit item 24: a version that brings migrations gets a copy of the database and files first,
+# taken when the background loops have stopped; the backend keeps serving until it restarts, so
+# what is entered in those seconds is not in the copy. A failed start then names the way back.
+running="$(tail -n 1 .deploy-history 2>/dev/null || true)"
+copy=""
+if [ -n "$running" ] && [ "$running" != "$version" ] \
+  && ! $compose run --rm --no-deps -T backend python manage.py migrate --check --noinput \
+    > /dev/null 2>&1 < /dev/null; then
+  echo "$C4R_RELEASE brings migrations: copying the database first"
+  $compose stop rates deposits schedule
+  label="before-$C4R_RELEASE"
+  C4R_BACKUP_LABEL="$label" ./scripts/backup.sh || {
+    $compose start rates deposits schedule
+    echo "No copy, so $C4R_RELEASE is not deployed; the current version keeps running"
+    exit 1
+  }
+  copy="$(ls -d "${C4R_BACKUP_DIR:-/var/backups/c4rsys}"/20*-"$label" | tail -n 1)"
+fi
+way_back() {
+  status=$?
+  [ "$status" -eq 0 ] || [ -z "$copy" ] || cat <<EOF
+$C4R_RELEASE did not start. The previous version and the database as it was before the deploy:
+  ./scripts/deploy.sh $running
+  C4R_RESTORE_VERSION=$running ./scripts/restore.sh $copy
+The first is enough when the old version starts on the migrated database (deploy/RECOVERY.md, case 1).
+EOF
+}
+trap way_back EXIT
+
 # Two steps: compose recreates the services that depend on a recreated one, so in one step a new
 # backend would restart Caddy too. Caddy is recreated only when its own image changed (item 47).
-$compose up -d --no-build --wait db
 $compose up -d --no-build --wait --no-deps db-role backend rates deposits schedule
 $compose up -d --no-build --wait --no-deps web
 $compose ps

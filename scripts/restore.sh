@@ -18,8 +18,11 @@ if [ -z "$answer" ]; then
 fi
 [ "$answer" = "RESTORE" ] || { echo "Nothing changed"; exit 1; }
 
-# The images of the version on the server now (scripts/deploy.sh).
-version="$(tail -n 1 .deploy-history 2>/dev/null || git rev-parse HEAD)"
+# The images of the version on the server now (scripts/deploy.sh), or of C4R_RESTORE_VERSION: a
+# deploy whose new version failed goes back to the version before it, with the copy made before
+# its migrations (audit item 24); that version then counts as deployed.
+deployed="$(tail -n 1 .deploy-history 2>/dev/null || true)"
+version="$(git rev-parse --verify "${C4R_RESTORE_VERSION:-${deployed:-HEAD}}^{commit}")"
 C4R_VERSION="$version"
 C4R_WEB_VERSION="tree-$(git rev-parse "$version:frontend")"
 C4R_RELEASE="$(echo "$version" | cut -c1-7)"
@@ -44,4 +47,5 @@ $compose run --rm --no-deps -T --entrypoint sh backend \
 echo "== starting the application"
 # db-role gives the restored tables back to the application role (audit item 38).
 $compose up -d --no-build --wait --no-deps db-role backend rates deposits schedule
+[ "$version" = "$deployed" ] || echo "$version" >> .deploy-history
 echo "Restored from $copy"
