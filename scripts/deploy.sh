@@ -36,9 +36,11 @@ if ! grep -q '^C4R_DB_APP_PASSWORD=.' .env.prod; then
 fi
 
 C4R_VERSION="$version"
+# The interface image is tagged by the content of frontend/ (CI): Caddy restarts only when it changed.
+C4R_WEB_VERSION="tree-$(git rev-parse "$version:frontend")"
 # The version of the code in the reports of errors (audit item 21).
 C4R_RELEASE="$(echo "$version" | cut -c1-7)"
-export C4R_VERSION C4R_RELEASE
+export C4R_VERSION C4R_WEB_VERSION C4R_RELEASE
 compose="docker compose -f docker-compose.prod.yml --env-file .env.prod"
 
 # CI needs a few minutes after a push to publish the images.
@@ -59,9 +61,11 @@ $compose ps
 echo "$version" >> .deploy-history
 # Images of versions no longer listed among the last ten are removed (audit item 48: disk).
 keep="$(tail -n 10 .deploy-history | cut -c1-40 | sort -u)"
+keep="$keep
+$(echo "$keep" | while read -r v; do echo "tree-$(git rev-parse "$v:frontend" 2>/dev/null)"; done)"
 docker images --format '{{.Repository}}:{{.Tag}}' \
-  | grep -E '/c4rsys-(backend|web):[0-9a-f]{40}$' \
+  | grep -E '/c4rsys-(backend|web):(tree-)?[0-9a-f]{40}$' \
   | while read -r image; do
-      echo "$keep" | grep -qx "${image##*:}" || docker rmi -f "$image" >/dev/null 2>&1 || true
+      echo "$keep" | grep -qx "${image##*:}" || docker rmi "$image" >/dev/null 2>&1 || true
     done
 echo "Deployed $C4R_RELEASE"

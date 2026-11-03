@@ -109,16 +109,27 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - id: name
-        run: echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/c4rsys-${{ matrix.name }}" >> "$GITHUB_OUTPUT"
-      - uses: docker/build-push-action@v6
+      # The web image is tagged by the content of frontend/ (its git tree) and built only when that
+      # content is new: a deploy that does not change the interface keeps Caddy running (item 47).
+      - id: tag
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/c4rsys-${{ matrix.name }}"
+          if [ "${{ matrix.name }}" = web ]; then
+            tag="tree-$(git rev-parse HEAD:frontend)"
+            if docker manifest inspect "$image:$tag" >/dev/null 2>&1; then
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            tag="${{ github.sha }}"
+          fi
+          echo "tags=$image:$tag" >> "$GITHUB_OUTPUT"
+      - if: steps.tag.outputs.skip != 'true'
+        uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.context }}/Dockerfile.prod
           push: true
-          tags: |
-            ${{ steps.name.outputs.image }}:${{ github.sha }}
-            ${{ steps.name.outputs.image }}:latest
+          tags: ${{ steps.tag.outputs.tags }}
           labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}

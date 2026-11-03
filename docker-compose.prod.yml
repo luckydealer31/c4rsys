@@ -160,7 +160,8 @@ services:
         condition: service_healthy
 
   web:
-    image: ${C4R_IMAGES:-ghcr.io/luckydealer31}/c4rsys-web:${C4R_VERSION:-latest}
+    # Tagged by the content of frontend/: the same interface keeps the same container (item 47).
+    image: ${C4R_IMAGES:-ghcr.io/luckydealer31}/c4rsys-web:${C4R_WEB_VERSION:-latest}
     build:
       context: ./frontend
       dockerfile: Dockerfile.prod
