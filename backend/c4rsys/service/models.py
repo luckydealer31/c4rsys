@@ -244,6 +244,12 @@ class ServiceOperation(models.Model):
         indexes = [
             models.Index(fields=["company", "order"], name="service_operation_order_idx"),
             models.Index(fields=["vehicle_card", "state"], name="service_operation_vehicle_idx"),
+            # Audit item 13: the warning of an overdue operation, all companies (service.notices).
+            models.Index(
+                fields=["planned_end"],
+                condition=Q(state__in=OPEN_STATES),
+                name="service_operation_open_end_idx",
+            ),
         ]
 
     def __str__(self) -> str:

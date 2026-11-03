@@ -357,6 +357,35 @@ class Rental(models.Model):
                 name="rental_returned_has_end_and_place",
             ),
         ]
+        # Audit item 13: the list of the section (newest first) and the background scans over
+        # all companies, each limited to the rentals of one state.
+        indexes = [
+            models.Index(fields=["company", "-actual_start"], name="rental_company_start_idx"),
+            # bookings.cancel_no_shows, every 10 minutes (§ 14.8.1).
+            models.Index(
+                fields=["auto_cancel_at"],
+                condition=Q(state="booked"),
+                name="rental_booked_auto_cancel_idx",
+            ),
+            # The warnings of a coming issue and of a schedule conflict (rentals.notices).
+            models.Index(
+                fields=["planned_start"],
+                condition=Q(state="booked"),
+                name="rental_booked_start_idx",
+            ),
+            # The warnings of a coming and an overdue return (rentals.notices), reports.
+            models.Index(
+                fields=["planned_end"],
+                condition=Q(state="active"),
+                name="rental_active_end_idx",
+            ),
+            # The automatic transfer of deposits after the hold term (§ 14.7.1).
+            models.Index(
+                fields=["actual_end"],
+                condition=Q(state="returned"),
+                name="rental_returned_end_idx",
+            ),
+        ]
 
     def __str__(self) -> str:
         return f"rental {self.id}"
