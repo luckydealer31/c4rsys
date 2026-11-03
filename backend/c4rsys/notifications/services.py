@@ -12,6 +12,7 @@ Other modules raise a notification for a condition and end it when the cause is 
 
 from collections.abc import Callable, Iterable
 from datetime import datetime
+from functools import partial
 from typing import Any
 from uuid import UUID
 
@@ -21,6 +22,7 @@ from django.utils import timezone
 from c4rsys.companies import access
 from c4rsys.companies.models import Employment
 from c4rsys.notifications.models import Notification, NotificationRecipient, NotificationRepeat
+from c4rsys.platform import jobs
 from c4rsys.platform.commands import Actor
 
 Kind = Notification.Kind
@@ -34,7 +36,11 @@ def register_check(check: Check) -> None:
 
 def run_checks(now: datetime | None = None) -> int:
     moment = now or timezone.now()
-    return sum(check(moment) for check in _checks)
+    # Audit item 19: a check that fails does not stop the checks of the other modules.
+    return sum(
+        jobs.isolated("notification_check", check.__qualname__, partial(check, moment))
+        for check in _checks
+    )
 
 
 def active(company_id: UUID, condition: str) -> Notification | None:

@@ -24,7 +24,7 @@ from c4rsys.finance import charges, rates
 from c4rsys.finance.models import CashAccount, DepositEntry, MoneyMovement
 from c4rsys.orders import services as orders
 from c4rsys.orders.models import Order
-from c4rsys.platform import errors, suspension
+from c4rsys.platform import errors, jobs, suspension
 from c4rsys.platform.commands import CommandContext
 from c4rsys.platform.counters import next_number
 from c4rsys.platform.models import AuditEvent, Currency
@@ -510,8 +510,12 @@ def release_expired(now: datetime | None = None) -> int:
     for candidate in _rentals().returned_with_deposit_term(moment):
         if candidate.company_id in blocked:
             continue
-        with transaction.atomic():
-            moved += _release_one(candidate.company_id, candidate.id, moment)
+
+        def work(company_id: UUID = candidate.company_id, rental_id: UUID = candidate.id) -> int:
+            with transaction.atomic():
+                return _release_one(company_id, rental_id, moment)
+
+        moved += jobs.isolated("deposit_release", candidate.id, work)
     return moved
 
 

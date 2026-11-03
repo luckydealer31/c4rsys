@@ -50,6 +50,9 @@ services:
       POSTGRES_PASSWORD: ""
       DJANGO_DEBUG: "0"
       C4R_RELEASE: ${C4R_RELEASE:-}
+      # Audit item 20 (PROPOSAL): queries and idle transactions are stopped after 60 s.
+      C4R_DB_STATEMENT_TIMEOUT_MS: ${C4R_DB_STATEMENT_TIMEOUT_MS:-60000}
+      C4R_DB_IDLE_TRANSACTION_TIMEOUT_MS: ${C4R_DB_IDLE_TRANSACTION_TIMEOUT_MS:-60000}
       C4R_FILES_ROOT: /data/files
       # Reached only through Caddy (port 8000 is not published): the visitor's address is the
       # last entry of X-Forwarded-For (audit item 37).
@@ -77,6 +80,9 @@ services:
       POSTGRES_PASSWORD: ""
       DJANGO_DEBUG: "0"
       C4R_RELEASE: ${C4R_RELEASE:-}
+      # Audit item 20 (PROPOSAL): queries and idle transactions are stopped after 60 s.
+      C4R_DB_STATEMENT_TIMEOUT_MS: ${C4R_DB_STATEMENT_TIMEOUT_MS:-60000}
+      C4R_DB_IDLE_TRANSACTION_TIMEOUT_MS: ${C4R_DB_IDLE_TRANSACTION_TIMEOUT_MS:-60000}
     command: sh -c "while true; do python manage.py fetch_exchange_rates; sleep 10800; done"
     healthcheck:
       disable: true
@@ -100,6 +106,9 @@ services:
       POSTGRES_PASSWORD: ""
       DJANGO_DEBUG: "0"
       C4R_RELEASE: ${C4R_RELEASE:-}
+      # Audit item 20 (PROPOSAL): queries and idle transactions are stopped after 60 s.
+      C4R_DB_STATEMENT_TIMEOUT_MS: ${C4R_DB_STATEMENT_TIMEOUT_MS:-60000}
+      C4R_DB_IDLE_TRANSACTION_TIMEOUT_MS: ${C4R_DB_IDLE_TRANSACTION_TIMEOUT_MS:-60000}
     command: sh -c "while true; do python manage.py release_deposits; python manage.py cancel_no_shows; sleep 600; done"
     healthcheck:
       disable: true
@@ -123,6 +132,9 @@ services:
       POSTGRES_PASSWORD: ""
       DJANGO_DEBUG: "0"
       C4R_RELEASE: ${C4R_RELEASE:-}
+      # Audit item 20 (PROPOSAL): queries and idle transactions are stopped after 60 s.
+      C4R_DB_STATEMENT_TIMEOUT_MS: ${C4R_DB_STATEMENT_TIMEOUT_MS:-60000}
+      C4R_DB_IDLE_TRANSACTION_TIMEOUT_MS: ${C4R_DB_IDLE_TRANSACTION_TIMEOUT_MS:-60000}
       C4R_FILES_ROOT: /data/files
     volumes:
       - files_data:/data/files

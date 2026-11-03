@@ -22,4 +22,6 @@ USER c4rsys
 EXPOSE 8000
 HEALTHCHECK --interval=10s --timeout=5s --retries=12 \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4)"
-CMD ["sh", "-c", "python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers ${GUNICORN_WORKERS:-3} --timeout ${GUNICORN_TIMEOUT:-600} --access-logfile -"]
+# Audit item 20: threads, so a few slow requests (a long upload of a video, a stuck query) do not
+# leave the site without free workers; migrations run without the query time limits.
+CMD ["sh", "-c", "C4R_DB_STATEMENT_TIMEOUT_MS=0 C4R_DB_IDLE_TRANSACTION_TIMEOUT_MS=0 python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers ${GUNICORN_WORKERS:-3} --worker-class gthread --threads ${GUNICORN_THREADS:-4} --timeout ${GUNICORN_TIMEOUT:-120} --access-logfile -"]

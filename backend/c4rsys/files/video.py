@@ -23,6 +23,7 @@ import subprocess
 import threading
 from datetime import timedelta
 from decimal import Decimal
+from functools import partial
 from pathlib import Path
 from typing import Any, BinaryIO
 from uuid import UUID
@@ -33,7 +34,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from c4rsys.files.models import StoredFile
-from c4rsys.platform import errors
+from c4rsys.platform import errors, jobs
 from c4rsys.platform.models import AuditEvent
 
 logger = logging.getLogger(__name__)
@@ -335,7 +336,15 @@ def pending() -> list[UUID]:
 
 
 def process_pending() -> int:
-    return sum(1 for file_id in pending() if compress(file_id))
+    # Audit item 19: an error on one video does not stop the others.
+    return sum(
+        jobs.isolated("video_compression", file_id, partial(_compressed, file_id))
+        for file_id in pending()
+    )
+
+
+def _compressed(file_id: UUID) -> int:
+    return 1 if compress(file_id) else 0
 
 
 # --- Reading -------------------------------------------------------------------------------------

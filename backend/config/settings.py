@@ -90,6 +90,16 @@ DATABASES = {
 }
 # Transactions are explicit per business command (A07), not per HTTP request.
 DATABASES["default"]["ATOMIC_REQUESTS"] = False
+# Audit item 20: a query that runs too long, or a transaction left open and idle, is stopped by the
+# database instead of holding a worker and its locks. 0 — no limit (development, migrations). The
+# test server sets 60 s and 60 s (PROPOSAL, агент, не подтверждено).
+_STATEMENT_TIMEOUT_MS = int(os.environ.get("C4R_DB_STATEMENT_TIMEOUT_MS", "0"))
+_IDLE_TRANSACTION_TIMEOUT_MS = int(os.environ.get("C4R_DB_IDLE_TRANSACTION_TIMEOUT_MS", "0"))
+if _STATEMENT_TIMEOUT_MS or _IDLE_TRANSACTION_TIMEOUT_MS:
+    DATABASES["default"].setdefault("OPTIONS", {})["options"] = (
+        f"-c statement_timeout={_STATEMENT_TIMEOUT_MS}"
+        f" -c idle_in_transaction_session_timeout={_IDLE_TRANSACTION_TIMEOUT_MS}"
+    )
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

@@ -25,6 +25,7 @@ import io
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
+from functools import partial
 from typing import Any, Protocol
 from uuid import UUID
 from zipfile import BadZipFile
@@ -39,7 +40,7 @@ from c4rsys.companies import access
 from c4rsys.companies.models import Company
 from c4rsys.files import services as files
 from c4rsys.files.models import StoredFile
-from c4rsys.platform import errors
+from c4rsys.platform import errors, jobs
 from c4rsys.platform.commands import Actor, CommandContext
 from c4rsys.platform.models import AuditEvent
 from c4rsys.warehouse import import_help_th
@@ -888,31 +889,38 @@ def remove_old_files(now: datetime | None = None) -> int:
     ).values_list("pk", "created_at"):
         if shift_months(created_at, KEEP_FILES_MONTHS) > moment:
             continue
-        with transaction.atomic():
-            # Locked and read again: a corrected file uploaded meanwhile is removed too.
-            operation = (
-                ImportOperation.objects.select_for_update()
-                .filter(pk=candidate, files_removed_at__isnull=True)
-                .first()
-            )
-            if operation is None:
-                continue
-            ids = [operation.file_id] if operation.file_id else []
-            ids += [UUID(u["file"]) for u in operation.uploads if u.get("file")]
-            for file_id in ids:
-                files.remove(file_id)
-            operation.files_removed_at = moment
-            operation.save(update_fields=["files_removed_at"])
-            AuditEvent.objects.create(
-                company_id=operation.company_id,
-                system_process="import_files_retention",
-                action="warehouse.import_files_removed",
-                object_type="warehouse_import",
-                object_id=str(operation.id),
-                after={"files": [str(i) for i in ids]},
-            )
-        removed += 1
+        # Audit item 19: an import whose files cannot be removed does not stop the others.
+        removed += jobs.isolated(
+            "import_files_retention", candidate, partial(_remove_files, candidate, moment)
+        )
     return removed
+
+
+def _remove_files(operation_id: UUID, moment: datetime) -> int:
+    with transaction.atomic():
+        # Locked and read again: a corrected file uploaded meanwhile is removed too.
+        operation = (
+            ImportOperation.objects.select_for_update()
+            .filter(pk=operation_id, files_removed_at__isnull=True)
+            .first()
+        )
+        if operation is None:
+            return 0
+        ids = [operation.file_id] if operation.file_id else []
+        ids += [UUID(u["file"]) for u in operation.uploads if u.get("file")]
+        for file_id in ids:
+            files.remove(file_id)
+        operation.files_removed_at = moment
+        operation.save(update_fields=["files_removed_at"])
+        AuditEvent.objects.create(
+            company_id=operation.company_id,
+            system_process="import_files_retention",
+            action="warehouse.import_files_removed",
+            object_type="warehouse_import",
+            object_id=str(operation.id),
+            after={"files": [str(i) for i in ids]},
+        )
+    return 1
 
 
 def payload(operation: ImportOperation, with_rows: bool = True) -> dict[str, Any]:

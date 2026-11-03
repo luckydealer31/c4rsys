@@ -23,7 +23,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from c4rsys.companies.models import Company
-from c4rsys.platform import errors, suspension
+from c4rsys.platform import errors, jobs, suspension
 from c4rsys.platform.commands import CommandContext
 from c4rsys.platform.counters import next_number
 from c4rsys.platform.models import AuditEvent
@@ -201,8 +201,12 @@ def run(now: datetime | None = None) -> int:
     for series_id in TaskSeries.objects.filter(
         state=TaskSeries.State.ACTIVE, next_on__isnull=False
     ).values_list("id", flat=True):
-        with transaction.atomic():
-            made += _run_one(series_id, moment)
+
+        def work(series_id: UUID = series_id) -> int:
+            with transaction.atomic():
+                return _run_one(series_id, moment)
+
+        made += jobs.isolated("task_series", series_id, work)
     return made
 
 

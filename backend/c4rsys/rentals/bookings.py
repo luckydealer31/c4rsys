@@ -24,7 +24,7 @@ from c4rsys.fleet import services as fleet
 from c4rsys.fleet.models import VehicleCard
 from c4rsys.orders import services as orders
 from c4rsys.parties import services as parties
-from c4rsys.platform import errors, suspension
+from c4rsys.platform import errors, jobs, suspension
 from c4rsys.platform.commands import CommandContext
 from c4rsys.platform.counters import next_number
 from c4rsys.rentals import billing, extra_lines, places, tariffs
@@ -636,10 +636,13 @@ def cancel_no_shows(now: datetime | None = None) -> int:
             cancel(ctx, locked.company_id, locked.id, "no_show", None, automatic=True)
             return 1
 
-        try:
-            cancelled += run_system(booking.company_id, AUTO_CANCEL_PROCESS, handler)
-        except _Skip:
-            continue
+        def work(company_id: UUID = booking.company_id, handler: Any = handler) -> int:
+            try:
+                return int(run_system(company_id, AUTO_CANCEL_PROCESS, handler))
+            except _Skip:
+                return 0
+
+        cancelled += jobs.isolated(AUTO_CANCEL_PROCESS, booking.id, work)
     return cancelled
 
 
