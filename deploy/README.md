@@ -73,7 +73,7 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod exec backend \
 
 Сервер ничего не собирает. CI на каждый коммит в `main` собирает образы `ghcr.io/luckydealer31/c4rsys-backend` и
 `c4rsys-web` с тегом коммита (задание `images` в `.github/workflows/ci.yml`). `scripts/deploy.sh` ждёт их
-(до 20 минут после push), скачивает и перезапускает сервисы. Caddy до 30 секунд держит запросы, пока
+(до 20 минут после push), скачивает и перезапускает сервисы. Caddy до 60 секунд держит запросы, пока
 перезапускается backend, поэтому посетители не видят ошибок.
 
 ```bash

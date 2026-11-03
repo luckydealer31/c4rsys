@@ -1,9 +1,9 @@
 # C4R_SITE_ADDRESS: "test.c4rsys.com" gets HTTPS automatically; ":80" serves plain HTTP
 # (a local check, or a server where another web server already terminates HTTPS).
-# Audit item 47: while the backend restarts at a deploy, a request waits up to 30 s for it
+# Audit item 47: while the backend restarts at a deploy, a request waits up to 60 s for it
 # instead of an error. Only a connection that failed is tried again, so nothing runs twice.
 (backend_restart) {
-	lb_try_duration 30s
+	lb_try_duration 60s
 	lb_try_interval 500ms
 }
 

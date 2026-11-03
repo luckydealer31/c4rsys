@@ -89,6 +89,9 @@ services:
       # Audit item 20 (PROPOSAL): queries and idle transactions are stopped after 60 s.
       C4R_DB_STATEMENT_TIMEOUT_MS: ${C4R_DB_STATEMENT_TIMEOUT_MS:-60000}
       C4R_DB_IDLE_TRANSACTION_TIMEOUT_MS: ${C4R_DB_IDLE_TRANSACTION_TIMEOUT_MS:-60000}
+    # A shell as the first process ignores the stop signal; init passes it on, so a deploy does
+    # not wait 10 s for each loop (audit item 47).
+    init: true
     command: sh -c "while true; do python manage.py fetch_exchange_rates; sleep 10800; done"
     healthcheck:
       disable: true
@@ -118,6 +121,9 @@ services:
       # Audit item 20 (PROPOSAL): queries and idle transactions are stopped after 60 s.
       C4R_DB_STATEMENT_TIMEOUT_MS: ${C4R_DB_STATEMENT_TIMEOUT_MS:-60000}
       C4R_DB_IDLE_TRANSACTION_TIMEOUT_MS: ${C4R_DB_IDLE_TRANSACTION_TIMEOUT_MS:-60000}
+    # A shell as the first process ignores the stop signal; init passes it on, so a deploy does
+    # not wait 10 s for each loop (audit item 47).
+    init: true
     command: sh -c "while true; do python manage.py release_deposits; python manage.py cancel_no_shows; sleep 600; done"
     healthcheck:
       disable: true
@@ -152,6 +158,9 @@ services:
       - files_data:/data/files
     # Decision В-8.1: inspection videos whose compression was interrupted are compressed again;
     # the files volume is shared with the backend for that (and for the removal of imports).
+    # A shell as the first process ignores the stop signal; init passes it on, so a deploy does
+    # not wait 10 s for each loop (audit item 47).
+    init: true
     command: sh -c "while true; do python manage.py run_task_schedule; python manage.py run_notifications; python manage.py remove_import_files; python manage.py process_videos; sleep 300; done"
     healthcheck:
       disable: true
