@@ -129,18 +129,9 @@ PROPOSAL (агент, не подтверждено; O13 открыт): кажд
 или восемь дней без успешной проверки, внешний монитор присылает письмо. Оба таймера ставит
 `bash deploy/backup-timer.sh`.
 
-Восстановление (сайт на время останавливается):
-
-```bash
-cd /opt/c4rsys && B=/var/backups/c4rsys/<время>
-(cd $B && sha256sum -c SHA256SUMS)
-compose="docker compose -f docker-compose.prod.yml --env-file .env.prod"
-$compose stop backend schedule rates deposits
-$compose exec -T db dropdb -U c4rsys c4rsys && $compose exec -T db createdb -U c4rsys c4rsys
-$compose exec -T db pg_restore -U c4rsys -d c4rsys --no-owner < $B/db.dump
-$compose run --rm --no-deps -T backend sh -c 'rm -rf /data/files/* && tar -C /data/files -xzf -' < $B/files.tar.gz
-$compose up -d --wait
-```
+Восстановление: `./scripts/restore.sh /var/backups/c4rsys/<время>`. Перед ним скрипт сам сохраняет копию
+текущего состояния. Сайт на минуту-две останавливается. Что делать в разных авариях, описано в
+[RECOVERY.md](RECOVERY.md).
 
 ## Проверка приёмки
 

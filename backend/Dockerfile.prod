@@ -20,7 +20,9 @@ COPY . .
 USER c4rsys
 
 EXPOSE 8000
-HEALTHCHECK --interval=10s --timeout=5s --retries=12 \
+# The first start on an empty database applies all migrations for a few minutes; failed checks of
+# that time do not count (found at the restore drill, audit item 49).
+HEALTHCHECK --interval=10s --timeout=5s --retries=12 --start-period=600s --start-interval=5s \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4)"
 # Audit item 20: threads, so a few slow requests (a long upload of a video, a stuck query) do not
 # leave the site without free workers; migrations run without the query time limits.
