@@ -356,20 +356,29 @@ def of_order(order_id: UUID) -> QuerySet[OrderApproval]:
 
 def operations_for_order(company_id: UUID, order_id: UUID) -> list[OperationSummary]:
     """A waiting position without the permission to proceed keeps the order from closing."""
-    return [
-        OperationSummary(
-            type="approval",
-            id=a.id,
-            state=a.state,
-            location_id=None,
-            # Not an operation to finish: only the condition «awaits the client» is shown.
-            finished=True,
-            blockers=("awaiting_client",),
+    return operations_for_orders(company_id, [order_id])[order_id]
+
+
+def operations_for_orders(
+    company_id: UUID, order_ids: list[UUID]
+) -> dict[UUID, list[OperationSummary]]:
+    """The same for many orders in one reading (audit item 14)."""
+    result: dict[UUID, list[OperationSummary]] = {order_id: [] for order_id in order_ids}
+    for a in OrderApproval.objects.filter(
+        company_id=company_id, order_id__in=order_ids, state=State.PENDING, proceed_at__isnull=True
+    ):
+        result[a.order_id].append(
+            OperationSummary(
+                type="approval",
+                id=a.id,
+                state=a.state,
+                location_id=None,
+                # Not an operation to finish: only the condition «awaits the client» is shown.
+                finished=True,
+                blockers=("awaiting_client",),
+            )
         )
-        for a in OrderApproval.objects.filter(
-            company_id=company_id, order_id=order_id, state=State.PENDING, proceed_at__isnull=True
-        )
-    ]
+    return result
 
 
 def payload(a: OrderApproval) -> dict[str, Any]:

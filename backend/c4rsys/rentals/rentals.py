@@ -212,12 +212,19 @@ def mileage(rental: Rental) -> dict[str, Any] | None:
 def operations_for_order(company_id: UUID, order_id: UUID) -> list[OperationSummary]:
     """Rentals of an order as the order sees them. A rental is finished when it is returned and
     its formalization is completed, or when it is cancelled or annulled (§ 12.1.9, § 14.5.6)."""
-    result = []
-    for rental in Rental.objects.filter(company_id=company_id, order_id=order_id):
+    return operations_for_orders(company_id, [order_id])[order_id]
+
+
+def operations_for_orders(
+    company_id: UUID, order_ids: list[UUID]
+) -> dict[UUID, list[OperationSummary]]:
+    """The same for many orders in one reading (audit item 14)."""
+    result: dict[UUID, list[OperationSummary]] = {order_id: [] for order_id in order_ids}
+    for rental in Rental.objects.filter(company_id=company_id, order_id__in=order_ids):
         finished = rental.state in (Rental.State.CANCELLED, Rental.State.ANNULLED) or (
             rental.state == Rental.State.RETURNED and rental.formalization_completed_at is not None
         )
-        result.append(
+        result[rental.order_id].append(
             OperationSummary(
                 type="rental",
                 id=rental.id,

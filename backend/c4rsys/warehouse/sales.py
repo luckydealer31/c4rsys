@@ -484,20 +484,29 @@ def on_order_cancel(ctx: CommandContext, company_id: UUID, order_id: UUID, reaso
 def operations_for_order(company_id: UUID, order_id: UUID) -> list[orders.OperationSummary]:
     """Goods lines as operations of the order: always ready to close; closing needs the right of
     sale (§ 11.9.4)."""
-    return [
-        orders.OperationSummary(
-            type="sale",
-            id=line.id,
-            state=line.state,
-            location_id=line.context.location_id,
-            finished=True,
+    return operations_for_orders(company_id, [order_id])[order_id]
+
+
+def operations_for_orders(
+    company_id: UUID, order_ids: list[UUID]
+) -> dict[UUID, list[orders.OperationSummary]]:
+    """The same for many orders in one reading (audit item 14)."""
+    result: dict[UUID, list[orders.OperationSummary]] = {order_id: [] for order_id in order_ids}
+    for line in SaleLine.objects.select_related("context").filter(
+        company_id=company_id,
+        order_id__in=order_ids,
+        state__in=[SaleLine.State.RESERVED, SaleLine.State.SOLD],
+    ):
+        result[line.order_id].append(
+            orders.OperationSummary(
+                type="sale",
+                id=line.id,
+                state=line.state,
+                location_id=line.context.location_id,
+                finished=True,
+            )
         )
-        for line in SaleLine.objects.select_related("context").filter(
-            company_id=company_id,
-            order_id=order_id,
-            state__in=[SaleLine.State.RESERVED, SaleLine.State.SOLD],
-        )
-    ]
+    return result
 
 
 def history_for_order(company_id: UUID, order_id: UUID) -> list[tuple[str, str]]:

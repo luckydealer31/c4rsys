@@ -28,7 +28,7 @@ class OrdersConfig(AppConfig):
         from c4rsys.orders import approvals
         from c4rsys.orders import services as orders
 
-        orders.register_operations(approvals.operations_for_order)
+        orders.register_operations(approvals.operations_for_order, approvals.operations_for_orders)
         from c4rsys.orders import cancellers
 
         cancellers.register()

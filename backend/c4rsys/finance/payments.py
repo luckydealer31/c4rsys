@@ -185,23 +185,35 @@ def receive(
 # --- Amounts for orders and clients -----------------------------------------------------------
 
 
-def _settled(allocations: Any) -> dict[str, Decimal]:
-    """What active allocations settle, per currency of the orders (§ 17.1.4)."""
+def _settled(allocations: Any, by: tuple[str, ...] = ()) -> Any:
+    """What active allocations settle, per currency of the orders (§ 17.1.4); with `by` — rows
+    grouped also by those fields."""
     rows = (
         allocations.filter(state=PaymentAllocation.State.ACTIVE)
         .annotate(
             order_currency=Coalesce("settled_currency_id", "currency_id"),
             settled=Coalesce("settled_amount", F("amount")),
         )
-        .values("order_currency")
+        .values(*by, "order_currency")
         .annotate(total=Sum("settled"))
     )
+    if by:
+        return rows
     return {r["order_currency"]: r["total"] for r in rows}
 
 
 def paid_for_order(company_id: UUID, order_id: UUID) -> dict[str, Decimal]:
     """Provider for orders: active allocations per currency of the order."""
-    return _settled(PaymentAllocation.objects.filter(company_id=company_id, order_id=order_id))
+    return paid_for_orders(company_id, [order_id])[order_id]
+
+
+def paid_for_orders(company_id: UUID, order_ids: list[UUID]) -> dict[UUID, dict[str, Decimal]]:
+    """The same for many orders in one reading (audit item 14)."""
+    result: dict[UUID, dict[str, Decimal]] = {order_id: {} for order_id in order_ids}
+    query = PaymentAllocation.objects.filter(company_id=company_id, order_id__in=order_ids)
+    for r in _settled(query, ("order_id",)):
+        result[r["order_id"]][r["order_currency"]] = r["total"]
+    return result
 
 
 def client_balance(company_id: UUID, client_id: UUID) -> dict[str, Decimal]:

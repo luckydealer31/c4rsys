@@ -137,16 +137,25 @@ def moves_of(company_id: UUID, card_id: UUID) -> list[VehicleMove]:
 
 def operations_for_order(company_id: UUID, order_id: UUID) -> list[orders.OperationSummary]:
     """A recorded move is finished; its location is the source (§ 15.1.4)."""
-    return [
-        orders.OperationSummary(
-            type="move",
-            id=move.id,
-            state="completed",
-            location_id=move.from_location_id,
-            finished=True,
+    return operations_for_orders(company_id, [order_id])[order_id]
+
+
+def operations_for_orders(
+    company_id: UUID, order_ids: list[UUID]
+) -> dict[UUID, list[orders.OperationSummary]]:
+    """The same for many orders in one reading (audit item 14)."""
+    result: dict[UUID, list[orders.OperationSummary]] = {order_id: [] for order_id in order_ids}
+    for move in VehicleMove.objects.filter(company_id=company_id, order_id__in=order_ids):
+        result[move.order_id].append(
+            orders.OperationSummary(
+                type="move",
+                id=move.id,
+                state="completed",
+                location_id=move.from_location_id,
+                finished=True,
+            )
         )
-        for move in VehicleMove.objects.filter(company_id=company_id, order_id=order_id)
-    ]
+    return result
 
 
 def on_order_cancel(ctx: CommandContext, company_id: UUID, order_id: UUID, reason: str) -> None:

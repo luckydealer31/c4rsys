@@ -205,12 +205,20 @@ def charged_currency(source_type: str, source_id: UUID) -> str | None:
 
 def charged_for_order(company_id: UUID, order_id: UUID) -> dict[str, Decimal]:
     """Provider for orders: charged amounts per currency."""
+    return charged_for_orders(company_id, [order_id])[order_id]
+
+
+def charged_for_orders(company_id: UUID, order_ids: list[UUID]) -> dict[UUID, dict[str, Decimal]]:
+    """The same for many orders in one reading (audit item 14)."""
     rows = (
-        ChargeEntry.objects.filter(company_id=company_id, order_id=order_id)
-        .values("currency_id")
+        ChargeEntry.objects.filter(company_id=company_id, order_id__in=order_ids)
+        .values("order_id", "currency_id")
         .annotate(total=Sum("amount"))
     )
-    return {r["currency_id"]: r["total"] for r in rows}
+    result: dict[UUID, dict[str, Decimal]] = {order_id: {} for order_id in order_ids}
+    for r in rows:
+        result[r["order_id"]][r["currency_id"]] = r["total"]
+    return result
 
 
 def charge_ids_for_source(source_type: str, source_id: UUID) -> list[UUID]:

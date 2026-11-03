@@ -89,9 +89,10 @@ def period_of(line: ExtraServiceLine, now: datetime) -> Period | None:
     return None
 
 
-def location_of(line: ExtraServiceLine) -> UUID | None:
-    rental = _rental(line)
-    return extras.rental_location(rental) if rental is not None else line.location_id
+def location_of(line: ExtraServiceLine, rental: Rental | None | bool = False) -> UUID | None:
+    if rental is False:
+        rental = _rental(line)
+    return extras.rental_location(rental) if isinstance(rental, Rental) else line.location_id
 
 
 def terms_of(line: ExtraServiceLine) -> pricing.TariffTerms:
@@ -207,22 +208,29 @@ def charge_linked(ctx: CommandContext, rental: Rental, reason: str) -> None:
 
 def estimated_for_order(company_id: UUID, order_id: UUID) -> dict[str, Decimal]:
     """The cost of the lines of an order without a client (decision Р25)."""
-    result: dict[str, Decimal] = {}
-    for line in ExtraServiceLine.objects.filter(company_id=company_id, order_id=order_id):
+    return estimated_for_orders(company_id, [order_id])[order_id]
+
+
+def estimated_for_orders(company_id: UUID, order_ids: list[UUID]) -> dict[UUID, dict[str, Decimal]]:
+    """The same for many orders in one reading of the lines (audit item 14)."""
+    result: dict[UUID, dict[str, Decimal]] = {order_id: {} for order_id in order_ids}
+    for line in ExtraServiceLine.objects.filter(company_id=company_id, order_id__in=order_ids):
         price = price_of(line)
         if price is not None and price.kind != "current":
-            result[price.currency] = result.get(price.currency, Decimal(0)) + price.amount
+            sums = result[line.order_id]
+            sums[price.currency] = sums.get(price.currency, Decimal(0)) + price.amount
     return result
 
 
 # --- Reading ------------------------------------------------------------------------------------
 
 
-def display_state(line: ExtraServiceLine) -> str:
+def display_state(line: ExtraServiceLine, rental: Rental | None | bool = False) -> str:
     """A linked service follows the rental: planned while booked, started after the issue,
-    completed with the return (decision У5)."""
-    rental = _rental(line)
-    if rental is None:
+    completed with the return (decision У5). `rental` — already read (False: read it now)."""
+    if rental is False:
+        rental = _rental(line)
+    if not isinstance(rental, Rental):
         return line.state
     if rental.state == Rental.State.ACTIVE:
         return State.STARTED
@@ -231,9 +239,10 @@ def display_state(line: ExtraServiceLine) -> str:
     return State.PLANNED
 
 
-def _finished(line: ExtraServiceLine) -> bool:
-    rental = _rental(line)
-    if rental is None:
+def _finished(line: ExtraServiceLine, rental: Rental | None | bool = False) -> bool:
+    if rental is False:
+        rental = _rental(line)
+    if not isinstance(rental, Rental):
         return line.state in (State.COMPLETED, State.CANCELLED)
     return rental.state in (Rental.State.CANCELLED, Rental.State.ANNULLED) or (
         rental.state == Rental.State.RETURNED and rental.formalization_completed_at is not None
@@ -318,16 +327,32 @@ def get_line(company_id: UUID, line_id: UUID) -> ExtraServiceLine:
 def operations_for_order(company_id: UUID, order_id: UUID) -> list[OperationSummary]:
     """Lines of the order as the order sees them; the order closes after a standalone service is
     completed or cancelled (§ 13.4.11), a linked one finishes with its rental."""
-    return [
-        OperationSummary(
-            type="service",
-            id=line.id,
-            state=display_state(line),
-            location_id=location_of(line),
-            finished=_finished(line),
+    return operations_for_orders(company_id, [order_id])[order_id]
+
+
+def operations_for_orders(
+    company_id: UUID, order_ids: list[UUID]
+) -> dict[UUID, list[OperationSummary]]:
+    """The same for many orders: the lines and their rentals read once (audit item 14)."""
+    lines = list(
+        ExtraServiceLine.objects.filter(company_id=company_id, order_id__in=order_ids).order_by(
+            "created_at"
         )
-        for line in lines_of_order(company_id, order_id)
-    ]
+    )
+    rentals = Rental.objects.in_bulk({line.rental_id for line in lines if line.rental_id})
+    result: dict[UUID, list[OperationSummary]] = {order_id: [] for order_id in order_ids}
+    for line in lines:
+        rental = rentals.get(line.rental_id) if line.rental_id else None
+        result[line.order_id].append(
+            OperationSummary(
+                type="service",
+                id=line.id,
+                state=display_state(line, rental),
+                location_id=location_of(line, rental),
+                finished=_finished(line, rental),
+            )
+        )
+    return result
 
 
 def history_objects(line: ExtraServiceLine) -> list[tuple[str, str]]:

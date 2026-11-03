@@ -119,14 +119,23 @@ def on_client_assigned(ctx: CommandContext, company_id: UUID, order_id: UUID) ->
 def estimated_for_order(company_id: UUID, order_id: UUID) -> dict[str, Decimal]:
     """Provider for orders: the amounts of an order without a client or of a preliminary one,
     not charged (Р25, З2)."""
-    if orders.chargeable_client(order_id) is not None:
-        return {}
-    result: dict[str, Decimal] = {}
-    for rental in Rental.objects.filter(company_id=company_id, order_id=order_id):
+    return estimated_for_orders(company_id, [order_id])[order_id]
+
+
+def estimated_for_orders(company_id: UUID, order_ids: list[UUID]) -> dict[UUID, dict[str, Decimal]]:
+    """The same for many orders in one reading of the rentals (audit item 14)."""
+    result: dict[UUID, dict[str, Decimal]] = {order_id: {} for order_id in order_ids}
+    clients = orders.chargeable_clients(order_ids)
+    open_ids = [order_id for order_id in order_ids if clients.get(order_id) is None]
+    if not open_ids:
+        return result
+    for rental in Rental.objects.filter(company_id=company_id, order_id__in=open_ids):
         found = base_calculation(rental)
         if found is not None:
             calc = found[1]
-            result[calc.currency] = result.get(calc.currency, Decimal(0)) + calc.base_amount
-    for currency, amount in extra_lines.estimated_for_order(company_id, order_id).items():
-        result[currency] = result.get(currency, Decimal(0)) + amount
+            sums = result[rental.order_id]
+            sums[calc.currency] = sums.get(calc.currency, Decimal(0)) + calc.base_amount
+    for order_id, amounts in extra_lines.estimated_for_orders(company_id, open_ids).items():
+        for currency, amount in amounts.items():
+            result[order_id][currency] = result[order_id].get(currency, Decimal(0)) + amount
     return result

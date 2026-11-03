@@ -43,16 +43,26 @@ class NewOffset:
 
 def paid_for_order(company_id: UUID, order_id: UUID) -> dict[str, Decimal]:
     """Provider for orders: active set-offs count as paid (§ 12.2.4: «paid / set off»)."""
+    return paid_for_orders(company_id, [order_id])[order_id]
+
+
+def paid_for_orders(company_id: UUID, order_ids: list[UUID]) -> dict[UUID, dict[str, Decimal]]:
+    """The same for many orders in one reading (audit item 14)."""
     rows = (
-        Offset.objects.filter(company_id=company_id, order_id=order_id, state=Offset.State.ACTIVE)
+        Offset.objects.filter(
+            company_id=company_id, order_id__in=order_ids, state=Offset.State.ACTIVE
+        )
         .annotate(
             order_currency=Coalesce("settled_currency_id", "currency_id"),
             settled=Coalesce("settled_amount", "amount"),
         )
-        .values("order_currency")
+        .values("order_id", "order_currency")
         .annotate(total=Sum("settled"))
     )
-    return {r["order_currency"]: r["total"] for r in rows}
+    result: dict[UUID, dict[str, Decimal]] = {order_id: {} for order_id in order_ids}
+    for r in rows:
+        result[r["order_id"]][r["order_currency"]] = r["total"]
+    return result
 
 
 def history_for_order(company_id: UUID, order_id: UUID) -> list[tuple[str, str]]:

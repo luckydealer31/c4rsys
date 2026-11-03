@@ -31,7 +31,7 @@ class WarehouseConfig(AppConfig):
 
         # § 11.9.1, § 11.9.4: goods lines are operations of the order; closing sells them and
         # needs the right of sale.
-        orders.register_operations(sales.operations_for_order)
+        orders.register_operations(sales.operations_for_order, sales.operations_for_orders)
         orders.register_client_view(sales.client_view_for_order)
         from c4rsys.orders import discounts
 

@@ -132,15 +132,31 @@ def charge_all(ctx: CommandContext, company_id: UUID, order_id: UUID, reason: st
 
 def estimated(company_id: UUID, order_id: UUID) -> dict[str, Decimal]:
     """Issued materials of an order not charged: by their price for the issued quantity."""
-    result: dict[str, Decimal] = {}
-    for m in ServiceMaterial.objects.filter(
-        company_id=company_id, order_id=order_id, price__isnull=False, removed_at__isnull=True
-    ):
+    return estimated_many(company_id, [order_id])[order_id]
+
+
+def estimated_many(company_id: UUID, order_ids: list[UUID]) -> dict[UUID, dict[str, Decimal]]:
+    """The same for many orders in one reading (audit item 14)."""
+    result: dict[UUID, dict[str, Decimal]] = {order_id: {} for order_id in order_ids}
+    found = list(
+        ServiceMaterial.objects.filter(
+            company_id=company_id,
+            order_id__in=order_ids,
+            price__isnull=False,
+            removed_at__isnull=True,
+        )
+    )
+    minor = dict(
+        Currency.objects.filter(pk__in={m.currency_id for m in found}).values_list(
+            "code", "minor_units"
+        )
+    )
+    for m in found:
         if m.price is None:
             continue
-        minor = Currency.objects.get(pk=m.currency_id).minor_units
-        value = round_money(m.price * m.quantity / m.price_per, minor)
-        result[m.currency_id] = result.get(m.currency_id, Decimal(0)) + value
+        value = round_money(m.price * m.quantity / m.price_per, minor[m.currency_id])
+        sums = result[m.order_id]
+        sums[m.currency_id] = sums.get(m.currency_id, Decimal(0)) + value
     return result
 
 

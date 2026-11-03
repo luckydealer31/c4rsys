@@ -205,15 +205,21 @@ def on_client_assigned(ctx: CommandContext, company_id: UUID, order_id: UUID) ->
 
 
 def estimated_for_order(company_id: UUID, order_id: UUID) -> dict[str, Decimal]:
-    if orders.chargeable_client(order_id) is not None:
-        return {}
-    result: dict[str, Decimal] = {}
+    return estimated_for_orders(company_id, [order_id])[order_id]
+
+
+def estimated_for_orders(company_id: UUID, order_ids: list[UUID]) -> dict[UUID, dict[str, Decimal]]:
+    """The same for many orders in one reading (audit item 14)."""
+    result: dict[UUID, dict[str, Decimal]] = {order_id: {} for order_id in order_ids}
+    clients = orders.chargeable_clients(order_ids)
+    open_ids = [order_id for order_id in order_ids if clients.get(order_id) is None]
     for d in Delivery.objects.filter(
-        company_id=company_id, order_id=order_id, price__isnull=False
+        company_id=company_id, order_id__in=open_ids, price__isnull=False
     ).exclude(state=Delivery.State.CANCELLED):
         if d.price is None or d.currency_id is None:
             continue
-        result[d.currency_id] = result.get(d.currency_id, Decimal(0)) + d.price
+        sums = result[d.order_id]
+        sums[d.currency_id] = sums.get(d.currency_id, Decimal(0)) + d.price
     return result
 
 

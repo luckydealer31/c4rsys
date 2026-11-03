@@ -59,12 +59,14 @@ class ServiceConfig(AppConfig):
         from c4rsys.service import client_cards
 
         client_history.register_order_vehicles(client_cards.order_vehicles)
-        orders.register_operations(operations.operations_for_order)
+        orders.register_operations(
+            operations.operations_for_order, operations.operations_for_orders
+        )
         orders.register_client_view(operations.client_view_for_order)
         from c4rsys.fleet import services as fleet_services
 
         fleet_services.register_schedule("service", operations.schedule)
-        orders.register_estimated(operations.estimated_for_order)
+        orders.register_estimated(operations.estimated_for_order, operations.estimated_for_orders)
         orders.register_on_client_assigned(operations.on_client_assigned)
         orders.register_on_cancel(operations.on_order_cancel)
         orders.register_history(operations.history_for_order)

@@ -19,12 +19,12 @@ class FinanceConfig(AppConfig):
         from c4rsys.orders import services as orders
 
         companies.register_created(articles.create_starting)
-        orders.register_charged(charges.charged_for_order)
+        orders.register_charged(charges.charged_for_order, charges.charged_for_orders)
         orders.register_charge_lines(charges.lines_for_order)
         orders.register_cost_changes(charges.changes_for_order)
-        orders.register_paid(payments.paid_for_order)
-        orders.register_paid(offsets.paid_for_order)
-        orders.register_paid(deposits.paid_for_order)
+        orders.register_paid(payments.paid_for_order, payments.paid_for_orders)
+        orders.register_paid(offsets.paid_for_order, offsets.paid_for_orders)
+        orders.register_paid(deposits.paid_for_order, deposits.paid_for_orders)
         orders.register_history(payments.history_for_order)
         orders.register_history(offsets.history_for_order)
         # § 6.5.2–6.5.3: settlements in the merge and the split of client cards.

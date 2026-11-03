@@ -58,6 +58,10 @@ ChargeLinesProvider = Callable[[UUID, UUID], list[tuple[str, UUID, str, Decimal]
 # (company_id, order_id) -> changes of the cost the client is told about (decision В-1):
 # (moment, source type, source id, currency, difference, reason)
 CostChangesProvider = Callable[[UUID, UUID], list[tuple[datetime, str, UUID, str, Decimal, str]]]
+# Audit item 14: the same for many orders at once, (company_id, order_ids) -> {order_id: value},
+# so a list of orders reads each source once and not once per order.
+OperationsMany = Callable[[UUID, list[UUID]], dict[UUID, list[OperationSummary]]]
+AmountMany = Callable[[UUID, list[UUID]], dict[UUID, dict[str, Decimal]]]
 
 
 @dataclass
@@ -69,26 +73,43 @@ class _Registry:
     client_view: list[ClientViewProvider] = field(default_factory=list)
     charge_lines: list[ChargeLinesProvider] = field(default_factory=list)
     cost_changes: list[CostChangesProvider] = field(default_factory=list)
+    # The batch form of a provider above, when its module has one.
+    many: dict[Callable[..., Any], Callable[..., Any]] = field(default_factory=dict)
 
 
 registry = _Registry()
 
 
-def register_operations(provider: OperationsProvider) -> None:
+def register_operations(provider: OperationsProvider, many: OperationsMany | None = None) -> None:
     registry.operations.append(provider)
+    if many is not None:
+        registry.many[provider] = many
 
 
-def register_charged(provider: AmountProvider) -> None:
+def register_charged(provider: AmountProvider, many: AmountMany | None = None) -> None:
     registry.charged.append(provider)
+    if many is not None:
+        registry.many[provider] = many
 
 
-def register_paid(provider: AmountProvider) -> None:
+def register_paid(provider: AmountProvider, many: AmountMany | None = None) -> None:
     registry.paid.append(provider)
+    if many is not None:
+        registry.many[provider] = many
 
 
-def register_estimated(provider: AmountProvider) -> None:
+def _for_orders(provider: Callable[..., Any], company_id: UUID, order_ids: list[UUID]) -> Any:
+    many = registry.many.get(provider)
+    if many is not None:
+        return many(company_id, order_ids)
+    return {order_id: provider(company_id, order_id) for order_id in order_ids}
+
+
+def register_estimated(provider: AmountProvider, many: AmountMany | None = None) -> None:
     """The cost of operations not charged because the order has no client (decision Р25)."""
     registry.estimated.append(provider)
+    if many is not None:
+        registry.many[provider] = many
 
 
 def register_client_view(provider: ClientViewProvider) -> None:
@@ -106,35 +127,69 @@ def register_cost_changes(provider: CostChangesProvider) -> None:
 def chargeable_client(order_id: UUID) -> UUID | None:
     """The client to charge in the order: none while the client is not specified (decision Р25)
     and while the order is preliminary — it is only discussed (§ 12.1.7; decision З2)."""
-    row = Order.objects.filter(pk=order_id).values_list("client_id", "state").first()
-    if row is None or row[1] == Order.State.PRELIMINARY:
-        return None
-    return row[0]
+    return chargeable_clients([order_id]).get(order_id)
+
+
+def chargeable_clients(order_ids: list[UUID]) -> dict[UUID, UUID | None]:
+    """The same for many orders in one reading (audit item 14)."""
+    rows = Order.objects.filter(pk__in=order_ids).values_list("id", "client_id", "state")
+    return {
+        order_id: None if state == Order.State.PRELIMINARY else client_id
+        for order_id, client_id, state in rows
+    }
 
 
 def estimated_of(order: Order) -> dict[str, Decimal]:
-    result: dict[str, Decimal] = {}
-    preliminary = order.state == Order.State.PRELIMINARY
-    if order.is_internal or (order.client_id is not None and not preliminary):
+    return estimated_of_orders(order.company_id, [order])[order.id]
+
+
+def estimated_of_orders(company_id: UUID, found: list[Order]) -> dict[UUID, dict[str, Decimal]]:
+    """The estimate of many orders, each source read once (audit item 14). Only an order without
+    a client or a preliminary one has it (Р25, З2)."""
+    result: dict[UUID, dict[str, Decimal]] = {order.id: {} for order in found}
+    ids = [
+        order.id
+        for order in found
+        if not order.is_internal
+        and (order.client_id is None or order.state == Order.State.PRELIMINARY)
+    ]
+    if not ids:
         return result
     for provider in registry.estimated:
-        for currency, amount in provider(order.company_id, order.id).items():
-            result[currency] = result.get(currency, Decimal(0)) + amount
+        for order_id, amounts in _for_orders(provider, company_id, ids).items():
+            for currency, amount in amounts.items():
+                result[order_id][currency] = result[order_id].get(currency, Decimal(0)) + amount
     return result
 
 
 def operations_of(order: Order) -> list[OperationSummary]:
-    return [op for p in registry.operations for op in p(order.company_id, order.id)]
+    return operations_of_orders(order.company_id, [order.id])[order.id]
 
 
 def amounts_of(order: Order) -> dict[str, Money]:
-    result: dict[str, Money] = {}
-    for provider in registry.charged:
-        for currency, amount in provider(order.company_id, order.id).items():
-            result.setdefault(currency, Money()).charged += amount
-    for provider in registry.paid:
-        for currency, amount in provider(order.company_id, order.id).items():
-            result.setdefault(currency, Money()).paid += amount
+    return amounts_of_orders(order.company_id, [order.id])[order.id]
+
+
+def operations_of_orders(
+    company_id: UUID, order_ids: list[UUID]
+) -> dict[UUID, list[OperationSummary]]:
+    """The operations of many orders, each source read once (audit item 14)."""
+    result: dict[UUID, list[OperationSummary]] = {order_id: [] for order_id in order_ids}
+    for provider in registry.operations:
+        for order_id, found in _for_orders(provider, company_id, order_ids).items():
+            result[order_id].extend(found)
+    return result
+
+
+def amounts_of_orders(company_id: UUID, order_ids: list[UUID]) -> dict[UUID, dict[str, Money]]:
+    """The amounts of many orders, each source read once (audit item 14)."""
+    result: dict[UUID, dict[str, Money]] = {order_id: {} for order_id in order_ids}
+    for providers, side in ((registry.charged, "charged"), (registry.paid, "paid")):
+        for provider in providers:
+            for order_id, found in _for_orders(provider, company_id, order_ids).items():
+                for currency, amount in found.items():
+                    money = result[order_id].setdefault(currency, Money())
+                    setattr(money, side, getattr(money, side) + amount)
     return result
 
 
@@ -792,18 +847,21 @@ def today_of(company_id: UUID) -> date:
     return timezone.localdate(timezone=ZoneInfo(zone or "UTC"))
 
 
-def debt_of(order: Order) -> dict[str, Decimal]:
-    """What the client still has to pay, by currency (§ 12.2.6)."""
-    return {c: m.balance for c, m in amounts_of(order).items() if m.balance > Decimal(0)}
+def debt_of(order: Order, amounts: dict[str, Money] | None = None) -> dict[str, Decimal]:
+    """What the client still has to pay, by currency (§ 12.2.6). `amounts` — already read."""
+    found = amounts_of(order) if amounts is None else amounts
+    return {c: m.balance for c, m in found.items() if m.balance > Decimal(0)}
 
 
-def is_overdue(order: Order, today: date | None = None) -> bool:
+def is_overdue(
+    order: Order, today: date | None = None, amounts: dict[str, Money] | None = None
+) -> bool:
     """The balance is unpaid after the term of payment (§ 12.2.6). Without a term — never."""
     if order.payment_due_on is None or order.state == Order.State.CANCELLED:
         return False
     if order.payment_due_on >= (today or today_of(order.company_id)):
         return False
-    return bool(debt_of(order))
+    return bool(debt_of(order, amounts))
 
 
 def set_payment_due(

@@ -53,18 +53,20 @@ class RentalsConfig(AppConfig):
         orders.register_on_client_moved(client_cards.on_client_moved)
         client_history.register_order_vehicles(client_cards.order_vehicles)
         fleet.register_context_blockers(rentals.vehicle_context_blockers)
-        orders.register_operations(rentals.operations_for_order)
+        orders.register_operations(rentals.operations_for_order, rentals.operations_for_orders)
         orders.register_client_view(rentals.client_view_for_order)
         from c4rsys.fleet import services as fleet_services
 
         fleet_services.register_schedule("rental", rentals.schedule)
         orders.register_control_version(rentals.record_control_versions)
         # Decisions Р16, Р25: charged by the known period; estimated without a client.
-        orders.register_estimated(billing.estimated_for_order)
+        orders.register_estimated(billing.estimated_for_order, billing.estimated_for_orders)
         orders.register_on_client_assigned(billing.on_client_assigned)
         orders.register_history(rentals.history_for_order)
         # § 12.1.4, § 13.4.11: additional services are lines of the order of their own.
-        orders.register_operations(extra_lines.operations_for_order)
+        orders.register_operations(
+            extra_lines.operations_for_order, extra_lines.operations_for_orders
+        )
         orders.register_client_view(extra_lines.client_view_for_order)
         orders.register_history(extra_lines.history_for_order)
         # § 12.2.1–12.2.2: proposals become bookings; the cancelled order takes its positions.

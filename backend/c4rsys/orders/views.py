@@ -3,6 +3,7 @@ closing and reopening (ТЗ § 12.1.7, § 12.1.9–12.1.10, § 12.2, § 23.6).""
 
 from datetime import date
 from decimal import Decimal
+from functools import lru_cache
 from typing import Any
 from uuid import UUID
 
@@ -30,14 +31,28 @@ def _actor(request: HttpRequest, cmp: str) -> tuple[companies.CompanyContext, Ac
     return context, companies.company_actor(user, context, session.id)
 
 
-def _visible(actor: Actor, operations: list[services.OperationSummary]) -> bool:
+def _visible(
+    actor: Actor,
+    operations: list[services.OperationSummary],
+    checked: dict[UUID | None, bool] | None = None,
+) -> bool:
     """An order is visible with order.view in a location of one of its operations; an order
-    without located operations needs order.view anywhere in the company."""
+    without located operations needs order.view anywhere in the company. `checked` keeps the
+    answers by location for the orders of one list (audit item 14)."""
+    known = {} if checked is None else checked
     resolver = access.RightsResolver()
+
+    def may(location_id: UUID | None) -> bool:
+        if location_id not in known:
+            known[location_id] = resolver.has_permission(
+                actor, "order.view", location_id=location_id
+            )
+        return known[location_id]
+
     located = {op.location_id for op in operations if op.location_id is not None}
     if not located:
-        return resolver.has_permission(actor, "order.view")
-    return any(resolver.has_permission(actor, "order.view", location_id=x) for x in located)
+        return may(None)
+    return any(may(x) for x in located)
 
 
 def _uuid(data: dict[str, Any], key: str, *, required: bool = True) -> UUID | None:
@@ -73,9 +88,15 @@ def _result(order: Order, status: int = 200) -> CommandResult:
     return CommandResult(status, {"order": _payload(order, services.operations_of(order))})
 
 
+@lru_cache(maxsize=256)
+def _minor_units(currency: str) -> int:
+    """A currency of the system reference never changes its minor units (audit item 14)."""
+    return Currency.objects.get(code=currency).minor_units
+
+
 def _money(currency: str, money: services.Money) -> dict[str, str]:
     """Amounts shown with the minor units of the currency (§ 17.1.7)."""
-    places = Currency.objects.get(code=currency).minor_units
+    places = _minor_units(currency)
 
     def text(value: Decimal) -> str:
         return str(round_money(value, places))
@@ -89,10 +110,19 @@ def _money(currency: str, money: services.Money) -> dict[str, str]:
 
 
 def _amount(currency: str, value: Decimal) -> str:
-    return str(round_money(value, Currency.objects.get(code=currency).minor_units))
+    return str(round_money(value, _minor_units(currency)))
 
 
-def _payload(order: Order, operations: list[services.OperationSummary]) -> dict[str, Any]:
+def _payload(
+    order: Order,
+    operations: list[services.OperationSummary],
+    amounts: dict[str, services.Money] | None = None,
+    today: date | None = None,
+    estimated: dict[str, Decimal] | None = None,
+) -> dict[str, Any]:
+    """`amounts` and `today` — already read for a list of orders (audit item 14)."""
+    if amounts is None:
+        amounts = services.amounts_of(order)
     return {
         "id": str(order.id),
         "number": order.number,
@@ -108,21 +138,20 @@ def _payload(order: Order, operations: list[services.OperationSummary]) -> dict[
         "cancel_reason": order.cancel_reason,
         # § 12.2.6: the term of payment of the debt and whether the debt is overdue.
         "payment_due_on": order.payment_due_on.isoformat() if order.payment_due_on else None,
-        "overdue": services.is_overdue(order),
+        "overdue": services.is_overdue(order, today, amounts),
         "version": order.version,
         "operations": [
             {"type": op.type, "id": str(op.id), "state": op.state, "finished": op.finished}
             for op in operations
         ],
         "closing_conditions": services.closing_conditions(operations),
-        "amounts": {
-            currency: _money(currency, m)
-            for currency, m in sorted(services.amounts_of(order).items())
-        },
+        "amounts": {currency: _money(currency, m) for currency, m in sorted(amounts.items())},
         # Without a client nothing is charged; the cost of the operations is estimated (Р25).
         "estimated": {
             currency: _amount(currency, value)
-            for currency, value in sorted(services.estimated_of(order).items())
+            for currency, value in sorted(
+                (services.estimated_of(order) if estimated is None else estimated).items()
+            )
         },
     }
 
@@ -158,14 +187,24 @@ def order_list(request: HttpRequest, cmp: str) -> JsonResponse:
         found = found.exclude(state=Order.State.CANCELLED)
         if debt == "overdue":
             found = found.filter(payment_due_on__lt=services.today_of(context.company.id))
-    for order in found[: LIST_LIMIT if not debt else LIST_LIMIT * 5]:
+    # Audit item 14: the operations and the amounts of the whole page are read at once.
+    page = list(found[: LIST_LIMIT if not debt else LIST_LIMIT * 5])
+    ids = [order.id for order in page]
+    operations = services.operations_of_orders(context.company.id, ids)
+    amounts = services.amounts_of_orders(context.company.id, ids)
+    today = services.today_of(context.company.id)
+    estimated = services.estimated_of_orders(context.company.id, page)
+    checked: dict[UUID | None, bool] = {}
+    for order in page:
+        money = amounts[order.id]
         if debt and not (
-            services.is_overdue(order) if debt == "overdue" else services.debt_of(order)
+            services.is_overdue(order, today, money)
+            if debt == "overdue"
+            else services.debt_of(order, money)
         ):
             continue
-        operations = services.operations_of(order)
-        if _visible(actor, operations):
-            items.append(_payload(order, operations))
+        if _visible(actor, operations[order.id], checked):
+            items.append(_payload(order, operations[order.id], money, today, estimated[order.id]))
     return JsonResponse({"orders": items})
 
 

@@ -43,7 +43,7 @@ class FleetConfig(AppConfig):
 
         disclosure.register_provider("mileage_fuel", disclosure.readings_for_owner)
         rules.on_journal("vehicle.owner_answered", owner_notices.on_answer)
-        orders.register_operations(moves.operations_for_order)
+        orders.register_operations(moves.operations_for_order, moves.operations_for_orders)
         orders.register_history(moves.history_for_order)
         orders.register_on_cancel(moves.on_order_cancel)
         # § 24.1.8: the ownership of vehicles moves with the merge of accounts.

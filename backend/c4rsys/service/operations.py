@@ -156,17 +156,26 @@ def on_client_assigned(ctx: CommandContext, company_id: UUID, order_id: UUID) ->
 
 def estimated_for_order(company_id: UUID, order_id: UUID) -> dict[str, Decimal]:
     """The works of an order without a client or of a preliminary one, not charged."""
-    if orders.chargeable_client(order_id) is not None:
-        return {}
-    result: dict[str, Decimal] = {}
+    return estimated_for_orders(company_id, [order_id])[order_id]
+
+
+def estimated_for_orders(company_id: UUID, order_ids: list[UUID]) -> dict[UUID, dict[str, Decimal]]:
+    """The same for many orders in one reading of the works and materials (audit item 14)."""
+    result: dict[UUID, dict[str, Decimal]] = {order_id: {} for order_id in order_ids}
+    clients = orders.chargeable_clients(order_ids)
+    open_ids = [order_id for order_id in order_ids if clients.get(order_id) is None]
+    if not open_ids:
+        return result
     for job in ServiceJob.objects.filter(
-        company_id=company_id, order_id=order_id, price__isnull=False
+        company_id=company_id, order_id__in=open_ids, price__isnull=False
     ).exclude(state=Job.CANCELLED):
         if job.price is None:
             continue
-        result[job.currency_id] = result.get(job.currency_id, Decimal(0)) + job.price
-    for currency, value in materials.estimated(company_id, order_id).items():
-        result[currency] = result.get(currency, Decimal(0)) + value
+        sums = result[job.order_id]
+        sums[job.currency_id] = sums.get(job.currency_id, Decimal(0)) + job.price
+    for order_id, amounts in materials.estimated_many(company_id, open_ids).items():
+        for currency, value in amounts.items():
+            result[order_id][currency] = result[order_id].get(currency, Decimal(0)) + value
     return result
 
 
@@ -201,17 +210,30 @@ def blockers(operation: ServiceOperation, internal: bool) -> tuple[str, ...]:
 
 
 def operations_for_order(company_id: UUID, order_id: UUID) -> list[OperationSummary]:
-    internal = Order.objects.filter(pk=order_id).values_list("is_internal", flat=True).first()
-    result = []
-    for op in operations_of(company_id).filter(order_id=order_id).order_by("number"):
-        result.append(
+    return operations_for_orders(company_id, [order_id])[order_id]
+
+
+def operations_for_orders(
+    company_id: UUID, order_ids: list[UUID]
+) -> dict[UUID, list[OperationSummary]]:
+    """The same for many orders: the operations read once; the conditions of closing are read
+    only for the orders that have service operations (audit item 14)."""
+    result: dict[UUID, list[OperationSummary]] = {order_id: [] for order_id in order_ids}
+    found = list(operations_of(company_id).filter(order_id__in=order_ids).order_by("number"))
+    if not found:
+        return result
+    internal = dict(
+        Order.objects.filter(pk__in={op.order_id for op in found}).values_list("id", "is_internal")
+    )
+    for op in found:
+        result[op.order_id].append(
             OperationSummary(
                 type="service_work",
                 id=op.id,
                 state=op.state,
                 location_id=op.location_id,
                 finished=op.state in FINAL_OPERATION,
-                blockers=blockers(op, bool(internal)),
+                blockers=blockers(op, bool(internal.get(op.order_id))),
             )
         )
     return result

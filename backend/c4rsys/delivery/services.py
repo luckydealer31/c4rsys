@@ -125,16 +125,25 @@ def driver_overlaps(d: Delivery) -> list[dict[str, Any]]:
 
 
 def operations_for_order(company_id: UUID, order_id: UUID) -> list[OperationSummary]:
-    return [
-        OperationSummary(
-            type="delivery",
-            id=d.id,
-            state=d.state,
-            location_id=d.from_location_id,
-            finished=d.state in FINAL,
+    return operations_for_orders(company_id, [order_id])[order_id]
+
+
+def operations_for_orders(
+    company_id: UUID, order_ids: list[UUID]
+) -> dict[UUID, list[OperationSummary]]:
+    """The same for many orders in one reading (audit item 14)."""
+    result: dict[UUID, list[OperationSummary]] = {order_id: [] for order_id in order_ids}
+    for d in deliveries_of(company_id).filter(order_id__in=order_ids).order_by("number"):
+        result[d.order_id].append(
+            OperationSummary(
+                type="delivery",
+                id=d.id,
+                state=d.state,
+                location_id=d.from_location_id,
+                finished=d.state in FINAL,
+            )
         )
-        for d in deliveries_of(company_id).filter(order_id=order_id).order_by("number")
-    ]
+    return result
 
 
 def history_for_order(company_id: UUID, order_id: UUID) -> list[tuple[str, str]]:
