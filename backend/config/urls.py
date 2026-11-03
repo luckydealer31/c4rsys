@@ -1,9 +1,10 @@
 from django.urls import include, path
 
-from c4rsys.platform.views import health
+from c4rsys.platform.views import health, health_full
 
 urlpatterns = [
     path("api/health", health, name="health"),
+    path("api/health/full", health_full, name="health_full"),
     path("api/", include("c4rsys.accounts.urls")),
     path("api/", include("c4rsys.files.urls")),
     path("api/", include("c4rsys.companies.urls")),

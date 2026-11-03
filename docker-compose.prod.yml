@@ -92,7 +92,9 @@ services:
     # A shell as the first process ignores the stop signal; init passes it on, so a deploy does
     # not wait 10 s for each loop (audit item 47).
     init: true
-    command: sh -c "while true; do python manage.py fetch_exchange_rates; sleep 10800; done"
+    # Audit item 30: each finished round is marked (heartbeat), so a stopped loop shows on
+    # /api/health/full; the same in the loops below.
+    command: sh -c "while true; do python manage.py fetch_exchange_rates; python manage.py heartbeat rates; sleep 10800; done"
     healthcheck:
       disable: true
     depends_on:
@@ -124,7 +126,7 @@ services:
     # A shell as the first process ignores the stop signal; init passes it on, so a deploy does
     # not wait 10 s for each loop (audit item 47).
     init: true
-    command: sh -c "while true; do python manage.py release_deposits; python manage.py cancel_no_shows; sleep 600; done"
+    command: sh -c "while true; do python manage.py release_deposits; python manage.py cancel_no_shows; python manage.py heartbeat deposits; sleep 600; done"
     healthcheck:
       disable: true
     depends_on:
@@ -161,7 +163,7 @@ services:
     # A shell as the first process ignores the stop signal; init passes it on, so a deploy does
     # not wait 10 s for each loop (audit item 47).
     init: true
-    command: sh -c "while true; do python manage.py run_task_schedule; python manage.py run_notifications; python manage.py remove_import_files; python manage.py process_videos; sleep 300; done"
+    command: sh -c "while true; do python manage.py run_task_schedule; python manage.py run_notifications; python manage.py remove_import_files; python manage.py process_videos; python manage.py heartbeat schedule; sleep 300; done"
     healthcheck:
       disable: true
     depends_on:

@@ -149,3 +149,17 @@ class IpRequestCount(models.Model):
 
     def __str__(self) -> str:
         return f"{self.ip}:{self.scope}@{self.window_start}={self.count}"
+
+
+class JobHeartbeat(models.Model):
+    """The last finished round of a background loop (audit item 30; c4rsys.platform.heartbeat).
+    A loop whose rounds stopped coming shows on /api/health/full, which an outside check watches."""
+
+    name = models.CharField(max_length=30, primary_key=True)
+    beat_at = models.DateTimeField()
+
+    class Meta:
+        db_table = "job_heartbeat"
+
+    def __str__(self) -> str:
+        return f"{self.name}@{self.beat_at}"
