@@ -46,11 +46,12 @@ cut -d'|' -f1 "$work/copy" > "$work/copy-tables"
 cmp -s "$work/live-tables" "$work/copy-tables" || { echo "FAILED: the tables differ"; exit 1; }
 cmp -s "$work/live-migrations" "$work/copy-migrations" || { echo "FAILED: the migrations differ"; exit 1; }
 summary="$(paste -d'|' "$work/live" "$work/copy" | awk -F'|' '
-  { live += $2; copy += $4; if ($2 != $4) { changed++; diff += ($2 > $4 ? $2 - $4 : $4 - $2) } }
+  { live += $2; copy += $4
+    if ($2 != $4) { changed++; diff += ($2 > $4 ? $2 - $4 : $4 - $2); names = names " " $1 } }
   END {
     allowed = live / 100; if (allowed < 20) allowed = 20
-    printf "%d tables, %d rows live, %d rows restored, %d tables changed meanwhile by %d rows",
-      NR, live, copy, changed, diff
+    printf "%d tables, %d rows live, %d rows restored, %d tables changed meanwhile by %d rows:%s",
+      NR, live, copy, changed, diff, names
     if (copy == 0 || diff > allowed) exit 1
   }')" || { echo "FAILED: $summary"; exit 1; }
 echo "$summary"
