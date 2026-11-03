@@ -15,6 +15,10 @@ LIMITS = {
     "rates": timedelta(hours=4),
     "deposits": timedelta(minutes=30),
     "schedule": timedelta(minutes=20),
+    # Audit item 27, the systemd timers of deploy/backup-timer.sh on the server: the daily copy
+    # (scripts/backup.sh) and the weekly restore of a copy (scripts/restore-check.sh).
+    "backup": timedelta(hours=26),
+    "restore_check": timedelta(days=8),
 }
 
 

@@ -24,7 +24,13 @@ def test_full_health_is_ok_while_every_loop_beats(client: Client) -> None:
     assert response.json() == {
         "status": "ok",
         "database": "ok",
-        "jobs": {"rates": "ok", "deposits": "ok", "schedule": "ok"},
+        "jobs": {
+            "rates": "ok",
+            "deposits": "ok",
+            "schedule": "ok",
+            "backup": "ok",
+            "restore_check": "ok",
+        },
     }
 
 

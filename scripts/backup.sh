@@ -33,6 +33,8 @@ mv "$work" "$DIR/$stamp"
 trap - EXIT
 find "$DIR" -mindepth 1 -maxdepth 1 -type d -name '20*' -mtime +"$KEEP_DAYS" -exec rm -rf {} +
 echo "Backup $DIR/$stamp: $(du -sh "$DIR/$stamp" | cut -f1)"
+# Audit item 27: the copy is marked made; a day without one shows on /api/health/full.
+$compose exec -T backend python manage.py heartbeat backup
 
 # The second copy off the server to S3 storage. Customer decision 03.11.2026: postponed on the test
 # server, copies stay local; the code is ready for Timeweb S3. Settings are in .env.backup (template: deploy/env.backup.example), apart from .env.prod, so the
