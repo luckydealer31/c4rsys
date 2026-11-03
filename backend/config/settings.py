@@ -67,6 +67,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "c4rsys.platform.middleware.ApiMiddleware",
+    "c4rsys.platform.ratelimit.RateLimitMiddleware",
     "c4rsys.cabinet.middleware.CabinetHostMiddleware",
     "c4rsys.backoffice.middleware.StaffHostMiddleware",
     "c4rsys.accounts.middleware.SessionMiddleware",
@@ -191,6 +192,8 @@ C4R_SUPPORT_RECOVERY_ENABLED = env_bool("C4R_SUPPORT_RECOVERY_ENABLED", False)
 # (customer decision 02.11.2026). Without the secret key the check is off.
 C4R_TURNSTILE_SITE_KEY = os.environ.get("C4R_TURNSTILE_SITE_KEY", "")
 C4R_TURNSTILE_SECRET_KEY = os.environ.get("C4R_TURNSTILE_SECRET_KEY", "")
+# The backend is reached only through Caddy, which sets X-Forwarded-For (audit item 37); on then.
+C4R_TRUST_PROXY = env_bool("C4R_TRUST_PROXY", False)
 
 LOGGING = {
     "version": 1,

@@ -127,3 +127,25 @@ class CompanyCounter(models.Model):
 
     def __str__(self) -> str:
         return f"{self.company_id}:{self.kind}={self.last_value}"
+
+
+class IpRequestCount(models.Model):
+    """Requests from one address to one group of open forms in an hourly window (audit item 11;
+    c4rsys.platform.ratelimit). Technical counters, cleared after a day."""
+
+    ip = models.GenericIPAddressField()
+    scope = models.CharField(max_length=20)
+    window_start = models.DateTimeField()
+    count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = "ip_request_count"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["ip", "scope", "window_start"], name="ip_request_count_uniq"
+            ),
+        ]
+        indexes = [models.Index(fields=["window_start"], name="ip_request_count_window_idx")]
+
+    def __str__(self) -> str:
+        return f"{self.ip}:{self.scope}@{self.window_start}={self.count}"

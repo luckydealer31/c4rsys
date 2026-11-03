@@ -1284,7 +1284,8 @@
     "task_context_needs_location": "A context needs the location of the task.",
     "captcha_required": "Confirm that you are not a bot.",
     "captcha_failed": "The check that you are not a bot failed. Try again.",
-    "captcha_unavailable": "The bot check is unavailable right now. Try again in a few minutes."
+    "captcha_unavailable": "The bot check is unavailable right now. Try again in a few minutes.",
+    "ip_rate_limited": "Too many requests from your network. Try again in an hour."
   },
   "history": {
     "action": "Action",

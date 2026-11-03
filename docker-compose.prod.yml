@@ -50,6 +50,9 @@ services:
       POSTGRES_PASSWORD: ""
       DJANGO_DEBUG: "0"
       C4R_FILES_ROOT: /data/files
+      # Reached only through Caddy (port 8000 is not published): the visitor's address is the
+      # last entry of X-Forwarded-For (audit item 37).
+      C4R_TRUST_PROXY: "1"
     volumes:
       # Uploaded files (A10): kept apart from the database, back up together with it.
       - files_data:/data/files

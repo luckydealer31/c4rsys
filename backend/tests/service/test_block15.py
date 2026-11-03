@@ -13,6 +13,7 @@ from uuid import UUID
 
 import pytest
 from django.test import Client
+from django.utils import timezone
 
 from c4rsys.warehouse import parts as parts_module
 from c4rsys.warehouse.models import (
@@ -32,8 +33,12 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture(autouse=True)
 def frozen_parts() -> Iterator[None]:
-    """The works of the scenario happen at its fixed moment, not at the real date."""
-    with mock.patch.object(parts_module, "timezone", SimpleNamespace(now=lambda: NOW)):
+    """The works of the scenario happen at its fixed moment, not at the real date; never before the
+    real clock, which stamps the warehouse operations, once that moment has passed."""
+    real_now = timezone.now
+    with mock.patch.object(
+        parts_module, "timezone", SimpleNamespace(now=lambda: max(NOW, real_now()))
+    ):
         yield
 
 

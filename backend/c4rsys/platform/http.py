@@ -1,8 +1,10 @@
 """Small JSON helpers for API views (A08). Reads never perform business operations."""
 
+import ipaddress
 import json
 from typing import Any
 
+from django.conf import settings
 from django.http import HttpRequest, JsonResponse
 
 from c4rsys.platform import errors
@@ -49,6 +51,16 @@ def idempotency_key(request: HttpRequest) -> str:
 
 
 def client_ip(request: HttpRequest) -> str | None:
+    """The visitor's address (audit item 37). Behind Caddy (C4R_TRUST_PROXY) REMOTE_ADDR is Caddy
+    itself; Caddy puts the address it was reached from last in X-Forwarded-For and drops whatever a
+    visitor wrote there, so only that last entry is taken. Without the proxy the header is ignored:
+    a visitor could write anything into it."""
+    if settings.C4R_TRUST_PROXY:
+        forwarded = str(request.META.get("HTTP_X_FORWARDED_FOR", "")).split(",")[-1].strip()
+        try:
+            return str(ipaddress.ip_address(forwarded))
+        except ValueError:
+            pass
     value = request.META.get("REMOTE_ADDR")
     return str(value) if value else None
 
