@@ -4,6 +4,7 @@ import logging
 import uuid
 from collections.abc import Callable
 
+from django.core.exceptions import RequestDataTooBig
 from django.http import HttpRequest, HttpResponse, JsonResponse
 
 from c4rsys.platform import errors
@@ -41,6 +42,10 @@ class ApiMiddleware:
                 from c4rsys.platform import security
 
                 security.on_not_found(request, request_id)
+        elif isinstance(exception, RequestDataTooBig):
+            # Audit item 35: Django refuses a body above its limit by the declared size, before
+            # reading it; that is an answer to the client, not a failure of the server.
+            error = ApiError("REQUEST_TOO_LARGE", status=413)
         else:
             logger.exception("Unhandled error (request %s)", request_id, exc_info=exception)
             error = errors.internal_error()

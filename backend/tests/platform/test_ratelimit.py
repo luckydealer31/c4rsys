@@ -105,3 +105,11 @@ def test_behind_proxy_last_forwarded_entry_is_the_visitor() -> None:
     assert client_ip(forged) == "203.0.113.9"
     broken = factory.get("/", HTTP_X_FORWARDED_FOR="not-an-ip", REMOTE_ADDR="172.18.0.5")
     assert client_ip(broken) == "172.18.0.5"
+
+
+@override_settings(DATA_UPLOAD_MAX_MEMORY_SIZE=100)
+def test_a_body_above_the_limit_is_refused_as_too_large(client: Client) -> None:
+    """Audit item 35: refused by the declared size, as an answer and not as a server failure."""
+    response = client.post("/api/auth/login/start", "x" * 1000, content_type="application/json")
+    assert response.status_code == 413
+    assert response.json()["error"]["code"] == "REQUEST_TOO_LARGE"

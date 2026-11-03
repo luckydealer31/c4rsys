@@ -1285,7 +1285,8 @@
     "captcha_required": "Confirm that you are not a bot.",
     "captcha_failed": "The check that you are not a bot failed. Try again.",
     "captcha_unavailable": "The bot check is unavailable right now. Try again in a few minutes.",
-    "ip_rate_limited": "Too many requests from your network. Try again in an hour."
+    "ip_rate_limited": "Too many requests from your network. Try again in an hour.",
+    "request_too_large": "The request is too large."
   },
   "history": {
     "action": "Action",
