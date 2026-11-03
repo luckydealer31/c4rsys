@@ -35,11 +35,11 @@ docker compose up -d db
 
 ## Фиксация версий
 
-Каркас написан без доступа к реестрам пакетов, поэтому версии зависимостей заданы диапазонами. При первой успешной установке зафиксируйте точные версии и закоммитьте результат:
+В `requirements.txt` версии заданы диапазонами. Все сборки (разработка, CI, сервер) ставят точные версии из `backend/requirements.lock` (`pip install -c requirements.lock`). CI проверяет их на известные уязвимости (`pip-audit`, пункт 9 аудита). Чтобы обновить версии, выполните команды и закоммитьте результат:
 
 ```sh
 docker compose run --rm --no-deps -v "$PWD/frontend:/app" frontend npm install   # создаст frontend/package-lock.json
-docker compose run --rm backend pip freeze > backend/requirements.lock
+docker compose run --rm --no-deps backend sh -c "pip install -q -U -r requirements-dev.txt && pip freeze --exclude pip" > backend/requirements.lock
 ```
 
 Если `npm install` сообщит о несовместимых версиях, поднимите или опустите диапазон в `package.json` до совместимого. Принятые решения (Django 6.1, PostgreSQL 18) при этом не меняются.

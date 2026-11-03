@@ -10,8 +10,8 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt requirements-dev.txt ./
-RUN pip install -r requirements-dev.txt
+COPY requirements.txt requirements-dev.txt requirements.lock ./
+RUN pip install -r requirements-dev.txt -c requirements.lock
 
 COPY . .
 

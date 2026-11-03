@@ -1,10 +1,13 @@
-# Runtime dependencies. Ranges are intentional until the first install on a machine
-# with registry access; then freeze exact versions (see README, "Lock versions").
+# Runtime dependencies as ranges. Every build installs the exact versions of requirements.lock
+# (pip install -c requirements.lock); refresh it as README, «Фиксация версий», says.
 Django>=6.1.2,<6.2
 psycopg[binary]>=3.2,<4
 dj-database-url>=2.2,<4
 argon2-cffi>=23.1,<30
-django-anymail[amazon-ses]>=15.2,<16
+# Amazon SES through boto3 only: the amazon-ses extra also brings the S3 encryption client for
+# inbound mail, which is not used and holds cryptography below its fixed versions (audit item 9).
+django-anymail>=15.2,<16
+boto3>=1.43.6,<2
 gunicorn>=26.2,<27
 # XLSX import (§ 22.2).
 openpyxl>=3.1,<4

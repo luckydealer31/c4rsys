@@ -11,8 +11,9 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt ./
-RUN pip install -r requirements.txt && useradd --system --no-create-home c4rsys \
+# Exact versions of requirements.lock (audit item 9): the build installs what was checked.
+COPY requirements.txt requirements.lock ./
+RUN pip install -r requirements.txt -c requirements.lock && useradd --system --no-create-home c4rsys \
     && mkdir -p /data/files && chown c4rsys /data/files
 
 COPY . .

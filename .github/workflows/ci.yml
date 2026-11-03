@@ -34,7 +34,9 @@ jobs:
           python-version: "3.13"
       # Decision В-8.1: the tests of inspection videos run ffprobe and ffmpeg.
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
-      - run: pip install -r requirements-dev.txt
+      - run: pip install -r requirements-dev.txt -c requirements.lock
+      # Audit item 9: known vulnerabilities of the fixed versions stop the check.
+      - run: pip install pip-audit && pip-audit -r requirements.lock --progress-spinner off
       - run: ruff check .
       - run: ruff format --check .
       - run: mypy .
