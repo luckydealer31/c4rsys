@@ -1,5 +1,6 @@
 """Limits of requests from one address to the open forms (audit items 11 and 37)."""
 
+import io
 import uuid
 from datetime import timedelta
 from unittest import mock
@@ -9,7 +10,8 @@ from django.test import Client, RequestFactory, override_settings
 from django.utils import timezone
 
 from c4rsys.platform import ratelimit
-from c4rsys.platform.http import client_ip
+from c4rsys.platform.errors import ApiError
+from c4rsys.platform.http import client_ip, parse_json
 from c4rsys.platform.models import IpRequestCount
 
 pytestmark = pytest.mark.django_db
@@ -113,3 +115,12 @@ def test_a_body_above_the_limit_is_refused_as_too_large(client: Client) -> None:
     response = client.post("/api/auth/login/start", "x" * 1000, content_type="application/json")
     assert response.status_code == 413
     assert response.json()["error"]["code"] == "REQUEST_TOO_LARGE"
+
+
+def test_a_form_sent_where_json_is_expected_is_a_bad_request() -> None:
+    """Found by Sentry: the CSRF check reads a form first; the raw body is then gone."""
+    request = RequestFactory().post("/api/auth/login/start", {"file": io.BytesIO(b"x")})
+    request.POST  # noqa: B018 — read as a form, as the CSRF check does
+    with pytest.raises(ApiError) as refused:
+        parse_json(request)
+    assert (refused.value.code, refused.value.status) == ("INVALID_JSON", 400)

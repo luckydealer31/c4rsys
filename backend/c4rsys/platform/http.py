@@ -5,7 +5,7 @@ import json
 from typing import Any
 
 from django.conf import settings
-from django.http import HttpRequest, JsonResponse
+from django.http import HttpRequest, JsonResponse, RawPostDataException
 
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandResult
@@ -14,10 +14,16 @@ IDEMPOTENCY_HEADER = "HTTP_IDEMPOTENCY_KEY"
 
 
 def parse_json(request: HttpRequest) -> dict[str, Any]:
-    if not request.body:
+    try:
+        body = request.body
+    except RawPostDataException as exc:
+        # A form or a file sent where JSON is expected: the CSRF check has already read it as a
+        # form. A wrong request, not a failure of the server (found by Sentry).
+        raise errors.validation_error("body", code="INVALID_JSON") from exc
+    if not body:
         return {}
     try:
-        data = json.loads(request.body)
+        data = json.loads(body)
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise errors.validation_error("body", code="INVALID_JSON") from exc
     if not isinstance(data, dict):
