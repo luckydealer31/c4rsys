@@ -24,3 +24,5 @@ frontend/dist/
 
 # TypeScript incremental build info
 *.tsbuildinfo
+# Versions put on the server by scripts/deploy.sh
+.deploy-history

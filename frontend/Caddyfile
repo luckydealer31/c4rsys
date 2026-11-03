@@ -1,5 +1,12 @@
 # C4R_SITE_ADDRESS: "test.c4rsys.com" gets HTTPS automatically; ":80" serves plain HTTP
 # (a local check, or a server where another web server already terminates HTTPS).
+# Audit item 47: while the backend restarts at a deploy, a request waits up to 30 s for it
+# instead of an error. Only a connection that failed is tried again, so nothing runs twice.
+(backend_restart) {
+	lb_try_duration 30s
+	lb_try_interval 500ms
+}
+
 {$C4R_SITE_ADDRESS::80} {
 	encode zstd gzip
 
@@ -9,11 +16,15 @@
 		request_body {
 			max_size 1100MB
 		}
-		reverse_proxy backend:8000
+		reverse_proxy backend:8000 {
+			import backend_restart
+		}
 	}
 
 	handle /api/* {
-		reverse_proxy backend:8000
+		reverse_proxy backend:8000 {
+			import backend_restart
+		}
 	}
 
 	# Hashed files of the build never change under the same name; a missing one is a plain 404,

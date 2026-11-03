@@ -37,6 +37,9 @@ services:
         condition: service_healthy
 
   backend:
+    # Audit item 25: the image built by CI for the commit (scripts/deploy.sh); `build` stays for
+    # the local check of this build (scripts/e2e.sh prod).
+    image: ${C4R_IMAGES:-ghcr.io/luckydealer31}/c4rsys-backend:${C4R_VERSION:-latest}
     build:
       context: ./backend
       dockerfile: Dockerfile.prod
@@ -67,6 +70,9 @@ services:
   # Reference exchange rates (§ 17.1.6): downloaded at start and every 3 hours. A failed download
   # keeps the last rates; operations then show their age and a warning (§ 17.1.8).
   rates:
+    # Audit item 25: the image built by CI for the commit (scripts/deploy.sh); `build` stays for
+    # the local check of this build (scripts/e2e.sh prod).
+    image: ${C4R_IMAGES:-ghcr.io/luckydealer31}/c4rsys-backend:${C4R_VERSION:-latest}
     build:
       context: ./backend
       dockerfile: Dockerfile.prod
@@ -93,6 +99,9 @@ services:
   # Every 10 minutes: deposits whose hold term has passed go to the clients' balances (§ 14.7.1);
   # bookings whose auto-cancel moment at no-show has passed are cancelled (§ 14.8.1).
   deposits:
+    # Audit item 25: the image built by CI for the commit (scripts/deploy.sh); `build` stays for
+    # the local check of this build (scripts/e2e.sh prod).
+    image: ${C4R_IMAGES:-ghcr.io/luckydealer31}/c4rsys-backend:${C4R_VERSION:-latest}
     build:
       context: ./backend
       dockerfile: Dockerfile.prod
@@ -119,6 +128,9 @@ services:
   # Every 5 minutes (decision З-5): repetitions of repeating tasks whose date has come
   # (§ 19.4.1); deadlines, reminders and warnings of the notification centre (гл. 20).
   schedule:
+    # Audit item 25: the image built by CI for the commit (scripts/deploy.sh); `build` stays for
+    # the local check of this build (scripts/e2e.sh prod).
+    image: ${C4R_IMAGES:-ghcr.io/luckydealer31}/c4rsys-backend:${C4R_VERSION:-latest}
     build:
       context: ./backend
       dockerfile: Dockerfile.prod
@@ -148,6 +160,7 @@ services:
         condition: service_healthy
 
   web:
+    image: ${C4R_IMAGES:-ghcr.io/luckydealer31}/c4rsys-web:${C4R_VERSION:-latest}
     build:
       context: ./frontend
       dockerfile: Dockerfile.prod
