@@ -56,7 +56,11 @@ done
 # DAC_OVERRIDE: the folders already handed over are closed to everyone but caddy.
 $compose run --rm --no-deps -T --user root --cap-add CHOWN --cap-add DAC_OVERRIDE \
   --entrypoint chown web -R 1000:1000 /data /config
-$compose up -d --no-build --wait
+# Two steps: compose recreates the services that depend on a recreated one, so in one step a new
+# backend would restart Caddy too. Caddy is recreated only when its own image changed (item 47).
+$compose up -d --no-build --wait db
+$compose up -d --no-build --wait --no-deps db-role backend rates deposits schedule
+$compose up -d --no-build --wait --no-deps web
 $compose ps
 echo "$version" >> .deploy-history
 # Images of versions no longer listed among the last ten are removed (audit item 48: disk).
