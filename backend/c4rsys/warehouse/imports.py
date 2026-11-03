@@ -38,6 +38,7 @@ from openpyxl.utils.exceptions import InvalidFileException
 
 from c4rsys.companies import access
 from c4rsys.companies.models import Company
+from c4rsys.files import checks as file_checks
 from c4rsys.files import services as files
 from c4rsys.files.models import StoredFile
 from c4rsys.platform import errors, jobs
@@ -52,6 +53,10 @@ PROBLEMS_SHEET = "problems"
 ROW_CODE = "row_code"
 MAX_FILE_BYTES = 5 * 1024 * 1024
 MAX_ROWS = 5000
+# Audit item 4 (PROPOSAL, агент, не подтверждено): the columns read from the data sheet — a
+# template has a few dozen; a sheet may claim 16 384 — and the rows of the service sheet.
+MAX_COLUMNS = 200
+MAX_META_ROWS = 50
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 KEEP_FILES_MONTHS = 6
 LOADED = ("created", "linked")
@@ -276,6 +281,13 @@ def parse(content: bytes, kind: str = "items", *, correction: bool = False) -> P
     """Rows of the data sheet as text values; the file must be the template of this kind and
     version (§ 22.2.6). A corrected file must have the codes of its rows (§ 22.2.7)."""
     found = adapter(kind)
+    # Audit item 4: the package is checked before it is unpacked — a «zip bomb» (a few megabytes
+    # that unpack into gigabytes), macros or encrypted parts never reach the parser (§ 24.4.4).
+    reason = file_checks.inspect(files.XLSX, content)
+    if reason == "package_invalid":
+        raise errors.validation_error("file", code="IMPORT_FILE_NOT_XLSX")
+    if reason:
+        raise errors.validation_error("file", code="FILE_BLOCKED", reason=reason)
     try:
         book = load_workbook(io.BytesIO(content), read_only=True, data_only=True)
     except (InvalidFileException, BadZipFile, KeyError, ValueError, OSError) as exc:
@@ -284,15 +296,17 @@ def parse(content: bytes, kind: str = "items", *, correction: bool = False) -> P
         raise errors.validation_error("file", code="IMPORT_TEMPLATE_UNSUPPORTED")
     meta = {
         _cell(r[0]): _cell(r[1])
-        for r in book[META_SHEET].iter_rows(values_only=True)
+        for r in book[META_SHEET].iter_rows(max_row=MAX_META_ROWS, max_col=2, values_only=True)
         if r and len(r) > 1
     }
     if meta.get("template") != found.kind or meta.get("version") != str(found.version):
         raise errors.validation_error("file", code="IMPORT_TEMPLATE_UNSUPPORTED")
-    rows = list(book[found.sheet].iter_rows(values_only=True))
-    if not rows:
+    # Rows are read one by one and the reading stops at the limit: a sheet is never held whole.
+    rows = book[found.sheet].iter_rows(max_col=MAX_COLUMNS, values_only=True)
+    first = next(rows, None)
+    if first is None:
         raise errors.validation_error("file", code="IMPORT_TEMPLATE_UNSUPPORTED")
-    header = [_cell(c) for c in rows[0]]
+    header = [_cell(c) for c in first]
     warnings = [
         {"code": "UNKNOWN_COLUMN", "column": c}
         for c in header
@@ -304,14 +318,14 @@ def parse(content: bytes, kind: str = "items", *, correction: bool = False) -> P
     if missing:
         raise errors.validation_error("file", code="IMPORT_COLUMNS_MISSING", columns=missing)
     result = []
-    for number, row in enumerate(rows[1:], start=2):
+    for number, row in enumerate(rows, start=2):
         cells = {code: _cell(row[i]) if i < len(row) else "" for i, code in enumerate(header)}
         values = {code: value for code, value in cells.items() if code in found.columns}
         if not any(values.values()):
             continue  # empty rows are ignored (§ 22.2.6)
         result.append({"number": number, "values": values, "row_code": cells.get(ROW_CODE, "")})
-    if len(result) > MAX_ROWS:
-        raise errors.validation_error("file", code="IMPORT_TOO_MANY_ROWS", max_rows=MAX_ROWS)
+        if len(result) > MAX_ROWS:
+            raise errors.validation_error("file", code="IMPORT_TOO_MANY_ROWS", max_rows=MAX_ROWS)
     return Parsed(result, warnings)
 
 

@@ -1,13 +1,17 @@
 """XLSX import of the catalog (ТЗ § 22.2, § 22.4.1, § 22.5.1)."""
 
 import io
+import zipfile
 from typing import Any
+from unittest import mock
 
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client
 from openpyxl import load_workbook
 
+from c4rsys.files import checks as file_checks
+from c4rsys.platform.errors import ApiError
 from c4rsys.warehouse import imports
 from c4rsys.warehouse.models import Item
 from tests.accounts.helpers import post
@@ -144,3 +148,41 @@ def test_other_files_are_refused_and_import_needs_its_right(owner: Client, cmp: 
     ]
     staff, _ = hire(owner, cmp, "staff@example.com", rights)
     assert upload(staff, cmp, workbook([{"name": "X", "unit": "piece"}])).status_code == 403
+
+
+# --- Audit item 4: the file is checked before it is unpacked --------------------------------------
+
+
+def _with_entry(content: bytes, name: str, data: bytes) -> bytes:
+    output = io.BytesIO(content)
+    with zipfile.ZipFile(output, "a", zipfile.ZIP_DEFLATED) as package:
+        package.writestr(name, data)
+    return output.getvalue()
+
+
+def test_a_zip_bomb_is_blocked_before_it_is_unpacked(owner: Client, cmp: str) -> None:
+    # 60 MB of zeros pack into a few dozen kilobytes.
+    bomb = _with_entry(workbook([]), "xl/padding.xml", b"0" * (60 * 1024 * 1024))
+    assert len(bomb) < imports.MAX_FILE_BYTES
+    with mock.patch.object(imports, "load_workbook") as unpack:
+        response = upload(owner, cmp, bomb)
+    error = response.json()["error"]
+    assert (error["code"], error["params"]["reason"]) == ("FILE_BLOCKED", "package_too_large")
+    unpack.assert_not_called()
+
+
+def test_a_full_template_passes_the_check() -> None:
+    rows = [
+        {"name": f"Oil filter {n}", "unit": "piece", "manufacturer": "Bosch", "barcode": f"{n:08}"}
+        for n in range(imports.MAX_ROWS)
+    ]
+    content = workbook(rows)
+    assert file_checks.inspect(imports.XLSX, content) == ""
+    assert len(imports.parse(content).rows) == imports.MAX_ROWS
+
+
+def test_reading_stops_at_the_row_limit() -> None:
+    content = workbook([{"name": f"Part {n}", "unit": "piece"} for n in range(10)])
+    with mock.patch.object(imports, "MAX_ROWS", 3), pytest.raises(ApiError) as refused:
+        imports.parse(content)
+    assert refused.value.code == "IMPORT_TOO_MANY_ROWS"

@@ -21,7 +21,12 @@
 		}
 	}
 
+	# Audit item 35: every other request is cut at 20 MB before it reaches the backend; the largest
+	# is an import file of 5 MB, a JSON body is capped by Django at 2.5 MB (PROPOSAL).
 	handle /api/* {
+		request_body {
+			max_size 20MB
+		}
 		reverse_proxy backend:8000 {
 			import backend_restart
 		}
