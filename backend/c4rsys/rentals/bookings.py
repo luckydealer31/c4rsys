@@ -331,11 +331,27 @@ def create(ctx: CommandContext, company_id: UUID, data: BookingData) -> Rental:
     return rental
 
 
-def _locked_booking(company_id: UUID, rental_id: UUID, expected_version: int) -> Rental:
+def _locked_booking(
+    company_id: UUID, rental_id: UUID, expected_version: int, *, new_card_id: UUID | None = None
+) -> Rental:
+    """Audit item 2: the vehicle is locked before the booking (lock order: vehicle → rental), as at
+    the creation of a booking and at the changes of a rental. Two commands that take the same
+    vehicle for overlapping times then check its availability one after the other, never both on
+    the same old picture. A replacement locks the new vehicle too; vehicles in the order of their
+    ids, so two replacements in opposite directions do not wait for each other forever."""
+    found = (
+        Rental.objects.filter(company_id=company_id, pk=rental_id)
+        .values_list("vehicle_card_id", flat=True)
+        .first()
+    )
+    if found is None:
+        raise errors.not_found()
+    for card_id in sorted({found, new_card_id or found}, key=str):
+        fleet.lock_card(company_id, card_id)
     rental = Rental.objects.select_for_update().filter(company_id=company_id, pk=rental_id).first()
     if rental is None:
         raise errors.not_found()
-    if rental.version != expected_version:
+    if rental.version != expected_version or rental.vehicle_card_id != found:
         raise errors.version_conflict()
     if rental.state != BOOKED:
         raise errors.business_rule("BOOKING_NOT_ACTIVE")
@@ -440,7 +456,7 @@ def replace_vehicle(
     """Another vehicle for an upcoming booking (§ 14.1.6, § 14.6.2). The agreed terms stay when
     the tariff is available for the new vehicle; otherwise the employee chooses new terms
     explicitly — no automatic substitution. The previous terms stay in history."""
-    rental = _locked_booking(company_id, rental_id, expected_version)
+    rental = _locked_booking(company_id, rental_id, expected_version, new_card_id=vehicle_card_id)
     if vehicle_card_id == rental.vehicle_card_id:
         raise errors.validation_error("vehicle_card_id", code="VEHICLE_SAME")
     before = snapshot(rental)
