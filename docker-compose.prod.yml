@@ -54,6 +54,9 @@ services:
       dockerfile: Dockerfile.prod
     restart: unless-stopped
     logging: *logging
+    # Audit item 47: gunicorn gives running requests 30 s to finish when it stops; Docker's own
+    # limit of 10 s killed them earlier (found at the deploy of d019ca8).
+    stop_grace_period: 35s
     env_file:
       - path: .env.prod
         required: false
@@ -199,9 +202,6 @@ services:
       dockerfile: Dockerfile.prod
     restart: unless-stopped
     logging: *logging
-    # Audit item 47: gunicorn gives running requests 30 s to finish when it stops; Docker's own
-    # limit of 10 s killed them earlier (found at the deploy of d019ca8).
-    stop_grace_period: 35s
     environment:
       C4R_SITE_ADDRESS: ${C4R_SITE_ADDRESS:-:80}
     # Audit item 38: Caddy runs as the user caddy, not root; ports 80 and 443 open to it through the
