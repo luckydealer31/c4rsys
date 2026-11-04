@@ -185,7 +185,15 @@ def vehicle_list(request: HttpRequest, cmp: str) -> JsonResponse:
         if only:
             # § 21.3.1: the list a block of the overview is counted from.
             cards = _only(cards, only)
-        items = [_payload(c) for c in cards if _allowed(actor, "vehicle.view", c)]
+        # The right depends on the accounting location only: checked once per location (audit
+        # item 12; it was a few queries for every vehicle of the fleet).
+        visible: dict[UUID | None, bool] = {}
+        items = []
+        for c in cards:
+            if c.accounting_location_id not in visible:
+                visible[c.accounting_location_id] = _allowed(actor, "vehicle.view", c)
+            if visible[c.accounting_location_id]:
+                items.append(_payload(c))
         return JsonResponse({"vehicles": items})
 
     data = parse_json(request)

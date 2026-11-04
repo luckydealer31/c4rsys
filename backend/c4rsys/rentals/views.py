@@ -579,15 +579,42 @@ def _rental_visible(actor: Actor, rental: Rental) -> bool:
     )
 
 
+def _rental_summary(rental: Rental, exception: dict[str, Any] | None) -> dict[str, Any]:
+    """A row of the list (RentalSummary of the interface): what the lists and the pickers show.
+    Audit item 12: the list gave the whole card of every rental, its calculation, inspections and
+    services included, about 27 queries a row and 2 700 for the list; the card is read by
+    rental_detail when it is opened."""
+    return {
+        "id": str(rental.id),
+        "order_id": str(rental.order_id),
+        "vehicle_card_id": str(rental.vehicle_card_id),
+        "client_id": str(rental.client_id) if rental.client_id else None,
+        "state": rental.state,
+        "issue_location_id": str(rental.issue_location_id) if rental.issue_location_id else None,
+        "return_location_id": str(rental.return_location_id) if rental.return_location_id else None,
+        "actual_start": _utc(rental.actual_start),
+        "planned_end": _utc(rental.planned_end),
+        "actual_end": _utc(rental.actual_end),
+        "issue_exception": exception,
+        "deposit": deposits.payload(rental),
+        **_booking_payload(rental),
+    }
+
+
 @require_http_methods(["GET"])
 def rental_list(request: HttpRequest, cmp: str) -> JsonResponse:
     context, actor = _actor(request, cmp)
-    items = [
-        _rental_payload(r)
-        # A proposal of a preliminary order is shown in its order only (decision З2).
-        for r in rentals.rentals_of(context.company.id).exclude(state=Rental.State.PROPOSED)[:100]
-        if _rental_visible(actor, r)
-    ]
+    # The right depends on the location of issue only: checked once per location (audit item 12).
+    visible: dict[UUID | None, bool] = {}
+    shown = []
+    # A proposal of a preliminary order is shown in its order only (decision З2).
+    for r in rentals.rentals_of(context.company.id).exclude(state=Rental.State.PROPOSED)[:100]:
+        if r.issue_location_id not in visible:
+            visible[r.issue_location_id] = _rental_visible(actor, r)
+        if visible[r.issue_location_id]:
+            shown.append(r)
+    exceptions = issue_policies.payloads([r.id for r in shown])
+    items = [_rental_summary(r, exceptions.get(r.id)) for r in shown]
     return JsonResponse({"rentals": items})
 
 

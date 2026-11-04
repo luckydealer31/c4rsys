@@ -1,0 +1,23 @@
+# Load test (scripts/loadtest.sh, audit item 12), over deploy/prod-check.yml. The test server has
+# 4 processors and 7.9 GB for everything; here the database, the backend and Caddy share about the
+# same (the background loops are not started). k6 runs beside them with its own processor.
+services:
+  db:
+    cpus: 1.5
+    mem_limit: 3g
+  backend:
+    cpus: 2
+    mem_limit: 3g
+  web:
+    cpus: 0.5
+    mem_limit: 1g
+  k6:
+    image: grafana/k6:0.57.0
+    profiles: ["load"]
+    network_mode: "service:web"
+    cpus: 1
+    environment:
+      BASE_URL: http://localhost
+    volumes:
+      - ./loadtest:/loadtest:ro
+    command: run --quiet /loadtest/staff.js

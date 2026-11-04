@@ -424,8 +424,18 @@ EXCEPTION_REJECTED = "rental.exception_rejected"
 
 def payload(rental_id: UUID) -> dict[str, Any] | None:
     item = exception_of(rental_id)
-    if item is None:
-        return None
+    return None if item is None else _full_payload(item)
+
+
+def payloads(rental_ids: list[UUID]) -> dict[UUID, dict[str, Any]]:
+    """The exceptions of many rentals in one query (the list, audit item 12); one per rental."""
+    return {
+        item.rental_id: _full_payload(item)
+        for item in IssueException.objects.filter(rental_id__in=rental_ids)
+    }
+
+
+def _full_payload(item: IssueException) -> dict[str, Any]:
     return {
         **_payload(item),
         "decided_at": item.decided_at.isoformat() if item.decided_at else None,
