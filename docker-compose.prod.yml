@@ -63,6 +63,8 @@ services:
       POSTGRES_PASSWORD: ""
       DJANGO_DEBUG: "0"
       C4R_RELEASE: ${C4R_RELEASE:-}
+      # Audit item 22: logs as JSON lines (c4rsys.platform.logs).
+      C4R_LOG_JSON: "1"
       # Audit item 20 (PROPOSAL): queries and idle transactions are stopped after 60 s.
       C4R_DB_STATEMENT_TIMEOUT_MS: ${C4R_DB_STATEMENT_TIMEOUT_MS:-60000}
       C4R_DB_IDLE_TRANSACTION_TIMEOUT_MS: ${C4R_DB_IDLE_TRANSACTION_TIMEOUT_MS:-60000}
@@ -97,6 +99,8 @@ services:
       POSTGRES_PASSWORD: ""
       DJANGO_DEBUG: "0"
       C4R_RELEASE: ${C4R_RELEASE:-}
+      # Audit item 22: logs as JSON lines (c4rsys.platform.logs).
+      C4R_LOG_JSON: "1"
       # Audit item 20 (PROPOSAL): queries and idle transactions are stopped after 60 s.
       C4R_DB_STATEMENT_TIMEOUT_MS: ${C4R_DB_STATEMENT_TIMEOUT_MS:-60000}
       C4R_DB_IDLE_TRANSACTION_TIMEOUT_MS: ${C4R_DB_IDLE_TRANSACTION_TIMEOUT_MS:-60000}
@@ -132,6 +136,8 @@ services:
       POSTGRES_PASSWORD: ""
       DJANGO_DEBUG: "0"
       C4R_RELEASE: ${C4R_RELEASE:-}
+      # Audit item 22: logs as JSON lines (c4rsys.platform.logs).
+      C4R_LOG_JSON: "1"
       # Audit item 20 (PROPOSAL): queries and idle transactions are stopped after 60 s.
       C4R_DB_STATEMENT_TIMEOUT_MS: ${C4R_DB_STATEMENT_TIMEOUT_MS:-60000}
       C4R_DB_IDLE_TRANSACTION_TIMEOUT_MS: ${C4R_DB_IDLE_TRANSACTION_TIMEOUT_MS:-60000}
@@ -165,6 +171,8 @@ services:
       POSTGRES_PASSWORD: ""
       DJANGO_DEBUG: "0"
       C4R_RELEASE: ${C4R_RELEASE:-}
+      # Audit item 22: logs as JSON lines (c4rsys.platform.logs).
+      C4R_LOG_JSON: "1"
       # Audit item 20 (PROPOSAL): queries and idle transactions are stopped after 60 s.
       C4R_DB_STATEMENT_TIMEOUT_MS: ${C4R_DB_STATEMENT_TIMEOUT_MS:-60000}
       C4R_DB_IDLE_TRANSACTION_TIMEOUT_MS: ${C4R_DB_IDLE_TRANSACTION_TIMEOUT_MS:-60000}

@@ -12,7 +12,7 @@ from typing import Any
 SECRET_PATH = re.compile(r"(/api/(?:sign|recovery/password)/)[^/?#]+")
 
 
-def _cut(value: Any) -> Any:
+def cut(value: Any) -> Any:
     return SECRET_PATH.sub(r"\1[cut]", value) if isinstance(value, str) else value
 
 
@@ -20,18 +20,18 @@ def scrub(event: dict[str, Any], hint: dict[str, Any]) -> dict[str, Any] | None:
     request = event.get("request")
     if isinstance(request, dict):
         if "url" in request:
-            request["url"] = _cut(request["url"])
+            request["url"] = cut(request["url"])
         request.pop("query_string", None)
         request.pop("cookies", None)
         request.pop("data", None)
         request.pop("headers", None)
         request.pop("env", None)
     if "transaction" in event:
-        event["transaction"] = _cut(event["transaction"])
+        event["transaction"] = cut(event["transaction"])
     for crumb in (event.get("breadcrumbs") or {}).get("values", []):
-        crumb["message"] = _cut(crumb.get("message"))
+        crumb["message"] = cut(crumb.get("message"))
         if isinstance(crumb.get("data"), dict):
-            crumb["data"] = {k: _cut(v) for k, v in crumb["data"].items()}
+            crumb["data"] = {k: cut(v) for k, v in crumb["data"].items()}
     return event
 
 

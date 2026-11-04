@@ -205,12 +205,11 @@ C4R_TURNSTILE_SECRET_KEY = os.environ.get("C4R_TURNSTILE_SECRET_KEY", "")
 # The backend is reached only through Caddy, which sets X-Forwarded-For (audit item 37); on then.
 C4R_TRUST_PROXY = env_bool("C4R_TRUST_PROXY", False)
 
-LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "handlers": {"console": {"class": "logging.StreamHandler"}},
-    "root": {"handlers": ["console"], "level": os.environ.get("DJANGO_LOG_LEVEL", "INFO")},
-}
+# Audit item 22: one line of JSON per record on the server (docker-compose.prod.yml), plain text
+# in development: c4rsys.platform.logs.
+from c4rsys.platform import logs as _logs  # noqa: E402
+
+LOGGING = _logs.config(env_bool("C4R_LOG_JSON", False), os.environ.get("DJANGO_LOG_LEVEL", "INFO"))
 
 # Server errors to Sentry (audit item 21): c4rsys.platform.monitoring. Off without SENTRY_DSN.
 SENTRY_DSN = os.environ.get("SENTRY_DSN", "")
