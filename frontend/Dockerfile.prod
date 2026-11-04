@@ -14,3 +14,7 @@ COPY Caddyfile /etc/caddy/Caddyfile
 RUN addgroup -S -g 1000 caddy && adduser -S -D -H -u 1000 -G caddy caddy \
     && chown -R caddy:caddy /data /config
 USER caddy
+# Audit item 29: deploy.sh waits for this check (up --wait), so a Caddy that does not serve the
+# interface fails the deploy instead of passing it.
+HEALTHCHECK --interval=10s --timeout=5s --retries=3 --start-period=30s --start-interval=2s \
+  CMD wget -q -O /dev/null http://127.0.0.1:8080/index.html || exit 1

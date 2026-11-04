@@ -7,6 +7,15 @@
 	lb_try_interval 500ms
 }
 
+# Audit item 29: the check of Docker (HEALTHCHECK of Dockerfile.prod). Inside the container only,
+# without HTTPS: Caddy runs and serves the built interface from /srv. The site from outside
+# (HTTPS, the backend behind it) is watched through /api/health/full by the external monitor.
+http://127.0.0.1:8080 {
+	bind 127.0.0.1
+	root * /srv
+	file_server
+}
+
 {$C4R_SITE_ADDRESS::80} {
 	encode zstd gzip
 
