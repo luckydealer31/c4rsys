@@ -248,3 +248,50 @@ def test_deposit_entries_cannot_be_changed(owner: Client, s: Scenario) -> None:
 
     with pytest.raises(DatabaseError), transaction.atomic():
         DepositEntry.objects.update(reason="x")
+
+
+def test_only_rentals_holding_free_money_are_read_again(owner: Client, s: Scenario) -> None:
+    # Audit item 13: the database finds the rentals whose deposit still has a free part, and the
+    # answer matches the figures after each kind of entry.
+    from c4rsys.rentals.models import Rental
+
+    rental = Rental.objects.get(pk=issue(owner, s).json()["rental"]["id"])
+    client = rental.client_id
+    assert client is not None
+    holding: list[bool] = []
+
+    def check(kind: str) -> None:
+        found = deposits.holding_free().filter(rental_id=rental.id).exists()
+        assert found == (deposits.figures(rental).free > 0), kind
+        holding.append(found)
+
+    account = _account(owner, s)
+    _receive(owner, s, account, "5000", deposits=[{"rental_id": str(rental.id), "amount": "5000"}])
+    check("received")  # all free
+    # Refunds need a money record: the one of the receipt stands in for it here.
+    movement = DepositEntry.objects.get(rental_id=rental.id, kind="received").money_movement_id
+
+    def add(kind: str, amount: str) -> None:
+        DepositEntry.objects.create(
+            company_id=rental.company_id,
+            rental_id=rental.id,
+            client_id=client,
+            kind=kind,
+            amount=amount,
+            currency_id="THB",
+            money_movement_id=movement if kind == "refund" else None,
+            order_id=rental.order_id if kind == "offset" else None,
+            reason="test",
+        )
+        check(kind)
+
+    add("hold", "2000")  # 3000 free
+    add("to_balance", "3000")  # what is left is claimed
+    add("release", "500")  # 500 free again
+    add("hold", "4000")  # claimed above what is held
+    add("release", "4000")  # 500 free
+    add("offset", "1000")  # 1000 held, 1500 claimed
+    add("release", "1500")  # nothing claimed, 1000 free
+    add("refund", "500")  # 500 free
+    add("correction", "600")  # held below zero
+    assert holding == [True, True, False, True, False, True, False, True, True, False]

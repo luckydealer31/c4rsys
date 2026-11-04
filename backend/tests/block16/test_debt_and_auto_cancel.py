@@ -193,3 +193,39 @@ def test_new_booking_refers_to_the_cancelled_one(owner: Client, s: Scenario) -> 
         "number": first["booking"]["number"],
     }
     assert Rental.objects.get(pk=first["id"]).state == "cancelled"
+
+
+def test_past_due_orders_are_read_in_batches(owner: Client, s: Scenario) -> None:
+    # Audit item 13: settled orders past their term are read every run; their amounts come in a
+    # fixed number of queries, however many there are.
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    from c4rsys.orders import notices
+    from c4rsys.orders.models import Order
+
+    order = Order.objects.get(pk=_order_with_debt(owner, s)["id"])
+    Order.objects.filter(pk=order.pk).update(
+        payment_due_on=timezone.localdate() - timedelta(days=2)
+    )
+
+    def queries() -> int:
+        with CaptureQueriesContext(connection) as captured:
+            notices._overdue(timezone.now())
+        return len(captured)
+
+    queries()  # the warning of the order with debt is raised once
+    few = queries()
+    last = Order.objects.order_by("-number").first()
+    assert last is not None
+    for number in range(last.number + 1, last.number + 31):
+        # Orders without operations: past their term, nothing to pay.
+        Order.objects.create(
+            company_id=order.company_id,
+            number=number,
+            client_id=order.client_id,
+            created_by_user_id=order.created_by_user_id,
+            payment_due_on=timezone.localdate() - timedelta(days=5),
+        )
+    assert queries() == few
+    assert Notification.objects.filter(event="finance.payment_overdue").count() == 1

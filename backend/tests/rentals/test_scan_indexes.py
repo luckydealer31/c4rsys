@@ -14,6 +14,7 @@ from django.db.models import QuerySet
 from django.test import Client
 from django.utils import timezone
 
+from c4rsys.finance import deposits
 from c4rsys.rentals import rentals
 from c4rsys.rentals.models import Rental
 from c4rsys.service.models import OPEN_STATES, ServiceOperation
@@ -78,7 +79,9 @@ SCANS: dict[str, Callable[[], QuerySet[Any]]] = {
         state="active", planned_end__isnull=False, planned_end__lte=NOW + timedelta(days=90)
     ),
     # finance.deposits.release_expired
-    "rental_returned_end_idx": lambda: rentals.returned_with_deposit_term(NOW),
+    "rental_returned_end_idx": lambda: rentals.returned_with_deposit_term(
+        NOW, among=deposits.holding_free()
+    ),
     # service.notices: the overdue operation
     "service_operation_open_end_idx": lambda: ServiceOperation.objects.filter(
         state__in=OPEN_STATES, planned_end__lt=NOW

@@ -36,7 +36,7 @@ def test_notification_checks_go_on_after_one_fails() -> None:
 
 def test_deposits_go_on_after_one_fails() -> None:
     first, second = (SimpleNamespace(id=uuid.uuid4(), company_id=uuid.uuid4()) for _ in range(2))
-    rentals = SimpleNamespace(returned_with_deposit_term=lambda moment: [first, second])
+    rentals = SimpleNamespace(returned_with_deposit_term=lambda moment, among: [first, second])
     with (
         mock.patch.object(deposits, "_rentals", return_value=rentals),
         mock.patch.object(

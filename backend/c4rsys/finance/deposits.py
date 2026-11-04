@@ -16,7 +16,7 @@ from typing import Any
 from uuid import UUID
 
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import F, Q, QuerySet, Sum, Value
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
@@ -507,6 +507,27 @@ def waive(ctx: CommandContext, company_id: UUID, rental_id: UUID, reason: str) -
 # --- Transfer by the term (§ 14.7.1) --------------------------------------------------------
 
 
+def holding_free() -> QuerySet[Any, Any]:
+    """The rentals whose `Figures.free` is above zero, found by the database over all their
+    entries: held = received − correction − to_balance − offset − refund, claimed = hold −
+    release; free = max(held − min(max(claimed, 0), max(held, 0)), 0) is above zero exactly when
+    held > 0 and held > claimed."""
+
+    def total(*kinds: str) -> Coalesce:
+        return Coalesce(Sum("amount", filter=Q(kind__in=kinds)), Value(ZERO))
+
+    return (
+        DepositEntry.objects.values("rental_id")
+        .annotate(
+            held=total(K.RECEIVED) - total(K.CORRECTION, K.TO_BALANCE, K.OFFSET, K.REFUND),
+            claimed=total(K.HOLD) - total(K.RELEASE),
+        )
+        .filter(held__gt=0)
+        .filter(held__gt=F("claimed"))
+        .values("rental_id")
+    )
+
+
 def release_expired(now: datetime | None = None) -> int:
     """Moves to the balance what is held and not held by a claim once the term after the actual
     return has passed. Run on a schedule; returns how many deposits were moved."""
@@ -515,7 +536,10 @@ def release_expired(now: datetime | None = None) -> int:
     # § 24.2.2: a company blocked by the system moves nothing automatically; after the block
     # the deposits whose term passed meanwhile are moved by the next run (§ 24.2.3).
     blocked = suspension.suspended_company_ids()
-    for candidate in _rentals().returned_with_deposit_term(moment):
+    # Audit item 13: only the rentals that still hold free money; one moved, offset or refunded
+    # in full is not read again, and comes back when a released claim frees money again.
+    candidates = _rentals().returned_with_deposit_term(moment, among=holding_free())
+    for candidate in candidates:
         if candidate.company_id in blocked:
             continue
 

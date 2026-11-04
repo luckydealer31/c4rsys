@@ -77,14 +77,17 @@ def lock_rental(company_id: UUID, rental_id: UUID) -> Rental:
     return rental
 
 
-def returned_with_deposit_term(before: datetime) -> QuerySet[Rental]:
+def returned_with_deposit_term(
+    before: datetime, among: QuerySet[Any, Any] | None = None
+) -> QuerySet[Rental]:
     """Returned rentals whose deposit has a hold term, returned before `before` (candidates of
-    the automatic transfer, § 14.7.1)."""
-    return (
+    the automatic transfer, § 14.7.1); `among` — the rental ids finance still holds money of."""
+    found = (
         Rental.objects.filter(state=Rental.State.RETURNED, actual_end__lt=before)
         .filter(tariff_snapshot__vehicle_terms__deposit__required=True)
         .exclude(tariff_snapshot__vehicle_terms__deposit__hold_days=None)
     )
+    return found if among is None else found.filter(pk__in=among)
 
 
 def terms_of(rental: Rental) -> pricing.TariffTerms:

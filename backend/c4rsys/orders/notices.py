@@ -3,7 +3,8 @@
 paid; with the company's rule also an automatic task (off by default). The responsible of the
 order receives it, else those who see the finances."""
 
-from datetime import datetime
+from collections.abc import Iterator
+from datetime import datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
@@ -19,10 +20,9 @@ from c4rsys.platform.models import AuditEvent
 EVENT = "finance.debt"
 
 
-def _debt(order: Order) -> dict[str, str]:
-    return {
-        c: str(m.balance) for c, m in orders.amounts_of(order).items() if m.balance > Decimal(0)
-    }
+def _debt(order: Order, amounts: dict[str, orders.Money] | None = None) -> dict[str, str]:
+    found = orders.amounts_of(order) if amounts is None else amounts
+    return {c: str(m.balance) for c, m in found.items() if m.balance > Decimal(0)}
 
 
 def on_order_closed(entry: AuditEvent) -> int:
@@ -116,6 +116,45 @@ def on_payment_corrected(entry: AuditEvent) -> int:
 OVERDUE = "finance.payment_overdue"
 
 
+# The orders of one company read at once: their amounts come in a fixed number of queries.
+PAST_DUE_CHUNK = 500
+
+
+def _past_due(now: datetime) -> Iterator[tuple[Order, dict[str, orders.Money]]]:
+    """The orders whose term of payment has passed in their company's today, with their amounts
+    (audit item 13: a paid order is read every run, so the amounts of a company come in batches,
+    not by order). No company is ahead of UTC by more than 14 hours."""
+    latest = (now + timedelta(hours=14)).date()
+    found = (
+        Order.objects.filter(payment_due_on__lt=latest)
+        .exclude(state=Order.State.CANCELLED)
+        .order_by("company_id", "id")
+    )
+    company: UUID | None = None
+    today = latest
+    chunk: list[Order] = []
+
+    def flush() -> Iterator[tuple[Order, dict[str, orders.Money]]]:
+        if not chunk:
+            return
+        amounts = orders.amounts_of_orders(chunk[0].company_id, [o.id for o in chunk])
+        for item in chunk:
+            yield item, amounts[item.id]
+        chunk.clear()
+
+    for order in found.iterator(chunk_size=PAST_DUE_CHUNK):
+        if order.company_id != company:
+            yield from flush()
+            company = order.company_id
+            today = orders.today_of(company)
+        if order.payment_due_on is None or order.payment_due_on >= today:
+            continue
+        chunk.append(order)
+        if len(chunk) >= PAST_DUE_CHUNK:
+            yield from flush()
+    yield from flush()
+
+
 def _overdue(now: datetime) -> int:
     """§ 12.2.6: an order whose debt is unpaid after its term of payment; the warning repeats by
     the company's rule and ends when the debt is paid or the term is moved."""
@@ -123,17 +162,14 @@ def _overdue(now: datetime) -> int:
 
     changed = 0
     active: set[str] = set()
-    for order in Order.objects.filter(payment_due_on__isnull=False).exclude(
-        state=Order.State.CANCELLED
-    ):
-        today = orders.today_of(order.company_id)
-        if not orders.is_overdue(order, today):
+    for order, amounts in _past_due(now):
+        if not orders.debt_of(order, amounts):
             continue
         condition = f"{OVERDUE}:{order.id}"
         active.add(condition)
         params = {
             "number": order.number,
-            "debt": _debt(order),
+            "debt": _debt(order, amounts),
             "due_on": order.payment_due_on.isoformat() if order.payment_due_on else None,
         }
         changed += rules.raise_event(
