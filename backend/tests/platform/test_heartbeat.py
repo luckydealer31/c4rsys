@@ -1,6 +1,8 @@
 """The outside check of the site and the background loops (audit item 30)."""
 
+import shutil
 from datetime import timedelta
+from unittest import mock
 
 import pytest
 from django.core.management import call_command
@@ -19,11 +21,13 @@ def _all_beat(minutes_ago: float = 0) -> None:
 
 def test_full_health_is_ok_while_every_loop_beats(client: Client) -> None:
     _all_beat()
-    response = client.get("/api/health/full")
+    with mock.patch("shutil.disk_usage", return_value=shutil._ntuple_diskusage(100, 50, 50)):
+        response = client.get("/api/health/full")
     assert response.status_code == 200
     assert response.json() == {
         "status": "ok",
         "database": "ok",
+        "disk": "ok",
         "jobs": {
             "rates": "ok",
             "deposits": "ok",
@@ -56,3 +60,20 @@ def test_the_command_marks_a_round() -> None:
     assert heartbeat.states()["schedule"] == "ok"
     with pytest.raises(ValueError):
         heartbeat.beat("unknown")
+
+
+def test_a_full_disk_answers_503(client: Client) -> None:
+    """Audit item 50: the disk filled above C4R_DISK_ALERT_PERCENT (80 by default)."""
+    _all_beat()
+    usage = shutil._ntuple_diskusage
+    with mock.patch("shutil.disk_usage", return_value=usage(100, 80, 20)):
+        assert client.get("/api/health/full").json()["disk"] == "ok"
+    with mock.patch("shutil.disk_usage", return_value=usage(100, 81, 19)):
+        full = client.get("/api/health/full")
+    assert full.status_code == 503
+    assert full.json()["disk"] == "full"
+    with mock.patch("shutil.disk_usage", side_effect=OSError):
+        assert client.get("/api/health/full").json()["disk"] == "unavailable"
+    # Docker's check does not look at the disk: a full disk must not restart the backend.
+    with mock.patch("shutil.disk_usage", return_value=usage(100, 99, 1)):
+        assert client.get("/api/health").status_code == 200

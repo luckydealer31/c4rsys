@@ -117,6 +117,9 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # Content of uploaded files, outside the database (A10). On the server — a separate volume.
 C4R_FILES_ROOT = os.environ.get("C4R_FILES_ROOT", str(BASE_DIR / "var" / "files"))
+# Audit item 50: /api/health/full answers 503 when the disk of the files is filled above this
+# share, so the outside check writes to the people on duty (80 %: PROPOSAL, агент, не подтверждено).
+C4R_DISK_ALERT_PERCENT = int(os.environ.get("C4R_DISK_ALERT_PERCENT", "80"))
 
 # Inspection videos (decision В-8.1): checked by ffprobe and compressed by ffmpeg on the server.
 # "thread" — the compression starts right after the upload is committed; "off" — only
