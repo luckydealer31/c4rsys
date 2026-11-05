@@ -45,6 +45,7 @@ test("a client links the card in the cabinet and sees the rental", async ({ page
     baseURL: cabinetUrl(baseURL ?? "http://localhost:5173"),
     locale: "ru-RU",
     timezoneId: "Asia/Bangkok",
+    ignoreHTTPSErrors: true,
   });
   const client = await cabinet.newPage();
   const clientEmail = uniqueEmail("client");

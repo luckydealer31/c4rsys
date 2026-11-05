@@ -19,7 +19,7 @@ test("an employee without the right to issue is refused by the server", async ({
   const s = await createCompany(page);
 
   // The employee: another browser, invited with the rental manager's set minus the issue.
-  const own = await browser.newContext({ baseURL, locale: "ru-RU", timezoneId: "Asia/Bangkok" });
+  const own = await browser.newContext({ baseURL, locale: "ru-RU", timezoneId: "Asia/Bangkok", ignoreHTTPSErrors: true });
   const staff = await own.newPage();
   await registerUser(staff, uniqueEmail("manager"), "Олег", "Смирнов");
   const me = (await ok(staff, "GET", "/me")).user as { public_id: string };

@@ -376,3 +376,26 @@ label.check { display: inline-flex; gap: 6px; align-items: center; margin-right:
 .page.wide { max-width: 1400px; }
 .staff-tabs { flex-wrap: wrap; }
 .link-button { background: transparent; border: 0; color: var(--text); padding: 0; min-height: 0; text-align: left; cursor: pointer; }
+
+/* Phones and touch screens (audit item 45): every control is at least 44 px high, as on the
+   inspection page, and fields use 16 px text, so iOS does not zoom the page on focus. A text
+   action inside a sentence or a table cell stays where it is, only its touch area grows. */
+@media (pointer: coarse), (max-width: 760px) {
+  button, .button, .chip, .nav a, .staff-nav a, .menu-row, .tabs button { min-height: 44px; }
+  .nav a, .staff-nav a { display: inline-flex; align-items: center; }
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea {
+    min-height: 44px; font-size: 16px; }
+  input[type="checkbox"], input[type="radio"] { width: 22px; height: 22px; vertical-align: middle; }
+  button.link, .link-button { min-height: 44px; }
+  .small-button { min-height: 44px !important; }
+  .media-remove { width: 36px; height: 36px; }
+  .topbar .bell { min-width: 44px; min-height: 44px; align-items: center; justify-content: center; margin-right: 0; }
+  .topbar .bell-count { top: 2px; right: 0; }
+  .topbar { gap: 8px; }
+}
+/* A wide table scrolls inside itself on a narrow screen, the page does not (audit item 45). */
+@media (max-width: 760px) {
+  table { display: block; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  /* Safari lets a long chosen option stick out of the list and widen the page. */
+  select { max-width: 100%; contain: paint; }
+}
