@@ -76,6 +76,14 @@ if [ -n "$running" ] && [ "$running" != "$version" ] \
     exit 1
   }
   copy="$(ls -d "${C4R_BACKUP_DIR:-/var/backups/c4rsys}"/20*-"$label" | tail -n 1)"
+  # Audit item 46: the migrations first run on this copy; if they fail there, the working
+  # database is never touched and the current version keeps running.
+  ./scripts/migration-rehearsal.sh "$copy" || {
+    $compose start rates deposits schedule
+    echo "The migrations of $C4R_RELEASE failed on a copy of the data, so it is not deployed;"
+    echo "the current version keeps running and the database is unchanged"
+    exit 1
+  }
 fi
 way_back() {
   status=$?
