@@ -30,10 +30,11 @@ async function containerId(service: string): Promise<string> {
   return list[0].Id;
 }
 
-/** The latest code sent to `email`, from the «DEV MAIL» line of the server log. */
+/** The latest code sent to `email`, from the «DEV MAIL» line of the server log. The code is
+ * letters and digits only: in a JSON log line (audit item 22) the quote after it is not taken. */
 export async function mailCode(email: string, after = ""): Promise<string> {
   const id = await containerId("backend");
-  const pattern = new RegExp(`DEV MAIL to ${email.replace(/[.+]/g, "\\$&")}: \\S+ code (\\S+)`, "g");
+  const pattern = new RegExp(`DEV MAIL to ${email.replace(/[.+]/g, "\\$&")}: \\S+ code ([0-9A-Za-z]+)`, "g");
   for (let attempt = 0; attempt < 30; attempt += 1) {
     const log = (await call("GET", `/containers/${id}/logs?stdout=1&stderr=1&tail=500`)).toString("latin1");
     const codes = [...log.matchAll(pattern)].map((m) => m[1]).filter((code): code is string => Boolean(code));

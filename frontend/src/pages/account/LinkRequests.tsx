@@ -70,6 +70,8 @@ function RequestCard({ base, link }: { base: string; link: IncomingLink }) {
   async function done() {
     await client.invalidateQueries({ queryKey: ["incoming-links", base] });
     await client.invalidateQueries({ queryKey: ["notifications"] });
+    // The cabinet lists the linked companies apart: an accepted link appears there at once.
+    await client.invalidateQueries({ queryKey: ["cabinet-companies"] });
   }
 
   function toggle(field: string) {

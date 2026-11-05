@@ -4,7 +4,9 @@ services:
   backend:
     environment:
       DJANGO_SECRET_KEY: local-check-only-not-a-secret
-      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
+      # cabinet.localhost: the personal cabinet in the browser test (C4R_CABINET_HOSTS default).
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,cabinet.localhost
+      C4R_CABINET_HOSTS: cabinet.localhost
       DJANGO_SECURE_SSL_REDIRECT: "0"
       C4R_MAIL_MODE: console
       C4R_ALLOW_CONSOLE_MAIL: "1"
