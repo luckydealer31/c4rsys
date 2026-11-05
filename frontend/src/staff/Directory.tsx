@@ -115,7 +115,7 @@ export function DirectoryPage() {
           setParams({ kind, q: text.trim() });
         }}
       >
-        <input value={text} onChange={(e) => setText(e.target.value)} placeholder={t(`staff.search_${kind}`)} autoFocus />
+        <input value={text} onChange={(e) => setText(e.target.value)} aria-label={t(`staff.search_${kind}`)} placeholder={t(`staff.search_${kind}`)} autoFocus />
         <div className="actions" style={{ marginTop: 0, flex: "0 0 auto" }}>
           <button type="submit" disabled={!text.trim()}>
             {t("staff.search")}

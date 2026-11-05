@@ -215,15 +215,15 @@ export function TicketPage() {
             if (update(await linkCmd.run(link))) setLink({ ...link, target: "", record_type: "" });
           }}
         >
-          <select value={link.kind} onChange={(e) => setLink({ ...link, kind: e.target.value })}>
+          <select aria-label={t("staff.link_kind")} value={link.kind} onChange={(e) => setLink({ ...link, kind: e.target.value })}>
             <option value="company">{t("staff.target_company")}</option>
             <option value="user">{t("staff.target_user")}</option>
             <option value="record">{t("staff.target_record")}</option>
           </select>
           {link.kind === "record" ? (
-            <input value={link.record_type} placeholder={t("staff.record_type")} onChange={(e) => setLink({ ...link, record_type: e.target.value })} />
+            <input value={link.record_type} aria-label={t("staff.record_type")} placeholder={t("staff.record_type")} onChange={(e) => setLink({ ...link, record_type: e.target.value })} />
           ) : null}
-          <input value={link.target} placeholder={link.kind === "record" ? t("staff.record_ref") : link.kind === "company" ? "CMP-…" : "USR-…"} onChange={(e) => setLink({ ...link, target: e.target.value })} />
+          <input value={link.target} aria-label={t("staff.link_target")} placeholder={link.kind === "record" ? t("staff.record_ref") : link.kind === "company" ? "CMP-…" : "USR-…"} onChange={(e) => setLink({ ...link, target: e.target.value })} />
           <div className="actions" style={{ marginTop: 0, flex: "0 0 auto" }}>
             <button type="submit" disabled={linkCmd.pending || !link.target.trim()}>
               {t("staff.ticket_link")}
@@ -250,9 +250,9 @@ export function TicketPage() {
             if (update(await commentCmd.run({ kind, text: comment }))) setComment("");
           }}
         >
-          <textarea rows={2} value={comment} onChange={(e) => setComment(e.target.value)} />
+          <textarea rows={2} aria-label={t("staff.comment_text")} value={comment} onChange={(e) => setComment(e.target.value)} />
           <div className="actions">
-            <select value={kind} onChange={(e) => setKind(e.target.value as "comment" | "confirmation")}>
+            <select aria-label={t("staff.comment_kind")} value={kind} onChange={(e) => setKind(e.target.value as "comment" | "confirmation")}>
               <option value="comment">{t("staff.comment_comment")}</option>
               <option value="confirmation">{t("staff.comment_confirmation")}</option>
             </select>

@@ -134,7 +134,7 @@ function ScheduleForm({
         </tbody>
       </table>
       <div className="actions">
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        <input type="date" aria-label={t("locations.schedule_exception_date")} value={date} onChange={(e) => setDate(e.target.value)} />
         <button
           type="button"
           className="secondary"

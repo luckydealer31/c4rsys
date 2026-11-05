@@ -179,6 +179,7 @@ function LocationTile({ location }: { location: Location }) {
           <span
             key={c.id}
             className={`context-icon${c.state === "enabled" ? "" : " off"}`}
+            role="img"
             title={`${t(`contexts.${c.type}`)}: ${t(`locations.context_${c.state}`)}`}
             aria-label={`${t(`contexts.${c.type}`)}: ${t(`locations.context_${c.state}`)}`}
           >

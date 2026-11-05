@@ -2,6 +2,8 @@
  * kind of transport and body type. A mark is kept as a point relative to the whole scheme (0..1)
  * with the view it falls in, so a scheme can later be redrawn without losing the marks. */
 
+import { useTranslation } from "react-i18next";
+
 export type SchemeId =
   | "sedan"
   | "hatchback"
@@ -240,6 +242,7 @@ export function VehicleScheme({
   onMark?: (mark: SchemeMark) => void;
   label?: (view: View) => string;
 }) {
+  const { t } = useTranslation();
   const bike = isBike(id);
   const size = bike ? SIZE.bike : SIZE.car;
   const boxes = bike ? BIKE_BOXES : CAR_BOXES;
@@ -255,6 +258,7 @@ export function VehicleScheme({
       viewBox={`0 0 ${size.w} ${size.h}`}
       className="vehicle-scheme"
       role="img"
+      aria-label={t("inspections.scheme_label", { count: marks.length })}
       onClick={click}
       style={{ width: "100%", height: "auto", cursor: onMark ? "crosshair" : "default" }}
     >

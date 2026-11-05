@@ -101,6 +101,7 @@ export function UserMenu({ user }: { user: User }) {
       <button
         type="button"
         className="user-button"
+        aria-label={name}
         aria-expanded={open}
         onClick={() => (open ? close() : setOpen(true))}
       >

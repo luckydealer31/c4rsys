@@ -1,11 +1,14 @@
 import { expect, test } from "@playwright/test";
 
+import { violations } from "../lib/a11y";
 import { createCompany, registerUser, uniqueEmail, waitForServer } from "../lib/api";
 import { t } from "../lib/i18n";
 import { issueRental, sideScroll, smallTargets, startIssueInspection, wideElements } from "../lib/mobile";
 
 // Audit item 45: the main screens on a phone (Android and iPhone projects). No page scrolls
 // sideways, and every control is at least 44 px high, as on the inspection page (§ 10.4.1).
+// Audit item 44: on the narrow screen too axe-core finds nothing against WCAG 2.1 AA (the name of
+// the user is hidden there, the menu button keeps its own).
 
 async function checkScreen(page: import("@playwright/test").Page, name: string) {
   await page.waitForLoadState("networkidle");
@@ -13,6 +16,7 @@ async function checkScreen(page: import("@playwright/test").Page, name: string) 
   const wide = scroll > 1 ? (await wideElements(page)).join("; ") : "";
   expect(scroll, `${name}: sideways scroll by ${wide}`).toBeLessThanOrEqual(1);
   expect(await smallTargets(page), `${name}: controls lower than 44 px`).toEqual([]);
+  expect.soft(await violations(page), `${name}: WCAG 2.1 AA`).toEqual([]);
 }
 
 test("the sign-in screen fits a phone", async ({ page }) => {

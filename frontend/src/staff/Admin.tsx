@@ -298,7 +298,7 @@ export function JournalPage() {
           setApplied(action.trim());
         }}
       >
-        <input value={action} placeholder={t("staff.journal_action")} onChange={(e) => setAction(e.target.value)} />
+        <input value={action} aria-label={t("staff.journal_action")} placeholder={t("staff.journal_action")} onChange={(e) => setAction(e.target.value)} />
         <div className="actions" style={{ marginTop: 0, flex: "0 0 auto" }}>
           <button type="submit">{t("staff.search")}</button>
           {can("journal.export") ? (
