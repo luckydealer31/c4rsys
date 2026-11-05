@@ -9,7 +9,7 @@ profile exists.
 
 import re
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from c4rsys.accounts import services as accounts
@@ -19,6 +19,9 @@ from c4rsys.fleet.models import VehicleCard, VehicleOwnerClaim
 from c4rsys.parties import services as parties
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
+
+if TYPE_CHECKING:
+    from c4rsys.fleet.listing import Batch
 
 PHONE = re.compile(r"^\+?[0-9 ()\-]{5,40}$")
 
@@ -158,8 +161,12 @@ def is_current(card: VehicleCard, owner: Owner) -> bool:
     ) == (owner.kind, owner.lookup, owner.name, owner.contact, owner.client_id)
 
 
-def describe(card: VehicleCard) -> dict[str, Any] | None:
-    claim = card.owner_claims.order_by("-created_at").first()
+def describe(card: VehicleCard, batch: "Batch | None" = None) -> dict[str, Any] | None:
+    claim = (
+        batch.claims.get(card.id)
+        if batch is not None
+        else card.owner_claims.order_by("-created_at").first()
+    )
     if claim is None:
         return None
     body: dict[str, Any] = {
@@ -170,7 +177,7 @@ def describe(card: VehicleCard) -> dict[str, Any] | None:
         # «ownership_change»: declared by the system after the ownership passed (§ 8.3.10).
         "source": claim.source,
         # The answers to the request of § 8.3.1: three «yes» confirm the management.
-        **owner_requests.owner_status(card),
+        **owner_requests.owner_status(card, batch),
     }
     if claim.client is not None:
         body["client"] = {"id": str(claim.client_id), "name": parties.display_name(claim.client)}

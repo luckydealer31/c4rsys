@@ -139,14 +139,18 @@ def payload(r: VehicleRestriction, now: datetime | None = None) -> dict[str, Any
     }
 
 
-def card_payload(card: VehicleCard) -> dict[str, Any]:
-    """The current or the next restriction and the earlier ones of the card."""
+def card_payload(
+    card: VehicleCard, items: list[VehicleRestriction] | None = None
+) -> dict[str, Any]:
+    """The current or the next restriction and the earlier ones of the card; `items` — the
+    restrictions of the card already read, latest start first (lists)."""
     now = timezone.now()
-    items = list(
-        VehicleRestriction.objects.select_related("custom_reason")
-        .filter(vehicle_card=card)
-        .order_by("-starts_at")
-    )
+    if items is None:
+        items = list(
+            VehicleRestriction.objects.select_related("custom_reason")
+            .filter(vehicle_card=card)
+            .order_by("-starts_at")
+        )
     current = next((r for r in items if state_of(r, now) in ("active", "planned")), None)
     return {
         "current": payload(current, now) if current else None,

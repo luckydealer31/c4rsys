@@ -299,6 +299,16 @@ def enabled_context_types(company_id: UUID, location_id: UUID) -> set[str]:
     )
 
 
+def enabled_context_types_of(company_id: UUID, location_ids: set[UUID]) -> dict[UUID, set[str]]:
+    """`enabled_context_types` of several locations in one query (lists, audit item 12)."""
+    found: dict[UUID, set[str]] = {location_id: set() for location_id in location_ids}
+    for location_id, kind in ActivityContext.objects.filter(
+        company_id=company_id, location_id__in=location_ids, state=ActivityContext.State.ENABLED
+    ).values_list("location_id", "type"):
+        found[location_id].add(kind)
+    return found
+
+
 def enabled_context_id(company_id: UUID, location_id: UUID, context_type: str) -> UUID | None:
     """The enabled context of the type in the location, for the scope of a right (§ 23.1.10)."""
     return (

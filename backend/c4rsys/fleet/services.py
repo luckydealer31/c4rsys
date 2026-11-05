@@ -677,7 +677,7 @@ def return_to_garage(
     return card
 
 
-def rental_readiness(card: VehicleCard) -> dict[str, Any]:
+def rental_readiness(card: VehicleCard, enabled: set[str] | None = None) -> dict[str, Any]:
     """Own or managed, bound to a location with an enabled rental context, allowed for rental.
     An enabled context counts without a tariff; the tariff is checked at issue (decision
     22.10.2026). Documents and optional characteristics are not required (§ 8.7.7)."""
@@ -691,8 +691,10 @@ def rental_readiness(card: VehicleCard) -> dict[str, Any]:
     if card.relation not in (VehicleCard.Relation.OWN, VehicleCard.Relation.MANAGED):
         missing.append("not_owned_or_managed")
     location_id = card.accounting_location_id
-    if location_id is None or "rental" not in locations.enabled_context_types(
-        card.company_id, location_id
+    if location_id is None or "rental" not in (
+        enabled
+        if enabled is not None
+        else locations.enabled_context_types(card.company_id, location_id)
     ):
         missing.append("location_without_rental_context")
     if "rental" not in allowed_contexts(card):

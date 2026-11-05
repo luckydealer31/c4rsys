@@ -8,10 +8,13 @@ drives are a PROPOSAL of the agent (24.10.2026) until the customer confirms them
 import re
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from c4rsys.fleet.models import Vehicle, VehicleMake, VehicleModel
 from c4rsys.platform import errors
+
+if TYPE_CHECKING:
+    from c4rsys.fleet.listing import Batch
 
 # Ground vehicles first (§ 8.1.8); air and water come later.
 AVAILABLE_CLASSES = {Vehicle.TransportClass.GROUND}
@@ -285,16 +288,20 @@ def apply(vehicle: Vehicle, value: Characteristics) -> None:
         setattr(vehicle, key, getattr(value, key))
 
 
-def matches(vehicle: Vehicle) -> list[str]:
+def matches(vehicle: Vehicle, batch: "Batch | None" = None) -> list[str]:
     """Identifiers that coincide with another global entity (§ 8.6.1, § 8.6.3): a reason to
     check, not proof of one vehicle. Only the fact is told, not whose the other record is."""
     from c4rsys.fleet import identity
 
-    return identity.matches(vehicle)
+    return identity.matches(vehicle, batch)
 
 
-def describe(vehicle: Vehicle) -> dict[str, Any]:
-    plate = vehicle.plates.filter(valid_to__isnull=True).first()
+def describe(vehicle: Vehicle, batch: "Batch | None" = None) -> dict[str, Any]:
+    plate = (
+        batch.plate(vehicle)
+        if batch is not None
+        else vehicle.plates.filter(valid_to__isnull=True).first()
+    )
     return {
         "transport_class": vehicle.transport_class,
         "vehicle_type": vehicle.vehicle_type,
@@ -328,7 +335,7 @@ def describe(vehicle: Vehicle) -> dict[str, Any]:
             else getattr(vehicle, key)
             for key in EXTRA_FIELDS
         },
-        "identifier_matches": matches(vehicle),
+        "identifier_matches": matches(vehicle, batch),
     }
 
 

@@ -26,7 +26,7 @@
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from django.db import connection
@@ -47,6 +47,9 @@ from c4rsys.fleet.models import (
     VehiclePlate,
 )
 from c4rsys.platform import errors
+
+if TYPE_CHECKING:
+    from c4rsys.fleet.listing import Batch
 
 Kind = IdentifierConflict.Kind
 Review = IdentifierConflict.Review
@@ -94,9 +97,11 @@ def _plate(vehicle: Vehicle) -> VehiclePlate | None:
     return VehiclePlate.objects.filter(vehicle=vehicle, valid_to__isnull=True).first()
 
 
-def identifiers(vehicle: Vehicle, originals: dict[str, str] | None = None) -> list[Identifier]:
+def identifiers(
+    vehicle: Vehicle, originals: dict[str, str] | None = None, batch: "Batch | None" = None
+) -> list[Identifier]:
     given = originals or {}
-    plate = _plate(vehicle)
+    plate = batch.plate(vehicle) if batch is not None else _plate(vehicle)
     country = plate.country if plate else ""
     found: list[Identifier] = []
     if vehicle.vin:
@@ -155,11 +160,17 @@ def candidates(vehicle: Vehicle, ident: Identifier) -> list[Vehicle]:
     return [v for v in found if v.id not in excepted]
 
 
-def matches(vehicle: Vehicle) -> list[str]:
-    """Kinds of identifiers that match another global entity: the fact only."""
+def matches(vehicle: Vehicle, batch: "Batch | None" = None) -> list[str]:
+    """Kinds of identifiers that match another global entity: the fact only. With a batch of a
+    list, an identifier no other vehicle has is not queried again."""
     if vehicle.merged_into_id is not None:
         return []
-    return [i.kind for i in identifiers(vehicle) if candidates(vehicle, i)]
+    return [
+        i.kind
+        for i in identifiers(vehicle, batch=batch)
+        if (batch is None or batch.may_match(vehicle, i.kind, i.value, i.country))
+        and candidates(vehicle, i)
+    ]
 
 
 def _next_number() -> int:
@@ -349,7 +360,9 @@ def for_card(card: VehicleCard) -> list[dict[str, Any]]:
     return result
 
 
-def open_kinds(card: VehicleCard) -> list[str]:
+def open_kinds(card: VehicleCard, batch: "Batch | None" = None) -> list[str]:
+    if batch is not None:
+        return batch.conflict_kinds.get(card.id, [])
     return sorted(
         set(
             IdentifierConflictParty.objects.filter(

@@ -14,7 +14,16 @@ from c4rsys.companies import access, locations
 from c4rsys.companies import services as companies
 from c4rsys.companies.models import Employment
 from c4rsys.companies.views import run_and_respond
-from c4rsys.fleet import characteristics, confirmations, identity, merges, moves, owners, services
+from c4rsys.fleet import (
+    characteristics,
+    confirmations,
+    identity,
+    listing,
+    merges,
+    moves,
+    owners,
+    services,
+)
 from c4rsys.fleet.models import Vehicle, VehicleCard, VehicleMake, VehicleModel, VehicleMove
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
@@ -36,9 +45,11 @@ def _allowed(actor: Actor, permission: str, card: VehicleCard) -> bool:
     )
 
 
-def _payload(card: VehicleCard, *, detail: bool = False) -> dict[str, Any]:
-    body = _summary(card)
-    body["identifier_conflict_kinds"] = identity.open_kinds(card)
+def _payload(
+    card: VehicleCard, *, detail: bool = False, batch: listing.Batch | None = None
+) -> dict[str, Any]:
+    body = _summary(card, batch)
+    body["identifier_conflict_kinds"] = identity.open_kinds(card, batch)
     if not detail:
         return body
     # § 8.6.1: the conflicts of the card — the fact of a match and the number only.
@@ -99,10 +110,24 @@ def _disposal(card: VehicleCard) -> dict[str, Any] | None:
     return {"kind": found.kind, "reason": found.reason, "at": found.done_at.isoformat()}
 
 
-def _summary(card: VehicleCard) -> dict[str, Any]:
+def _summary(card: VehicleCard, batch: listing.Batch | None = None) -> dict[str, Any]:
+    """The same summary with or without a batch; a list passes the batch (audit item 12)."""
     from c4rsys.fleet import odometer, restrictions
 
-    reading = services.current_reading(card.id)
+    if batch is None:
+        reading = services.current_reading(card.id)
+        replacements = None
+        restricted = None
+        enabled = None
+    else:
+        reading = batch.readings.get(card.id)
+        replacements = batch.replacements.get(card.id, [])
+        restricted = batch.restrictions.get(card.id, [])
+        enabled = (
+            batch.enabled.get(card.accounting_location_id, set())
+            if card.accounting_location_id
+            else None
+        )
     return {
         "id": str(card.id),
         "vehicle_id": card.vehicle.public_id,
@@ -120,16 +145,16 @@ def _summary(card: VehicleCard) -> dict[str, Any]:
             "unit": reading.unit,
             "measured_at": reading.measured_at.isoformat(),
             # § 8.2.13: the accumulated mileage, apart from the dashboard reading.
-            "accumulated": str(odometer.accumulated(reading)),
+            "accumulated": str(odometer.accumulated(reading, replacements)),
         },
         # § 8.8: the restriction acting now or the next one.
-        "restriction": restrictions.card_payload(card)["current"],
-        "rental_readiness": services.rental_readiness(card),
+        "restriction": restrictions.card_payload(card, restricted)["current"],
+        "rental_readiness": services.rental_readiness(card, enabled),
         "characteristics": {
-            **characteristics.describe(card.vehicle),
+            **characteristics.describe(card.vehicle, batch),
             **{k: getattr(card, k) for k in characteristics.CARD_FIELDS},
         },
-        "owner": owners.describe(card),
+        "owner": owners.describe(card, batch),
         "acquisition": None
         if card.acquisition_cost is None
         else {"cost": str(card.acquisition_cost), "currency": card.acquisition_currency_id},
@@ -188,13 +213,15 @@ def vehicle_list(request: HttpRequest, cmp: str) -> JsonResponse:
         # The right depends on the accounting location only: checked once per location (audit
         # item 12; it was a few queries for every vehicle of the fleet).
         visible: dict[UUID | None, bool] = {}
-        items = []
-        for c in cards:
+        shown = []
+        for c in cards.select_related("company"):
             if c.accounting_location_id not in visible:
                 visible[c.accounting_location_id] = _allowed(actor, "vehicle.view", c)
             if visible[c.accounting_location_id]:
-                items.append(_payload(c))
-        return JsonResponse({"vehicles": items})
+                shown.append(c)
+        # The data of all the vehicles is read once for the list (audit item 12).
+        batch = listing.Batch(shown)
+        return JsonResponse({"vehicles": [_payload(c, batch=batch) for c in shown]})
 
     data = parse_json(request)
     relation = get_str(data, "relation", max_length=10, required=False) or "own"

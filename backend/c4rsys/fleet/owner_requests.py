@@ -16,7 +16,7 @@
 """
 
 from datetime import datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from django.db import transaction
@@ -39,6 +39,9 @@ from c4rsys.fleet.models import (
 from c4rsys.parties import links
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
+
+if TYPE_CHECKING:
+    from c4rsys.fleet.listing import Batch
 
 TTL = timedelta(days=30)
 State = VehicleOwnerRequest.State
@@ -494,12 +497,14 @@ def _disputed(request: VehicleOwnerRequest, answered_at: datetime) -> bool:
     ).exists()
 
 
-def owner_status(card: VehicleCard) -> dict[str, Any]:
+def owner_status(card: VehicleCard, batch: "Batch | None" = None) -> dict[str, Any]:
     """The state of the owner's confirmation shown with the declared owner."""
-    request = latest(card)
-    claim = _claim(card)
+    request = batch.requests.get(card.id) if batch is not None else latest(card)
+    claim = batch.claims.get(card.id) if batch is not None else _claim(card)
     current = request is not None and claim is not None and request.claim_id == claim.id
-    given = answers_of(request) if current and request is not None else {}
+    given: dict[str, bool] = {}
+    if current and request is not None:
+        given = batch.answers.get(request.id, {}) if batch is not None else answers_of(request)
     return {
         "confirmed": current and all(given.get(q) is True for q in QUESTIONS),
         "ownership_confirmed": given.get(Question.OWNERSHIP) is True,

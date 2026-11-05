@@ -76,8 +76,12 @@ def accumulated_value(card_id: UUID, value: Decimal, at: datetime) -> Decimal:
     return value + _offset(_replacements(card_id), at, inclusive=True)
 
 
-def accumulated(reading: OdometerReading) -> Decimal:
+def accumulated(
+    reading: OdometerReading, replacements: list[OdometerReplacement] | None = None
+) -> Decimal:
     """The accumulated mileage of a reading (§ 8.2.13)."""
+    if replacements is not None:
+        return reading.value + _offset(replacements, reading.measured_at, inclusive=True)
     return accumulated_value(reading.vehicle_card_id, reading.value, reading.measured_at)
 
 
