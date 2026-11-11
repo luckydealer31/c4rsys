@@ -62,7 +62,7 @@ export function useRentals(enabled = true) {
   );
 }
 
-type CardTab = "main" | "service" | "inspections" | "damages" | "documents" | "rentals" | "moves" | "tasks" | "ownership" | "history";
+type CardTab = "main" | "service" | "inspections" | "damages" | "documents" | "rentals" | "moves" | "tasks" | "ownership" | "history" | "settings";
 
 /** Garage (§ 8.7.2; customer's decisions of 24.10.2026 and 11.11.2026). Own and managed vehicles
  * are one list, grouped by location, with the switches «own» / «managed»; the schedule is the
@@ -385,7 +385,7 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
           {c.identifier_matches.map((m) => t(`vehicles.match_${m}`)).join(" ")}
         </div>
       ) : null}
-      <dl className="facts">
+      <dl className="facts two">
         {facts
           .filter(([, value, field]) => value || (field && working[field]))
           .map(([label, value, field]) => {
@@ -491,6 +491,7 @@ export function VehiclePage() {
     "tasks",
     "ownership",
     "history",
+    "settings",
   ];
   const asked = search.get("merge") ? "ownership" : search.get("tab");
   const tab: CardTab = tabs.find((key) => key === asked) ?? "main";
@@ -499,6 +500,13 @@ export function VehiclePage() {
   return (
     <div className="page wide">
       <h1>{data.name}</h1>
+      {/* The ID of the vehicle in the system and its current mileage stand under the name. */}
+      <p className="muted" style={{ marginTop: -8 }}>
+        {data.vehicle_id}
+        {data.odometer
+          ? ` · ${t("vehicles.odometer")}: ${Number(data.odometer.value)} ${data.odometer.unit} (${formatMoment(data.odometer.measured_at, timeZone, i18n.language)})`
+          : ""}
+      </p>
       {stored ? (
         <div className="alert warn">
           {t("vehicles.in_warehouse", {
@@ -534,29 +542,13 @@ export function VehiclePage() {
       <VehicleFacts vehicle={data} />
       <ConflictsCard vehicle={data} />
       <ProposalsCard vehicle={data} />
-      <Card>
-        <p>
-          {data.vehicle_id} · {t(`vehicles.relation_${data.relation}`)}
-          {isClient ? "" : ` · ${location?.name ?? "—"}`} · {t(`vehicles.unit_${data.odometer_unit}`)}
-        </p>
-        <p>
-          {t("vehicles.odometer")}:{" "}
-          {data.odometer
-            ? `${Number(data.odometer.value)} ${data.odometer.unit} (${formatMoment(data.odometer.measured_at, timeZone, i18n.language)})`
-            : "—"}
-        </p>
-        {isClient ? null : (
-        <p>
-          {t("vehicles.rental_readiness")}:{" "}
-          {data.rental_readiness.ready ? (
-            <span className="badge ok">{t("setup.ready")}</span>
-          ) : (
-            <span className="badge warn">
-              {data.rental_readiness.missing.map((m) => t(`vehicles.missing_${m}`)).join("; ")}
-            </span>
-          )}
-        </p>
-        )}
+      </>
+      ) : null}
+      {/* Name, contexts of use and the odometer with its unit (decision of 11.11.2026: these are
+          settings, not characteristics). */}
+      {tab === "settings" ? (
+        <>
+          <Card title={t("vehicles.card_settings")}>
         {can("vehicle.edit") && data.state !== "archived" ? (
           <>
             <div className="row">
@@ -586,10 +578,9 @@ export function VehiclePage() {
         ))}
         {isClient ? null : <p className="muted small">{t("vehicles.contexts_hint")}</p>}
         <ErrorMessage error={update.error} />
-      </Card>
-      <OdometerCard vehicle={data} />
-      {data.relation === "own" ? <Acquisition vehicle={data} /> : null}
-      </>
+          </Card>
+          <OdometerCard vehicle={data} />
+        </>
       ) : null}
       {tab === "service" ? (
         <>
@@ -618,6 +609,13 @@ export function VehiclePage() {
       ) : null}
       {tab === "moves" ? (
         <>
+          {isClient ? null : (
+            <Card>
+              <p style={{ margin: 0 }}>
+                {t("vehicles.location")}: <strong>{location?.name ?? "—"}</strong>
+              </p>
+            </Card>
+          )}
           {isClient ? null : <VehicleMoves vehicle={data} />}
           {data.relation === "own" && !stored && data.contexts.length === 0 ? (
             <TransferToWarehouse vehicle={data} />
@@ -628,6 +626,7 @@ export function VehiclePage() {
       {tab === "tasks" ? <LinkedTasks objectType="vehicle" objectId={data.id} /> : null}
       {tab === "ownership" ? (
         <>
+          {data.relation === "own" ? <Acquisition vehicle={data} /> : null}
           <RestrictionCard vehicle={data} />
           <RelationCard vehicle={data} />
           <DisposeCard vehicle={data} />
@@ -640,6 +639,20 @@ export function VehiclePage() {
         </>
       ) : null}
       {tab === "history" ? <HistoryCard vehicle={data} /> : null}
+      {tab === "rentals" ? (
+        <Card>
+          <p style={{ margin: 0 }}>
+            {t("vehicles.rental_readiness")}:{" "}
+            {data.rental_readiness.ready ? (
+              <span className="badge ok">{t("setup.ready")}</span>
+            ) : (
+              <span className="badge warn">
+                {data.rental_readiness.missing.map((m) => t(`vehicles.missing_${m}`)).join("; ")}
+              </span>
+            )}
+          </p>
+        </Card>
+      ) : null}
       {tab === "rentals" ? <VehicleTariffs vehicleId={data.id} /> : null}
       {tab === "rentals" && can("rental.view") ? (
         <Card title={t("vehicles.rentals")}>

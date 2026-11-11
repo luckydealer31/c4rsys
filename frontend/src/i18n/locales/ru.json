@@ -2641,7 +2641,8 @@
     "card_moves": "Перемещения",
     "card_tasks": "Задачи",
     "card_ownership": "Владение и архив",
-    "card_history": "История"
+    "card_history": "История",
+    "card_settings": "Настройки"
   },
   "warehouse": {
     "action_create": "Создать",

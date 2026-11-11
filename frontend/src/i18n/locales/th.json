@@ -2641,7 +2641,8 @@
     "card_moves": "การเคลื่อนย้าย",
     "card_tasks": "งาน",
     "card_ownership": "กรรมสิทธิ์และคลังเก็บ",
-    "card_history": "ประวัติ"
+    "card_history": "ประวัติ",
+    "card_settings": "การตั้งค่า"
   },
   "warehouse": {
     "action_create": "Create",

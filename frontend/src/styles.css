@@ -456,3 +456,8 @@ label.check { display: inline-flex; gap: 6px; align-items: center; margin-right:
 .prices-table input:not([type="checkbox"]) { min-width: 84px; }
 .prices-table td:first-child { white-space: nowrap; }
 .error-text { color: var(--danger); }
+/* Characteristics of a card in two columns on a wide screen (decision of 11.11.2026). */
+@media (min-width: 900px) {
+  dl.facts.two { grid-template-columns: max-content 1fr max-content 1fr; gap: 8px 16px; }
+  dl.facts.two dd { padding-right: 24px; }
+}

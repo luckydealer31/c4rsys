@@ -2641,7 +2641,8 @@
     "card_moves": "Moves",
     "card_tasks": "Tasks",
     "card_ownership": "Ownership and archive",
-    "card_history": "History"
+    "card_history": "History",
+    "card_settings": "Settings"
   },
   "warehouse": {
     "action_create": "Create",
