@@ -128,13 +128,20 @@ test("base example from registration to closing survives a restart", async ({ pa
   await page.getByRole("button", { name: t("vehicles.create") }).click();
   await expect(page.getByRole("heading", { name: "Toyota Yaris" })).toBeVisible();
 
-  await page.goto(`${base}/rentals/tariffs`);
-  const tariff = card(page, t("tariffs.create_title"));
-  await tariff.getByLabel(t("tariffs.name")).fill("Сутки");
-  await tariff.getByLabel(t("cash.currency")).selectOption("THB");
-  await tariff.locator("tbody tr").first().locator("input").nth(2).fill("1000");
-  await tariff.getByRole("button", { name: t("tariffs.create") }).click();
-  await page.getByRole("link", { name: /Сутки/ }).click();
+  // A tariff is created step by step: unit (a day from the issue), currency, ranges,
+  // availability, name; then its own page opens.
+  await page.goto(`${base}/rentals?tab=catalog`);
+  await page.getByRole("link", { name: t("rentals.action_tariff") }).click();
+  const onward = page.getByRole("button", { name: t("wizard.next"), exact: true });
+  await onward.click();
+  await page.getByLabel(t("cash.currency")).selectOption("THB");
+  await onward.click();
+  await page.locator("tbody tr").first().locator("input").nth(2).fill("1000");
+  await onward.click();
+  await onward.click();
+  await page.getByRole("textbox", { name: t("tariffs.name"), exact: true }).fill("Сутки");
+  await page.getByRole("button", { name: t("tariffs.create"), exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Сутки");
   await choose(page.getByRole("combobox", { name: t("terms.vehicle"), exact: true }), "Toyota Yaris");
   await page.getByLabel(t("terms.mileage")).selectOption("unlimited");
   await page.getByLabel(t("terms.deposit")).selectOption("none");

@@ -2,7 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
 import { useEffect, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useLocation, useNavigate, useParams } from "react-router";
+import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router";
 
 import type { ApiError } from "../../api/client";
 import { useApi } from "../../api/queries";
@@ -24,44 +24,10 @@ export function serviceTerms(service: Priced, t: TFunction) {
   return t(`services.terms_${service.pricing}`, values);
 }
 
-function useServices() {
-  const company = useCompany();
-  return useApi<{ services: ExtraService[] }>(["extra-services", company.public_id], `/c/${company.public_id}/extra-services`);
-}
-
-/** Catalog of additional services of the rental (§ 13.4.5–13.4.7) with the tariff rights (§ 23.4.4). */
+/** The catalog of services lives in the rental section now (decision of 11.11.2026). */
 export function ExtraServicesPage() {
-  const { t } = useTranslation();
   const company = useCompany();
-  const can = useCan();
-  const services = useServices();
-  return (
-    <div className="page">
-      <p>
-        <Link to={companyPath(company, "/rentals")}>← {t("nav.rentals")}</Link>
-      </p>
-      <h1>{t("services.catalog")}</h1>
-      {can("order.create") ? (
-        <div className="actions" style={{ marginBottom: 16, marginTop: 0 }}>
-          <Link className="button secondary" to={companyPath(company, "/rentals/services/order")}>
-            {t("services.new_order")}
-          </Link>
-        </div>
-      ) : null}
-      <Card>
-        {services.isLoading ? <Loading /> : null}
-        {services.data?.services.length === 0 ? <p className="muted">{t("services.none")}</p> : null}
-        {(services.data?.services ?? []).map((service) => (
-          <Link key={service.id} className="list-link" to={companyPath(company, `/rentals/services/${service.id}`)}>
-            <strong>{service.name}</strong>{" "}
-            {service.state === "archived" ? <span className="badge">{t("tariffs.archived")}</span> : null}
-            <div className="muted small">{serviceTerms(service, t)}</div>
-          </Link>
-        ))}
-      </Card>
-      {can("tariff.create") ? <ServiceForm /> : null}
-    </div>
-  );
+  return <Navigate to={companyPath(company, "/rentals?tab=catalog")} replace />;
 }
 
 function toggle(list: string[], id: string) {
@@ -228,7 +194,7 @@ export function ExtraServicePage() {
   return (
     <div className="page">
       <p>
-        <Link to={companyPath(company, "/rentals/services")}>← {t("services.catalog")}</Link>
+        <Link to={companyPath(company, "/rentals?tab=catalog")}>← {t("rentals.tab_catalog")}</Link>
       </p>
       <h1>
         {data.name} {data.state === "archived" ? <span className="badge">{t("tariffs.archived")}</span> : null}
@@ -763,7 +729,7 @@ export function NewServiceOrderPage() {
   return (
     <div className="page">
       <p>
-        <Link to={companyPath(company, "/rentals/services")}>← {t("services.catalog")}</Link>
+        <Link to={companyPath(company, "/rentals?tab=catalog")}>← {t("rentals.tab_catalog")}</Link>
       </p>
       <h1>{t("services.new_order")}</h1>
       <Card title={t("rentals.client")}>

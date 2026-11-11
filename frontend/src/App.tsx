@@ -67,6 +67,7 @@ import { HoldingsPage } from "./pages/ownership/HoldingsPage";
 import { CompanyStatePage } from "./pages/ownership/CompanyStatePage";
 import { SetupPage } from "./pages/setup/SetupPage";
 import { TariffPage, TariffsPage } from "./pages/tariffs/TariffsPage";
+import { NewExtraServicePage, NewTariffPage } from "./pages/rentals/CatalogWizards";
 import { EditVehiclePage } from "./pages/vehicles/NewVehiclePage";
 import { NewVehiclePage } from "./pages/vehicles/NewVehicleWizard";
 import { VehiclePage, VehiclesPage } from "./pages/vehicles/VehiclesPage";
@@ -253,6 +254,8 @@ function MainApp({ cabinet }: { cabinet: boolean }) {
         <Route path="settings/discounts" element={<DiscountCatalogPage />} />
         <Route path="settings/locations" element={<Navigate to="../company" replace />} />
         <Route path="rentals/tariffs" element={<TariffsPage />} />
+        <Route path="rentals/tariffs/new" element={<NewTariffPage />} />
+        <Route path="rentals/services/new" element={<NewExtraServicePage />} />
         <Route path="rentals/services" element={<ExtraServicesPage />} />
         <Route path="rentals/services/order" element={<NewServiceOrderPage />} />
         <Route path="rentals/services/:id" element={<ExtraServicePage />} />

@@ -15,13 +15,16 @@ import { rangesText, unitText, useTariffs } from "../tariffs/TariffsPage";
 import { serviceTerms } from "./Services";
 import { useRentals, useVehicles } from "../vehicles/VehiclesPage";
 
-type Kind = "all" | "bookings" | "rentals" | "cancelled";
+// Three switches of the list, all on at first; each takes its records out of the list or
+// back into it (customer's decision of 11.11.2026). «Cancelled» is one switch for cancelled
+// bookings and annulled rentals alike (PROPOSAL).
+type Kind = "rentals" | "bookings" | "cancelled";
 const KINDS: Record<Kind, string[]> = {
-  all: [],
-  bookings: ["booked", "proposed"],
   rentals: ["active", "returned"],
+  bookings: ["booked", "proposed"],
   cancelled: ["cancelled", "annulled"],
 };
+const ALL_KINDS = Object.keys(KINDS) as Kind[];
 
 type Tab = "rentals" | "services" | "catalog";
 const TABS: Tab[] = ["rentals", "services", "catalog"];
@@ -47,8 +50,8 @@ export function RentalsPage() {
       : tab === "services"
         ? [[can("order.create"), "/rentals/services/order", t("rentals.action_service")], booking]
         : [
-            [can("tariff.create"), "/rentals/tariffs", t("rentals.action_tariff")],
-            [can("tariff.create"), "/rentals/services", t("rentals.action_catalog_service")],
+            [can("tariff.create"), "/rentals/tariffs/new", t("rentals.action_tariff")],
+            [can("tariff.create"), "/rentals/services/new", t("rentals.action_catalog_service")],
           ];
   const allowed = actions.filter(([may]) => may);
   return (
@@ -211,8 +214,14 @@ function RentalsList({ lines }: { lines: ServiceLine[] }) {
   const [waiting, setWaiting] = useState(false);
   const all = rentals.data?.rentals ?? [];
   const pending = all.filter((r) => r.issue_exception?.state === "pending");
-  const [kind, setKind] = useState<Kind>("all");
-  const shown = (waiting ? pending : all).filter((r) => kind === "all" || KINDS[kind].includes(r.state));
+  const [kinds, setKinds] = useState<Kind[]>(ALL_KINDS);
+  const states = new Set(kinds.flatMap((key) => KINDS[key]));
+  const known = new Set(ALL_KINDS.flatMap((key) => KINDS[key]));
+  // A state outside the three groups is never hidden by them.
+  const shown = (waiting ? pending : all).filter((r) => states.has(r.state) || !known.has(r.state));
+  // The last switch that is on stays on.
+  const toggleKind = (key: Kind) =>
+    setKinds(kinds.includes(key) ? (kinds.length > 1 ? kinds.filter((k) => k !== key) : kinds) : [...kinds, key]);
   const orders = useOrders();
   const amounts = new Map(
     (orders.data?.orders ?? []).map((o) => [
@@ -230,13 +239,17 @@ function RentalsList({ lines }: { lines: ServiceLine[] }) {
     <>
       <Card>
         <div className="list-bar">
-          <div className="segmented" role="group" aria-label={t("rentals.filter_title")}>
-            {(Object.keys(KINDS) as Kind[]).map((key) => (
-              <button key={key} type="button" aria-pressed={kind === key} onClick={() => setKind(key)}>
-                {t(`rentals.filter_${key}`)}
-              </button>
-            ))}
-          </div>
+          {ALL_KINDS.map((key) => (
+            <button
+              key={key}
+              type="button"
+              className="toggle-chip"
+              aria-pressed={kinds.includes(key)}
+              onClick={() => toggleKind(key)}
+            >
+              {t(`rentals.filter_${key}`)}
+            </button>
+          ))}
         </div>
         {pending.length || waiting ? (
           <label className="small">

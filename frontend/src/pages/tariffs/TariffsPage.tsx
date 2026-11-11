@@ -2,7 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useParams } from "react-router";
+import { Link, Navigate, useParams } from "react-router";
 
 import { useApi } from "../../api/queries";
 import type { PriceRange, Tariff, Vehicle, VehicleTerms } from "../../api/types";
@@ -33,30 +33,10 @@ export function unitShort(unit: string | null | undefined, t: TFunction) {
 }
 
 /** Tariff catalog: tariffs of any unit with price ranges (§ 13.1–13.2). */
+/** The list of tariffs lives in the rental section now (decision of 11.11.2026). */
 export function TariffsPage() {
-  const { t } = useTranslation();
   const company = useCompany();
-  const can = useCan();
-  const tariffs = useTariffs();
-  return (
-    <div className="page">
-      <h1>{t("settings.tariffs")}</h1>
-      <Card>
-        {tariffs.isLoading ? <Loading /> : null}
-        {tariffs.data?.tariffs.length === 0 ? <p className="muted">{t("tariffs.none")}</p> : null}
-        {(tariffs.data?.tariffs ?? []).map((tariff) => (
-          <Link key={tariff.id} className="list-link" to={companyPath(company, `/rentals/tariffs/${tariff.id}`)}>
-            <strong>{tariff.name}</strong>{" "}
-            {tariff.state === "archived" ? <span className="badge">{t("tariffs.archived")}</span> : null}
-            <div className="muted small">
-              {unitText(tariff, t)} · {tariff.currency} · {rangesText(tariff.ranges, t, tariff.unit)}
-            </div>
-          </Link>
-        ))}
-      </Card>
-      {can("tariff.create") ? <TariffForm /> : null}
-    </div>
-  );
+  return <Navigate to={companyPath(company, "/rentals?tab=catalog")} replace />;
 }
 
 export function rangesText(ranges: PriceRange[], t: TFunction, unit = "day") {
@@ -70,16 +50,16 @@ export function rangesText(ranges: PriceRange[], t: TFunction, unit = "day") {
     .join("; ");
 }
 
-const KINDS = ["minute", "hour", "from_issue", "fixed_boundary", "month"] as const;
-type Kind = (typeof KINDS)[number];
+export const KINDS = ["minute", "hour", "from_issue", "fixed_boundary", "month"] as const;
+export type Kind = (typeof KINDS)[number];
 
-function kindBody(kind: Kind, boundary: string): Record<string, unknown> {
+export function kindBody(kind: Kind, boundary: string): Record<string, unknown> {
   if (kind === "from_issue") return { unit: "day", day_mode: "from_issue" };
   if (kind === "fixed_boundary") return { unit: "day", day_mode: "fixed_boundary", day_boundary: boundary };
   return { unit: kind };
 }
 
-type RangeRow = { from: string; to: string; rate: string };
+export type RangeRow = { from: string; to: string; rate: string };
 
 function toRows(ranges: PriceRange[]): RangeRow[] {
   return ranges.map((r) => ({ from: String(r.from), to: r.to === null ? "" : String(r.to), rate: r.rate }));
@@ -87,7 +67,7 @@ function toRows(ranges: PriceRange[]): RangeRow[] {
 
 /** Range rows; the next «from» follows the previous «to» (§ 13.2.8). The server checks the
  * structure. */
-function RangesEditor({
+export function RangesEditor({
   rows,
   onChange,
   unit,
@@ -161,7 +141,7 @@ function RangesEditor({
   );
 }
 
-function fromRows(rows: RangeRow[]) {
+export function fromRows(rows: RangeRow[]) {
   return rows.map((row) => ({
     from: Number(row.from),
     to: row.to.trim() === "" ? null : Number(row.to),

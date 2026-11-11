@@ -1608,7 +1608,7 @@
     "order": "Order",
     "orders": "Allocation",
     "receive": "Receive",
-    "receive_title": "Cash receipt",
+    "receive_title": "Payment from a client",
     "received": "Payment № {{number}} received: {{amount}} {{currency}}.",
     "title": "Payments",
     "unallocated": "not allocated",
@@ -1956,8 +1956,6 @@
     "tab_rentals": "Bookings and rentals",
     "tab_services": "Extra services",
     "tab_catalog": "Tariffs and services",
-    "filter_title": "Which records",
-    "filter_all": "All",
     "filter_bookings": "Bookings",
     "filter_rentals": "Rentals",
     "filter_cancelled": "Cancelled",
@@ -1969,7 +1967,8 @@
     "service_standalone": "without a rental",
     "action_service": "Add an extra service",
     "action_tariff": "Create a tariff",
-    "action_catalog_service": "Create a service"
+    "action_catalog_service": "Create a service",
+    "wizard_some_locations": "Only some locations"
   },
   "rights": {
     "add": "Add rights",

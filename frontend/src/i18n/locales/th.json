@@ -1608,7 +1608,7 @@
     "order": "Order",
     "orders": "Allocation",
     "receive": "Receive",
-    "receive_title": "Cash receipt",
+    "receive_title": "การชำระเงินจากลูกค้า",
     "received": "Payment № {{number}} received: {{amount}} {{currency}}.",
     "title": "Payments",
     "unallocated": "not allocated",
@@ -1956,8 +1956,6 @@
     "tab_rentals": "การจองและการเช่า",
     "tab_services": "บริการเสริม",
     "tab_catalog": "อัตราและบริการ",
-    "filter_title": "รายการใด",
-    "filter_all": "ทั้งหมด",
     "filter_bookings": "การจอง",
     "filter_rentals": "การเช่า",
     "filter_cancelled": "ยกเลิกแล้ว",
@@ -1969,7 +1967,8 @@
     "service_standalone": "ไม่มีการเช่า",
     "action_service": "เพิ่มบริการเสริม",
     "action_tariff": "สร้างอัตรา",
-    "action_catalog_service": "สร้างบริการ"
+    "action_catalog_service": "สร้างบริการ",
+    "wizard_some_locations": "เฉพาะบางสถานที่"
   },
   "rights": {
     "add": "Add rights",

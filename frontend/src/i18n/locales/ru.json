@@ -1608,7 +1608,7 @@
     "order": "Заказ",
     "orders": "Распределение",
     "receive": "Принять",
-    "receive_title": "Приём наличных",
+    "receive_title": "Оплата от клиента",
     "received": "Платёж № {{number}} принят: {{amount}} {{currency}}.",
     "title": "Платежи",
     "unallocated": "не распределён",
@@ -1956,8 +1956,6 @@
     "tab_rentals": "Аренды и брони",
     "tab_services": "Доп. услуги",
     "tab_catalog": "Тарифы и услуги",
-    "filter_title": "Какие записи",
-    "filter_all": "Все",
     "filter_bookings": "Брони",
     "filter_rentals": "Аренды",
     "filter_cancelled": "Отменённые",
@@ -1969,7 +1967,8 @@
     "service_standalone": "без аренды",
     "action_service": "Добавить доп. услугу",
     "action_tariff": "Создать тариф",
-    "action_catalog_service": "Создать услугу"
+    "action_catalog_service": "Создать услугу",
+    "wizard_some_locations": "Только в выбранных локациях"
   },
   "rights": {
     "add": "Добавить права",
