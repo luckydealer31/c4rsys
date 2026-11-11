@@ -12,6 +12,7 @@ PROPOSAL (block 15): a reserve in closed packages holds whole packages; a reserv
 right «Reserve» in its warehouse; a manual reserve has a comment saying what it is for.
 """
 
+from collections.abc import Callable
 from datetime import datetime
 from decimal import ROUND_CEILING, Decimal
 from typing import Any
@@ -89,7 +90,23 @@ def reserved_in_form(
     return Decimal(total)
 
 
-def asset_reserved(asset_id: UUID, exclude_reserve: UUID | None = None) -> bool:
+# Other modules that hold a unit for themselves: while one of them answers «yes», the warehouse
+# does not issue, move, sell, reserve or write the unit off (customer's decision of 11.11.2026:
+# a unit attached to an additional service is released by detaching it from the service first).
+_holders: list[Callable[[UUID], bool]] = []
+
+
+def register_holder(holder: Callable[[UUID], bool]) -> None:
+    _holders.append(holder)
+
+
+def asset_reserved(
+    asset_id: UUID, exclude_reserve: UUID | None = None, *, warehouse_only: bool = False
+) -> bool:
+    """The unit is held: by an open sale, by a warehouse reserve or — unless `warehouse_only` —
+    by another module (`register_holder`)."""
+    if not warehouse_only and any(holder(asset_id) for holder in _holders):
+        return True
     if SaleLine.objects.filter(state=SaleLine.State.RESERVED, asset_id=asset_id).exists():
         return True
     held = active_reserves().filter(asset_id=asset_id)

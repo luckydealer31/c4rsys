@@ -578,9 +578,11 @@ def _occupied(
     end: datetime | None,
     exclude: UUID | None = None,
 ) -> bool:
-    """The unit is taken by another line, whatever its service (§ 13.4.7): handed out and not
-    yet returned — whatever the period, even a finished one (§ 13.4.12); booked — for an
-    overlapping period. A cancelled or returned line holds nothing.
+    """The unit is taken by another line, whatever its service (§ 13.4.7): booked — for an
+    overlapping period; handed out — from now until the end of its period, and while it is not
+    returned after that end (§ 13.4.12). A later period of a unit that is out now can be booked
+    (customer's decision of 11.11.2026); the hand-out itself still needs the unit back in the
+    storage. A cancelled or returned line holds nothing.
 
     TODO(spec): a service with equipment paid once or by quantity has no period. PROPOSAL (not
     confirmed): such a booked line holds its unit until it is cancelled or returned, and a line
@@ -592,11 +594,28 @@ def _occupied(
         busy = busy.exclude(pk=exclude)
     if start is None or end is None:
         return busy.exists()
+    out = Q(state=State.STARTED) & (Q(period_end__isnull=True) | Q(period_end__gt=start))
+    if start < timezone.now():
+        out = Q(state=State.STARTED)
     return busy.filter(
-        Q(state=State.STARTED)
-        | Q(period_start__isnull=True)
-        | Q(period_start__lt=end, period_end__gt=start)
+        out
+        | Q(state=State.PLANNED, period_start__isnull=True)
+        | Q(state=State.PLANNED, period_start__lt=end, period_end__gt=start)
     ).exists()
+
+
+def _place_reason(company_id: UUID, unit: Any, location_id: UUID) -> str | None:
+    """Why the unit cannot be booked in the location: as `equipment.unavailable_reason`, but a
+    unit handed out by a service line from this location is not refused for being out — its
+    later period may be booked (decision of 11.11.2026)."""
+    reason = equipment.unavailable_reason(unit, location_id)
+    if reason != "not_in_stock":
+        return reason
+    asset_id = unit.id if hasattr(unit, "id") else UUID(unit["id"])
+    out = ExtraServiceLine.objects.filter(
+        company_id=company_id, asset_id=asset_id, state=State.STARTED, location_id=location_id
+    ).exists()
+    return None if out else reason
 
 
 def equipment_choices(
@@ -609,10 +628,7 @@ def equipment_choices(
     result = []
     for unit in extras.equipment_of(service):
         asset_id = UUID(unit["id"])
-        handed_out = ExtraServiceLine.objects.filter(
-            company_id=service.company_id, asset_id=asset_id, state=State.STARTED
-        ).exists()
-        reason = "occupied" if handed_out else equipment.unavailable_reason(unit, location_id)
+        reason = _place_reason(service.company_id, unit, location_id)
         if reason is None and _occupied(service.company_id, asset_id, start, end):
             reason = "occupied"
         result.append({**unit, "available": reason is None, "reason": reason})
@@ -642,7 +658,7 @@ def _take_unit(
     if not ExtraServiceAsset.objects.filter(service=service, asset_id=asset_id).exists():
         raise errors.business_rule("EQUIPMENT_NOT_ATTACHED", field="asset_id")
     asset = equipment.lock(service.company_id, asset_id)
-    reason = equipment.unavailable_reason(asset, location_id)
+    reason = _place_reason(service.company_id, asset, location_id)
     if reason is None and _occupied(service.company_id, asset_id, start, end, exclude):
         reason = "occupied"
     if reason is not None:

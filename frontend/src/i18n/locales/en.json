@@ -693,7 +693,7 @@
     "timezone_required": "Give the time with its time zone.",
     "expired_lot_forbidden": "Lot {{lot}} is expired: issue and use are forbidden.",
     "expired_lot_confirm": "Lot {{lot}} is expired — confirm the issue.",
-    "asset_not_available": "Unit {{asset}} is not available in this warehouse.",
+    "asset_not_available": "Unit {{asset}} is not available in this warehouse. If it is attached to an extra service, detach it from the service first.",
     "asset_unknown": "The unit is not found.",
     "duplicate_values": "Values repeat.",
     "opened_package_unknown": "The opened package is not found.",
@@ -1305,7 +1305,8 @@
     "return_location_not_applicable": "A return location is given only for a service with equipment.",
     "equipment_service_standalone_only": "A service with equipment is ordered as a standalone service for now, not linked to a rental.",
     "service_without_equipment": "Units are attached only to a service with equipment.",
-    "boolean_required": "Choose yes or no."
+    "boolean_required": "Choose yes or no.",
+    "equipment_in_use": "Unit {{asset}} has bookings or is handed out under this service. Finish or cancel them first."
   },
   "history": {
     "action": "Action",

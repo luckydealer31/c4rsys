@@ -81,7 +81,8 @@ def unavailable_reason(asset: Asset | dict[str, Any], location_id: UUID) -> str 
         return "not_in_stock"
     if place != location_id:
         return "other_location"
-    if reserves.asset_reserved(asset_id):
+    # The services the unit is attached to do not hold it from themselves.
+    if reserves.asset_reserved(asset_id, warehouse_only=True):
         return "reserved"
     return None
 

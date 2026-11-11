@@ -693,7 +693,7 @@
     "timezone_required": "ระบุเวลาพร้อมเขตเวลา",
     "expired_lot_forbidden": "ล็อต {{lot}} หมดอายุ: ห้ามเบิกและใช้",
     "expired_lot_confirm": "ล็อต {{lot}} หมดอายุ — ยืนยันการเบิก",
-    "asset_not_available": "ชิ้น {{asset}} ไม่พร้อมใช้ในคลังนี้",
+    "asset_not_available": "ชิ้น {{asset}} ไม่พร้อมใช้ในคลังนี้ หากผูกกับบริการเสริม ให้ยกเลิกการผูกก่อน",
     "asset_unknown": "ไม่พบชิ้น",
     "duplicate_values": "ค่าซ้ำกัน",
     "opened_package_unknown": "ไม่พบบรรจุภัณฑ์ที่เปิด",
@@ -1305,7 +1305,8 @@
     "return_location_not_applicable": "ระบุสถานที่รับคืนได้เฉพาะบริการที่มีอุปกรณ์",
     "equipment_service_standalone_only": "ขณะนี้บริการที่มีอุปกรณ์สั่งได้เฉพาะแบบแยกเดี่ยว ไม่ผูกกับการเช่า",
     "service_without_equipment": "ผูกอุปกรณ์ได้เฉพาะกับบริการที่มีอุปกรณ์",
-    "boolean_required": "เลือกใช่หรือไม่"
+    "boolean_required": "เลือกใช่หรือไม่",
+    "equipment_in_use": "ชิ้น {{asset}} มีการจองหรือถูกส่งมอบภายใต้บริการนี้ กรุณาปิดหรือยกเลิกก่อน"
   },
   "history": {
     "action": "Action",

@@ -267,6 +267,7 @@ def _take_one(
     *,
     allow_open: bool,
     check_expiry: bool,
+    moving: bool = False,
 ) -> Taken:
     item = Item.objects.filter(company_id=company_id, pk=take.item_id).first()
     if item is None:
@@ -294,7 +295,10 @@ def _take_one(
             if (
                 asset.context_id != context.id
                 or asset.state != Asset.State.IN_STOCK
-                or reserves.asset_reserved(asset.id, exclude_reserve=held)
+                # A unit attached to an additional service may be moved between warehouses
+                # without detaching it; it is not issued, sold or written off (customer's
+                # decision of 11.11.2026).
+                or reserves.asset_reserved(asset.id, exclude_reserve=held, warehouse_only=moving)
             ):
                 # § 11.8.1: nothing beyond what is available in this warehouse.
                 raise errors.business_rule(
@@ -413,6 +417,7 @@ def _take_all(
     *,
     allow_open: bool = False,
     check_expiry: bool = False,
+    moving: bool = False,
 ) -> list[Taken]:
     if not takes:
         raise errors.validation_error("lines", code="LINES_REQUIRED")
@@ -427,6 +432,7 @@ def _take_all(
             f"lines[{index}]",
             allow_open=allow_open,
             check_expiry=check_expiry,
+            moving=moving,
         )
         for index, take in enumerate(takes)
     ]
@@ -833,7 +839,7 @@ def send(
     target = _warehouse(company.id, target_id, "target_context_id")
     if target.id == context.id:
         raise errors.validation_error("target_context_id", code="MOVE_SAME_WAREHOUSE")
-    taken = _take_all(ctx, company.id, context, takes)
+    taken = _take_all(ctx, company.id, context, takes, moving=True)
     operation = _new_operation(
         ctx,
         company,

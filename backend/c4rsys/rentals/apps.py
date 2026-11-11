@@ -69,6 +69,12 @@ class RentalsConfig(AppConfig):
         )
         orders.register_client_view(extra_lines.client_view_for_order)
         orders.register_history(extra_lines.history_for_order)
+        # Decision of 11.11.2026: a unit attached to a service is not issued, moved, sold or
+        # written off by the warehouse until it is detached.
+        from c4rsys.rentals import extras
+        from c4rsys.warehouse import reserves
+
+        reserves.register_holder(extras.asset_attached)
         # § 12.2.1–12.2.2: proposals become bookings; the cancelled order takes its positions.
         orders.register_on_formed(order_links.on_order_formed)
         orders.register_on_cancel(order_links.on_order_cancel)

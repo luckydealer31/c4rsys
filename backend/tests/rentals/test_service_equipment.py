@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from typing import Any
 from unittest import mock
 from urllib.parse import urlencode
+from uuid import UUID
 
 import pytest
 from django.test import Client
@@ -251,13 +252,28 @@ def test_hand_out_and_return_in_another_location(owner: Client, s: Scenario) -> 
     assert line["calculation"]["kind"] == "current"
     assert line["calculation"]["amount"] == "300.00"  # three days up to now, not the period
     assert Asset.objects.get(pk=unit).state == "issued"
-    # § 13.4.12: handed out and not returned — unavailable even after its paid period.
-    later = _period(NOW + timedelta(days=30), 24)
-    assert _choices(owner, s, service, **later)[0]["reason"] == "occupied"
+    # § 13.4.12: handed out and not returned — unavailable now, even after its paid period;
+    # a later period of it can be booked (decision of 11.11.2026).
+    running = _period(NOW - timedelta(hours=2), 24)
+    assert _choices(owner, s, service, **running)[0]["reason"] == "occupied"
     assert (
-        _standalone(owner, s, service, asset_id=unit, **later).json()["error"]["code"]
+        _standalone(owner, s, service, asset_id=unit, **running).json()["error"]["code"]
         == "EQUIPMENT_NOT_AVAILABLE"
     )
+    later = _period(NOW + timedelta(days=30), 24)
+    assert _choices(owner, s, service, **later)[0]["available"] is True
+    # The warehouse leaves a unit attached to a service alone, and a unit with a line in
+    # progress is not detached (decision of 11.11.2026).
+    from c4rsys.warehouse import reserves
+
+    assert reserves.asset_reserved(UUID(unit)) is True
+    detached = owner.patch(
+        f"/api/c/{s.cmp}/extra-services/{service}",
+        data={"assets": [], "expected_version": 1},
+        content_type="application/json",
+        headers=key(),
+    )
+    assert detached.json()["error"]["code"] == "EQUIPMENT_IN_USE"
     refused = _line_post(owner, s, line, "complete", location_id=no_storage)
     assert refused.json()["error"]["code"] == "RETURN_STORAGE_NOT_USABLE"
 

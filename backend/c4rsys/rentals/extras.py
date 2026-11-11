@@ -147,6 +147,12 @@ def _write_scope(service: ExtraService, scope: Scope) -> None:
     )
 
 
+def asset_attached(asset_id: UUID) -> bool:
+    """The unit is attached to a service of the catalog: the warehouse leaves it alone until it
+    is detached (customer's decision of 11.11.2026)."""
+    return ExtraServiceAsset.objects.filter(asset_id=asset_id).exists()
+
+
 def _validate_assets(service_with_equipment: bool, company_id: UUID, ids: frozenset[UUID]) -> None:
     if ids and not service_with_equipment:
         raise errors.validation_error("assets", code="SERVICE_WITHOUT_EQUIPMENT")
@@ -246,6 +252,27 @@ def change(ctx: CommandContext, service: ExtraService, changes: Changes) -> Extr
     before = snapshot(service)
     if changes.asset_ids is not None:
         _validate_assets(service.with_equipment, service.company_id, changes.asset_ids)
+        # A unit is detached only when nothing of this service holds it: its bookings and the
+        # lines in progress are finished or cancelled first (decision of 11.11.2026).
+        from c4rsys.rentals.models import ExtraServiceLine
+
+        attached = set(
+            ExtraServiceAsset.objects.filter(service=service).values_list("asset_id", flat=True)
+        )
+        held = (
+            ExtraServiceLine.objects.filter(
+                service=service,
+                asset_id__in=attached - changes.asset_ids,
+                state__in=(ExtraServiceLine.State.PLANNED, ExtraServiceLine.State.STARTED),
+            )
+            .values_list("asset_id", flat=True)
+            .first()
+        )
+        if held is not None:
+            unit = equipment.describe(service.company_id, [held])
+            raise errors.business_rule(
+                "EQUIPMENT_IN_USE", field="assets", asset=unit[0]["public_id"] if unit else ""
+            )
     if changes.name is not None:
         service.name = changes.name
     if changes.price is not None:
