@@ -345,7 +345,7 @@
     "minimum": "Обязательно: имя и фамилия (или название компании) и телефон или email.",
     "nothing_allowed": "У вас нет доступа к клиентам, контрагентам и сотрудникам.",
     "phone": "Телефон",
-    "search": "Поиск по имени",
+    "search": "Поиск",
     "tab_clients": "Клиенты",
     "tab_counterparties": "Контрагенты",
     "tab_employees": "Сотрудники",
@@ -2642,7 +2642,8 @@
     "card_tasks": "Задачи",
     "card_ownership": "Владение и архив",
     "card_history": "История",
-    "card_settings": "Настройки"
+    "card_settings": "Настройки",
+    "unit_change_open": "Сменить единицу"
   },
   "warehouse": {
     "action_create": "Создать",
@@ -2774,8 +2775,8 @@
     "documents_missing": "Нет обязательных документов: {{documents}}."
   },
   "counterparties": {
-    "search": "Поиск по названию, имени или контакту",
-    "show_archived": "Показать архив",
+    "search": "Поиск",
+    "show_archived": "Архив",
     "none": "Контрагентов нет.",
     "list_not_allowed": "Нет права смотреть список контрагентов.",
     "create_title": "Новый контрагент",

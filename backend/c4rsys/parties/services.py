@@ -484,9 +484,10 @@ def get_client(company_id: UUID, client_id: UUID) -> ClientCard:
 def search(
     company_id: UUID, text: str, state: str = ClientCard.State.ACTIVE
 ) -> QuerySet[ClientCard]:
-    """List with search by a part of the name (§ 2.8.3); exact matches first is left to ordering
-    by name. The usual list shows active cards; the «Archive» filter the archived ones (§ 6.6.4);
-    merged cards are reached through their main card (§ 6.5.2)."""
+    """List with search by a part of the name, of a phone or of an email (§ 2.8.3; customer's
+    decision of 11.11.2026: as the list of counterparties); exact matches first is left to
+    ordering by name. The usual list shows active cards; the «Archive» filter the archived
+    ones (§ 6.6.4); merged cards are reached through their main card (§ 6.5.2)."""
     cards = clients_of(company_id).filter(state=state)
     for word in text.split():
         cards = cards.filter(
@@ -494,7 +495,9 @@ def search(
             | Q(last_name__icontains=word)
             | Q(middle_name__icontains=word)
             | Q(company_name__icontains=word)
-        )
+            | Q(contacts__value__icontains=word)
+            | Q(contacts__value_normalized__icontains=word)
+        ).distinct()
     return cards.order_by("last_name", "first_name", "company_name", "created_at")
 
 

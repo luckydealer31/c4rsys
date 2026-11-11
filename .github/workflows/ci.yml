@@ -33,7 +33,13 @@ jobs:
         with:
           python-version: "3.13"
       # Decision В-8.1: the tests of inspection videos run ffprobe and ffmpeg.
-      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      # The package mirror of the runner fails at times: the step is tried up to three times.
+      - run: |
+          for attempt in 1 2 3; do
+            sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg && break
+            [ "$attempt" = 3 ] && exit 1
+            sleep 20
+          done
       - run: pip install -r requirements-dev.txt -c requirements.lock
       # Audit item 9: known vulnerabilities of the fixed versions stop the check.
       - run: pip install pip-audit && pip-audit -r requirements.lock --progress-spinner off

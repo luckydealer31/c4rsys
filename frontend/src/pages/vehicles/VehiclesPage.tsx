@@ -7,7 +7,7 @@ import { useApi } from "../../api/queries";
 import type { RentalSummary, Tariff, Vehicle, VehicleTerms } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Icon } from "../../components/icons";
-import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
+import { Card, ErrorMessage, Field, IconButton, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { formatMoment } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
@@ -306,6 +306,13 @@ export function VehiclesPage() {
   );
 }
 
+// The technical characteristics: the right column of the card.
+const TECHNICAL = new Set([
+  "body_type", "fuel_type", "transmission", "drive", "engine_volume_l", "power_hp", "seats", "doors",
+  "manufacturer", "manufacture_country", "modification", "tank_volume_l", "battery_kwh", "range_km", "gears",
+  "curb_weight_kg", "gross_weight_kg", "payload_kg", "cargo_volume_m3",
+]);
+
 /** Identification data and characteristics of the vehicle; a coincidence of VIN or plate with
  * another vehicle is shown as a reason to check (§ 8.6.3). */
 function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
@@ -335,7 +342,6 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
   const working = vehicle.working_values ?? {};
   const confirmed = new Set(vehicle.confirmed_fields ?? []);
   const facts: [string, string, string?][] = [
-    [t("vehicles.relation"), t(`vehicles.relation_${vehicle.relation}`)],
     [
       t("vehicles.section_owner"),
       // Only the owner of a managed vehicle is asked to confirm (§ 8.3.1, § 8.3.13).
@@ -349,13 +355,14 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
     [t("vehicles.make"), c.make_name, "make"],
     [t("vehicles.model"), c.model_name, "model"],
     [t("vehicles.year"), c.year ? String(c.year) : "", "year"],
+    [t("vehicles.odometer"), vehicle.odometer ? `${Number(vehicle.odometer.value)} ${vehicle.odometer.unit}` : ""],
+    [t("vehicles.color"), c.color, "color"],
     [t("vehicles.plate"), [c.plate, country, c.plate_region].filter(Boolean).join(", ")],
     [t("vehicles.vin"), c.vin, "vin"],
     [t("vehicles.body_number"), c.body_number, "body_number"],
     [t("vehicles.chassis_number"), c.chassis_number, "chassis_number"],
     [t("vehicles.frame_number"), c.frame_number, "frame_number"],
     [t("vehicles.engine_number"), c.engine_number, "engine_number"],
-    [t("vehicles.color"), c.color, "color"],
     [t("vehicles.body_type"), option("vehicles.body", c.body_type), "body_type"],
     [t("vehicles.fuel_type"), option("vehicles.fuel", c.fuel_type), "fuel_type"],
     [t("vehicles.transmission"), option("vehicles.gearbox", c.transmission), "transmission"],
@@ -385,10 +392,15 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
           {c.identifier_matches.map((m) => t(`vehicles.match_${m}`)).join(" ")}
         </div>
       ) : null}
-      <dl className="facts two">
-        {facts
-          .filter(([, value, field]) => value || (field && working[field]))
-          .map(([label, value, field]) => {
+      {/* Two columns by meaning (decision of 11.11.2026): what identifies the vehicle on the
+          left, its technical data on the right. */}
+      <div className="facts-columns">
+        {[facts.filter(([, , field]) => !field || !TECHNICAL.has(field)), facts.filter(([, , field]) => field && TECHNICAL.has(field))].map(
+          (column, index) => (
+            <dl key={index} className="facts">
+              {column
+                .filter(([, value, field]) => value || (field && working[field]))
+                .map(([label, value, field]) => {
             // § 8.2.1: the card's own working value is shown with the mark of the discrepancy.
             const own = field ? working[field] : undefined;
             return (
@@ -416,7 +428,10 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
               </div>
             );
           })}
-      </dl>
+            </dl>
+          ),
+        )}
+      </div>
       {vehicle.changes_global === false ? (
         <p className="muted small">{t("vehicles.not_owner_hint")}</p>
       ) : null}
@@ -502,10 +517,7 @@ export function VehiclePage() {
       <h1>{data.name}</h1>
       {/* The ID of the vehicle in the system and its current mileage stand under the name. */}
       <p className="muted" style={{ marginTop: -8 }}>
-        {data.vehicle_id}
-        {data.odometer
-          ? ` · ${t("vehicles.odometer")}: ${Number(data.odometer.value)} ${data.odometer.unit} (${formatMoment(data.odometer.measured_at, timeZone, i18n.language)})`
-          : ""}
+        {data.vehicle_id} <span className="badge">{t(`vehicles.relation_${data.relation}`)}</span>
       </p>
       {stored ? (
         <div className="alert warn">
@@ -550,18 +562,28 @@ export function VehiclePage() {
         <>
           <Card title={t("vehicles.card_settings")}>
         {can("vehicle.edit") && data.state !== "archived" ? (
-          <>
-            <div className="row">
-              <Field label={t("vehicles.name")}>
-                <input value={name ?? data.name} onChange={(e) => setName(e.target.value)} />
-              </Field>
-            </div>
-            <div className="actions">
-              <button type="button" disabled={!name || name === data.name} onClick={() => void save({ name })}>
-                {t("common.save")}
-              </button>
-            </div>
-          </>
+          name === null ? (
+            <p>
+              {t("vehicles.name")}: <strong>{data.name}</strong>{" "}
+              <IconButton icon="edit" label={t("common.edit")} onClick={() => setName(data.name)} />
+            </p>
+          ) : (
+            <>
+              <div className="row">
+                <Field label={t("vehicles.name")}>
+                  <input autoFocus value={name} onChange={(e) => setName(e.target.value)} />
+                </Field>
+              </div>
+              <div className="actions">
+                <button type="button" disabled={!name || name === data.name} onClick={() => void save({ name })}>
+                  {t("common.save")}
+                </button>
+                <button type="button" className="secondary" onClick={() => setName(null)}>
+                  {t("common.cancel")}
+                </button>
+              </div>
+            </>
+          )
         ) : null}
         {/* A client vehicle is only serviced: nothing to allow (decision of 24.10.2026). */}
         {isClient ? null : <h3 style={{ marginTop: 16 }}>{t("vehicles.contexts")}</h3>}

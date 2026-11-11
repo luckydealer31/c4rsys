@@ -345,7 +345,7 @@
     "minimum": "Required: name and surname (or company name) and a phone or email.",
     "nothing_allowed": "You have no access to clients, counterparties or employees.",
     "phone": "Phone",
-    "search": "Search by name",
+    "search": "Search",
     "tab_clients": "Clients",
     "tab_counterparties": "Counterparties",
     "tab_employees": "Employees",
@@ -2642,7 +2642,8 @@
     "card_tasks": "Tasks",
     "card_ownership": "Ownership and archive",
     "card_history": "History",
-    "card_settings": "Settings"
+    "card_settings": "Settings",
+    "unit_change_open": "Change the unit"
   },
   "warehouse": {
     "action_create": "Create",
@@ -2774,8 +2775,8 @@
     "documents_missing": "No required documents: {{documents}}."
   },
   "counterparties": {
-    "search": "Search by name or contact",
-    "show_archived": "Show archive",
+    "search": "Search",
+    "show_archived": "Archive",
     "none": "No counterparties.",
     "list_not_allowed": "You may not view the list of counterparties.",
     "create_title": "New counterparty",

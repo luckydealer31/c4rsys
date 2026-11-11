@@ -278,6 +278,9 @@ export function OdometerCard({ vehicle }: { vehicle: Vehicle }) {
   const target = vehicle.odometer_unit === "km" ? "mi" : "km";
   const [method, setMethod] = useState("");
   const [reason, setReason] = useState("");
+  // The change of the unit opens by a button: the card only shows until then (decision of
+  // 11.11.2026).
+  const [changing, setChanging] = useState(false);
   const change = useVehicleCommand(vehicle, "odometer-unit");
   const preview = useApi<{ preview: UnitPreview }>(
     ["odometer-unit", company.public_id, vehicle.id, method, vehicle.version],
@@ -316,7 +319,14 @@ export function OdometerCard({ vehicle }: { vehicle: Vehicle }) {
         </>
       ) : null}
       <p className="muted small">{t("vehicles.replacement_where")}</p>
-      {can("vehicle.odometer_unit") && vehicle.state === "active" ? (
+      {can("vehicle.odometer_unit") && vehicle.state === "active" && !changing ? (
+        <div className="actions">
+          <button type="button" className="secondary" onClick={() => setChanging(true)}>
+            {t("vehicles.unit_change_open")}
+          </button>
+        </div>
+      ) : null}
+      {can("vehicle.odometer_unit") && vehicle.state === "active" && changing ? (
         <>
           <h3>{t("vehicles.unit_change_title", { from: unit(vehicle.odometer_unit), to: unit(target) })}</h3>
           <div className="row">
@@ -353,11 +363,15 @@ export function OdometerCard({ vehicle }: { vehicle: Vehicle }) {
                 if ((await change.run({ to_unit: target, method, reason, expected_version: vehicle.version })) !== null) {
                   setMethod("");
                   setReason("");
+                  setChanging(false);
                   await refresh();
                 }
               }}
             >
               {t("vehicles.unit_change_button")}
+            </button>
+            <button type="button" className="secondary" onClick={() => setChanging(false)}>
+              {t("common.cancel")}
             </button>
           </div>
         </>

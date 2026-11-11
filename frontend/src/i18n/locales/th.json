@@ -345,7 +345,7 @@
     "minimum": "Required: name and surname (or company name) and a phone or email.",
     "nothing_allowed": "You have no access to clients, counterparties or employees.",
     "phone": "Phone",
-    "search": "Search by name",
+    "search": "ค้นหา",
     "tab_clients": "Clients",
     "tab_counterparties": "Counterparties",
     "tab_employees": "Employees",
@@ -2642,7 +2642,8 @@
     "card_tasks": "งาน",
     "card_ownership": "กรรมสิทธิ์และคลังเก็บ",
     "card_history": "ประวัติ",
-    "card_settings": "การตั้งค่า"
+    "card_settings": "การตั้งค่า",
+    "unit_change_open": "เปลี่ยนหน่วย"
   },
   "warehouse": {
     "action_create": "Create",
@@ -2774,8 +2775,8 @@
     "documents_missing": "ไม่มีเอกสารที่ต้องมี: {{documents}}"
   },
   "counterparties": {
-    "search": "ค้นหาตามชื่อหรือช่องทางติดต่อ",
-    "show_archived": "แสดงที่เก็บถาวร",
+    "search": "ค้นหา",
+    "show_archived": "คลังเก็บ",
     "none": "ไม่มีคู่ค้า",
     "list_not_allowed": "คุณไม่มีสิทธิ์ดูรายชื่อคู่ค้า",
     "create_title": "คู่ค้ารายใหม่",
