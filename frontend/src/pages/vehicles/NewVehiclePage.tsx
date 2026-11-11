@@ -114,14 +114,6 @@ const EMPTY: Form = {
   client_owner_kind: "client",
 };
 
-/** Full creation card of a vehicle (customer's decisions of 24.10.2026; § 8.1.8–8.1.12): class
- * and type first, then make and model from the catalog (or «Other» as text), identification,
- * characteristics and accounting. The name is formed from the make, the model and the plate
- * until the user writes their own. */
-export function NewVehiclePage() {
-  return <VehicleForm />;
-}
-
 /** «Edit» of a vehicle (decision of 24.10.2026): the same card with the current data; relation,
  * location and odometer unit are not changed here. */
 export function EditVehiclePage() {
@@ -329,24 +321,7 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
     }
     const result = await create.run(body);
     if (result !== null) {
-      // § 9.1.6: the periodic maintenance entered in the creation form; optional, each rule is
-      // its own command after the vehicle exists (a refused rule is shown in the card).
-      if (!vehicle) {
-        for (const rule of rules.filter((r) => r.name.trim() && (r.interval_days || r.interval_distance))) {
-          await api(`/c/${company.public_id}/service/vehicles/${result.vehicle.id}/maintenance`, {
-            method: "POST",
-            body: {
-              name: rule.name.trim(),
-              system_work: rule.system_work || null,
-              interval_days: rule.interval_days || null,
-              interval_distance: rule.interval_distance || null,
-              remind_days: rule.remind_days || null,
-              remind_distance: rule.remind_distance || null,
-            },
-            idempotencyKey: crypto.randomUUID(),
-          }).catch(() => null);
-        }
-      }
+      if (!vehicle) await postMaintenanceDraft(company.public_id, result.vehicle.id, rules);
       if (vehicle) {
         await client.invalidateQueries({ queryKey: ["vehicle", company.public_id, vehicle.id] });
       }
@@ -749,7 +724,7 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
   );
 }
 
-type DraftRule = {
+export type DraftRule = {
   name: string;
   system_work: string;
   interval_days: string;
@@ -757,6 +732,25 @@ type DraftRule = {
   remind_days: string;
   remind_distance: string;
 };
+
+/** § 9.1.6: the periodic maintenance entered while creating a vehicle; optional, each rule is
+ * its own command after the vehicle exists (a refused rule is shown in the card). */
+export async function postMaintenanceDraft(companyId: string, vehicleId: string, rules: DraftRule[]) {
+  for (const rule of rules.filter((r) => r.name.trim() && (r.interval_days || r.interval_distance))) {
+    await api(`/c/${companyId}/service/vehicles/${vehicleId}/maintenance`, {
+      method: "POST",
+      body: {
+        name: rule.name.trim(),
+        system_work: rule.system_work || null,
+        interval_days: rule.interval_days || null,
+        interval_distance: rule.interval_distance || null,
+        remind_days: rule.remind_days || null,
+        remind_distance: rule.remind_distance || null,
+      },
+      idempotencyKey: crypto.randomUUID(),
+    }).catch(() => null);
+  }
+}
 
 const EMPTY_RULE: DraftRule = {
   name: "",
@@ -769,7 +763,7 @@ const EMPTY_RULE: DraftRule = {
 
 /** § 9.1.6: periodic maintenance by mileage or term with repeated reminders, already in the
  * creation form; filling it is not required to create the vehicle. */
-function MaintenanceDraft({
+export function MaintenanceDraft({
   rules,
   onChange,
   unit,

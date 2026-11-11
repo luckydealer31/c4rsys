@@ -110,8 +110,17 @@ test("base example from registration to closing survives a restart", async ({ pa
   // Vehicle, daily tariff 1 000 THB from 1 day, terms «unlimited, no deposit».
   await page.goto(`${base}/vehicles`);
   await page.getByRole("link", { name: t("vehicles.create_button") }).click();
-  // The name field carries its hint in the label; the automatic name is replaced by hand.
+  // The creation goes step by step: type, then make, model, year, VIN and plate are skipped.
+  const next = page.getByRole("button", { name: t("vehicles.wizard_next"), exact: true });
+  await next.click();
+  for (let i = 0; i < 5; i += 1) {
+    await page.getByRole("button", { name: t("vehicles.wizard_skip"), exact: true }).click();
+  }
+  // Nothing to form the name from, so it is entered by hand; then owner and odometer unit.
   await card(page, t("vehicles.name")).getByRole("textbox").fill("Toyota Yaris");
+  await next.click();
+  await next.click();
+  await next.click();
   await page.getByLabel(t("vehicles.location")).selectOption({ label: "Пхукет" });
   await page.getByRole("button", { name: t("vehicles.create") }).click();
   await expect(page.getByRole("heading", { name: "Toyota Yaris" })).toBeVisible();

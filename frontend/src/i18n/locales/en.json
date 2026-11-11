@@ -2558,7 +2558,17 @@
     "operational_dispute_open": "c4rsys is reviewing the ownership or management of this vehicle (conflict № {{number}}).",
     "only_unavailable": "Vehicles unavailable because of a restriction or a conflict",
     "only_identifier_conflict": "Vehicles in unresolved identifier conflicts",
-    "only_reset": "Show all"
+    "only_reset": "Show all",
+    "wizard_step": "Step {{n}} of {{total}}",
+    "wizard_next": "Next",
+    "wizard_back": "Back",
+    "wizard_skip": "Skip",
+    "wizard_optional": "Optional — you can skip this step.",
+    "wizard_no_catalog": "There is no catalog of makes for this type yet — enter the make as text or skip.",
+    "wizard_name_required": "A vehicle cannot be created without a name — enter it by hand.",
+    "wizard_location_hint": "The location the vehicle is attached to in the company.",
+    "wizard_later": "Country of registration, the body, chassis, frame and engine numbers, color, fuel and the other characteristics can be filled in later, in the vehicle card.",
+    "wizard_maintenance": "Periodic maintenance (optional)"
   },
   "warehouse": {
     "action_create": "Create",
