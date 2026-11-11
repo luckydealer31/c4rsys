@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router";
+import { Link, Navigate } from "react-router";
 
 import { useApi } from "../../api/queries";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCompany } from "../../layout/CompanyShell";
 import { deviceTimeZone, formatMoment } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
+import { useVehicles } from "./VehiclesPage";
 
 type Item = {
   card_id: string;
@@ -48,9 +49,16 @@ function addDays(value: Date, days: number): Date {
   return result;
 }
 
-/** The schedule of vehicles (decisions Б3, В-4): a row per vehicle with its bookings, rentals,
- * service and moves over a day, a week or a month; a click opens the record. */
+/** The schedule is a view of the garage now (decision of 11.11.2026); the old address leads there. */
 export function SchedulePage() {
+  const company = useCompany();
+  return <Navigate to={companyPath(company, "/vehicles?view=schedule")} replace />;
+}
+
+/** The schedule of vehicles (decisions Б3, В-4): a row per vehicle with its bookings, rentals,
+ * service and moves over a day, a week or a month; a click opens the record. Only the vehicles
+ * of the chosen relations are shown, grouped by location as in the list of the garage. */
+export function ScheduleView({ relations }: { relations: Set<string> }) {
   const { t, i18n } = useTranslation();
   const company = useCompany();
   const locations = useLocations();
@@ -75,13 +83,25 @@ export function SchedulePage() {
   };
   const shift = (direction: number) => setFrom(addDays(from, direction * SPANS[span]));
   const now = Date.now();
+  // The relation and the location of a row come from the list of the garage.
+  const cards = useVehicles();
+  const info = new Map((cards.data?.vehicles ?? []).map((v) => [v.id, v]));
+  const rows = (schedule.data?.vehicles ?? []).filter((v) => {
+    const card = info.get(v.id);
+    return card ? relations.has(card.relation) : true;
+  });
+  const known = locations.data?.locations ?? [];
+  const groups = [
+    ...known.map((l) => ({ id: l.id, name: l.name, rows: rows.filter((v) => info.get(v.id)?.location_id === l.id) })),
+    {
+      id: "none",
+      name: t("vehicles.no_location"),
+      rows: rows.filter((v) => !known.some((l) => l.id === info.get(v.id)?.location_id)),
+    },
+  ].filter((group) => group.rows.length > 0);
 
   return (
-    <div className="page">
-      <p>
-        <Link to={companyPath(company, "/vehicles")}>← {t("nav.garage")}</Link>
-      </p>
-      <h1>{t("schedule.title")}</h1>
+    <>
       <Card>
         <div className="row">
           <Field label={t("schedule.span")}>
@@ -139,8 +159,13 @@ export function SchedulePage() {
                 </div>
               ))}
             </div>
-            {schedule.data.vehicles.length === 0 ? <p className="muted">{t("schedule.no_vehicles")}</p> : null}
-            {schedule.data.vehicles.map((v) => (
+            {rows.length === 0 ? <p className="muted">{t("schedule.no_vehicles")}</p> : null}
+            {groups.map((group) => (
+              <div key={group.id}>
+                <div className="small" style={{ fontWeight: 600, padding: "8px 0 4px", borderTop: "1px solid var(--border, #ddd)" }}>
+                  {group.name}
+                </div>
+                {group.rows.map((v) => (
               <div key={v.id} style={{ display: "flex", alignItems: "center", borderTop: "1px solid var(--border, #ddd)", minHeight: 34 }}>
                 <div style={{ width: 160, flexShrink: 0, paddingRight: 8 }} className="small">
                   <Link to={companyPath(company, `/vehicles/${v.id}`)}>{v.name}</Link>
@@ -187,11 +212,13 @@ export function SchedulePage() {
                     })}
                 </div>
               </div>
+                ))}
+              </div>
             ))}
           </div>
         </div>
       ) : null}
       <p className="muted small">{t("schedule.hint")}</p>
-    </div>
+    </>
   );
 }

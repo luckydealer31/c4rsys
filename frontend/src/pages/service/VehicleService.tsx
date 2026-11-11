@@ -102,7 +102,14 @@ function Maintenance({ vehicle }: { vehicle: Vehicle }) {
       ))}
       {/* § 23.5.1 (block 14): the rules and a recorded done work are separate rights. */}
       {can("vehicle.maintenance.rules") || (editing && can("vehicle.maintenance.record")) ? (
-        <RuleForm key={editing?.id ?? "new"} vehicleId={vehicle.id} unit={unit} rule={editing ?? undefined} onDone={() => setEditing(null)} />
+        <RuleForm
+          key={editing?.id ?? "new"}
+          vehicleId={vehicle.id}
+          unit={unit}
+          rule={editing ?? undefined}
+          others={(rules.data?.rules ?? []).filter((r) => r.id !== editing?.id)}
+          onDone={() => setEditing(null)}
+        />
       ) : null}
       {can("vehicle.maintenance.rules") ? <CopyRules vehicleId={vehicle.id} /> : null}
     </Card>
@@ -110,8 +117,21 @@ function Maintenance({ vehicle }: { vehicle: Vehicle }) {
 }
 
 /** A system work, a work of the catalog, or only a name; distance and/or days; the base of the
- * count when there is no done work yet (§ 9.1.5–9.1.10). */
-function RuleForm({ vehicleId, unit, rule, onDone }: { vehicleId: string; unit: string; rule?: MaintenanceRule; onDone: () => void }) {
+ * count when there is no done work yet (§ 9.1.5–9.1.10). A work another rule of the vehicle is
+ * already for is not offered: one rule per service operation (decision of 11.11.2026). */
+function RuleForm({
+  vehicleId,
+  unit,
+  rule,
+  others,
+  onDone,
+}: {
+  vehicleId: string;
+  unit: string;
+  rule?: MaintenanceRule;
+  others: MaintenanceRule[];
+  onDone: () => void;
+}) {
   const { t, i18n } = useTranslation();
   const company = useCompany();
   const queryClient = useQueryClient();
@@ -134,6 +154,8 @@ function RuleForm({ vehicleId, unit, rule, onDone }: { vehicleId: string; unit: 
   );
   const archive = useCommand<Record<string, unknown>, Rules>(`/c/${company.public_id}/service/maintenance/${rule?.id ?? ""}`, "PATCH");
   const unitLabel = t(`vehicles.unit_${unit}`);
+  const takenSystem = new Set(others.map((r) => r.system_work).filter(Boolean));
+  const takenWorks = new Set(others.map((r) => r.work_id).filter(Boolean));
 
   function pick(value: string) {
     setLink(value);
@@ -184,7 +206,9 @@ function RuleForm({ vehicleId, unit, rule, onDone }: { vehicleId: string; unit: 
           <select value={link} onChange={(e) => pick(e.target.value)}>
             <option value="">{t("service.rule_own")}</option>
             <optgroup label={t("service.system_work")}>
-              {(system.data?.system_works ?? []).map((w) => (
+              {(system.data?.system_works ?? [])
+                .filter((w) => !takenSystem.has(w.code))
+                .map((w) => (
                 <option key={w.code} value={`system:${w.code}`}>
                   {w.names[lang] ?? w.names.en}
                 </option>
@@ -192,7 +216,7 @@ function RuleForm({ vehicleId, unit, rule, onDone }: { vehicleId: string; unit: 
             </optgroup>
             <optgroup label={t("service.catalog")}>
               {(works.data?.works ?? [])
-                .filter((w) => !w.system_work)
+                .filter((w) => !w.system_work && !takenWorks.has(w.id))
                 .map((w) => (
                   <option key={w.id} value={`work:${w.id}`}>
                     {w.name}

@@ -3,7 +3,6 @@ import { useMemo, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 
-import { api } from "../../api/client";
 import { useApi } from "../../api/queries";
 import type { CatalogMake, CatalogModel, Client, Vehicle, VehicleOptions } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
@@ -12,7 +11,6 @@ import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { clientName } from "../clients/ClientsPage";
 import { countries } from "../settings/CompanyProfilePage";
 import { useLocations } from "../settings/LocationsPage";
-import { useSystemWorks } from "../service/hooks";
 
 const OTHER = "__other";
 
@@ -215,7 +213,6 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
         },
   );
   const [customName, setCustomName] = useState<string | null>(vehicle ? vehicle.name : null);
-  const [rules, setRules] = useState<DraftRule[]>([]);
   const create = useCommand<Record<string, unknown>, { vehicle: Vehicle; warnings: string[] }>(
     vehicle
       ? `/c/${company.public_id}/vehicles/${vehicle.id}/details`
@@ -321,7 +318,6 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
     }
     const result = await create.run(body);
     if (result !== null) {
-      if (!vehicle) await postMaintenanceDraft(company.public_id, result.vehicle.id, rules);
       if (vehicle) {
         await client.invalidateQueries({ queryKey: ["vehicle", company.public_id, vehicle.id] });
       }
@@ -703,9 +699,6 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
             </button>
           ) : null}
           <ErrorMessage error={create.error} />
-          {!vehicle && form.relation !== "client" && can("vehicle.maintenance.rules") ? (
-            <MaintenanceDraft rules={rules} onChange={setRules} unit={form.odometer_unit} />
-          ) : null}
           <div className="actions">
             <button
               type="submit"
@@ -720,118 +713,6 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
           </div>
         </Card>
       </form>
-    </div>
-  );
-}
-
-export type DraftRule = {
-  name: string;
-  system_work: string;
-  interval_days: string;
-  interval_distance: string;
-  remind_days: string;
-  remind_distance: string;
-};
-
-/** § 9.1.6: the periodic maintenance entered while creating a vehicle; optional, each rule is
- * its own command after the vehicle exists (a refused rule is shown in the card). */
-export async function postMaintenanceDraft(companyId: string, vehicleId: string, rules: DraftRule[]) {
-  for (const rule of rules.filter((r) => r.name.trim() && (r.interval_days || r.interval_distance))) {
-    await api(`/c/${companyId}/service/vehicles/${vehicleId}/maintenance`, {
-      method: "POST",
-      body: {
-        name: rule.name.trim(),
-        system_work: rule.system_work || null,
-        interval_days: rule.interval_days || null,
-        interval_distance: rule.interval_distance || null,
-        remind_days: rule.remind_days || null,
-        remind_distance: rule.remind_distance || null,
-      },
-      idempotencyKey: crypto.randomUUID(),
-    }).catch(() => null);
-  }
-}
-
-const EMPTY_RULE: DraftRule = {
-  name: "",
-  system_work: "",
-  interval_days: "",
-  interval_distance: "",
-  remind_days: "",
-  remind_distance: "",
-};
-
-/** § 9.1.6: periodic maintenance by mileage or term with repeated reminders, already in the
- * creation form; filling it is not required to create the vehicle. */
-export function MaintenanceDraft({
-  rules,
-  onChange,
-  unit,
-}: {
-  rules: DraftRule[];
-  onChange: (rules: DraftRule[]) => void;
-  unit: string;
-}) {
-  const { t, i18n } = useTranslation();
-  const system = useSystemWorks();
-  const lang = i18n.language.slice(0, 2);
-  const unitLabel = t(`vehicles.unit_${unit || "km"}`);
-
-  function set(index: number, patch: Partial<DraftRule>) {
-    onChange(rules.map((r, i) => (i === index ? { ...r, ...patch } : r)));
-  }
-
-  return (
-    <div className="stack" style={{ marginTop: 12 }}>
-      <h3>{t("service.maintenance")}</h3>
-      <p className="muted small">{t("service.maintenance_on_create_hint")}</p>
-      {rules.map((rule, index) => (
-        <div key={index} className="row">
-          <Field label={t("service.rule_work")}>
-            <select
-              value={rule.system_work}
-              onChange={(e) => {
-                const code = e.target.value;
-                const found = system.data?.system_works.find((w) => w.code === code);
-                set(index, {
-                  system_work: code,
-                  name: rule.name || (found ? (found.names[lang] ?? found.names.en ?? "") : ""),
-                });
-              }}
-            >
-              <option value="">—</option>
-              {(system.data?.system_works ?? []).map((w) => (
-                <option key={w.code} value={w.code}>
-                  {w.names[lang] ?? w.names.en}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label={t("tariffs.name")}>
-            <input value={rule.name} onChange={(e) => set(index, { name: e.target.value })} />
-          </Field>
-          <Field label={t("service.interval_days")}>
-            <input inputMode="numeric" value={rule.interval_days} onChange={(e) => set(index, { interval_days: e.target.value })} />
-          </Field>
-          <Field label={t("service.interval_distance", { unit: unitLabel })}>
-            <input inputMode="numeric" value={rule.interval_distance} onChange={(e) => set(index, { interval_distance: e.target.value })} />
-          </Field>
-          <Field label={t("service.remind_days")}>
-            <input inputMode="numeric" value={rule.remind_days} onChange={(e) => set(index, { remind_days: e.target.value })} />
-          </Field>
-          <Field label={t("service.remind_distance", { unit: unitLabel })}>
-            <input inputMode="numeric" value={rule.remind_distance} onChange={(e) => set(index, { remind_distance: e.target.value })} />
-          </Field>
-          <button type="button" className="secondary" onClick={() => onChange(rules.filter((_, i) => i !== index))}>
-            {t("service.remove_rule_draft")}
-          </button>
-        </div>
-      ))}
-      <div className="actions">
-        <button type="button" className="secondary" onClick={() => onChange([...rules, { ...EMPTY_RULE }])}>
-          {t("service.new_rule")}
-        </button>
-      </div>
     </div>
   );
 }

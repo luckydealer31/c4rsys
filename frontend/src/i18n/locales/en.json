@@ -1286,7 +1286,8 @@
     "captcha_failed": "The check that you are not a bot failed. Try again.",
     "captcha_unavailable": "The bot check is unavailable right now. Try again in a few minutes.",
     "ip_rate_limited": "Too many requests from your network. Try again in an hour.",
-    "request_too_large": "The request is too large."
+    "request_too_large": "The request is too large.",
+    "maintenance_rule_duplicate": "This vehicle already has a rule for this work: «{{name}}»."
   },
   "history": {
     "action": "Action",
@@ -2253,7 +2254,7 @@
     "name_reset": "Back to the automatic name",
     "no_location": "Without location",
     "no_rentals": "No rentals yet.",
-    "none": "No vehicles on this tab yet.",
+    "none": "There are no vehicles here yet.",
     "occupancy": "Occupancy",
     "odometer": "Odometer",
     "odometer_unit": "Odometer unit",
@@ -2568,7 +2569,14 @@
     "wizard_name_required": "A vehicle cannot be created without a name — enter it by hand.",
     "wizard_location_hint": "The location the vehicle is attached to in the company.",
     "wizard_later": "Country of registration, the body, chassis, frame and engine numbers, color, fuel and the other characteristics can be filled in later, in the vehicle card.",
-    "wizard_maintenance": "Periodic maintenance (optional)"
+    "view_list": "List",
+    "view_schedule": "Schedule",
+    "view_client": "Client vehicles",
+    "action_rental": "Create rental",
+    "action_booking": "Create booking",
+    "action_service": "Create service",
+    "action_move": "Create move",
+    "actions_title": "Actions"
   },
   "warehouse": {
     "action_create": "Create",
@@ -3656,9 +3664,7 @@
     "open_job_hint": "The work stays done: its time and result do not change by the opening. Correct it and close it again; while it is open the service is not finished and the order is not closed.",
     "close_job": "Close",
     "job_editing": "Open for editing",
-    "blocker_service_job_editing": "A work is open for editing: close it to finish the service and close the order.",
-    "maintenance_on_create_hint": "Optional: rules by term or mileage with reminders; they can also be added later in the card.",
-    "remove_rule_draft": "Remove"
+    "blocker_service_job_editing": "A work is open for editing: close it to finish the service and close the order."
   },
   "trips": {
     "new": "New trip",

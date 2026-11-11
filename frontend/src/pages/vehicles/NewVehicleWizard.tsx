@@ -10,7 +10,6 @@ import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { clientName } from "../clients/ClientsPage";
 import { useLocations } from "../settings/LocationsPage";
-import { MaintenanceDraft, postMaintenanceDraft, type DraftRule } from "./NewVehiclePage";
 
 const OTHER = "__other";
 
@@ -53,8 +52,8 @@ const CLIENT_OWNER_KINDS = ["client", "person", "organization", "none"] as const
  * screen — type, make, model, year, VIN, plate, name, owner, odometer unit, location. Make,
  * model, year, VIN and plate may be skipped; the name is required. The vehicle is saved once,
  * at the last step. Country of registration and the characteristics are filled in later, in
- * the vehicle card. The periodic maintenance of § 9.1.6 stays available at the location step,
- * folded and optional. */
+ * the vehicle card. The periodic maintenance (§ 9.1.6) is not asked here: it is
+ * set in the vehicle card, for own and managed vehicles (customer's decision of 11.11.2026). */
 export function NewVehiclePage() {
   const { t, i18n } = useTranslation();
   const company = useCompany();
@@ -91,7 +90,6 @@ export function NewVehiclePage() {
   });
   const [customName, setCustomName] = useState<string | null>(null);
   const [index, setIndex] = useState(0);
-  const [rules, setRules] = useState<DraftRule[]>([]);
   const create = useCommand<Record<string, unknown>, { vehicle: Vehicle; warnings: string[] }>(
     `/c/${company.public_id}/vehicles`,
     "POST",
@@ -179,9 +177,6 @@ export function NewVehiclePage() {
     }
     const result = await create.run(body);
     if (result !== null) {
-      if (form.relation !== "client") {
-        await postMaintenanceDraft(company.public_id, result.vehicle.id, rules);
-      }
       await client.invalidateQueries({ queryKey: ["vehicles", company.public_id] });
       await client.invalidateQueries({ queryKey: ["readiness", company.public_id] });
       navigate(companyPath(company, `/vehicles/${result.vehicle.id}`));
@@ -475,7 +470,6 @@ export function NewVehiclePage() {
     );
   } else {
     content = (
-      <div className="stack">
       <Field label={t("vehicles.location")} hint={t("vehicles.wizard_location_hint")}>
         <select autoFocus value={form.location_id} onChange={(e) => set({ location_id: e.target.value })}>
           <option value="">—</option>
@@ -486,13 +480,6 @@ export function NewVehiclePage() {
           ))}
         </select>
       </Field>
-      {can("vehicle.maintenance.rules") ? (
-        <details>
-          <summary>{t("vehicles.wizard_maintenance")}</summary>
-          <MaintenanceDraft rules={rules} onChange={setRules} unit={form.odometer_unit} />
-        </details>
-      ) : null}
-      </div>
     );
   }
 

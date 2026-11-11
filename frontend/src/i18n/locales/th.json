@@ -1286,7 +1286,8 @@
     "captcha_failed": "การตรวจสอบว่าคุณไม่ใช่บอทไม่ผ่าน โปรดลองอีกครั้ง",
     "captcha_unavailable": "การตรวจสอบบอทไม่พร้อมใช้งานในขณะนี้ โปรดลองอีกครั้งในอีกสักครู่",
     "ip_rate_limited": "มีคำขอจากเครือข่ายของคุณมากเกินไป โปรดลองอีกครั้งในอีกหนึ่งชั่วโมง",
-    "request_too_large": "คำขอมีขนาดใหญ่เกินไป"
+    "request_too_large": "คำขอมีขนาดใหญ่เกินไป",
+    "maintenance_rule_duplicate": "ยานพาหนะนี้มีกฎสำหรับงานนี้อยู่แล้ว: «{{name}}»"
   },
   "history": {
     "action": "Action",
@@ -2253,7 +2254,7 @@
     "name_reset": "Back to the automatic name",
     "no_location": "Without location",
     "no_rentals": "No rentals yet.",
-    "none": "No vehicles on this tab yet.",
+    "none": "ยังไม่มียานพาหนะที่นี่",
     "occupancy": "Occupancy",
     "odometer": "Odometer",
     "odometer_unit": "Odometer unit",
@@ -2568,7 +2569,14 @@
     "wizard_name_required": "ไม่สามารถสร้างยานพาหนะโดยไม่มีชื่อได้ — กรุณาพิมพ์ชื่อเอง",
     "wizard_location_hint": "สถานที่ที่ยานพาหนะสังกัดในบริษัท",
     "wizard_later": "ประเทศที่จดทะเบียน หมายเลขตัวถัง แชสซี เฟรม และเครื่องยนต์ สี เชื้อเพลิง และคุณสมบัติอื่น ๆ กรอกภายหลังได้ในการ์ดยานพาหนะ",
-    "wizard_maintenance": "การบำรุงรักษาตามระยะ (ไม่บังคับ)"
+    "view_list": "รายการ",
+    "view_schedule": "ตารางเวลา",
+    "view_client": "รถของลูกค้า",
+    "action_rental": "สร้างการเช่า",
+    "action_booking": "สร้างการจอง",
+    "action_service": "สร้างงานบริการ",
+    "action_move": "สร้างการเคลื่อนย้าย",
+    "actions_title": "การดำเนินการ"
   },
   "warehouse": {
     "action_create": "Create",
@@ -3656,9 +3664,7 @@
     "open_job_hint": "งานยังคงเสร็จแล้ว แก้ไขแล้วปิดอีกครั้ง",
     "close_job": "ปิด",
     "job_editing": "เปิดเพื่อแก้ไข",
-    "blocker_service_job_editing": "งานเปิดเพื่อแก้ไขอยู่ ปิดงานก่อน",
-    "maintenance_on_create_hint": "ไม่บังคับ: กฎตามระยะเวลาหรือระยะทางพร้อมการแจ้งเตือน เพิ่มภายหลังในบัตรได้",
-    "remove_rule_draft": "ลบ"
+    "blocker_service_job_editing": "งานเปิดเพื่อแก้ไขอยู่ ปิดงานก่อน"
   },
   "trips": {
     "new": "การเดินทางใหม่",

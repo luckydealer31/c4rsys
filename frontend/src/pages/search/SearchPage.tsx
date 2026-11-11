@@ -136,12 +136,21 @@ function hitDetail(hit: SearchHit, t: T): string {
 }
 
 /** The search inside a section (§ 2.8.3): the text goes to the section's own list. */
-export function SectionSearch({ value, onSearch }: { value: string; onSearch: (text: string) => void }) {
+export function SectionSearch({
+  value,
+  onSearch,
+  compact = false,
+}: {
+  value: string;
+  onSearch: (text: string) => void;
+  /** A short field that widens when used; Enter searches (the garage, decision of 11.11.2026). */
+  compact?: boolean;
+}) {
   const { t } = useTranslation();
   const [text, setText] = useState(value);
   return (
     <form
-      className="actions section-search"
+      className={compact ? "section-search compact" : "actions section-search"}
       role="search"
       onSubmit={(event: FormEvent) => {
         event.preventDefault();
@@ -159,9 +168,11 @@ export function SectionSearch({ value, onSearch }: { value: string; onSearch: (t
         aria-label={t("search.section_placeholder")}
         maxLength={100}
       />
-      <button type="submit" className="secondary">
-        {t("search.title")}
-      </button>
+      {compact ? null : (
+        <button type="submit" className="secondary">
+          {t("search.title")}
+        </button>
+      )}
     </form>
   );
 }

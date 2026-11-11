@@ -12,9 +12,12 @@
 * Rules are copied without history: missing ones are added, a match is kept or replaced only by
   the employee's explicit choice (§ 9.1.12).
 
-PROPOSAL (OPEN): rules are kept by «Change vehicles»; a rule matches another when it has the same
-system work, the same catalog work or, without both, the same name; a rule is archived, not
-deleted.
+* One active rule per service operation of a vehicle (customer's decision of 11.11.2026): a
+  second rule on the same system work, the same catalog work or with the same name is refused.
+  Names are compared without case and extra spaces; an own name equal to the name of the work
+  another rule is linked to is the same rule too. Archived rules do not count.
+
+PROPOSAL (OPEN): rules are kept by «Change vehicles»; a rule is archived, not deleted.
 """
 
 from dataclasses import dataclass
@@ -220,6 +223,58 @@ def _validate(company_id: UUID, data: RuleData) -> None:
         raise errors.validation_error("work_id", code="SERVICE_WORK_UNKNOWN")
 
 
+def _norm(name: str) -> str:
+    return " ".join(name.split()).casefold()
+
+
+@dataclass(frozen=True)
+class _Identity:
+    """What makes two rules «the same»: the operation they are for and the names it goes by."""
+
+    system_work: str | None
+    work_id: UUID | None
+    names: frozenset[str]
+
+    def same(self, other: "_Identity") -> bool:
+        return (
+            (self.system_work is not None and self.system_work == other.system_work)
+            or (self.work_id is not None and self.work_id == other.work_id)
+            or bool(self.names & other.names)
+        )
+
+
+def _identity(
+    company_id: UUID, name: str, system_work: str | None, work_id: UUID | None
+) -> _Identity:
+    names = {_norm(name)}
+    if work_id is not None:
+        work = ServiceWork.objects.filter(company_id=company_id, pk=work_id).first()
+        if work is not None:
+            names.add(_norm(work.name))
+            system_work = system_work or work.system_work_id
+    if system_work is not None:
+        system = SystemWork.objects.filter(pk=system_work).first()
+        if system is not None:
+            names.update(_norm(str(value)) for value in system.names.values())
+    return _Identity(system_work, work_id, frozenset(names - {""}))
+
+
+def _identity_of(rule: MaintenanceRule) -> _Identity:
+    return _identity(rule.company_id, rule.name, rule.system_work_id, rule.work_id)
+
+
+def _ensure_unique(
+    company_id: UUID, card_id: UUID, identity: _Identity, *, except_id: UUID | None = None
+) -> None:
+    """One active rule per service operation of the vehicle (decision of 11.11.2026). The card
+    is locked by the caller, so two requests cannot both pass."""
+    for other in rules_of(company_id, card_id):
+        if other.id != except_id and identity.same(_identity_of(other)):
+            raise errors.business_rule(
+                "MAINTENANCE_RULE_DUPLICATE", field="name", name=other.name, existing=str(other.id)
+            )
+
+
 def snapshot(rule: MaintenanceRule) -> dict[str, Any]:
     return {
         "name": rule.name,
@@ -260,6 +315,9 @@ def create_rule(
 ) -> MaintenanceRule:
     _card(company_id, card_id)
     _validate(company_id, data)
+    _ensure_unique(
+        company_id, card_id, _identity(company_id, data.name, data.system_work, data.work_id)
+    )
     rule = MaintenanceRule(
         company_id=company_id, vehicle_card_id=card_id, created_by_user_id=ctx.actor.user_id
     )
@@ -293,6 +351,9 @@ def change_rule(ctx: CommandContext, rule: MaintenanceRule, data: RuleData) -> M
     before = snapshot(rule)
     _apply(rule, data)
     after = snapshot(rule)
+    if rule.state == MaintenanceRule.State.ACTIVE:
+        fleet.lock_card(rule.company_id, rule.vehicle_card_id)
+        _ensure_unique(rule.company_id, rule.vehicle_card_id, _identity_of(rule), except_id=rule.id)
     if before == after:
         raise errors.business_rule("NOTHING_CHANGED")
     rule.version += 1
@@ -311,6 +372,10 @@ def set_archived(ctx: CommandContext, rule: MaintenanceRule, archived: bool) -> 
     target = MaintenanceRule.State.ARCHIVED if archived else MaintenanceRule.State.ACTIVE
     if rule.state == target:
         raise errors.business_rule("NOTHING_CHANGED")
+    if not archived:
+        # A restored rule must not double an active one.
+        fleet.lock_card(rule.company_id, rule.vehicle_card_id)
+        _ensure_unique(rule.company_id, rule.vehicle_card_id, _identity_of(rule), except_id=rule.id)
     rule.state = target
     rule.version += 1
     rule.save(update_fields=["state", "version", "updated_at"])
@@ -321,14 +386,6 @@ def set_archived(ctx: CommandContext, rule: MaintenanceRule, archived: bool) -> 
         after={"state": target},
     )
     return rule
-
-
-def _same(a: MaintenanceRule, b: MaintenanceRule) -> bool:
-    if a.system_work_id or b.system_work_id:
-        return a.system_work_id == b.system_work_id
-    if a.work_id or b.work_id:
-        return a.work_id == b.work_id
-    return a.name.strip().lower() == b.name.strip().lower()
 
 
 def copy_rules(
@@ -344,19 +401,23 @@ def copy_rules(
         raise errors.validation_error("from_vehicle_id", code="MAINTENANCE_SAME_VEHICLE")
     fleet.get_card(company_id, source_id)
     _card(company_id, target_id)
-    existing = rules_of(company_id, target_id)
+    existing = [(r, _identity_of(r)) for r in rules_of(company_id, target_id)]
     conflicts = []
-    plan: list[tuple[MaintenanceRule, MaintenanceRule | None]] = []
+    # A rule of the source may match several rules of the target (by the work and by the name).
+    plan: list[tuple[MaintenanceRule, list[MaintenanceRule]]] = []
     for rule in rules_of(company_id, source_id):
-        match = next((r for r in existing if _same(r, rule)), None)
-        if match is not None and choices.get(rule.id) not in ("keep", "replace"):
-            conflicts.append({"rule": str(rule.id), "name": rule.name, "existing": str(match.id)})
-        plan.append((rule, match))
+        identity = _identity_of(rule)
+        matches = [r for r, other in existing if identity.same(other)]
+        if matches and choices.get(rule.id) not in ("keep", "replace"):
+            conflicts.append(
+                {"rule": str(rule.id), "name": rule.name, "existing": str(matches[0].id)}
+            )
+        plan.append((rule, matches))
     if conflicts:
         raise errors.business_rule("MAINTENANCE_COPY_CONFLICTS", conflicts=conflicts)
     created = []
-    for rule, match in plan:
-        if match is not None and choices.get(rule.id) == "keep":
+    for rule, matches in plan:
+        if matches and choices.get(rule.id) == "keep":
             continue
         data = RuleData(
             name=rule.name,
@@ -371,8 +432,9 @@ def copy_rules(
             next_due_on=None,
             next_due_odometer=None,
         )
-        if match is not None:
+        for match in matches:
             locked = locked_rule(company_id, match.id, match.version)
-            set_archived(ctx, locked, True)
+            if locked.state == MaintenanceRule.State.ACTIVE:
+                set_archived(ctx, locked, True)
         created.append(create_rule(ctx, company_id, target_id, data))
     return created

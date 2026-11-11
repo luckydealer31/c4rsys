@@ -176,3 +176,43 @@ def test_rules_and_records_are_separate_rights(owner: Client, s: Scenario) -> No
     kept = {"last_done_on": "2026-10-01"}
     assert change(rules, version, interval_days=90, **kept).status_code == 200
     assert change(editor, version + 1, interval_days=60, **kept).status_code == 403
+
+
+def test_one_rule_per_service_operation(owner: Client, s: Scenario) -> None:
+    """Customer's decision of 11.11.2026: a vehicle has one active rule per operation."""
+    first = _add_rule(owner, s)
+    assert first.status_code == 201, first.content
+    rule = first.json()["rules"][0]
+
+    # The same system work; the same name in another case and with extra spaces; an own name
+    # equal to the name of the work the first rule is linked to.
+    assert _code(_add_rule(owner, s, name="Another")) == "MAINTENANCE_RULE_DUPLICATE"
+    assert (
+        _code(_add_rule(owner, s, name="  oIL ", system_work=None)) == "MAINTENANCE_RULE_DUPLICATE"
+    )
+    assert (
+        _code(_add_rule(owner, s, name="engine  OIL change", system_work=None))
+        == "MAINTENANCE_RULE_DUPLICATE"
+    )
+    own = _add_rule(owner, s, name="Wash", system_work=None)
+    assert own.status_code == 201, own.content
+    assert len(_rules(owner, s)["rules"]) == 2
+
+    # A change must not make a double either; another vehicle has its own rules.
+    wash = next(r for r in own.json()["rules"] if r["name"] == "Wash")
+    url = f"/api/c/{s.cmp}/service/maintenance/{wash['id']}"
+    body = {"name": "OIL", "interval_days": 30, "expected_version": wash["version"]}
+    changed = owner.patch(url, body, content_type="application/json", headers=key())
+    assert _code(changed) == "MAINTENANCE_RULE_DUPLICATE"
+    other = add_vehicle(owner, s, s.location, name="Second")
+    assert _add_rule(owner, s, vehicle=other).status_code == 201
+
+    # An archived rule frees the operation; it cannot be restored over a new active one.
+    url = f"/api/c/{s.cmp}/service/maintenance/{rule['id']}"
+    body = {"archived": True, "expected_version": rule["version"]}
+    archived = owner.patch(url, body, content_type="application/json", headers=key())
+    assert archived.status_code == 200, archived.content
+    assert _add_rule(owner, s).status_code == 201
+    body = {"archived": False, "expected_version": rule["version"] + 1}
+    restored = owner.patch(url, body, content_type="application/json", headers=key())
+    assert _code(restored) == "MAINTENANCE_RULE_DUPLICATE"

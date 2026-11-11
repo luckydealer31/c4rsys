@@ -17,6 +17,7 @@ import { LinkedDocuments } from "../documents/DocumentsPage";
 import { VehicleService } from "../service/VehicleService";
 import { VehicleParts } from "../warehouse/Reserves";
 import { OwnerRequestCard } from "./OwnerRequestCard";
+import { ScheduleView } from "./SchedulePage";
 import { VehicleMoves } from "./VehicleMoves";
 import { VehicleDamagesCard, VehicleInspectionsCard } from "../inspections/Blocks";
 import {
@@ -58,16 +59,19 @@ export function useRentals(enabled = true) {
   );
 }
 
-/** Garage: vehicles by location — name, VHL, occupancy (free / in rental), current odometer
- * (§ 8.7.2; decision of 24.10.2026). */
+/** Garage (§ 8.7.2; customer's decisions of 24.10.2026 and 11.11.2026). Own and managed vehicles
+ * are one list, grouped by location, with the switches «own» / «managed»; the schedule is the
+ * second view of the same vehicles with the same switches; client vehicles are a separate list.
+ * The actions of the section stand in a column on the right. */
 type Relation = "own" | "managed" | "client";
-const RELATIONS: Relation[] = ["own", "managed", "client"];
+type View = "list" | "schedule" | "client";
+const VIEWS: View[] = ["list", "schedule", "client"];
+const FLEET: ("own" | "managed")[] = ["own", "managed"];
 
 export function VehiclesPage() {
   const { t } = useTranslation();
   const company = useCompany();
   const can = useCan();
-  // Tabs by relation, as the tabs of «Contacts» (decision of 24.10.2026; § 8.1.6).
   const [params, setParams] = useSearchParams();
   // § 2.8.3: by the c4rsys ID, a part of the name, the VIN and the plate.
   const q = params.get("q") ?? "";
@@ -87,16 +91,36 @@ export function VehiclesPage() {
   const vehicles = only ? filtered : q ? found : all;
   const locations = useLocations();
   const rentals = useRentals(can("rental.view"));
-  const tab: Relation = RELATIONS.includes(params.get("tab") as Relation)
-    ? (params.get("tab") as Relation)
-    : "own";
+  // Links of the earlier tabs (?tab=managed, ?tab=client) keep working.
+  const tab = params.get("tab");
+  const view: View = tab === "client" ? "client" : params.get("view") === "schedule" ? "schedule" : "list";
+  const rel = params.get("rel") ?? (tab === "managed" || tab === "own" ? tab : "");
+  const shown = new Set<Relation>(view === "client" ? ["client"] : rel === "own" || rel === "managed" ? [rel] : FLEET);
+  const go = (changes: { view?: View; rel?: string; q?: string }) => {
+    const next = { view, rel, q, ...changes };
+    setParams(
+      Object.fromEntries(
+        Object.entries({
+          tab: next.view === "client" ? "client" : "",
+          view: next.view === "schedule" ? "schedule" : "",
+          rel: next.view === "client" ? "" : next.rel,
+          q: next.view === "schedule" ? "" : next.q,
+        }).filter(([, value]) => value),
+      ),
+    );
+  };
+  // Both switches are on at first; the last one that is on stays on.
+  const toggle = (key: "own" | "managed") => {
+    if (shown.has(key) && shown.size === 1) return;
+    go({ rel: shown.has(key) ? (key === "own" ? "managed" : "own") : "" });
+  };
   // Own and managed vehicles are grouped by their location, in the order of the locations;
   // those without a location come last. Client vehicles have no location (§ 8.1.2).
   // Vehicles on a warehouse are stock items, shown in «Warehouse» (§ 8.1.5).
   const list = (vehicles.data?.vehicles ?? []).filter(
-    (v) => (only ? true : v.relation === tab) && v.storage === null,
+    (v) => (only ? true : shown.has(v.relation as Relation)) && v.storage === null,
   );
-  const groups = (tab === "client"
+  const groups = (view === "client"
     ? [{ id: "client", name: t("vehicles.client_group"), vehicles: list }]
     : [
     ...(locations.data?.locations ?? []).map((l) => ({
@@ -113,84 +137,127 @@ export function VehiclesPage() {
     },
   ]).filter((group) => group.vehicles.length > 0);
   const busy = new Set((rentals.data?.rentals ?? []).filter((r) => r.state === "active").map((r) => r.vehicle_card_id));
+  // A new vehicle starts with the relation of the list it is created from.
+  const newRelation = view === "client" ? "client" : shown.size === 1 && shown.has("managed") ? "managed" : "own";
+  const actions: [boolean, string, string][] =
+    view === "client"
+      ? [
+          [can("vehicle.create"), `/vehicles/new?relation=client`, t("vehicles.create_button")],
+          [can("service.create"), "/service/operations/new", t("vehicles.action_service")],
+        ]
+      : [
+          [can("vehicle.create"), `/vehicles/new?relation=${newRelation}`, t("vehicles.create_button")],
+          [can("rental.issue"), "/rentals/new", t("vehicles.action_rental")],
+          [can("rental.book"), "/rentals/book", t("vehicles.action_booking")],
+          [can("service.create"), "/service/operations/new", t("vehicles.action_service")],
+          [can("delivery.create"), "/trips/new", t("vehicles.action_move")],
+        ];
+  const allowed = actions.filter(([may]) => may);
   return (
     <div className="page">
-      <h1>{t("nav.garage")}</h1>
-      <div className="actions" style={{ marginTop: 0, marginBottom: 16 }}>
-        {can("vehicle.create") ? (
-          <Link className="button" to={companyPath(company, `/vehicles/new?relation=${tab}`)}>
-            <Icon name="plus" size={18} /> {t("vehicles.create_button")}
-          </Link>
-        ) : null}
-        <Link className="button secondary" to={companyPath(company, "/vehicles/schedule")}>
-          {t("schedule.title")}
-        </Link>
-      </div>
-      <SectionSearch
-        value={q}
-        onSearch={(text) => setParams(Object.fromEntries(Object.entries({ tab: tab === "own" ? "" : tab, q: text }).filter(([, v]) => v)))}
-      />
-      {only ? (
-        <p className="small muted">
-          {t(`vehicles.only_${only}`)} ·{" "}
-          <Link to={companyPath(company, "/vehicles")}>{t("vehicles.only_reset")}</Link>
-        </p>
-      ) : null}
-      <div className="tabs" role="tablist">
-        {RELATIONS.map((key) => (
-          <button
-            key={key}
-            type="button"
-            role="tab"
-            aria-selected={tab === key}
-            className={tab === key ? "active" : ""}
-            onClick={() => setParams(key === "own" ? {} : { tab: key })}
-          >
-            {t(`vehicles.tab_${key}`)}
-          </button>
-        ))}
-      </div>
-      {vehicles.isLoading ? <Loading /> : null}
-      {vehicles.data && list.length === 0 ? (
-        <Card>
-          <p className="muted">{t("vehicles.none")}</p>
-        </Card>
-      ) : null}
-      {groups.map((group) => (
-        <Card key={group.id} title={group.name}>
-          <table>
-            <thead>
-              <tr>
-                <th>{t("vehicles.name")}</th>
-                {tab === "client" ? null : <th>{t("vehicles.occupancy")}</th>}
-                <th>{t("vehicles.odometer")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {group.vehicles.map((vehicle) => (
-                <tr key={vehicle.id}>
-                  <td>
-                    <Link to={companyPath(company, `/vehicles/${vehicle.id}`)}>{vehicle.name}</Link>
-                    <div className="muted small">{vehicle.vehicle_id}</div>
-                  </td>
-                  {tab === "client" ? null : (
-                    <td>
-                      {busy.has(vehicle.id) ? (
-                        <span className="badge warn">{t("vehicles.in_rental")}</span>
-                      ) : (
-                        <span className="badge ok">{t("vehicles.free")}</span>
-                      )}
-                    </td>
-                  )}
-                  <td>
-                    {vehicle.odometer ? `${Number(vehicle.odometer.value)} ${vehicle.odometer.unit}` : "—"}
-                  </td>
-                </tr>
+      <h1 className="sr-only">{t("nav.garage")}</h1>
+      <div className={allowed.length ? "garage" : ""}>
+        <div className="garage-main">
+          <div className="tabs garage-tabs" role="tablist">
+            {VIEWS.map((key) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={view === key}
+                className={view === key ? "active" : ""}
+                onClick={() => go({ view: key })}
+              >
+                {t(`vehicles.view_${key}`)}
+              </button>
+            ))}
+          </div>
+          <div className="garage-bar">
+            {view === "client"
+              ? null
+              : FLEET.map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    className="toggle-chip"
+                    aria-pressed={shown.has(key)}
+                    onClick={() => toggle(key)}
+                  >
+                    {t(`vehicles.tab_${key}`)}
+                  </button>
+                ))}
+            {view === "schedule" ? null : <SectionSearch compact value={q} onSearch={(text) => go({ q: text })} />}
+          </div>
+          {only ? (
+            <p className="small muted">
+              {t(`vehicles.only_${only}`)} ·{" "}
+              <Link to={companyPath(company, "/vehicles")}>{t("vehicles.only_reset")}</Link>
+            </p>
+          ) : null}
+          {view === "schedule" ? (
+            <ScheduleView relations={shown} />
+          ) : (
+            <>
+              {vehicles.isLoading ? <Loading /> : null}
+              {vehicles.data && list.length === 0 ? (
+                <Card>
+                  <p className="muted">{t("vehicles.none")}</p>
+                </Card>
+              ) : null}
+              {groups.map((group) => (
+                <Card key={group.id} title={group.name}>
+                  <div className="table-scroll">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>{t("vehicles.name")}</th>
+                          {view === "client" ? null : <th>{t("vehicles.occupancy")}</th>}
+                          <th>{t("vehicles.odometer")}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {group.vehicles.map((vehicle) => (
+                          <tr key={vehicle.id}>
+                            <td>
+                              <Link to={companyPath(company, `/vehicles/${vehicle.id}`)}>{vehicle.name}</Link>{" "}
+                              {/* One list for own and managed: the managed ones are marked. */}
+                              {view !== "client" && vehicle.relation === "managed" ? (
+                                <span className="badge">{t("vehicles.relation_managed")}</span>
+                              ) : null}
+                              <div className="muted small">{vehicle.vehicle_id}</div>
+                            </td>
+                            {view === "client" ? null : (
+                              <td>
+                                {busy.has(vehicle.id) ? (
+                                  <span className="badge warn">{t("vehicles.in_rental")}</span>
+                                ) : (
+                                  <span className="badge ok">{t("vehicles.free")}</span>
+                                )}
+                              </td>
+                            )}
+                            <td>
+                              {vehicle.odometer ? `${Number(vehicle.odometer.value)} ${vehicle.odometer.unit}` : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
               ))}
-            </tbody>
-          </table>
-        </Card>
-      ))}
+            </>
+          )}
+        </div>
+        {allowed.length ? (
+          <aside className="garage-actions" aria-label={t("vehicles.actions_title")}>
+            {allowed.map(([, path, label]) => (
+              <Link key={path} className="button secondary" to={companyPath(company, path)}>
+                <Icon name="plus" size={16} /> {label}
+              </Link>
+            ))}
+          </aside>
+        ) : null}
+      </div>
     </div>
   );
 }
