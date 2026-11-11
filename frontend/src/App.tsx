@@ -23,6 +23,7 @@ import { RegisterPage } from "./pages/auth/RegisterPage";
 import { CompaniesPage } from "./pages/companies/CompaniesPage";
 import { ClientPage, ClientsPage } from "./pages/clients/ClientsPage";
 import { CounterpartyPage } from "./pages/clients/Counterparties";
+import { NewClientPage, NewCounterpartyPage } from "./pages/clients/NewCardWizard";
 import { LinkRequestsPage } from "./pages/company/LinkRequestsPage";
 import { CompanyPage } from "./pages/company/CompanyPage";
 import { ImportPage } from "./pages/imports/ImportPage";
@@ -201,6 +202,8 @@ function MainApp({ cabinet }: { cabinet: boolean }) {
         <Route path="settings/inspection-templates" element={<InspectionTemplatesPage />} />
         <Route path="settings/inspection-policy" element={<InspectionPolicyPage />} />
         <Route path="clients" element={<ClientsPage />} />
+        <Route path="clients/new" element={<NewClientPage />} />
+        <Route path="clients/counterparties/new" element={<NewCounterpartyPage />} />
         <Route path="clients/counterparties/:id" element={<CounterpartyPage />} />
         <Route path="clients/:id" element={<ClientPage />} />
         <Route path="service" element={<ServicePage />} />

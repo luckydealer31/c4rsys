@@ -362,7 +362,12 @@
     "messenger_kakaotalk": "KakaoTalk",
     "messenger_zalo": "Zalo",
     "messenger_facebook_messenger": "Facebook Messenger",
-    "messenger_other": "แมสเซนเจอร์อื่น"
+    "messenger_other": "แมสเซนเจอร์อื่น",
+    "wizard_name_person": "นามสกุล ชื่อ ชื่อกลาง",
+    "wizard_contacts": "ข้อมูลติดต่อ",
+    "wizard_name_required": "ต้องระบุชื่อและนามสกุล",
+    "wizard_company_required": "ต้องระบุชื่อบริษัท",
+    "wizard_contact_required": "ต้องระบุโทรศัพท์หรืออีเมล"
   },
   "common": {
     "cancel": "Cancel",
@@ -2559,11 +2564,6 @@
     "only_unavailable": "ยานพาหนะที่ไม่พร้อมใช้งานเนื่องจากข้อจำกัดหรือข้อขัดแย้ง",
     "only_identifier_conflict": "ยานพาหนะที่มีข้อขัดแย้งของรหัสระบุ",
     "only_reset": "แสดงทั้งหมด",
-    "wizard_step": "ขั้นตอนที่ {{n}} จาก {{total}}",
-    "wizard_next": "ถัดไป",
-    "wizard_back": "ย้อนกลับ",
-    "wizard_skip": "ข้าม",
-    "wizard_optional": "ไม่บังคับ — ข้ามขั้นตอนนี้ได้",
     "wizard_no_catalog": "ยังไม่มีรายการยี่ห้อสำหรับประเภทนี้ — พิมพ์ยี่ห้อเองหรือข้าม",
     "wizard_name_required": "ไม่สามารถสร้างยานพาหนะโดยไม่มีชื่อได้ — กรุณาพิมพ์ชื่อเอง",
     "wizard_location_hint": "สถานที่ที่ยานพาหนะสังกัดในบริษัท",
@@ -2574,7 +2574,9 @@
     "action_booking": "สร้างการจอง",
     "action_service": "สร้างงานบริการ",
     "action_move": "สร้างการเคลื่อนย้าย",
-    "actions_title": "การดำเนินการ"
+    "actions_title": "การดำเนินการ",
+    "scope_fleet": "กองรถ",
+    "scope_title": "ยานพาหนะใด"
   },
   "warehouse": {
     "action_create": "Create",
@@ -6080,5 +6082,12 @@
     "party_person": "บุคคล",
     "party_company": "นิติบุคคล",
     "section_placeholder": "ค้นหาในส่วนนี้"
+  },
+  "wizard": {
+    "step": "ขั้นตอนที่ {{n}} จาก {{total}}",
+    "next": "ถัดไป",
+    "back": "ย้อนกลับ",
+    "skip": "ข้าม",
+    "optional": "ไม่บังคับ — ข้ามขั้นตอนนี้ได้"
   }
 }

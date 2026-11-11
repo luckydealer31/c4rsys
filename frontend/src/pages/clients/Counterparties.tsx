@@ -10,7 +10,7 @@ import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { CardBadges, contactText, extraContacts, MessengerField } from "./ClientsPage";
-import { ContractorHistoryCard, ExtendedFieldsCard, MergeCard, ProvisionalForm } from "./CardExtras";
+import { ContractorHistoryCard, ExtendedFieldsCard, MergeCard } from "./CardExtras";
 import { LinkedDocuments } from "../documents/DocumentsPage";
 
 type Texts = { registration: string; address: string; category: string; external_id: string };
@@ -63,11 +63,16 @@ export function CounterpartiesList() {
     <>
       {can("counterparty.view") ? (
         <Card>
-          <div className="row">
-            <Field label={t("counterparties.search")}>
-              <input value={query} onChange={(e) => setQuery(e.target.value)} />
-            </Field>
-            <label style={{ alignSelf: "end" }}>
+          <div className="list-bar">
+            <input
+              type="search"
+              className="list-search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t("counterparties.search")}
+              aria-label={t("counterparties.search")}
+            />
+            <label>
               <input type="checkbox" checked={archived} onChange={(e) => setArchived(e.target.checked)} />{" "}
               {t("counterparties.show_archived")}
             </label>
@@ -91,8 +96,6 @@ export function CounterpartiesList() {
       ) : (
         <p className="muted">{t("counterparties.list_not_allowed")}</p>
       )}
-      {can("counterparty.create") ? <CounterpartyForm /> : null}
-      {can("counterparty.create") && can("counterparty.link.request") ? <ProvisionalForm cardType="counterparty" /> : null}
     </>
   );
 }

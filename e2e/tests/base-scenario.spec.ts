@@ -111,10 +111,10 @@ test("base example from registration to closing survives a restart", async ({ pa
   await page.goto(`${base}/vehicles`);
   await page.getByRole("link", { name: t("vehicles.create_button") }).click();
   // The creation goes step by step: type, then make, model, year, VIN and plate are skipped.
-  const next = page.getByRole("button", { name: t("vehicles.wizard_next"), exact: true });
+  const next = page.getByRole("button", { name: t("wizard.next"), exact: true });
   await next.click();
   for (let i = 0; i < 5; i += 1) {
-    await page.getByRole("button", { name: t("vehicles.wizard_skip"), exact: true }).click();
+    await page.getByRole("button", { name: t("wizard.skip"), exact: true }).click();
   }
   // Nothing to form the name from, so it is entered by hand; then owner and odometer unit.
   await card(page, t("vehicles.name")).getByRole("textbox").fill("Toyota Yaris");
@@ -139,11 +139,21 @@ test("base example from registration to closing survives a restart", async ({ pa
   await expect(page.getByRole("row", { name: /Toyota Yaris/ })).toBeVisible();
 
   await page.goto(`${base}/clients`);
-  const client = card(page, t("clients.create_title"));
-  await client.getByLabel(t("profile.first_name"), { exact: true }).fill("Иван");
-  await client.getByLabel(t("profile.last_name"), { exact: true }).fill("Петров");
-  await client.getByLabel(t("clients.phone"), { exact: true }).fill("+66 81 234 5678");
-  await client.getByRole("button", { name: t("clients.create") }).click();
+  // The client is created step by step: kind, the request by the ID is skipped, name, birth
+  // date is skipped, contacts.
+  await page.getByRole("link", { name: t("clients.create") }).click();
+  const further = page.getByRole("button", { name: t("wizard.next"), exact: true });
+  const skip = page.getByRole("button", { name: t("wizard.skip"), exact: true });
+  await further.click();
+  await skip.click();
+  await page.getByLabel(t("profile.first_name"), { exact: true }).fill("Иван");
+  await page.getByLabel(t("profile.last_name"), { exact: true }).fill("Петров");
+  await further.click();
+  await skip.click();
+  await page.getByLabel(t("clients.phone"), { exact: true }).fill("+66 81 234 5678");
+  await page.getByRole("button", { name: t("clients.create") }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Иван");
+  await page.goto(`${base}/clients`);
   await expect(page.getByRole("link", { name: "Иван Петров" })).toBeVisible();
 
   // Issue: 3 days ago at 10:00, odometer 10 000, fuel 8.

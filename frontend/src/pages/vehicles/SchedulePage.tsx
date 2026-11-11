@@ -77,9 +77,12 @@ export function ScheduleView({ relations }: { relations: Set<string> }) {
   const ticks = span === "day" ? 24 : SPANS[span];
   const tickLabel = (index: number) => {
     const moment = span === "day" ? new Date(from.getTime() + (index * total) / ticks) : addDays(from, index);
+    // A month shows the day of the month only: thirty columns leave no room for more.
     return span === "day"
       ? `${moment.getHours()}:00`
-      : new Intl.DateTimeFormat(i18n.language, { day: "2-digit", month: "2-digit" }).format(moment);
+      : span === "month"
+        ? String(moment.getDate())
+        : new Intl.DateTimeFormat(i18n.language, { weekday: "short", day: "2-digit", month: "2-digit" }).format(moment);
   };
   const shift = (direction: number) => setFrom(addDays(from, direction * SPANS[span]));
   const now = Date.now();
@@ -151,13 +154,19 @@ export function ScheduleView({ relations }: { relations: Set<string> }) {
       <ErrorMessage error={schedule.error as never} />
       {schedule.data ? (
         <div className="card" style={{ overflowX: "auto" }}>
-          <div style={{ minWidth: 640 }}>
-            <div style={{ display: "flex", marginLeft: 160 }}>
+          <div style={{ minWidth: 760, paddingRight: 24 }}>
+            <div style={{ display: "flex", marginLeft: 200, position: "relative" }}>
               {Array.from({ length: ticks }, (_, i) => (
                 <div key={i} className="muted small" style={{ flex: 1, borderLeft: "1px solid var(--border, #ddd)", paddingLeft: 2 }}>
-                  {span === "day" && i % 3 !== 0 ? "" : tickLabel(i)}
+                  {span === "day" && i % 2 !== 0 ? "" : tickLabel(i)}
                 </div>
               ))}
+              {/* The end of the day is marked too. */}
+              {span === "day" ? (
+                <div className="muted small" style={{ position: "absolute", right: 0, top: 0, transform: "translateX(50%)" }}>
+                  24:00
+                </div>
+              ) : null}
             </div>
             {rows.length === 0 ? <p className="muted">{t("schedule.no_vehicles")}</p> : null}
             {groups.map((group) => (
@@ -166,11 +175,11 @@ export function ScheduleView({ relations }: { relations: Set<string> }) {
                   {group.name}
                 </div>
                 {group.rows.map((v) => (
-              <div key={v.id} style={{ display: "flex", alignItems: "center", borderTop: "1px solid var(--border, #ddd)", minHeight: 34 }}>
-                <div style={{ width: 160, flexShrink: 0, paddingRight: 8 }} className="small">
+              <div key={v.id} style={{ display: "flex", alignItems: "center", borderTop: "1px solid var(--border, #ddd)", minHeight: 44 }}>
+                <div style={{ width: 200, flexShrink: 0, paddingRight: 8 }}>
                   <Link to={companyPath(company, `/vehicles/${v.id}`)}>{v.name}</Link>
                 </div>
-                <div style={{ position: "relative", flex: 1, height: 28 }}>
+                <div style={{ position: "relative", flex: 1, height: 36 }}>
                   {now >= from.getTime() && now < to.getTime() ? (
                     <div
                       style={{ position: "absolute", top: 0, bottom: 0, width: 2, background: "#d33", left: `${((now - from.getTime()) / total) * 100}%` }}
@@ -190,8 +199,8 @@ export function ScheduleView({ relations }: { relations: Set<string> }) {
                           title={`${t(`schedule.kind_${item.kind}`)} ${item.label} · ${when(item.start)} — ${when(item.end)}`}
                           style={{
                             position: "absolute",
-                            top: 3,
-                            height: 22,
+                            top: 4,
+                            height: 28,
                             left: `${left}%`,
                             width: `${width}%`,
                             background: COLORS[item.kind],
@@ -199,10 +208,10 @@ export function ScheduleView({ relations }: { relations: Set<string> }) {
                             border: item.planned ? "1px dashed #fff" : "none",
                             borderRadius: 4,
                             color: "#fff",
-                            fontSize: 11,
+                            fontSize: 12,
                             overflow: "hidden",
                             whiteSpace: "nowrap",
-                            padding: "3px 4px",
+                            padding: "5px 6px",
                             textDecoration: "none",
                           }}
                         >

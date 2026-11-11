@@ -362,7 +362,12 @@
     "messenger_kakaotalk": "KakaoTalk",
     "messenger_zalo": "Zalo",
     "messenger_facebook_messenger": "Facebook Messenger",
-    "messenger_other": "Other messenger"
+    "messenger_other": "Other messenger",
+    "wizard_name_person": "Last name, first name, middle name",
+    "wizard_contacts": "Contacts",
+    "wizard_name_required": "The first and the last name are required.",
+    "wizard_company_required": "The company name is required.",
+    "wizard_contact_required": "A phone or an email is required."
   },
   "common": {
     "cancel": "Cancel",
@@ -2559,11 +2564,6 @@
     "only_unavailable": "Vehicles unavailable because of a restriction or a conflict",
     "only_identifier_conflict": "Vehicles in unresolved identifier conflicts",
     "only_reset": "Show all",
-    "wizard_step": "Step {{n}} of {{total}}",
-    "wizard_next": "Next",
-    "wizard_back": "Back",
-    "wizard_skip": "Skip",
-    "wizard_optional": "Optional — you can skip this step.",
     "wizard_no_catalog": "There is no catalog of makes for this type yet — enter the make as text or skip.",
     "wizard_name_required": "A vehicle cannot be created without a name — enter it by hand.",
     "wizard_location_hint": "The location the vehicle is attached to in the company.",
@@ -2574,7 +2574,9 @@
     "action_booking": "Create booking",
     "action_service": "Create service",
     "action_move": "Create move",
-    "actions_title": "Actions"
+    "actions_title": "Actions",
+    "scope_fleet": "Fleet",
+    "scope_title": "Which vehicles"
   },
   "warehouse": {
     "action_create": "Create",
@@ -6080,5 +6082,12 @@
     "party_person": "person",
     "party_company": "company",
     "section_placeholder": "Search in the section"
+  },
+  "wizard": {
+    "step": "Step {{n}} of {{total}}",
+    "next": "Next",
+    "back": "Back",
+    "skip": "Skip",
+    "optional": "Optional — you can skip this step."
   }
 }

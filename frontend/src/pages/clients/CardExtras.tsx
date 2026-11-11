@@ -664,67 +664,6 @@ function SplitForm({ mergeId, onDone }: { mergeId: string; onDone: () => Promise
   );
 }
 
-/** § 6.2.9: instead of filling the card, a card with only the ID or a contact of the profile and
- * the request sent at once. */
-export function ProvisionalForm({ cardType }: { cardType: CardType }) {
-  const { t } = useTranslation();
-  const company = useCompany();
-  const queryClient = useQueryClient();
-  const path = cardType === "client" ? "clients" : "counterparties";
-  const create = useCommand<{ kind: string; target: string }, { client?: Client; counterparty?: Counterparty }>(
-    `/c/${company.public_id}/${path}/provisional`,
-  );
-  const [kind, setKind] = useState<"person" | "company">(cardType === "client" ? "person" : "company");
-  const [target, setTarget] = useState("");
-  const [created, setCreated] = useState<{ id: string; name: string } | null>(null);
-  return (
-    <Card title={t("cards.provisional_title")}>
-      <form
-        className="stack"
-        onSubmit={async (event) => {
-          event.preventDefault();
-          const result = await create.run({ kind, target });
-          if (result) {
-            const card = result.client ?? result.counterparty;
-            setCreated(card ? { id: card.id, name: card.name } : null);
-            setTarget("");
-            await queryClient.invalidateQueries({ queryKey: [path, company.public_id] });
-          }
-        }}
-      >
-        <p className="muted small">{t("cards.provisional_hint")}</p>
-        <div className="row">
-          <Field label={t("clients.kind")}>
-            <select value={kind} onChange={(e) => setKind(e.target.value as "person" | "company")}>
-              <option value="person">{t("clients.kind_person")}</option>
-              <option value="company">{t("clients.kind_company")}</option>
-            </select>
-          </Field>
-          <Field label={t(kind === "company" ? "links.target_company" : "links.target_person")}>
-            <input value={target} onChange={(e) => setTarget(e.target.value)} />
-          </Field>
-        </div>
-        <ErrorMessage error={create.error} />
-        {created ? (
-          <p className="alert ok">
-            {t("cards.provisional_created")}{" "}
-            <Link
-              to={companyPath(company, cardType === "client" ? `/clients/${created.id}` : `/clients/counterparties/${created.id}`)}
-            >
-              {created.name}
-            </Link>
-          </p>
-        ) : null}
-        <div className="actions">
-          <button type="submit" disabled={!target.trim() || create.pending}>
-            {t("cards.provisional_send")}
-          </button>
-        </div>
-      </form>
-    </Card>
-  );
-}
-
 /** § 6.6.4–6.6.5: archive and restore are separate rights. */
 export function ArchiveActions({
   card,

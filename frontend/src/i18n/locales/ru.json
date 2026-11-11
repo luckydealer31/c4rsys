@@ -362,7 +362,12 @@
     "messenger_kakaotalk": "KakaoTalk",
     "messenger_zalo": "Zalo",
     "messenger_facebook_messenger": "Facebook Messenger",
-    "messenger_other": "Другой мессенджер"
+    "messenger_other": "Другой мессенджер",
+    "wizard_name_person": "Фамилия, имя, отчество",
+    "wizard_contacts": "Контакты",
+    "wizard_name_required": "Имя и фамилия обязательны.",
+    "wizard_company_required": "Название компании обязательно.",
+    "wizard_contact_required": "Нужен телефон или email."
   },
   "common": {
     "cancel": "Отмена",
@@ -2559,11 +2564,6 @@
     "only_unavailable": "ТС, недоступные из-за ограничения или конфликта",
     "only_identifier_conflict": "ТС в неразрешённых конфликтах идентификаторов",
     "only_reset": "Показать все",
-    "wizard_step": "Шаг {{n}} из {{total}}",
-    "wizard_next": "Далее",
-    "wizard_back": "Назад",
-    "wizard_skip": "Пропустить",
-    "wizard_optional": "Необязательно — этот шаг можно пропустить.",
     "wizard_no_catalog": "Справочника марок для этого типа пока нет — введите марку текстом или пропустите.",
     "wizard_name_required": "Без названия ТС создать нельзя — введите его вручную.",
     "wizard_location_hint": "Локация, за которой ТС закрепляется в компании.",
@@ -2574,7 +2574,9 @@
     "action_booking": "Создать бронь",
     "action_service": "Создать сервис",
     "action_move": "Создать перемещение",
-    "actions_title": "Действия"
+    "actions_title": "Действия",
+    "scope_fleet": "Парк",
+    "scope_title": "Какие ТС"
   },
   "warehouse": {
     "action_create": "Создать",
@@ -6080,5 +6082,12 @@
     "party_person": "физлицо",
     "party_company": "организация",
     "section_placeholder": "Поиск в разделе"
+  },
+  "wizard": {
+    "step": "Шаг {{n}} из {{total}}",
+    "next": "Далее",
+    "back": "Назад",
+    "skip": "Пропустить",
+    "optional": "Необязательно — этот шаг можно пропустить."
   }
 }

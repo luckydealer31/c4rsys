@@ -61,8 +61,9 @@ export function useRentals(enabled = true) {
 
 /** Garage (§ 8.7.2; customer's decisions of 24.10.2026 and 11.11.2026). Own and managed vehicles
  * are one list, grouped by location, with the switches «own» / «managed»; the schedule is the
- * second view of the same vehicles with the same switches. Client vehicles are a third switch of
- * the list, apart from the two: it shows only them, without locations, and is not in the schedule.
+ * second view of the same vehicles with the same switches. The list is switched between the
+ * fleet and the client vehicles, which are shown alone, without locations and without the
+ * switches of the fleet; the schedule has no client vehicles.
  * The actions of the section stand in a column on the right. */
 type Relation = "own" | "managed" | "client";
 type View = "list" | "schedule" | "client";
@@ -155,11 +156,11 @@ export function VehiclesPage() {
         ];
   const allowed = actions.filter(([may]) => may);
   return (
-    <div className="page">
+    <div className="page full">
       <h1 className="sr-only">{t("nav.garage")}</h1>
-      <div className={allowed.length ? "garage" : ""}>
-        <div className="garage-main">
-          <div className="tabs garage-tabs" role="tablist">
+      <div className={allowed.length ? "split" : ""}>
+        <div>
+          <div className="tabs left" role="tablist">
             {VIEWS.map((key) => (
               <button
                 key={key}
@@ -173,8 +174,19 @@ export function VehiclesPage() {
               </button>
             ))}
           </div>
-          <div className="garage-bar">
-            {/* The client list is a list of its own: the switches of the fleet are not in it. */}
+          <div className="list-bar">
+            {/* The list is either the fleet or the client vehicles; the two never mix. The
+                switches «own» / «managed» belong to the fleet only. */}
+            {view === "schedule" ? null : (
+              <div className="segmented" role="group" aria-label={t("vehicles.scope_title")}>
+                <button type="button" aria-pressed={view === "list"} onClick={() => go({ view: "list" })}>
+                  {t("vehicles.scope_fleet")}
+                </button>
+                <button type="button" aria-pressed={view === "client"} onClick={() => go({ view: "client", rel: "" })}>
+                  {t("vehicles.tab_client")}
+                </button>
+              </div>
+            )}
             {view === "client"
               ? null
               : FLEET.map((key) => (
@@ -188,16 +200,6 @@ export function VehiclesPage() {
                     {t(`vehicles.tab_${key}`)}
                   </button>
                 ))}
-            {view === "schedule" ? null : (
-              <button
-                type="button"
-                className={view === "client" ? "toggle-chip" : "toggle-chip apart"}
-                aria-pressed={view === "client"}
-                onClick={() => go({ view: view === "client" ? "list" : "client", rel: "" })}
-              >
-                {t("vehicles.tab_client")}
-              </button>
-            )}
             {view === "schedule" ? null : <SectionSearch compact value={q} onSearch={(text) => go({ q: text })} />}
           </div>
           {only ? (
@@ -261,7 +263,7 @@ export function VehiclesPage() {
           )}
         </div>
         {allowed.length ? (
-          <aside className="garage-actions" aria-label={t("vehicles.actions_title")}>
+          <aside className="side-actions" aria-label={t("vehicles.actions_title")}>
             {allowed.map(([, path, label]) => (
               <Link key={path} className="button secondary" to={companyPath(company, path)}>
                 <Icon name="plus" size={16} /> {label}

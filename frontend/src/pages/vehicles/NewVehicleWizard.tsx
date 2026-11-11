@@ -490,28 +490,28 @@ export function NewVehiclePage() {
       </p>
       <h1>{t("vehicles.create_title")}</h1>
       <p className="muted">
-        {t("vehicles.wizard_step", { n: index + 1, total: steps.length })}
+        {t("wizard.step", { n: index + 1, total: steps.length })}
         {name.trim() && step !== "name" ? ` · ${name}` : ""}
       </p>
       <form onSubmit={next} key={step}>
         <Card title={titles[step]}>
           {content}
-          {optional ? <p className="muted small">{t("vehicles.wizard_optional")}</p> : null}
+          {optional ? <p className="muted small">{t("wizard.optional")}</p> : null}
           {last ? <p className="muted small">{t("vehicles.wizard_later")}</p> : null}
           {last ? <ErrorMessage error={create.error} /> : null}
           <div className="actions">
             {index > 0 ? (
               <button type="button" className="secondary" onClick={() => setIndex(index - 1)}>
-                {t("vehicles.wizard_back")}
+                {t("wizard.back")}
               </button>
             ) : null}
             {optional ? (
               <button type="button" className="secondary" onClick={skip}>
-                {t("vehicles.wizard_skip")}
+                {t("wizard.skip")}
               </button>
             ) : null}
             <button type="submit" disabled={!ready || create.pending}>
-              {last ? t("vehicles.create") : t("vehicles.wizard_next")}
+              {last ? t("vehicles.create") : t("wizard.next")}
             </button>
           </div>
         </Card>

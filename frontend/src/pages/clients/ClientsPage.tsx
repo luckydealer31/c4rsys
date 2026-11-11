@@ -9,6 +9,7 @@ import { ProfileLinkCard } from "./ProfileLinkCard";
 import { ClientGroupsCard } from "../orders/Discounts";
 import type { Client, ClientContact, Messenger } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
+import { Icon } from "../../components/icons";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { EmployeesList } from "../settings/EmployeesPage";
@@ -20,7 +21,6 @@ import {
   ClientHistoryCard,
   ExtendedFieldsCard,
   MergeCard,
-  ProvisionalForm,
   RestrictionsCard,
 } from "./CardExtras";
 
@@ -64,6 +64,7 @@ export function peopleTabs(can: (permission: string) => boolean): PeopleTab[] {
  * (§ 6.1.7) on neighbouring tabs — clients, counterparties, employees. */
 export function ClientsPage() {
   const { t } = useTranslation();
+  const company = useCompany();
   const can = useCan();
   const [params, setParams] = useSearchParams();
   const tabs = peopleTabs(can);
@@ -77,10 +78,21 @@ export function ClientsPage() {
       </div>
     );
   }
+  // The actions of the list stand in a column at the right edge, as in the garage (decision of
+  // 11.11.2026); the cards are created step by step on their own pages.
+  const actions: [boolean, string, string][] =
+    tab === "clients"
+      ? [[can("client.create"), "/clients/new", t("clients.create")]]
+      : tab === "counterparties"
+        ? [[can("counterparty.create"), "/clients/counterparties/new", t("counterparties.create")]]
+        : [];
+  const allowed = actions.filter(([may]) => may);
   return (
-    <div className="page">
-      <h1>{t("nav.clients")}</h1>
-      <div className="tabs" role="tablist">
+    <div className="page full">
+      <h1 className="sr-only">{t("nav.clients")}</h1>
+      <div className={allowed.length ? "split" : ""}>
+        <div>
+      <div className="tabs left" role="tablist">
         {tabs.map((key) => (
           <button
             key={key}
@@ -97,6 +109,17 @@ export function ClientsPage() {
       {tab === "clients" ? <ClientsList /> : null}
       {tab === "counterparties" ? <CounterpartiesList /> : null}
       {tab === "employees" ? <EmployeesList /> : null}
+        </div>
+        {allowed.length ? (
+          <aside className="side-actions" aria-label={t("vehicles.actions_title")}>
+            {allowed.map(([, path, label]) => (
+              <Link key={path} className="button secondary" to={companyPath(company, path)}>
+                <Icon name="plus" size={16} /> {label}
+              </Link>
+            ))}
+          </aside>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -116,12 +139,17 @@ function ClientsList() {
     <>
       {can("client.list") ? (
         <Card>
-          <div className="row">
-            <Field label={t("clients.search")}>
-              <input value={query} onChange={(e) => setQuery(e.target.value)} />
-            </Field>
+          <div className="list-bar">
+            <input
+              type="search"
+              className="list-search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t("clients.search")}
+              aria-label={t("clients.search")}
+            />
             {/* § 6.6.4: archived cards are found with the «Archive» filter. */}
-            <label style={{ alignSelf: "end" }}>
+            <label>
               <input type="checkbox" checked={archived} onChange={(e) => setArchived(e.target.checked)} />{" "}
               {t("cards.show_archived")}
             </label>
@@ -144,8 +172,6 @@ function ClientsList() {
       ) : (
         <p className="muted">{t("clients.list_not_allowed")}</p>
       )}
-      {can("client.create") ? <ClientForm /> : null}
-      {can("client.create") && can("client.link.request") ? <ProvisionalForm cardType="client" /> : null}
     </>
   );
 }
@@ -175,7 +201,10 @@ const EMPTY: Draft = {
 };
 
 /** Possible existing cards for entered data (§ 6.1.11); the manager compares and decides. */
-export function useMatches(draft: Draft) {
+export function useMatches(
+  draft: Pick<Draft, "first_name" | "last_name" | "birth_date" | "company_name" | "phone" | "email">,
+  enabled = true,
+) {
   const company = useCompany();
   const can = useCan();
   const [debounced, setDebounced] = useState(draft);
@@ -191,7 +220,7 @@ export function useMatches(draft: Draft) {
   );
   return useQuery({
     queryKey: ["client-matches", company.public_id, debounced],
-    enabled: filled && can("client.find"),
+    enabled: enabled && filled && can("client.find"),
     retry: false,
     queryFn: async () => {
       const body: Record<string, string> = {};
