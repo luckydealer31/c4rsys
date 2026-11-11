@@ -21,6 +21,7 @@ import {
   type RangeRow,
 } from "../tariffs/TariffsPage";
 import { useVehicles } from "../vehicles/VehiclesPage";
+import { EquipmentPicker } from "./Services";
 import { EMPTY_ROW, rowBody, rowProblem, VehiclePricesTable, type VehicleRow } from "../tariffs/VehiclePrices";
 
 /** The frame of a step-by-step creation in the rental section: a question per screen, «Back»,
@@ -279,9 +280,11 @@ export function NewTariffPage() {
   );
 }
 
-/** A new extra service of the catalog step by step: how it is priced, the currency, the price,
- * where and for what it applies (decision У3; the limits by vehicles and tariffs are optional),
- * the name. Pricing, unit and currency stay fixed afterwards. */
+/** A new extra service of the catalog step by step: how it is priced, whether equipment from
+ * the warehouse is handed out with it (§ 13.4.7; decision of 11.11.2026), the currency, the
+ * price, where and for what it applies (decision У3; the limits by vehicles and tariffs are
+ * optional), the warehouse units of a service with equipment, the name. Pricing, unit, currency
+ * and «with equipment» stay fixed afterwards; the units change. */
 export function NewExtraServicePage() {
   const { t } = useTranslation();
   const company = useCompany();
@@ -298,8 +301,13 @@ export function NewExtraServicePage() {
   const [vehicleIds, setVehicleIds] = useState<string[]>([]);
   const [tariffIds, setTariffIds] = useState<string[]>([]);
   const [name, setName] = useState("");
+  const [withEquipment, setWithEquipment] = useState(false);
+  const [assetIds, setAssetIds] = useState<string[]>([]);
   const create = useCommand<Record<string, unknown>, { service: ExtraService }>(`/c/${company.public_id}/extra-services`);
-  const steps = ["pricing", "currency", "price", "scope", "name"] as const;
+  type Step = "pricing" | "equipment" | "currency" | "price" | "scope" | "units" | "name";
+  const steps: Step[] = withEquipment
+    ? ["pricing", "equipment", "currency", "price", "scope", "units", "name"]
+    : ["pricing", "equipment", "currency", "price", "scope", "name"];
   const step = steps[index] ?? "pricing";
   const ready =
     step === "currency"
@@ -323,7 +331,9 @@ export function NewExtraServicePage() {
       tariffs: tariffIds,
       pricing,
       currency,
+      with_equipment: withEquipment,
     };
+    if (withEquipment) body.assets = assetIds;
     if (pricing === "time") body.unit = unit;
     const result = await create.run(body);
     if (result) {
@@ -334,9 +344,11 @@ export function NewExtraServicePage() {
 
   const titles = {
     pricing: t("services.pricing"),
+    equipment: t("services.with_equipment"),
     currency: t("cash.currency"),
     price: t(`services.price_${pricing}`),
     scope: t("tariffs.availability"),
+    units: t("services.units_title"),
     name: t("tariffs.name"),
   };
   return (
@@ -349,6 +361,7 @@ export function NewExtraServicePage() {
       pending={create.pending}
       createLabel={t("services.create")}
       error={create.error}
+      optional={step === "units"}
       onBack={() => setIndex(index - 1)}
       onNext={() => void next()}
     >
@@ -373,6 +386,20 @@ export function NewExtraServicePage() {
           ) : null}
         </div>
       ) : null}
+      {step === "equipment" ? (
+        <div className="stack">
+          <label style={{ display: "block" }}>
+            <input type="radio" name="equipment" checked={!withEquipment} onChange={() => setWithEquipment(false)} />{" "}
+            {t("services.with_equipment_no")}
+          </label>
+          <label style={{ display: "block" }}>
+            <input type="radio" name="equipment" checked={withEquipment} onChange={() => setWithEquipment(true)} />{" "}
+            {t("services.with_equipment_yes")}
+          </label>
+          <p className="muted small">{t("services.with_equipment_hint")}</p>
+        </div>
+      ) : null}
+      {step === "units" ? <EquipmentPicker value={assetIds} onChange={setAssetIds} /> : null}
       {step === "currency" ? <CurrencyStep value={currency} onChange={setCurrency} /> : null}
       {step === "price" ? (
         <Field label={t(`services.price_${pricing}`)}>

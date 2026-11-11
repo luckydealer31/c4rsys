@@ -8,6 +8,11 @@ and tariffs: within one kind «any of the selected», between kinds «and»; a s
 checked by its location only. The catalog has the tariff rights, without rights of its own
 (§ 23.4.4). Pricing, unit and currency do not change after creation; added services keep their
 snapshot (§ 13.4.8).
+
+A service «with equipment» (§ 13.4.7; customer's decisions of 11.11.2026) has warehouse units
+attached to it: existing units with their AST ID from any storage of the company, one unit may be
+attached to several services, no copies are made. The flag is fixed at creation; the list of
+units changes.
 """
 
 from dataclasses import dataclass
@@ -26,12 +31,14 @@ from c4rsys.platform.models import Currency
 from c4rsys.rentals import tariffs
 from c4rsys.rentals.models import (
     ExtraService,
+    ExtraServiceAsset,
     ExtraServiceLocation,
     ExtraServiceTariff,
     ExtraServiceVehicle,
     Rental,
     Tariff,
 )
+from c4rsys.warehouse import equipment
 
 
 def _ids(model: Any, service: ExtraService, field: str) -> list[str]:
@@ -56,8 +63,23 @@ def snapshot(service: ExtraService) -> dict[str, Any]:
         "locations": _ids(ExtraServiceLocation, service, "location_id"),
         "vehicles": _ids(ExtraServiceVehicle, service, "vehicle_card_id"),
         "tariffs": _ids(ExtraServiceTariff, service, "tariff_id"),
+        "with_equipment": service.with_equipment,
+        "assets": _ids(ExtraServiceAsset, service, "asset_id"),
         "state": service.state,
     }
+
+
+def asset_ids_of(service: ExtraService) -> list[UUID]:
+    return list(
+        ExtraServiceAsset.objects.filter(service=service).values_list("asset_id", flat=True)
+    )
+
+
+def equipment_of(service: ExtraService) -> list[dict[str, Any]]:
+    """The units attached to the service as the warehouse describes them."""
+    if not service.with_equipment:
+        return []
+    return equipment.describe(service.company_id, asset_ids_of(service))
 
 
 def line_snapshot(service: ExtraService) -> dict[str, Any]:
@@ -71,6 +93,7 @@ def line_snapshot(service: ExtraService) -> dict[str, Any]:
         "price": price_text(service.price),
         "currency": service.currency_id,
         "currency_minor_units": service.currency.minor_units,
+        "with_equipment": service.with_equipment,
     }
 
 
@@ -124,6 +147,20 @@ def _write_scope(service: ExtraService, scope: Scope) -> None:
     )
 
 
+def _validate_assets(service_with_equipment: bool, company_id: UUID, ids: frozenset[UUID]) -> None:
+    if ids and not service_with_equipment:
+        raise errors.validation_error("assets", code="SERVICE_WITHOUT_EQUIPMENT")
+    equipment.require_units(company_id, ids, "assets")
+
+
+def _write_assets(service: ExtraService, ids: frozenset[UUID]) -> None:
+    ExtraServiceAsset.objects.filter(service=service).delete()
+    ExtraServiceAsset.objects.bulk_create(
+        ExtraServiceAsset(company_id=service.company_id, service=service, asset_id=x)
+        for x in sorted(ids)
+    )
+
+
 def parse_pricing(data: dict[str, Any]) -> tuple[str, str]:
     pricing = str(data.get("pricing") or "")
     if pricing not in ExtraService.Pricing.values:
@@ -148,6 +185,8 @@ class NewService:
     price: Decimal
     currency: str  # empty: the company's main currency
     scope: Scope
+    with_equipment: bool = False
+    asset_ids: frozenset[UUID] = frozenset()
 
 
 def create(ctx: CommandContext, company: Company, data: NewService) -> ExtraService:
@@ -156,6 +195,7 @@ def create(ctx: CommandContext, company: Company, data: NewService) -> ExtraServ
     if currency is None:
         raise errors.validation_error("currency", code="CURRENCY_INVALID")
     _validate_scope(company.id, data.scope)
+    _validate_assets(data.with_equipment, company.id, data.asset_ids)
     service = ExtraService.objects.create(
         company=company,
         name=data.name,
@@ -164,10 +204,12 @@ def create(ctx: CommandContext, company: Company, data: NewService) -> ExtraServ
         price=data.price,
         currency=currency,
         all_locations=data.scope.location_ids is None,
+        with_equipment=data.with_equipment,
         created_by_user_id=ctx.actor.user_id,
         created_at=timezone.now(),
     )
     _write_scope(service, data.scope)
+    _write_assets(service, data.asset_ids)
     ctx.audit(
         "extra_service.created",
         object_type="extra_service",
@@ -195,11 +237,15 @@ class Changes:
     name: str | None = None
     price: Decimal | None = None
     scope: Scope | None = None
+    asset_ids: frozenset[UUID] | None = None  # the whole new list of attached units
 
 
 def change(ctx: CommandContext, service: ExtraService, changes: Changes) -> ExtraService:
-    """Name, price and applicability; added services keep their snapshot (§ 13.4.8)."""
+    """Name, price, applicability and the attached units; added services keep their snapshot and
+    their unit (§ 13.4.8)."""
     before = snapshot(service)
+    if changes.asset_ids is not None:
+        _validate_assets(service.with_equipment, service.company_id, changes.asset_ids)
     if changes.name is not None:
         service.name = changes.name
     if changes.price is not None:
@@ -211,6 +257,8 @@ def change(ctx: CommandContext, service: ExtraService, changes: Changes) -> Extr
     service.save()
     if changes.scope is not None:
         _write_scope(service, changes.scope)
+    if changes.asset_ids is not None:
+        _write_assets(service, changes.asset_ids)
     after = snapshot(service)
     ctx.audit(
         "extra_service.changed",

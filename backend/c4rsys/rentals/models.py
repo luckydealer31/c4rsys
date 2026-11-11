@@ -678,7 +678,9 @@ class ExtraService(models.Model):
     duration. Available to the whole company or selected locations, optionally limited to vehicles
     and tariffs (an empty list: no limit). Its price is in its own currency (customer's decision
     У2); the pricing, unit and currency do not change after creation. An added service keeps a
-    snapshot (§ 13.4.8). Equipment by instance comes later (decision Т1)."""
+    snapshot (§ 13.4.8). A service «with equipment» (§ 13.4.7; customer's decision of 11.11.2026)
+    hands out one of the warehouse units attached to it (`ExtraServiceAsset`); the flag does not
+    change after creation."""
 
     class Pricing(models.TextChoices):
         ONCE = "once"
@@ -704,6 +706,7 @@ class ExtraService(models.Model):
     price = models.DecimalField(max_digits=20, decimal_places=4)
     currency = models.ForeignKey(Currency, on_delete=models.PROTECT, related_name="+")
     all_locations = models.BooleanField(default=True)
+    with_equipment = models.BooleanField(default=False)
     state = models.CharField(max_length=10, choices=State.choices, default=State.ACTIVE)
     created_by_user_id = models.UUIDField()
     created_at = models.DateTimeField(default=now)
@@ -781,6 +784,26 @@ class ExtraServiceTariff(models.Model):
         return f"{self.service_id}:{self.tariff_id}"
 
 
+class ExtraServiceAsset(models.Model):
+    """A warehouse unit attached to a service with equipment (§ 13.4.7): the existing unit with
+    its AST ID, never a copy; one unit may be attached to several services."""
+
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    service = models.ForeignKey(ExtraService, on_delete=models.PROTECT, related_name="+")
+    asset = models.ForeignKey("warehouse.Asset", on_delete=models.PROTECT, related_name="+")
+
+    class Meta:
+        db_table = "rental_extra_service_asset"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["service", "asset"], name="rental_extra_service_asset_uniq"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.service_id}:{self.asset_id}"
+
+
 class ExtraServiceLine(models.Model):
     """An additional service added to an order (§ 12.1.4, § 13.4.5): each addition is its own
     line with a snapshot of the price and terms (§ 13.4.8).
@@ -789,7 +812,11 @@ class ExtraServiceLine(models.Model):
     (customer's decisions У4–У5); the state stored then is «planned» and the shown one comes from
     the rental. Standalone, it has its own location of the service (§ 13.4.14), its own period for
     a time service and its own actual start and completion (§ 13.4.11). Unlinking changes the link
-    of the same line (§ 13.4.9); `origin_rental` keeps the rental it was linked to."""
+    of the same line (§ 13.4.9); `origin_rental` keeps the rental it was linked to.
+
+    A line of a service with equipment keeps its unit (`asset`, § 13.4.7): planned — the unit is
+    reserved for the period, started — handed out, completed — returned; `return_location` is
+    where it was actually returned (§ 13.4.13), `location` stays the hand-out one (§ 13.4.14)."""
 
     class State(models.TextChoices):
         PLANNED = "planned"
@@ -811,6 +838,12 @@ class ExtraServiceLine(models.Model):
         Rental, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
     location = models.ForeignKey(
+        Location, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    asset = models.ForeignKey(
+        "warehouse.Asset", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    return_location = models.ForeignKey(
         Location, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
     quantity = models.PositiveIntegerField(null=True, blank=True)
@@ -880,6 +913,36 @@ class ExtraServiceLine(models.Model):
                 condition=~Q(state="cancelled")
                 | (Q(cancelled_at__isnull=False) & ~Q(cancel_reason="")),
                 name="rental_extra_service_line_cancelled",
+            ),
+            # Equipment is handed out by standalone lines only (linked ones: TODO(spec) in
+            # extra_lines.add_linked); the place of the return is known once it is returned.
+            models.CheckConstraint(
+                condition=Q(asset__isnull=True) | Q(rental__isnull=True),
+                name="rental_extra_service_line_asset_standalone",
+            ),
+            models.CheckConstraint(
+                condition=Q(return_location__isnull=True)
+                | (Q(asset__isnull=False) & Q(state="completed")),
+                name="rental_extra_service_line_return_location",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["asset", "state"],
+                name="rental_service_line_asset_idx",
+                condition=Q(asset__isnull=False),
+            ),
+            # The background scan of `extra_lines.auto_progress` over all companies: the few
+            # standalone time services without equipment not finished yet (audit item 13).
+            models.Index(
+                fields=["state", "period_start"],
+                name="rental_service_line_auto_idx",
+                condition=Q(
+                    rental__isnull=True,
+                    asset__isnull=True,
+                    pricing="time",
+                    state__in=["planned", "started"],
+                ),
             ),
         ]
 

@@ -147,7 +147,7 @@ services:
     # A shell as the first process ignores the stop signal; init passes it on, so a deploy does
     # not wait 10 s for each loop (audit item 47).
     init: true
-    command: sh -c "while true; do python manage.py release_deposits; python manage.py cancel_no_shows; python manage.py heartbeat deposits; sleep 600; done"
+    command: sh -c "while true; do python manage.py release_deposits; python manage.py cancel_no_shows; python manage.py progress_service_lines; python manage.py heartbeat deposits; sleep 600; done"
     healthcheck:
       disable: true
     depends_on:

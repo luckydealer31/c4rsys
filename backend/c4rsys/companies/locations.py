@@ -339,6 +339,21 @@ def storage_context(company_id: UUID, context_id: UUID) -> ActivityContext | Non
     )
 
 
+def storage_of_location(company_id: UUID, location_id: UUID) -> ActivityContext | None:
+    """The enabled storage of an active location: its warehouse context, one at most."""
+    return (
+        ActivityContext.objects.select_related("location")
+        .filter(
+            company_id=company_id,
+            location_id=location_id,
+            type=ActivityContext.Type.WAREHOUSE,
+            state=ActivityContext.State.ENABLED,
+            location__deactivated_at__isnull=True,
+        )
+        .first()
+    )
+
+
 def contexts_of(company_id: UUID) -> QuerySet[ActivityContext]:
     """Every context of the company's locations (for scopes of other modules)."""
     return ActivityContext.objects.filter(company_id=company_id)

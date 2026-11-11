@@ -1208,11 +1208,36 @@ export type ExtraService = {
   locations: string[];
   vehicles: string[];
   tariffs: string[];
+  /** With equipment handed out from the warehouse (§ 13.4.7); fixed at creation. */
+  with_equipment: boolean;
+  /** Ids of the attached warehouse units; `equipment` describes them. */
+  assets: string[];
+  equipment: EquipmentUnit[];
   state: "active" | "archived";
   version: number;
 };
 
-export type ServiceChoice = Pick<ExtraService, "id" | "name" | "pricing" | "unit" | "price" | "currency">;
+/** A warehouse unit (an asset with its AST ID) used as equipment of a service (§ 13.4.7). */
+export type EquipmentUnit = {
+  id: string;
+  public_id: string;
+  item_name: string;
+  serial_number: string;
+  location_id: string;
+  location_name: string;
+  state: string;
+};
+
+/** A unit offered for a standalone service in a location for a period. */
+export type EquipmentChoice = EquipmentUnit & {
+  available: boolean;
+  reason: "other_location" | "not_in_stock" | "reserved" | "occupied" | null;
+};
+
+export type ServiceChoice = Pick<
+  ExtraService,
+  "id" | "name" | "pricing" | "unit" | "price" | "currency" | "with_equipment"
+>;
 
 /** A service in an order: linked to a rental or standalone (§ 13.4.5, § 13.4.9, § 13.4.11). */
 export type ServiceLine = {
@@ -1228,6 +1253,10 @@ export type ServiceLine = {
   rental_id: string | null;
   origin_rental_id: string | null;
   location_id: string | null;
+  /** The unit of a service with equipment: booked, handed out or returned by this line. */
+  equipment: EquipmentUnit | null;
+  /** Where the equipment was actually returned (§ 13.4.13). */
+  return_location_id: string | null;
   time_zone: string;
   period: { start: string; end: string | null; kind: string } | null;
   state: "planned" | "started" | "completed" | "cancelled";

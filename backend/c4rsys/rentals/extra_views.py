@@ -29,7 +29,20 @@ from c4rsys.rentals.views import NAME_MAX, _actor, _availability, _moment, _opti
 
 
 def _service_payload(service: ExtraService) -> dict[str, Any]:
-    return {"id": str(service.id), "version": service.version, **extras.snapshot(service)}
+    return {
+        "id": str(service.id),
+        "version": service.version,
+        **extras.snapshot(service),
+        # The attached units as the warehouse describes them; `assets` — their ids.
+        "equipment": extras.equipment_of(service),
+    }
+
+
+def _with_equipment(data: dict[str, Any]) -> bool:
+    value = data.get("with_equipment", False)
+    if not isinstance(value, bool):
+        raise errors.validation_error("with_equipment", code="BOOLEAN_REQUIRED")
+    return value
 
 
 def _ids(data: dict[str, Any], key: str) -> frozenset[UUID]:
@@ -94,6 +107,8 @@ def service_list(request: HttpRequest, cmp: str) -> JsonResponse:
         price=extras.parse_price(data.get("price")),
         currency=get_str(data, "currency", max_length=3, required=False).upper(),
         scope=scope,
+        with_equipment=_with_equipment(data),
+        asset_ids=_ids(data, "assets"),
     )
 
     def handler(ctx: CommandContext) -> CommandResult:
@@ -107,8 +122,46 @@ def service_list(request: HttpRequest, cmp: str) -> JsonResponse:
         "price": str(new.price),
         "currency": new.currency,
         **_scope_payload(scope),
+        "with_equipment": new.with_equipment,
+        "assets": sorted(map(str, new.asset_ids)),
     }
     return run_and_respond(request, "extra_service.create", actor, payload, handler)
+
+
+@require_GET
+def equipment_units(request: HttpRequest, cmp: str) -> JsonResponse:
+    """The units of the company lying in its storages now, to attach to a service with equipment
+    (§ 13.4.7): from any storage of the company (customer's decision of 11.11.2026).
+
+    PROPOSAL (not confirmed): the list is open to whoever may create or edit services of the
+    catalog (the tariff rights, § 23.4.4), without a warehouse right of its own."""
+    from c4rsys.warehouse import equipment
+
+    context, actor = _actor(request, cmp)
+    resolver = access.RightsResolver()
+    if not any(resolver.has_permission(actor, p) for p in ("tariff.create", "tariff.edit")):
+        raise errors.permission_denied("tariff.edit")
+    return JsonResponse({"units": equipment.in_stock(context.company.id)})
+
+
+@require_GET
+def service_equipment(request: HttpRequest, cmp: str, service_id: UUID) -> JsonResponse:
+    """The units attached to the service with their availability for a standalone service in a
+    location (`location_id`) for a period (`period_start`, `period_end`; without them — now)."""
+    context, actor = _actor(request, cmp)
+    params = dict(request.GET.items())
+    location_id = _uuid(params, "location_id")
+    resolver = access.RightsResolver()
+    if not any(
+        resolver.has_permission(actor, p, location_id=location_id)
+        for p in ("order.edit", "order.create")
+    ):
+        raise errors.permission_denied("order.edit")
+    service = ExtraService.objects.filter(company=context.company, pk=service_id).first()
+    if service is None:
+        raise errors.not_found()
+    start, end = _period(params)
+    return JsonResponse({"units": extra_lines.equipment_choices(service, location_id, start, end)})
 
 
 @require_http_methods(["GET", "PATCH"])
@@ -120,13 +173,14 @@ def service_detail(request: HttpRequest, cmp: str, service_id: UUID) -> JsonResp
 
     data = parse_json(request)
     expected_version = get_int(data, "expected_version")
-    if {"pricing", "unit", "currency"} & data.keys():
+    if {"pricing", "unit", "currency", "with_equipment"} & data.keys():
         raise errors.validation_error("pricing", code="SERVICE_FIELD_IMMUTABLE")
     scope, availability = _scope(data) if "locations" in data else (None, None)
     changes = extras.Changes(
         name=get_str(data, "name", max_length=NAME_MAX) if "name" in data else None,
         price=extras.parse_price(data["price"]) if "price" in data else None,
         scope=scope,
+        asset_ids=_ids(data, "assets") if "assets" in data else None,
     )
     if changes == extras.Changes():
         raise errors.validation_error("body", code="NOTHING_TO_CHANGE")
@@ -147,6 +201,8 @@ def service_detail(request: HttpRequest, cmp: str, service_id: UUID) -> JsonResp
         payload["price"] = str(changes.price)
     if scope is not None:
         payload.update(_scope_payload(scope))
+    if changes.asset_ids is not None:
+        payload["assets"] = sorted(map(str, changes.asset_ids))
     return run_and_respond(request, "extra_service.change", actor, payload, handler)
 
 
@@ -196,6 +252,7 @@ def _choice(service: ExtraService) -> dict[str, Any]:
         "unit": service.unit or None,
         "price": extras.price_text(service.price),
         "currency": service.currency_id,
+        "with_equipment": service.with_equipment,
     }
 
 
@@ -208,7 +265,8 @@ def applicable(request: HttpRequest, cmp: str) -> JsonResponse:
     if rental_id is not None:
         rental = rentals.get_rental(context.company.id, rental_id)
         _require_rental(actor, rental)
-        found = extras.for_rental(rental)
+        # Equipment is not linked to a rental yet (TODO(spec) in extra_lines.add_linked).
+        found = extras.for_rental(rental).filter(with_equipment=False)
     else:
         location_id = _uuid(dict(request.GET.items()), "location_id")
         resolver = access.RightsResolver()
@@ -357,6 +415,7 @@ def line_create(request: HttpRequest, cmp: str) -> JsonResponse:
         order_id=order_id,
         client_id=_optional_uuid(data, "client_id"),
         responsible_employment_id=actor.employment_id,
+        asset_id=_optional_uuid(data, "asset_id"),
     )
 
     def handler(ctx: CommandContext) -> CommandResult:
@@ -419,13 +478,15 @@ def _line_command(request: HttpRequest, cmp: str, line_id: UUID, command: str) -
     expected_version = get_int(data, "expected_version")
     at = _moment(data, "at", required=False)
     reason = get_str(data, "reason", max_length=500, required=False)
+    # The location where the equipment is returned (§ 13.4.13); empty — where it was handed out.
+    place = _optional_uuid(data, "location_id") if command == "complete" else None
     company_id = context.company.id
 
     def handler(ctx: CommandContext) -> CommandResult:
         if command == "start":
             extra_lines.start(ctx, company_id, line_id, at, expected_version)
         elif command == "complete":
-            extra_lines.complete(ctx, company_id, line_id, at, expected_version)
+            extra_lines.complete(ctx, company_id, line_id, at, expected_version, place)
         elif command == "cancel":
             extra_lines.cancel(ctx, company_id, line_id, reason, expected_version)
         else:
@@ -437,6 +498,7 @@ def _line_command(request: HttpRequest, cmp: str, line_id: UUID, command: str) -
             "line_id": str(line_id),
             "at": at,
             "reason": reason,
+            "location_id": str(place) if place else None,
             "expected_version": expected_version,
         }
     )

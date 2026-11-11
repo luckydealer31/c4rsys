@@ -131,6 +131,7 @@ function OrderedServices({ lines, loading }: { lines: ServiceLine[]; loading: bo
                     >
                       {line.name}
                     </Link>
+                    {line.equipment ? <span className="muted small"> · {line.equipment.public_id}</span> : null}
                   </td>
                   <td>{line.period ? formatMoment(line.period.start, line.time_zone, i18n.language) : "—"}</td>
                   <td>{line.calculation ? `${line.calculation.amount} ${line.calculation.currency}` : "—"}</td>

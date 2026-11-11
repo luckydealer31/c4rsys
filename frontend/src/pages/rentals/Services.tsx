@@ -6,7 +6,16 @@ import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } 
 
 import { api, type ApiError } from "../../api/client";
 import { useApi } from "../../api/queries";
-import type { Client, ExtraService, Order, Rental, ServiceChoice, ServiceLine } from "../../api/types";
+import type {
+  Client,
+  EquipmentChoice,
+  EquipmentUnit,
+  ExtraService,
+  Order,
+  Rental,
+  ServiceChoice,
+  ServiceLine,
+} from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading, UnconfiguredConfirm } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
@@ -34,6 +43,56 @@ function toggle(list: string[], id: string) {
   return list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
 }
 
+/** «AST-… · Child seat · SN 123». */
+export function unitLabel(unit: EquipmentUnit) {
+  return [unit.public_id, unit.item_name, unit.serial_number].filter(Boolean).join(" · ");
+}
+
+/** The warehouse units to attach to a service with equipment (§ 13.4.7): the units of the
+ * company lying in its storages, by location, and the ones already attached wherever they are
+ * now. Existing units are ticked; nothing is copied. */
+export function EquipmentPicker({
+  value,
+  attached = [],
+  onChange,
+}: {
+  value: string[];
+  attached?: EquipmentUnit[];
+  onChange: (ids: string[]) => void;
+}) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const stock = useApi<{ units: EquipmentUnit[] }>(
+    ["equipment-units", company.public_id],
+    `/c/${company.public_id}/extra-services/equipment-units`,
+  );
+  const known = new Set(attached.map((u) => u.id));
+  const units = [...attached, ...(stock.data?.units ?? []).filter((u) => !known.has(u.id))];
+  const places = [...new Set(units.map((u) => u.location_name))].sort((a, b) => a.localeCompare(b));
+  return (
+    <div className="stack">
+      {stock.isLoading ? <Loading /> : null}
+      <ErrorMessage error={stock.error as ApiError | null} />
+      {!stock.isLoading && units.length === 0 ? <p className="muted">{t("services.units_none")}</p> : null}
+      {places.map((place) => (
+        <div key={place} className="small">
+          <strong>{place}</strong>
+          {units
+            .filter((u) => u.location_name === place)
+            .map((u) => (
+              <label key={u.id} style={{ display: "block", marginLeft: 12 }}>
+                <input type="checkbox" checked={value.includes(u.id)} onChange={() => onChange(toggle(value, u.id))} />{" "}
+                {unitLabel(u)}
+                {u.state !== "in_stock" ? <span className="muted"> · {t("services.unit_reason_not_in_stock")}</span> : null}
+              </label>
+            ))}
+        </div>
+      ))}
+      <p className="muted small">{t("services.units_hint")}</p>
+    </div>
+  );
+}
+
 /** Name, pricing, price and currency, applicability: the whole company or locations, and an
  * optional limit by vehicles and tariffs (decision У3). Pricing, unit and currency stay fixed. */
 function ServiceForm({ service }: { service?: ExtraService }) {
@@ -51,6 +110,7 @@ function ServiceForm({ service }: { service?: ExtraService }) {
   const [scope, setScope] = useState<string[] | "all">(service && !service.all_locations ? service.locations : "all");
   const [vehicleIds, setVehicleIds] = useState<string[]>(service?.vehicles ?? []);
   const [tariffIds, setTariffIds] = useState<string[]>(service?.tariffs ?? []);
+  const [assetIds, setAssetIds] = useState<string[]>(service?.assets ?? []);
   const [saved, setSaved] = useState(false);
   const save = useCommand<Record<string, unknown>, { service: ExtraService }>(
     service ? `/c/${company.public_id}/extra-services/${service.id}` : `/c/${company.public_id}/extra-services`,
@@ -67,6 +127,7 @@ function ServiceForm({ service }: { service?: ExtraService }) {
       vehicles: vehicleIds,
       tariffs: tariffIds,
     };
+    if (service?.with_equipment) body.assets = assetIds;
     if (service) body.expected_version = service.version;
     else {
       body.pricing = pricing;
@@ -160,6 +221,12 @@ function ServiceForm({ service }: { service?: ExtraService }) {
           ))}
         </div>
         <p className="muted small">{t("services.scope_hint")}</p>
+        {service?.with_equipment ? (
+          <>
+            <h3>{t("services.units_title")}</h3>
+            <EquipmentPicker value={assetIds} attached={service.equipment} onChange={setAssetIds} />
+          </>
+        ) : null}
         <ErrorMessage error={save.error} />
         {saved ? <div className="alert ok">{t("common.saved")}</div> : null}
         <div className="actions">
@@ -199,7 +266,22 @@ export function ExtraServicePage() {
       <h1>
         {data.name} {data.state === "archived" ? <span className="badge">{t("tariffs.archived")}</span> : null}
       </h1>
-      <p className="muted">{serviceTerms(data, t)}</p>
+      <p className="muted">
+        {serviceTerms(data, t)}
+        {data.with_equipment ? ` · ${t("services.with_equipment_badge")}` : ""}
+      </p>
+      {data.with_equipment && !can("tariff.edit") ? (
+        <Card title={t("services.units_title")}>
+          {data.equipment.length === 0 ? <p className="muted">{t("services.units_none_attached")}</p> : null}
+          <ul>
+            {data.equipment.map((u) => (
+              <li key={u.id}>
+                {unitLabel(u)} <span className="muted small">· {u.location_name}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
       {can("tariff.edit") ? <ServiceForm key={data.version} service={data} /> : null}
       {can("tariff.archive") ? (
         <div className="actions">
@@ -260,6 +342,9 @@ function LineSettings({ line, onDone }: LineProps) {
   const can = useCan();
   const zone = line.time_zone;
   const linked = Boolean(line.rental_id);
+  const equipment = line.equipment !== null;
+  const locations = useLocations();
+  const [returnPlace, setReturnPlace] = useState(line.location_id ?? "");
   const editable = (linked ? can("rental.issue") : can("order.edit")) && !line.finished;
   const closed = line.state === "completed" || line.state === "cancelled";
   const [quantity, setQuantity] = useState(String(line.quantity ?? ""));
@@ -281,7 +366,8 @@ function LineSettings({ line, onDone }: LineProps) {
   }
 
   const canChange = linked ? line.state !== "cancelled" : !closed;
-  const own = !linked && line.pricing === "time" && !closed;
+  // Equipment handed out is priced by the actual time: its booked period no longer changes.
+  const own = !linked && line.pricing === "time" && !closed && !(equipment && line.state === "started");
   return (
     <div className="stack">
       {(line.pricing === "quantity" && canChange) || own ? (
@@ -325,12 +411,27 @@ function LineSettings({ line, onDone }: LineProps) {
       <div className="actions">
         {!linked && line.state === "planned" ? (
           <button type="button" disabled={startCmd.pending} onClick={() => void run(startCmd)}>
-            {t("services.start")}
+            {equipment ? t("services.hand_out") : t("services.start")}
           </button>
         ) : null}
+        {!linked && line.state === "started" && equipment ? (
+          <Field label={t("services.return_location")}>
+            <select value={returnPlace} onChange={(e) => setReturnPlace(e.target.value)}>
+              {(locations.data?.locations ?? []).map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+        ) : null}
         {!linked && line.state === "started" ? (
-          <button type="button" disabled={completeCmd.pending} onClick={() => void run(completeCmd)}>
-            {t("services.complete")}
+          <button
+            type="button"
+            disabled={completeCmd.pending}
+            onClick={() => void run(completeCmd, equipment && returnPlace ? { location_id: returnPlace } : {})}
+          >
+            {equipment ? t("services.accept_return") : t("services.complete")}
           </button>
         ) : null}
         {linked && line.state !== "cancelled" ? (
@@ -340,6 +441,9 @@ function LineSettings({ line, onDone }: LineProps) {
         ) : null}
       </div>
       {linked ? <p className="muted small">{t("services.unlink_hint")}</p> : null}
+      {!linked && !equipment && line.pricing === "time" && !closed ? (
+        <p className="muted small">{t("services.auto_hint")}</p>
+      ) : null}
       <ErrorMessage error={startCmd.error ?? completeCmd.error ?? unlinkCmd.error} />
       {line.state === "planned" ? (
         <div className="row" style={{ alignItems: "flex-end" }}>
@@ -430,8 +534,8 @@ function LineView({ line, onDone, open, link }: LineProps & { open: boolean; lin
       <div className="row" style={{ alignItems: "center" }}>
         <span style={line.state === "cancelled" ? { textDecoration: "line-through" } : undefined}>
           {link ? <Link to={link}>{line.name}</Link> : <strong>{line.name}</strong>} · {serviceTerms(line, t)}
-          {line.quantity ? ` · ${t("services.quantity_value", { value: line.quantity })}` : ""} ·{" "}
-          {t(`services.state_${line.state}`)}
+          {line.quantity ? ` · ${t("services.quantity_value", { value: line.quantity })}` : ""}
+          {line.equipment ? ` · ${unitLabel(line.equipment)}` : ""} · {t(`services.state_${line.state}`)}
         </span>
         <span>
           <strong>{lineAmount(line, t)}</strong>
@@ -453,8 +557,12 @@ function LineView({ line, onDone, open, link }: LineProps & { open: boolean; lin
           </>
         ) : null}
         {line.period ? ` · ${when(line.period.start)} — ${line.period.end ? when(line.period.end) : t("services.open_end")}` : ""}
-        {line.actual_start && !line.rental_id ? ` · ${t("services.started_at", { when: when(line.actual_start) })}` : ""}
-        {line.actual_end && !line.rental_id ? ` · ${t("services.completed_at", { when: when(line.actual_end) })}` : ""}
+        {line.actual_start && !line.rental_id
+          ? ` · ${t(line.equipment ? "services.handed_out_at" : "services.started_at", { when: when(line.actual_start) })}`
+          : ""}
+        {line.actual_end && !line.rental_id
+          ? ` · ${t(line.equipment ? "services.returned_at" : "services.completed_at", { when: when(line.actual_end) })}`
+          : ""}
         {line.cancelled_at ? ` · ${t("charges.cancelled", { reason: line.cancel_reason })}` : ""}
       </div>
       {/* Keyed by the version: the fields start from the saved values after each change. */}
@@ -570,13 +678,31 @@ function StandaloneFields({
   const [quantity, setQuantity] = useState("1");
   const [start, setStart] = useState(() => toLocalInput(new Date(), zone));
   const [end, setEnd] = useState("");
+  const [assetId, setAssetId] = useState("");
   const chosen = choices.data?.services.find((s) => s.id === serviceId);
+  // The units of a service with equipment for this location and period (§ 13.4.7): a time
+  // service is asked once its period is entered.
+  const timed = chosen?.pricing === "time";
+  const periodQuery =
+    timed && start && end
+      ? `&period_start=${encodeURIComponent(fromLocalInput(start, zone))}&period_end=${encodeURIComponent(fromLocalInput(end, zone))}`
+      : "";
+  const needUnit = Boolean(chosen?.with_equipment);
+  const unitsReady = needUnit && Boolean(locationId) && (!timed || periodQuery !== "");
+  const units = useApi<{ units: EquipmentChoice[] }>(
+    ["service-equipment", company.public_id, serviceId, locationId, periodQuery],
+    `/c/${company.public_id}/extra-services/${serviceId}/equipment?location_id=${locationId}${periodQuery}`,
+    unitsReady,
+  );
+  const offered = unitsReady ? (units.data?.units ?? []) : [];
+  const unit = offered.find((u) => u.id === assetId && u.available);
 
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault();
         const body: Record<string, unknown> = { service_id: serviceId, location_id: locationId };
+        if (needUnit && unit) body.asset_id = unit.id;
         if (chosen?.pricing === "quantity") body.quantity = Number(quantity);
         if (chosen?.pricing === "time") {
           body.period_start = fromLocalInput(start, zone);
@@ -622,9 +748,36 @@ function StandaloneFields({
           </>
         ) : null}
       </div>
+      {needUnit ? (
+        <div className="stack">
+          <h3>{t("services.unit_choose")}</h3>
+          {!unitsReady ? <p className="muted small">{t("services.unit_after_period")}</p> : null}
+          {unitsReady && units.isLoading ? <Loading /> : null}
+          <ErrorMessage error={unitsReady ? (units.error as ApiError | null) : null} />
+          {unitsReady && units.data && offered.length === 0 ? (
+            <p className="muted">{t("services.units_none_attached")}</p>
+          ) : null}
+          {offered.map((u) => (
+            <label key={u.id} style={{ display: "block" }} className={u.available ? undefined : "muted"}>
+              <input
+                type="radio"
+                name="equipment-unit"
+                disabled={!u.available}
+                checked={u.available && assetId === u.id}
+                onChange={() => setAssetId(u.id)}
+              />{" "}
+              {unitLabel(u)}
+              {u.reason ? ` · ${t(`services.unit_reason_${u.reason}`, { location: u.location_name })}` : ""}
+            </label>
+          ))}
+        </div>
+      ) : null}
       <ErrorMessage error={error} />
       <div className="actions">
-        <button type="submit" disabled={pending || disabled || !serviceId || (chosen?.pricing === "time" && !end)}>
+        <button
+          type="submit"
+          disabled={pending || disabled || !serviceId || (chosen?.pricing === "time" && !end) || (needUnit && !unit)}
+        >
           {t("services.add")}
         </button>
       </div>

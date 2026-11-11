@@ -10,6 +10,8 @@ from c4rsys.rentals import views
 urlpatterns = [
     path("c/<str:cmp>/extra-services", ev.service_list),
     path("c/<str:cmp>/extra-services/applicable", ev.applicable),
+    path("c/<str:cmp>/extra-services/equipment-units", ev.equipment_units),
+    path("c/<str:cmp>/extra-services/<uuid:service_id>/equipment", ev.service_equipment),
     path("c/<str:cmp>/extra-services/<uuid:service_id>", ev.service_detail),
     path("c/<str:cmp>/extra-services/<uuid:service_id>/archive", ev.service_archive),
     path("c/<str:cmp>/extra-services/<uuid:service_id>/restore", ev.service_restore),
