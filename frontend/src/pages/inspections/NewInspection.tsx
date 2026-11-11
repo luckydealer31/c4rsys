@@ -88,7 +88,9 @@ export function NewInspectionPage() {
   return (
     <div className="page inspection-page">
       <p>
-        <Link to={companyPath(company, "/inspections")}>← {t("inspections.title")}</Link>
+        <Link to={companyPath(company, effectiveVehicle ? `/vehicles/${effectiveVehicle}?tab=inspections` : "/vehicles")}>
+          ← {vehicle?.name ?? t("nav.garage")}
+        </Link>
       </p>
       <h1>{t("inspections.new")}</h1>
       <form onSubmit={submit}>

@@ -28,16 +28,11 @@ export function VehicleInspectionsCard({ vehicle }: { vehicle: Vehicle }) {
     <Card title={t("inspections.title")}>
       {list.isLoading ? <Loading /> : null}
       {!list.isLoading && items.length === 0 ? <p className="muted">{t("inspections.none")}</p> : null}
-      <InspectionList items={items.slice(0, 10)} />
+      <InspectionList items={items} />
       <div className="actions">
         {can("inspection.create") && vehicle.state === "active" ? (
           <Link className="button" to={companyPath(company, newPath({ vehicle: vehicle.id }))}>
             {t("inspections.new")}
-          </Link>
-        ) : null}
-        {items.length > 10 ? (
-          <Link className="button secondary" to={companyPath(company, `/inspections?vehicle=${vehicle.id}`)}>
-            {t("inspections.all_of_vehicle")}
           </Link>
         ) : null}
       </div>

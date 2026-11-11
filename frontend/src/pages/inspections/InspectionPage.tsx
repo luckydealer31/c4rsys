@@ -126,7 +126,9 @@ function InspectionView({ inspection }: { inspection: Inspection }) {
   return (
     <div className="page inspection-page">
       <p>
-        <Link to={companyPath(company, "/inspections")}>← {t("inspections.title")}</Link>
+        <Link to={companyPath(company, `/vehicles/${inspection.vehicle_card_id}?tab=inspections`)}>
+          ← {vehicle?.name ?? t("inspections.title")}
+        </Link>
       </p>
       <h1>
         {t(`inspections.kind_${inspection.kind}`)}{" "}
@@ -876,7 +878,7 @@ function EndActions({ inspection }: { inspection: Inspection }) {
       });
       await refresh();
       setOpen("");
-      if (method === "DELETE") navigate(companyPath(company, "/inspections"));
+      if (method === "DELETE") navigate(companyPath(company, `/vehicles/${inspection.vehicle_card_id}?tab=inspections`));
     } catch (caught) {
       setError(caught instanceof ApiError ? caught : new ApiError(0, null));
     }

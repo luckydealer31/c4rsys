@@ -17,7 +17,8 @@ import { LinkedDocuments } from "../documents/DocumentsPage";
 import { VehicleService } from "../service/VehicleService";
 import { VehicleParts } from "../warehouse/Reserves";
 import { OwnerRequestCard } from "./OwnerRequestCard";
-import { InspectionsView } from "../inspections/InspectionsPage";
+import { DraftsPanel } from "../inspections/OfflineDrafts";
+import { useScope } from "../../offline/hooks";
 import { TripsView } from "../trips/TripsPage";
 import { ScheduleView } from "./SchedulePage";
 import { VehicleMoves } from "./VehicleMoves";
@@ -70,10 +71,9 @@ type CardTab = "main" | "service" | "inspections" | "damages" | "documents" | "r
  * switches of the fleet; the schedule has no client vehicles.
  * The actions of the section stand in a column on the right. */
 type Relation = "own" | "managed" | "client";
-type View = "list" | "schedule" | "client" | "trips" | "inspections";
+type View = "list" | "schedule" | "client" | "trips";
 // Any right of the kind opens the view, as the items of the menu did before.
 const TRIP_RIGHTS = ["view", "create", "edit", "assign", "take", "start", "finish", "cancel", "correct", "drive", "catalog", "price"].map((r) => `delivery.${r}`);
-const INSPECTION_RIGHTS = ["create", "conduct", "cancel", "terminate", "invalidate", "policy.manage"].map((r) => `inspection.${r}`);
 const FLEET: ("own" | "managed")[] = ["own", "managed"];
 
 export function VehiclesPage() {
@@ -81,6 +81,7 @@ export function VehiclesPage() {
   const company = useCompany();
   const can = useCan();
   const [params, setParams] = useSearchParams();
+  const scope = useScope();
   // § 2.8.3: by the c4rsys ID, a part of the name, the VIN and the plate.
   const q = params.get("q") ?? "";
   const all = useVehicles();
@@ -102,17 +103,17 @@ export function VehiclesPage() {
   // Links of the earlier tabs (?tab=managed, ?tab=client) keep working.
   const tab = params.get("tab");
   const wanted = params.get("view");
-  // Trips and inspections are views of the garage, each with its rights (decision of 11.11.2026).
+  // Trips are a view of the garage, with their rights (decision of 11.11.2026). Inspections
+  // have no list of their own: they are found in the vehicle, the rental or the service.
   const mayTrips = TRIP_RIGHTS.some(can);
-  const mayInspect = INSPECTION_RIGHTS.some(can);
-  const VIEWS: View[] = ["list", "schedule", ...(mayTrips ? (["trips"] as View[]) : []), ...(mayInspect ? (["inspections"] as View[]) : [])];
+  const VIEWS: View[] = ["list", "schedule", ...(mayTrips ? (["trips"] as View[]) : [])];
   const view: View =
     tab === "client"
       ? "client"
-      : wanted === "schedule" || (wanted === "trips" && mayTrips) || (wanted === "inspections" && mayInspect)
+      : wanted === "schedule" || (wanted === "trips" && mayTrips)
         ? (wanted as View)
         : "list";
-  const extra = view === "trips" || view === "inspections";
+  const extra = view === "trips";
   const rel = params.get("rel") ?? (tab === "managed" || tab === "own" ? tab : "");
   const shown = new Set<Relation>(view === "client" ? ["client"] : rel === "own" || rel === "managed" ? [rel] : FLEET);
   const go = (changes: { view?: View; rel?: string; q?: string }) => {
@@ -193,7 +194,6 @@ export function VehiclesPage() {
             ))}
           </div>
           {view === "trips" ? <TripsView /> : null}
-          {view === "inspections" ? <InspectionsView /> : null}
           {extra ? null : (
           <div className="list-bar">
             {/* The list is either the fleet or the client vehicles; the two never mix. The
@@ -234,6 +234,14 @@ export function VehiclesPage() {
             <ScheduleView relations={shown} />
           ) : (
             <>
+              {/* Inspections started on this device and not sent yet (§ 10.4.2–10.4.4): shown
+                  only while there are any, so that none is lost. */}
+              <DraftsPanel
+                scope={scope}
+                base={companyPath(company)}
+                zone={company.timezone ?? "UTC"}
+                canCreate={can("inspection.create")}
+              />
               {vehicles.isLoading ? <Loading /> : null}
               {vehicles.data && list.length === 0 ? (
                 <Card>
@@ -432,6 +440,7 @@ export function VehiclePage() {
   const can = useCan();
   const client = useQueryClient();
   const [search, setSearch] = useSearchParams();
+  const draftScope = useScope();
   const vehicle = useApi<{ vehicle: Vehicle }>(["vehicle", company.public_id, id], `/c/${company.public_id}/vehicles/${id}`);
   const locations = useLocations();
   const rentals = useRentals(can("rental.view"));
@@ -588,7 +597,18 @@ export function VehiclePage() {
           <VehicleParts vehicle={data} />
         </>
       ) : null}
-      {tab === "inspections" ? <VehicleInspectionsCard vehicle={data} /> : null}
+      {tab === "inspections" ? (
+        <>
+          <VehicleInspectionsCard vehicle={data} />
+          {/* Inspections started on this device and not sent yet (§ 10.4.2–10.4.4). */}
+          <DraftsPanel
+            scope={draftScope}
+            base={companyPath(company)}
+            zone={timeZone}
+            canCreate={can("inspection.create")}
+          />
+        </>
+      ) : null}
       {tab === "damages" ? <VehicleDamagesCard vehicle={data} /> : null}
       {tab === "documents" ? (
         <>

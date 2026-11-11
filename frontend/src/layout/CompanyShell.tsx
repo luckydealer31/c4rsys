@@ -58,7 +58,9 @@ export function companyMenu(
     ["garage", "/vehicles", "garage", has("rental") || has("service")],
     // Inspections and trips are views of the garage (customer's decision of 11.11.2026).
     ["finance", "/finance", "finance", true],
-    ["orders", "/orders", "orders", company.setup_completed_at !== null],
+    // The registry of all orders is always in the menu (customer's decision of 11.11.2026; it
+    // used to appear only after «Complete» of the setup wizard).
+    ["orders", "/orders", "orders", true],
     ["rentals", "/rentals", "rentals", has("rental")],
     ["service", "/service", "service", has("service")],
     ["warehouse", "/warehouse", "warehouse", has("warehouse")],
