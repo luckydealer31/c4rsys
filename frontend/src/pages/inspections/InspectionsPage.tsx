@@ -1,6 +1,6 @@
 /** Inspections of the company with filters by vehicle, state and kind (ТЗ гл. 10). */
 import { useTranslation } from "react-i18next";
-import { Link, useSearchParams } from "react-router";
+import { Link, useSearchParams, Navigate } from "react-router";
 
 import type { ApiError } from "../../api/client";
 import type { Inspection } from "../../api/types";
@@ -13,7 +13,17 @@ import { useScope } from "../../offline/hooks";
 import { KINDS, STATES, stateBadge, useInspections } from "./data";
 import { DraftsPanel } from "./OfflineDrafts";
 
+/** The list of inspections moved into the garage (customer's decision of 11.11.2026); the
+ * filters of the address go with it. */
 export function InspectionsPage() {
+  const company = useCompany();
+  const [params] = useSearchParams();
+  const next = new URLSearchParams(params);
+  next.set("view", "inspections");
+  return <Navigate to={companyPath(company, `/vehicles?${next.toString()}`)} replace />;
+}
+
+export function InspectionsView() {
   const { t } = useTranslation();
   const company = useCompany();
   const can = useCan();
@@ -37,9 +47,9 @@ export function InspectionsPage() {
   // The kind is filtered here: the list answers at most 200 latest inspections.
   const items = (list.data?.inspections ?? []).filter((i) => !kind || i.kind === kind);
   return (
-    <div className="page">
+    <div>
       <div className="page-head">
-        <h1>{t("inspections.title")}</h1>
+        <span />
         {can("inspection.create") ? (
           <Link className="button" to={companyPath(company, `/inspections/new${vehicle ? `?vehicle=${vehicle}` : ""}`)}>
             {t("inspections.new")}

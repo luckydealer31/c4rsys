@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router";
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 
 import { ApiError } from "../../api/client";
 import { useApi } from "../../api/queries";
@@ -56,7 +56,13 @@ export function pointText(point: DeliveryPoint, locations: Location[] | undefine
 
 /** Trips: deliveries and internal moves; free ones to take and the driver's own (§ 15.2.4;
  * decision Д-10). */
+/** The list of trips moved into the garage (customer's decision of 11.11.2026). */
 export function TripsPage() {
+  const company = useCompany();
+  return <Navigate to={companyPath(company, "/vehicles?view=trips")} replace />;
+}
+
+export function TripsView() {
   const { t } = useTranslation();
   const company = useCompany();
   const can = useCan();
@@ -65,8 +71,7 @@ export function TripsPage() {
   const free = useTrips("free=1", can("delivery.take"));
   const list = useTrips(all ? "" : "active=1", can("delivery.view"));
   return (
-    <div className="page">
-      <h1>{t("nav.trips")}</h1>
+    <div>
       <div className="actions" style={{ marginBottom: 16, marginTop: 0 }}>
         {can("delivery.create") ? (
           <Link className="button" to={companyPath(company, "/trips/new")}>

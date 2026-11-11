@@ -2630,7 +2630,19 @@
     "action_move": "สร้างการเคลื่อนย้าย",
     "actions_title": "การดำเนินการ",
     "scope_fleet": "กองรถ",
-    "scope_title": "ยานพาหนะใด"
+    "scope_title": "ยานพาหนะใด",
+    "view_trips": "การเดินทาง",
+    "view_inspections": "การตรวจสภาพ",
+    "card_main": "รายละเอียด",
+    "card_service": "การบำรุงรักษา",
+    "card_inspections": "การตรวจสภาพ",
+    "card_damages": "ความเสียหาย",
+    "card_documents": "เอกสาร",
+    "card_rentals": "การเช่า",
+    "card_moves": "การเคลื่อนย้าย",
+    "card_tasks": "งาน",
+    "card_ownership": "กรรมสิทธิ์และคลังเก็บ",
+    "card_history": "ประวัติ"
   },
   "warehouse": {
     "action_create": "Create",

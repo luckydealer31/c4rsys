@@ -2630,7 +2630,19 @@
     "action_move": "Create move",
     "actions_title": "Actions",
     "scope_fleet": "Fleet",
-    "scope_title": "Which vehicles"
+    "scope_title": "Which vehicles",
+    "view_trips": "Trips",
+    "view_inspections": "Inspections",
+    "card_main": "Details",
+    "card_service": "Maintenance",
+    "card_inspections": "Inspections",
+    "card_damages": "Damages",
+    "card_documents": "Documents",
+    "card_rentals": "Rentals",
+    "card_moves": "Moves",
+    "card_tasks": "Tasks",
+    "card_ownership": "Ownership and archive",
+    "card_history": "History"
   },
   "warehouse": {
     "action_create": "Create",

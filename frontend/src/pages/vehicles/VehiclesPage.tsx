@@ -17,6 +17,8 @@ import { LinkedDocuments } from "../documents/DocumentsPage";
 import { VehicleService } from "../service/VehicleService";
 import { VehicleParts } from "../warehouse/Reserves";
 import { OwnerRequestCard } from "./OwnerRequestCard";
+import { InspectionsView } from "../inspections/InspectionsPage";
+import { TripsView } from "../trips/TripsPage";
 import { ScheduleView } from "./SchedulePage";
 import { VehicleMoves } from "./VehicleMoves";
 import { VehicleDamagesCard, VehicleInspectionsCard } from "../inspections/Blocks";
@@ -59,6 +61,8 @@ export function useRentals(enabled = true) {
   );
 }
 
+type CardTab = "main" | "service" | "inspections" | "damages" | "documents" | "rentals" | "moves" | "tasks" | "ownership" | "history";
+
 /** Garage (§ 8.7.2; customer's decisions of 24.10.2026 and 11.11.2026). Own and managed vehicles
  * are one list, grouped by location, with the switches «own» / «managed»; the schedule is the
  * second view of the same vehicles with the same switches. The list is switched between the
@@ -66,8 +70,10 @@ export function useRentals(enabled = true) {
  * switches of the fleet; the schedule has no client vehicles.
  * The actions of the section stand in a column on the right. */
 type Relation = "own" | "managed" | "client";
-type View = "list" | "schedule" | "client";
-const VIEWS: View[] = ["list", "schedule"];
+type View = "list" | "schedule" | "client" | "trips" | "inspections";
+// Any right of the kind opens the view, as the items of the menu did before.
+const TRIP_RIGHTS = ["view", "create", "edit", "assign", "take", "start", "finish", "cancel", "correct", "drive", "catalog", "price"].map((r) => `delivery.${r}`);
+const INSPECTION_RIGHTS = ["create", "conduct", "cancel", "terminate", "invalidate", "policy.manage"].map((r) => `inspection.${r}`);
 const FLEET: ("own" | "managed")[] = ["own", "managed"];
 
 export function VehiclesPage() {
@@ -95,7 +101,18 @@ export function VehiclesPage() {
   const rentals = useRentals(can("rental.view"));
   // Links of the earlier tabs (?tab=managed, ?tab=client) keep working.
   const tab = params.get("tab");
-  const view: View = tab === "client" ? "client" : params.get("view") === "schedule" ? "schedule" : "list";
+  const wanted = params.get("view");
+  // Trips and inspections are views of the garage, each with its rights (decision of 11.11.2026).
+  const mayTrips = TRIP_RIGHTS.some(can);
+  const mayInspect = INSPECTION_RIGHTS.some(can);
+  const VIEWS: View[] = ["list", "schedule", ...(mayTrips ? (["trips"] as View[]) : []), ...(mayInspect ? (["inspections"] as View[]) : [])];
+  const view: View =
+    tab === "client"
+      ? "client"
+      : wanted === "schedule" || (wanted === "trips" && mayTrips) || (wanted === "inspections" && mayInspect)
+        ? (wanted as View)
+        : "list";
+  const extra = view === "trips" || view === "inspections";
   const rel = params.get("rel") ?? (tab === "managed" || tab === "own" ? tab : "");
   const shown = new Set<Relation>(view === "client" ? ["client"] : rel === "own" || rel === "managed" ? [rel] : FLEET);
   const go = (changes: { view?: View; rel?: string; q?: string }) => {
@@ -104,9 +121,9 @@ export function VehiclesPage() {
       Object.fromEntries(
         Object.entries({
           tab: next.view === "client" ? "client" : "",
-          view: next.view === "schedule" ? "schedule" : "",
+          view: next.view === "list" || next.view === "client" ? "" : next.view,
           rel: next.view === "client" ? "" : next.rel,
-          q: next.view === "schedule" ? "" : next.q,
+          q: next.view === "list" || next.view === "client" ? next.q : "",
         }).filter(([, value]) => value),
       ),
     );
@@ -154,7 +171,8 @@ export function VehiclesPage() {
           [can("service.create"), "/service/operations/new", t("vehicles.action_service")],
           [can("delivery.create"), "/trips/new", t("vehicles.action_move")],
         ];
-  const allowed = actions.filter(([may]) => may);
+  // Trips and inspections carry their own actions.
+  const allowed = extra ? [] : actions.filter(([may]) => may);
   return (
     <div className="page full">
       <h1 className="sr-only">{t("nav.garage")}</h1>
@@ -174,6 +192,9 @@ export function VehiclesPage() {
               </button>
             ))}
           </div>
+          {view === "trips" ? <TripsView /> : null}
+          {view === "inspections" ? <InspectionsView /> : null}
+          {extra ? null : (
           <div className="list-bar">
             {/* The list is either the fleet or the client vehicles; the two never mix. The
                 switches «own» / «managed» belong to the fleet only. */}
@@ -202,13 +223,14 @@ export function VehiclesPage() {
                 ))}
             {view === "schedule" ? null : <SectionSearch compact value={q} onSearch={(text) => go({ q: text })} />}
           </div>
+          )}
           {only ? (
             <p className="small muted">
               {t(`vehicles.only_${only}`)} ·{" "}
               <Link to={companyPath(company, "/vehicles")}>{t("vehicles.only_reset")}</Link>
             </p>
           ) : null}
-          {view === "schedule" ? (
+          {extra ? null : view === "schedule" ? (
             <ScheduleView relations={shown} />
           ) : (
             <>
@@ -409,7 +431,7 @@ export function VehiclePage() {
   const company = useCompany();
   const can = useCan();
   const client = useQueryClient();
-  const [search] = useSearchParams();
+  const [search, setSearch] = useSearchParams();
   const vehicle = useApi<{ vehicle: Vehicle }>(["vehicle", company.public_id, id], `/c/${company.public_id}/vehicles/${id}`);
   const locations = useLocations();
   const rentals = useRentals(can("rental.view"));
@@ -449,8 +471,24 @@ export function VehiclePage() {
     void save({ contexts: next });
   }
 
+  // The card is split into tabs instead of one long sheet (customer's decision of 11.11.2026).
+  // A vehicle in a warehouse or of a client has fewer of them (§ 8.1.2, § 8.1.5).
+  const tabs: CardTab[] = [
+    "main",
+    ...(stored ? [] : (["service", "inspections", "damages"] as CardTab[])),
+    "documents",
+    ...(isClient ? [] : (["rentals", "moves"] as CardTab[])),
+    ...(stored && data.state === "active" ? (["moves"] as CardTab[]) : []),
+    "tasks",
+    "ownership",
+    "history",
+  ];
+  const asked = search.get("merge") ? "ownership" : search.get("tab");
+  const tab: CardTab = tabs.find((key) => key === asked) ?? "main";
+  const openTab = (key: CardTab) => setSearch(key === "main" ? {} : { tab: key }, { replace: true });
+
   return (
-    <div className="page">
+    <div className="page wide">
       <h1>{data.name}</h1>
       {stored ? (
         <div className="alert warn">
@@ -468,6 +506,22 @@ export function VehiclePage() {
       {data.restriction?.state === "active" ? (
         <div className="alert warn">{t("vehicles.restricted_banner")}</div>
       ) : null}
+      <div className="tabs left" role="tablist">
+        {tabs.map((key) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={tab === key}
+            className={tab === key ? "active" : ""}
+            onClick={() => openTab(key)}
+          >
+            {t(`vehicles.card_${key}`)}
+          </button>
+        ))}
+      </div>
+      {tab === "main" ? (
+      <>
       <VehicleFacts vehicle={data} />
       <ConflictsCard vehicle={data} />
       <ProposalsCard vehicle={data} />
@@ -524,32 +578,50 @@ export function VehiclePage() {
         {isClient ? null : <p className="muted small">{t("vehicles.contexts_hint")}</p>}
         <ErrorMessage error={update.error} />
       </Card>
-      {data.relation === "own" && !stored && data.contexts.length === 0 ? (
-        <TransferToWarehouse vehicle={data} />
-      ) : null}
-      {stored && data.state === "active" ? <ReturnToGarage vehicle={data} /> : null}
-      <RestrictionCard vehicle={data} />
       <OdometerCard vehicle={data} />
-      <RelationCard vehicle={data} />
-      <DisposeCard vehicle={data} />
-      <ReversalCard vehicle={data} />
-      <DisclosureCard vehicle={data} />
-      <GlobalDocumentsCard vehicle={data} />
-      <HistoryCard vehicle={data} />
-      {stored ? null : <VehicleService vehicle={data} />}
-      {stored ? null : <VehicleParts vehicle={data} />}
-      {stored ? null : <VehicleInspectionsCard vehicle={data} />}
-      {stored ? null : <VehicleDamagesCard vehicle={data} />}
-      <MergeCard key={search.get("merge") ?? ""} vehicle={data} preselected={search.get("merge")} />
-      <MergesCard vehicle={data} />
-      <MergedHistory vehicle={data} />
-      {data.relation === "managed" ? <OwnerRequestCard vehicle={data} /> : null}
-      <LinkedDocuments objectType="vehicle" objectId={data.id} />
-      <LinkedTasks objectType="vehicle" objectId={data.id} />
       {data.relation === "own" ? <Acquisition vehicle={data} /> : null}
-      {isClient ? null : <VehicleTariffs vehicleId={data.id} />}
-      {isClient ? null : <VehicleMoves vehicle={data} />}
-      {!isClient && can("rental.view") ? (
+      </>
+      ) : null}
+      {tab === "service" ? (
+        <>
+          <VehicleService vehicle={data} />
+          <VehicleParts vehicle={data} />
+        </>
+      ) : null}
+      {tab === "inspections" ? <VehicleInspectionsCard vehicle={data} /> : null}
+      {tab === "damages" ? <VehicleDamagesCard vehicle={data} /> : null}
+      {tab === "documents" ? (
+        <>
+          <GlobalDocumentsCard vehicle={data} />
+          <LinkedDocuments objectType="vehicle" objectId={data.id} />
+        </>
+      ) : null}
+      {tab === "moves" ? (
+        <>
+          {isClient ? null : <VehicleMoves vehicle={data} />}
+          {data.relation === "own" && !stored && data.contexts.length === 0 ? (
+            <TransferToWarehouse vehicle={data} />
+          ) : null}
+          {stored && data.state === "active" ? <ReturnToGarage vehicle={data} /> : null}
+        </>
+      ) : null}
+      {tab === "tasks" ? <LinkedTasks objectType="vehicle" objectId={data.id} /> : null}
+      {tab === "ownership" ? (
+        <>
+          <RestrictionCard vehicle={data} />
+          <RelationCard vehicle={data} />
+          <DisposeCard vehicle={data} />
+          <ReversalCard vehicle={data} />
+          <DisclosureCard vehicle={data} />
+          {data.relation === "managed" ? <OwnerRequestCard vehicle={data} /> : null}
+          <MergeCard key={search.get("merge") ?? ""} vehicle={data} preselected={search.get("merge")} />
+          <MergesCard vehicle={data} />
+          <MergedHistory vehicle={data} />
+        </>
+      ) : null}
+      {tab === "history" ? <HistoryCard vehicle={data} /> : null}
+      {tab === "rentals" ? <VehicleTariffs vehicleId={data.id} /> : null}
+      {tab === "rentals" && can("rental.view") ? (
         <Card title={t("vehicles.rentals")}>
           {own.length === 0 ? <p className="muted">{t("vehicles.no_rentals")}</p> : null}
           <table>

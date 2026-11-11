@@ -2630,7 +2630,19 @@
     "action_move": "Создать перемещение",
     "actions_title": "Действия",
     "scope_fleet": "Парк",
-    "scope_title": "Какие ТС"
+    "scope_title": "Какие ТС",
+    "view_trips": "Поездки",
+    "view_inspections": "Осмотры",
+    "card_main": "Характеристики",
+    "card_service": "Обслуживание",
+    "card_inspections": "Осмотры",
+    "card_damages": "Повреждения",
+    "card_documents": "Документы",
+    "card_rentals": "Аренды",
+    "card_moves": "Перемещения",
+    "card_tasks": "Задачи",
+    "card_ownership": "Владение и архив",
+    "card_history": "История"
   },
   "warehouse": {
     "action_create": "Создать",
