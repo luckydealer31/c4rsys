@@ -2,9 +2,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
 import { useEffect, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router";
+import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 
-import type { ApiError } from "../../api/client";
+import { api, type ApiError } from "../../api/client";
 import { useApi } from "../../api/queries";
 import type { Client, ExtraService, Order, Rental, ServiceChoice, ServiceLine } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
@@ -728,14 +728,20 @@ export function NewServiceOrderPage() {
     `/c/${company.public_id}/clients?q=${encodeURIComponent(query)}`,
   );
   const add = useCommand<Record<string, unknown>, { line: ServiceLine }>(`/c/${company.public_id}/service-lines`);
+  // Two ways in, as with a vehicle (decision of 11.11.2026): «create a service» makes it and
+  // starts it at once — like the issue of a rental, so the client is needed; «book a service»
+  // only books it, the client may wait.
+  const [params] = useSearchParams();
+  const now = params.get("mode") === "now";
+  const [startError, setStartError] = useState<ApiError | null>(null);
   return (
     <div className="page">
       <p>
         <Link to={companyPath(company, "/rentals?tab=catalog")}>← {t("rentals.tab_catalog")}</Link>
       </p>
-      <h1>{t("rentals.action_service")}</h1>
+      <h1>{t(now ? "rentals.action_service_now" : "rentals.action_service")}</h1>
       <Card title={t("rentals.client")}>
-        <p className="muted small">{t("services.client_later")}</p>
+        <p className="muted small">{t(now ? "services.client_now" : "services.client_later")}</p>
         {client ? (
           <p>
             <strong>{clientName(client)}</strong>{" "}
@@ -765,11 +771,28 @@ export function NewServiceOrderPage() {
         <StandaloneFields
           pending={add.pending}
           error={add.error}
+          disabled={now && !client}
           onSubmit={async (body) => {
+            setStartError(null);
             const result = await add.run({ ...body, ...(client ? { client_id: client.id } : {}) });
-            if (result) navigate(companyPath(company, `/orders/${result.line.order_id}`));
+            if (!result) return;
+            if (now) {
+              // The service is made; if its start is refused it stays booked in the order.
+              try {
+                await api(`/c/${company.public_id}/service-lines/${result.line.id}/start`, {
+                  method: "POST",
+                  body: { expected_version: result.line.version },
+                  idempotencyKey: crypto.randomUUID(),
+                });
+              } catch (caught) {
+                setStartError(caught as ApiError);
+                return;
+              }
+            }
+            navigate(companyPath(company, `/orders/${result.line.order_id}`));
           }}
         />
+        <ErrorMessage error={startError} />
       </Card>
     </div>
   );

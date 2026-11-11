@@ -1969,11 +1969,12 @@
     "service_rental": "Rental",
     "service_rental_open": "Open the rental",
     "service_standalone": "without a rental",
-    "action_service": "Book a service",
+    "action_service": "Create a service booking",
     "action_tariff": "Create a tariff",
     "action_catalog_service": "Create a service",
     "wizard_some_locations": "Only some locations",
-    "filter_all": "All"
+    "filter_all": "All",
+    "action_service_now": "Create a service"
   },
   "rights": {
     "add": "Add rights",
@@ -3490,7 +3491,8 @@
     "location_hint": "The revenue of the service belongs to it.",
     "change_client": "change",
     "apply_free": "Apply also to the services",
-    "client_later": "The client may be chosen later, in the order; the service does not start without a client."
+    "client_later": "The client may be chosen later, in the order; the service does not start without a client.",
+    "client_now": "The service starts at once, so the client is needed."
   },
   "changes": {
     "extend_title": "Planned end",

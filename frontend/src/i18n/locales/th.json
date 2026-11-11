@@ -1969,11 +1969,12 @@
     "service_rental": "การเช่า",
     "service_rental_open": "เปิดการเช่า",
     "service_standalone": "ไม่มีการเช่า",
-    "action_service": "จองบริการ",
+    "action_service": "สร้างการจองบริการ",
     "action_tariff": "สร้างอัตรา",
     "action_catalog_service": "สร้างบริการ",
     "wizard_some_locations": "เฉพาะบางสถานที่",
-    "filter_all": "ทั้งหมด"
+    "filter_all": "ทั้งหมด",
+    "action_service_now": "สร้างบริการ"
   },
   "rights": {
     "add": "Add rights",
@@ -3490,7 +3491,8 @@
     "location_hint": "รายได้ของบริการเป็นของสถานที่นี้",
     "change_client": "เปลี่ยน",
     "apply_free": "ใช้กับบริการด้วย",
-    "client_later": "เลือกลูกค้าภายหลังได้ในคำสั่งซื้อ บริการเริ่มไม่ได้หากไม่มีลูกค้า"
+    "client_later": "เลือกลูกค้าภายหลังได้ในคำสั่งซื้อ บริการเริ่มไม่ได้หากไม่มีลูกค้า",
+    "client_now": "บริการเริ่มทันที จึงต้องระบุลูกค้า"
   },
   "changes": {
     "extend_title": "เวลาสิ้นสุดตามแผน",

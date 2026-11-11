@@ -48,7 +48,10 @@ export function RentalsPage() {
     tab === "rentals"
       ? [[can("rental.issue"), "/rentals/new", t("vehicles.action_rental")], booking]
       : tab === "services"
-        ? [[can("order.create"), "/rentals/services/order", t("rentals.action_service")]]
+        ? [
+            [can("order.create"), "/rentals/services/order?mode=now", t("rentals.action_service_now")],
+            [can("order.create"), "/rentals/services/order", t("rentals.action_service")],
+          ]
         : [
             [can("tariff.create"), "/rentals/tariffs/new", t("rentals.action_tariff")],
             [can("tariff.create"), "/rentals/services/new", t("rentals.action_catalog_service")],
