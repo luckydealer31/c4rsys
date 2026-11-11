@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useApi } from "../../api/queries";
 import type { FinanceArticle } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
+import { Card, ErrorMessage, Field, IconButton, Loading, Modal } from "../../components/ui";
 import { useCan, useCompany } from "../../layout/CompanyShell";
 
 export function useArticles() {
@@ -23,14 +23,21 @@ export function useArticleName(): (article: FinanceArticle) => string {
   return (article) => article.name ?? t(`finance_articles.code_${article.code}`);
 }
 
-/** Income and expense articles of the company (§ 17.2.8). */
-export function Articles() {
+/** Income and expense articles of the company (§ 17.2.8), by their kind. An article is only
+ * shown; it is changed after «Edit» and saved or cancelled. A new one is added by the button of
+ * the column on the right: its kind and its name (customer's decision of 11.11.2026). */
+export function Articles({ adding = false, onAdded }: { adding?: boolean; onAdded?: () => void }) {
   const { t } = useTranslation();
   const can = useCan();
   const articles = useArticles();
   const editable = can("finance.article.manage");
   return (
     <>
+      {editable && adding ? (
+        <Modal title={t("finance_articles.create_title")} onClose={() => onAdded?.()}>
+          <CreateArticle onDone={onAdded} />
+        </Modal>
+      ) : null}
       {(["income", "expense"] as const).map((kind) => (
         <Card key={kind} title={t(`finance_articles.title_${kind}`)}>
           {articles.isLoading ? <Loading /> : null}
@@ -51,7 +58,6 @@ export function Articles() {
           </table>
         </Card>
       ))}
-      {editable ? <CreateArticle /> : null}
     </>
   );
 }
@@ -68,6 +74,7 @@ function ArticleRow({ article, editable }: { article: FinanceArticle; editable: 
   const refresh = useRefresh();
   const nameOf = useArticleName();
   const [name, setName] = useState(nameOf(article));
+  const [editing, setEditing] = useState(false);
   const path = `/c/${company.public_id}/finance-articles/${article.id}`;
   const rename = useCommand<Record<string, unknown>, unknown>(path, "PATCH");
   const archive = useCommand<Record<string, unknown>, unknown>(`${path}/archive`);
@@ -76,15 +83,18 @@ function ArticleRow({ article, editable }: { article: FinanceArticle; editable: 
   const version = { expected_version: article.version };
 
   async function run(command: { run: (b: Record<string, unknown>) => Promise<unknown> }, body = {}) {
-    if ((await command.run({ ...version, ...body })) !== null) await refresh();
+    if ((await command.run({ ...version, ...body })) !== null) {
+      setEditing(false);
+      await refresh();
+    }
   }
 
   const hint = article.code && !article.name ? t(`finance_articles.hint_${article.code}`, "") : "";
   return (
     <tr>
       <td>
-        {editable && article.state === "active" ? (
-          <input value={name} onChange={(e) => setName(e.target.value)} />
+        {editing ? (
+          <input autoFocus value={name} aria-label={t("finance_articles.name")} onChange={(e) => setName(e.target.value)} />
         ) : (
           nameOf(article)
         )}
@@ -92,41 +102,48 @@ function ArticleRow({ article, editable }: { article: FinanceArticle; editable: 
         <ErrorMessage error={rename.error ?? archive.error ?? restore.error ?? remove.error} />
       </td>
       <td>
-        {article.state === "archived" ? <span className="badge">{t("finance_articles.archived")}</span> : null}
-        {editable ? (
-          <div className="actions" style={{ marginTop: 0 }}>
-            {article.state === "active" ? (
-              <>
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled={name === nameOf(article) || !name.trim()}
-                  onClick={() => run(rename, { name })}
-                >
-                  {t("common.save")}
-                </button>
-                <button type="button" className="secondary" onClick={() => run(archive)}>
-                  {t("finance_articles.archive")}
-                </button>
-              </>
-            ) : (
-              <button type="button" className="secondary" onClick={() => run(restore)}>
-                {t("finance_articles.restore")}
-              </button>
-            )}
-            {!article.code && !article.used ? (
-              <button type="button" className="secondary" onClick={() => run(remove)}>
-                {t("finance_articles.delete")}
-              </button>
-            ) : null}
-          </div>
-        ) : null}
+        <div className="row-actions">
+          {article.state === "archived" ? <span className="badge">{t("finance_articles.archived")}</span> : null}
+          {!editable ? null : editing ? (
+            <>
+              <IconButton
+                icon="check"
+                primary
+                label={t("common.save")}
+                disabled={name === nameOf(article) || !name.trim()}
+                onClick={() => void run(rename, { name })}
+              />
+              <IconButton
+                icon="close"
+                label={t("common.cancel")}
+                onClick={() => {
+                  setName(nameOf(article));
+                  setEditing(false);
+                }}
+              />
+            </>
+          ) : (
+            <>
+              {article.state === "active" ? (
+                <>
+                  <IconButton icon="edit" label={t("common.edit")} onClick={() => setEditing(true)} />
+                  <IconButton icon="archive" label={t("finance_articles.archive")} onClick={() => void run(archive)} />
+                </>
+              ) : (
+                <IconButton icon="restore" label={t("finance_articles.restore")} onClick={() => void run(restore)} />
+              )}
+              {!article.code && !article.used ? (
+                <IconButton icon="trash" label={t("finance_articles.delete")} onClick={() => void run(remove)} />
+              ) : null}
+            </>
+          )}
+        </div>
       </td>
     </tr>
   );
 }
 
-function CreateArticle() {
+function CreateArticle({ onDone }: { onDone?: () => void }) {
   const { t } = useTranslation();
   const company = useCompany();
   const refresh = useRefresh();
@@ -140,11 +157,12 @@ function CreateArticle() {
     if ((await create.run(form)) !== null) {
       setForm({ ...form, name: "" });
       await refresh();
+      onDone?.();
     }
   }
 
   return (
-    <Card title={t("finance_articles.create_title")}>
+    <>
       <form className="stack" onSubmit={submit}>
         <div className="row">
           <Field label={t("finance_articles.kind")}>
@@ -154,7 +172,7 @@ function CreateArticle() {
             </select>
           </Field>
           <Field label={t("finance_articles.name")}>
-            <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+            <input autoFocus value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           </Field>
         </div>
         <ErrorMessage error={create.error} />
@@ -162,8 +180,13 @@ function CreateArticle() {
           <button type="submit" disabled={!form.name.trim() || create.pending}>
             {t("finance_articles.create")}
           </button>
+          {onDone ? (
+            <button type="button" className="secondary" onClick={onDone}>
+              {t("common.cancel")}
+            </button>
+          ) : null}
         </div>
       </form>
-    </Card>
+    </>
   );
 }

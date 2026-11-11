@@ -308,6 +308,19 @@ def lines_of_order(company_id: UUID, order_id: UUID) -> list[ExtraServiceLine]:
     )
 
 
+# The list of the section shows the latest lines; a longer history is reached through orders.
+COMPANY_LINES_LIMIT = 500
+
+
+def lines_of_company(company_id: UUID) -> list[ExtraServiceLine]:
+    """Ordered extra services of the company, latest first (the tab of the rental section)."""
+    return list(
+        ExtraServiceLine.objects.filter(company_id=company_id).order_by("-created_at")[
+            :COMPANY_LINES_LIMIT
+        ]
+    )
+
+
 def lines_of_rental(rental: Rental) -> list[ExtraServiceLine]:
     """Lines linked to the rental now and lines unlinked from it."""
     return list(

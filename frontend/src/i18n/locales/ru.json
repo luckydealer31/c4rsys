@@ -278,7 +278,8 @@
     "name": "Название",
     "restore": "Вернуть из архива",
     "title_expense": "Статьи расходов",
-    "title_income": "Статьи доходов"
+    "title_income": "Статьи доходов",
+    "add": "Добавить статью"
   },
   "auth": {
     "backup_done": "Продолжить",
@@ -320,7 +321,8 @@
     "title": "Кассы и счета",
     "type": "Тип",
     "type_bank": "Банковский счёт",
-    "type_cash": "Касса"
+    "type_cash": "Касса",
+    "create_button": "Создать кассу или счёт"
   },
   "clients": {
     "advance": "Доступно: {{amount}} {{currency}}",
@@ -1473,7 +1475,11 @@
     "tab_settlements": "Расчёты",
     "kind_deposit": "Возврат залога",
     "total_currency": "Показать итог в",
-    "make_document": "Документ"
+    "make_document": "Документ",
+    "filter_from": "С",
+    "filter_to": "По",
+    "filter_all_accounts": "Все кассы и счета",
+    "filter_all_articles": "Все статьи"
   },
   "moves": {
     "actual_end": "Фактическое окончание",
@@ -1946,7 +1952,24 @@
     "missing_return_documents_missing": "Нет документов, обязательных при возврате",
     "missing_issue_inspection_check_missing": "Обязательная проверка при выдаче не выполнена: оформите причину",
     "missing_return_inspection_check_missing": "Обязательная проверка при приёме не выполнена: оформите причину",
-    "missing_damage_estimate_missing": "У нового повреждения нет оценки или начисления"
+    "missing_damage_estimate_missing": "У нового повреждения нет оценки или начисления",
+    "tab_rentals": "Аренды и брони",
+    "tab_services": "Доп. услуги",
+    "tab_catalog": "Тарифы и услуги",
+    "filter_title": "Какие записи",
+    "filter_all": "Все",
+    "filter_bookings": "Брони",
+    "filter_rentals": "Аренды",
+    "filter_cancelled": "Отменённые",
+    "amount": "Сумма",
+    "services_badge": "доп. услуги: {{count}}",
+    "service_name": "Услуга",
+    "service_rental": "Аренда",
+    "service_rental_open": "Открыть аренду",
+    "service_standalone": "без аренды",
+    "action_service": "Добавить доп. услугу",
+    "action_tariff": "Создать тариф",
+    "action_catalog_service": "Создать услугу"
   },
   "rights": {
     "add": "Добавить права",

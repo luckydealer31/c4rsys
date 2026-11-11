@@ -320,6 +320,22 @@ def _period(data: dict[str, Any]) -> tuple[datetime | None, datetime | None]:
     )
 
 
+@require_http_methods(["GET", "POST"])
+def lines(request: HttpRequest, cmp: str) -> JsonResponse:
+    """GET: the ordered extra services of the company the employee may see, latest first —
+    linked to rentals and standalone alike (customer's decision of 11.11.2026). POST: a new
+    standalone service."""
+    if request.method == "POST":
+        return line_create(request, cmp)
+    context, actor = _actor(request, cmp)
+    items = [
+        extra_lines.payload(line)
+        for line in extra_lines.lines_of_company(context.company.id)
+        if _line_visible(actor, line)
+    ]
+    return JsonResponse({"lines": items})
+
+
 @require_POST
 def line_create(request: HttpRequest, cmp: str) -> JsonResponse:
     """A standalone service: into an open order of a client (`order_id`) or into a new order of

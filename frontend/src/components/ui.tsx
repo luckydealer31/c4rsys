@@ -1,7 +1,8 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ApiError } from "../api/client";
+import { Icon, type IconName } from "./icons";
 
 /** Shows a refusal by its translation key; the server text is never shown (A08). */
 export function ErrorMessage({ error }: { error: ApiError | null }) {
@@ -72,5 +73,67 @@ export function UnconfiguredConfirm({
         {t("common.archive_anyway")}
       </button>
     </div>
+  );
+}
+
+/** A small action of a row shown by an icon; the label is its tooltip and its accessible name
+ * (customer's decision of 11.11.2026: rows carry small icons, not large buttons). */
+export function IconButton({
+  icon,
+  label,
+  onClick,
+  disabled = false,
+  primary = false,
+}: {
+  icon: IconName;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  primary?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      className={primary ? "icon-button primary" : "icon-button"}
+      title={label}
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      <Icon name={icon} size={18} />
+    </button>
+  );
+}
+
+/** A window over the page for a short form; closed by its cross, Esc or a click outside. */
+export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  const { t } = useTranslation();
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const dialog = ref.current;
+    if (dialog && !dialog.open) dialog.showModal();
+    return () => dialog?.close();
+  }, []);
+  return (
+    <dialog
+      ref={ref}
+      className="modal"
+      aria-label={title}
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+      onClick={(event) => {
+        if (event.target === ref.current) onClose();
+      }}
+    >
+      <div className="modal-body">
+        <div className="page-head">
+          <h2 style={{ margin: 0 }}>{title}</h2>
+          <IconButton icon="close" label={t("common.cancel")} onClick={onClose} />
+        </div>
+        {children}
+      </div>
+    </dialog>
   );
 }

@@ -38,7 +38,7 @@ test("an employee without the right to issue is refused by the server", async ({
   // The list of rentals is open; the issue is not offered.
   await staff.goto(`${s.base}/rentals`);
   await expect(staff.getByRole("heading", { level: 1 })).toBeVisible();
-  await expect(staff.getByRole("link", { name: t("rentals.issue"), exact: true })).toHaveCount(0);
+  await expect(staff.getByRole("link", { name: t("vehicles.action_rental"), exact: true })).toHaveCount(0);
 
   // The issue screen opened by its address: the server refuses, nothing is issued.
   await staff.goto(`${s.base}/rentals/new`);

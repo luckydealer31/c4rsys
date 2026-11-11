@@ -438,3 +438,17 @@ label.check { display: inline-flex; gap: 6px; align-items: center; margin-right:
   .section-search.compact input, .section-search.compact input:focus { width: 100%; }
 }
 .list-search { flex: 1 1 260px; max-width: 420px; border-radius: 999px; padding: 6px 12px; }
+.list-bar select, .list-bar input[type="date"] { width: auto; }
+.inline-field { display: inline-flex; align-items: center; gap: 6px; font-size: 0.9rem; color: var(--muted); }
+.side-actions button { justify-content: flex-start; padding: 6px 10px; font-size: 0.9rem; text-align: left; }
+.side-actions button[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.icon-button { padding: 6px; background: transparent; color: var(--muted); border: 1px solid transparent;
+  border-radius: 6px; line-height: 0; }
+.icon-button:hover:not(:disabled) { color: var(--accent); border-color: var(--border); }
+.icon-button.primary { color: var(--accent); }
+.row-actions { display: flex; gap: 2px; justify-content: flex-end; align-items: center; }
+.modal { border: 1px solid var(--border); border-radius: var(--radius); padding: 0; width: min(520px, calc(100vw - 24px));
+  background: var(--surface); color: var(--text); }
+.modal::backdrop { background: rgb(0 0 0 / 0.4); }
+.modal-body { padding: 20px; }
+@media (pointer: coarse), (max-width: 760px) { .icon-button { min-width: 44px; justify-content: center; } }

@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useSearchParams } from "react-router";
 
@@ -365,32 +365,53 @@ function IssueForm({
 export function ClientFinder({ onPick }: { onPick: (client: Client) => void }) {
   const { t } = useTranslation();
   const company = useCompany();
+  const can = useCan();
   const [text, setText] = useState("");
   const [found, setFound] = useState<{ client: Client; matched: string[] }[] | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
 
-  async function search() {
+  /** A phone or an email is matched exactly (§ 6.1.11). A name: with the right to the list of
+   * clients — by a part of it, in any order of the words (§ 2.8.3); without that right — only
+   * the whole first and last name, tried in both orders, or the company name. */
+  async function search(value = text.trim()) {
     setError(null);
-    const value = text.trim();
+    if (!value) return setFound(null);
     const words = value.split(/\s+/);
-    const body: Record<string, string> = value.includes("@")
-      ? { email: value }
-      : /\d{5,}/.test(value.replace(/\D/g, ""))
-        ? { phone: value }
-        : { first_name: words[0] ?? "", last_name: words.slice(1).join(" "), company_name: value };
+    const match = async (body: Record<string, string>) =>
+      (
+        await api<{ matches: { client: Client; matched: string[] }[] }>(
+          `/c/${company.public_id}/clients/matches`,
+          { method: "POST", body },
+        )
+      ).matches;
     try {
-      setFound(
-        (
-          await api<{ matches: { client: Client; matched: string[] }[] }>(
-            `/c/${company.public_id}/clients/matches`,
-            { method: "POST", body },
-          )
-        ).matches,
-      );
+      let result: { client: Client; matched: string[] }[];
+      if (value.includes("@")) result = await match({ email: value });
+      else if (/\d{5,}/.test(value.replace(/\D/g, ""))) result = await match({ phone: value });
+      else if (can("client.list")) {
+        const list = await api<{ clients: Client[] }>(`/c/${company.public_id}/clients?q=${encodeURIComponent(value)}`);
+        result = list.clients.map((client) => ({ client, matched: ["name"] }));
+      } else {
+        result = await match({ first_name: words[0] ?? "", last_name: words.slice(1).join(" "), company_name: value });
+        if (words.length > 1) {
+          const swapped = await match({ first_name: words.slice(1).join(" "), last_name: words[0] ?? "" });
+          result = [...result, ...swapped.filter((s) => !result.some((r) => r.client.id === s.client.id))];
+        }
+      }
+      setFound(result);
     } catch (caught) {
       setError(caught as ApiError);
     }
   }
+
+  // The search runs while the name is typed, shortly after the last key.
+  useEffect(() => {
+    const value = text.trim();
+    if (value.length < 2) return;
+    const timer = window.setTimeout(() => void search(value), 350);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text]);
 
   return (
     <div className="stack">

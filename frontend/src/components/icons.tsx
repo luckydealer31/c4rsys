@@ -1,8 +1,22 @@
 import type { ReactNode } from "react";
 
+import { MotionIcon } from "./motion/MotionIcon";
+
 /** Line icons of the interface (24×24, stroke = current color). Drawn here to avoid a
  * dependency; the set is a PROPOSAL until a design exists. */
 const PATHS: Record<string, ReactNode> = {
+  // Small actions of a row (decision of 11.11.2026): edit, archive, restore, delete, save, cancel.
+  edit: <path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3zM14.5 7.5l3 3" />,
+  archive: (
+    <>
+      <rect x="3" y="4" width="18" height="5" rx="1" />
+      <path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9M10 13h4" />
+    </>
+  ),
+  restore: <path d="M4 12a8 8 0 1 0 2.6-5.9M4 4v5h5" />,
+  trash: <path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" />,
+  check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
+  close: <path d="M6 6l12 12M18 6L6 18" />,
   companies: (
     <>
       <rect x="3" y="7" width="18" height="13" rx="2" />
@@ -163,6 +177,8 @@ const PATHS: Record<string, ReactNode> = {
 export type IconName = keyof typeof PATHS;
 
 export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
+  // «Finance» is the animated wallet: it plays when the pointer comes to its menu item.
+  if (name === "finance") return <MotionIcon name="wallet" size={size} />;
   return (
     <svg
       className="icon"

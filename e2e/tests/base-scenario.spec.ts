@@ -100,12 +100,15 @@ test("base example from registration to closing survives a restart", async ({ pa
 
   // Cash desks are on the «Cash desks and accounts» tab of the finance section.
   await page.goto(`${base}/finance?tab=accounts`);
-  const desk = card(page, t("cash.create_title"));
-  await desk.getByLabel(t("cash.name")).fill("Касса Пхукет");
-  await desk.getByLabel(t("cash.type")).selectOption("cash");
-  await desk.getByLabel(t("cash.currency")).selectOption("THB");
-  await desk.getByRole("button", { name: t("cash.create") }).click();
-  await expect(card(page, t("cash.title")).locator("input[value='Касса Пхукет']")).toBeVisible();
+  // A desk is created step by step: type, currency, name.
+  await page.getByRole("link", { name: t("cash.create_button") }).click();
+  await page.getByRole("radio", { name: t("cash.type_cash") }).check();
+  await page.getByRole("button", { name: t("wizard.next"), exact: true }).click();
+  await page.getByLabel(t("cash.currency")).selectOption("THB");
+  await page.getByRole("button", { name: t("wizard.next"), exact: true }).click();
+  await page.getByRole("textbox", { name: t("cash.name"), exact: true }).fill("Касса Пхукет");
+  await page.getByRole("button", { name: t("cash.create"), exact: true }).click();
+  await expect(card(page, t("cash.title")).getByRole("cell", { name: "Касса Пхукет" })).toBeVisible();
 
   // Vehicle, daily tariff 1 000 THB from 1 day, terms «unlimited, no deposit».
   await page.goto(`${base}/vehicles`);

@@ -278,7 +278,8 @@
     "name": "Name",
     "restore": "Restore",
     "title_expense": "Expense articles",
-    "title_income": "Income articles"
+    "title_income": "Income articles",
+    "add": "Add an article"
   },
   "auth": {
     "backup_done": "Continue",
@@ -320,7 +321,8 @@
     "title": "Cash desks and accounts",
     "type": "Type",
     "type_bank": "Bank account",
-    "type_cash": "Cash desk"
+    "type_cash": "Cash desk",
+    "create_button": "Create a desk or an account"
   },
   "clients": {
     "advance": "Available: {{amount}} {{currency}}",
@@ -1473,7 +1475,11 @@
     "tab_settlements": "Settlements",
     "kind_deposit": "Deposit refund",
     "total_currency": "Show the total in",
-    "make_document": "Document"
+    "make_document": "Document",
+    "filter_from": "From",
+    "filter_to": "To",
+    "filter_all_accounts": "All desks and accounts",
+    "filter_all_articles": "All articles"
   },
   "moves": {
     "actual_end": "Actual end",
@@ -1946,7 +1952,24 @@
     "missing_return_documents_missing": "No documents required at the return",
     "missing_issue_inspection_check_missing": "The required issue check was not done: record the reason",
     "missing_return_inspection_check_missing": "The required acceptance check was not done: record the reason",
-    "missing_damage_estimate_missing": "A new damage has no estimate or no charge"
+    "missing_damage_estimate_missing": "A new damage has no estimate or no charge",
+    "tab_rentals": "Bookings and rentals",
+    "tab_services": "Extra services",
+    "tab_catalog": "Tariffs and services",
+    "filter_title": "Which records",
+    "filter_all": "All",
+    "filter_bookings": "Bookings",
+    "filter_rentals": "Rentals",
+    "filter_cancelled": "Cancelled",
+    "amount": "Amount",
+    "services_badge": "extra services: {{count}}",
+    "service_name": "Service",
+    "service_rental": "Rental",
+    "service_rental_open": "Open the rental",
+    "service_standalone": "without a rental",
+    "action_service": "Add an extra service",
+    "action_tariff": "Create a tariff",
+    "action_catalog_service": "Create a service"
   },
   "rights": {
     "add": "Add rights",

@@ -278,7 +278,8 @@
     "name": "ชื่อ",
     "restore": "นำกลับมาใช้",
     "title_expense": "หมวดรายจ่าย",
-    "title_income": "หมวดรายได้"
+    "title_income": "หมวดรายได้",
+    "add": "เพิ่มรายการ"
   },
   "auth": {
     "backup_done": "Continue",
@@ -320,7 +321,8 @@
     "title": "Cash desks and accounts",
     "type": "Type",
     "type_bank": "Bank account",
-    "type_cash": "Cash desk"
+    "type_cash": "Cash desk",
+    "create_button": "สร้างบัญชีเงินสดหรือบัญชีธนาคาร"
   },
   "clients": {
     "advance": "Available: {{amount}} {{currency}}",
@@ -1473,7 +1475,11 @@
     "tab_settlements": "การชำระบัญชี",
     "kind_deposit": "คืนมัดจำ",
     "total_currency": "แสดงยอดรวมเป็น",
-    "make_document": "เอกสาร"
+    "make_document": "เอกสาร",
+    "filter_from": "ตั้งแต่",
+    "filter_to": "ถึง",
+    "filter_all_accounts": "ทุกบัญชี",
+    "filter_all_articles": "ทุกรายการ"
   },
   "moves": {
     "actual_end": "Actual end",
@@ -1946,7 +1952,24 @@
     "missing_return_documents_missing": "ไม่มีเอกสารที่ต้องมีเมื่อคืน",
     "missing_issue_inspection_check_missing": "ไม่ได้ตรวจสภาพตอนส่งมอบตามที่บังคับ: ระบุเหตุผล",
     "missing_return_inspection_check_missing": "ไม่ได้ตรวจสภาพตอนรับคืนตามที่บังคับ: ระบุเหตุผล",
-    "missing_damage_estimate_missing": "ความเสียหายใหม่ยังไม่มีการประเมินหรือการเรียกเก็บ"
+    "missing_damage_estimate_missing": "ความเสียหายใหม่ยังไม่มีการประเมินหรือการเรียกเก็บ",
+    "tab_rentals": "การจองและการเช่า",
+    "tab_services": "บริการเสริม",
+    "tab_catalog": "อัตราและบริการ",
+    "filter_title": "รายการใด",
+    "filter_all": "ทั้งหมด",
+    "filter_bookings": "การจอง",
+    "filter_rentals": "การเช่า",
+    "filter_cancelled": "ยกเลิกแล้ว",
+    "amount": "จำนวนเงิน",
+    "services_badge": "บริการเสริม: {{count}}",
+    "service_name": "บริการ",
+    "service_rental": "การเช่า",
+    "service_rental_open": "เปิดการเช่า",
+    "service_standalone": "ไม่มีการเช่า",
+    "action_service": "เพิ่มบริการเสริม",
+    "action_tariff": "สร้างอัตรา",
+    "action_catalog_service": "สร้างบริการ"
   },
   "rights": {
     "add": "Add rights",

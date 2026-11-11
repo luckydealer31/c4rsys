@@ -44,6 +44,7 @@ import { TaskPage, TasksPage } from "./pages/tasks/TasksPage";
 import { DocumentPrintPage, TemplatePage, TemplatesPage } from "./pages/documents/Templates";
 import { DeliveryServicesPage } from "./pages/trips/DeliveryMoney";
 import { NewTripPage, TripPage, TripsPage } from "./pages/trips/TripsPage";
+import { NewAccountPage } from "./pages/finance/NewAccountPage";
 import { FinancePage } from "./pages/finance/FinancePage";
 import { OrderPage, OrdersPage } from "./pages/orders/OrdersPage";
 import { BookingPage } from "./pages/rentals/Booking";
@@ -236,6 +237,7 @@ function MainApp({ cabinet }: { cabinet: boolean }) {
         <Route path="warehouse/purchases/new" element={<NewPurchasePage />} />
         <Route path="warehouse/purchases/:id" element={<PurchasePage />} />
         <Route path="finance" element={<FinancePage />} />
+        <Route path="finance/accounts/new" element={<NewAccountPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="settings/company" element={<CompanyProfilePage />} />
         <Route path="settings/org" element={<OrgPage />} />

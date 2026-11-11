@@ -15,7 +15,7 @@ urlpatterns = [
     path("c/<str:cmp>/extra-services/<uuid:service_id>/restore", ev.service_restore),
     path("c/<str:cmp>/rentals/<uuid:rental_id>/services", ev.rental_service_add),
     path("c/<str:cmp>/orders/<uuid:order_id>/services", ev.order_services),
-    path("c/<str:cmp>/service-lines", ev.line_create),
+    path("c/<str:cmp>/service-lines", ev.lines),
     path("c/<str:cmp>/service-lines/<uuid:line_id>", ev.line_detail),
     path("c/<str:cmp>/service-lines/<uuid:line_id>/start", ev.line_start),
     path("c/<str:cmp>/service-lines/<uuid:line_id>/complete", ev.line_complete),

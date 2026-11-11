@@ -6,7 +6,8 @@ import { Link, useSearchParams } from "react-router";
 import { useApi } from "../../api/queries";
 import type { AccountsTotal, CashAccount, Client, Payment } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
+import { Icon } from "../../components/icons";
+import { Card, ErrorMessage, Field, IconButton, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { currencies, formatMoment } from "../../time";
 import { clientName } from "../clients/ClientsPage";
@@ -33,17 +34,40 @@ const TABS: Tab[] = ["money", "settlements", "accounts", "articles"];
 
 /** Finance (ТЗ гл. 17): money records — client payments and manual receipts and payouts; cash
  * desks and accounts with their balances (§ 17.2.1, § 17.2.5, § 22.1.7); income and expense
- * articles (§ 17.2.8). */
+ * articles (§ 17.2.8). The list comes first; what is done in the section is opened by the
+ * buttons in the column on the right (customer's decision of 11.11.2026). */
 export function FinancePage() {
   const { t } = useTranslation();
+  const company = useCompany();
   const can = useCan();
   const accounts = useCashAccounts();
   const [params, setParams] = useSearchParams();
   const tab: Tab = TABS.find((key) => key === params.get("tab")) ?? "money";
+  // The form opened by a button of the column: one at a time, above the list.
+  const doing = params.get("do") ?? "";
+  const open = (action: string) =>
+    setParams(Object.fromEntries(Object.entries({ tab: tab === "money" ? "" : tab, do: action }).filter(([, v]) => v)));
+  const active = (accounts.data?.cash_accounts ?? []).filter((a) => a.state === "active");
+  // [allowed, action or path, label]; a path starts with «/».
+  const actions: [boolean, string, string][] =
+    tab === "money"
+      ? [
+          [can("finance.payment.receive"), "receive", t("payments.receive_title")],
+          [can("finance.income.record") || can("finance.payout"), "record", t("money.record_title")],
+          [can("finance.transfer") && active.length >= 2, "transfer", t("money.transfer_title")],
+        ]
+      : tab === "accounts"
+        ? [[can("finance.cash_account.manage"), "/finance/accounts/new", t("cash.create_button")]]
+        : tab === "articles"
+          ? [[can("finance.article.manage"), "article", t("finance_articles.add")]]
+          : [];
+  const allowed = actions.filter(([may]) => may);
   return (
-    <div className="page">
-      <h1>{t("nav.finance")}</h1>
-      <div className="tabs" role="tablist">
+    <div className="page full">
+      <h1 className="sr-only">{t("nav.finance")}</h1>
+      <div className={allowed.length ? "split" : ""}>
+        <div>
+      <div className="tabs left" role="tablist">
         {TABS.map((key) => (
           <button
             key={key}
@@ -59,15 +83,38 @@ export function FinancePage() {
       </div>
       {tab === "money" ? (
         <>
-          {can("finance.payment.receive") ? <Receipt /> : null}
-          <MoneyRecordForm accounts={accounts.data?.cash_accounts ?? []} />
-          <TransferForm accounts={accounts.data?.cash_accounts ?? []} />
+          {doing === "receive" && can("finance.payment.receive") ? <Receipt /> : null}
+          {doing === "record" ? <MoneyRecordForm accounts={accounts.data?.cash_accounts ?? []} /> : null}
+          {doing === "transfer" ? <TransferForm accounts={accounts.data?.cash_accounts ?? []} /> : null}
           <PaymentsList />
         </>
       ) : null}
-      {tab === "accounts" ? <CashAccountsEditor /> : null}
+      {tab === "accounts" ? <CashAccountsEditor creation={false} /> : null}
       {tab === "settlements" ? <Settlements /> : null}
-      {tab === "articles" ? <Articles /> : null}
+      {tab === "articles" ? <Articles adding={doing === "article"} onAdded={() => open("")} /> : null}
+        </div>
+        {allowed.length ? (
+          <aside className="side-actions" aria-label={t("vehicles.actions_title")}>
+            {allowed.map(([, action, label]) =>
+              action.startsWith("/") ? (
+                <Link key={action} className="button secondary" to={companyPath(company, action)}>
+                  <Icon name="plus" size={16} /> {label}
+                </Link>
+              ) : (
+                <button
+                  key={action}
+                  type="button"
+                  className="secondary"
+                  aria-pressed={doing === action}
+                  onClick={() => open(doing === action ? "" : action)}
+                >
+                  <Icon name="plus" size={16} /> {label}
+                </button>
+              ),
+            )}
+          </aside>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -135,10 +182,58 @@ function PaymentsList() {
   const articles = useArticles();
   const nameOf = useArticleName();
   const articleName = new Map((articles.data?.articles ?? []).map((a) => [a.id, nameOf(a)]));
-  const items = payments.data?.payments ?? [];
+  // Filters of the list (decision of 11.11.2026): dates, account, article. A day is counted in
+  // the time zone of the company, as the list shows it.
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [account, setAccount] = useState("");
+  const [article, setArticle] = useState("");
+  const zone = company.timezone ?? "UTC";
+  // A record that is not posted yet has no day and passes the filter of dates.
+  const dayOf = (moment: string | null) =>
+    moment ? new Intl.DateTimeFormat("en-CA", { timeZone: zone }).format(new Date(moment)) : "";
+  const items = (payments.data?.payments ?? []).filter(
+    (p) =>
+      (!from || !p.posted_at || dayOf(p.posted_at) >= from) &&
+      (!to || !p.posted_at || dayOf(p.posted_at) <= to) &&
+      (!account || p.cash_account_id === account) &&
+      (!article || p.article_id === article),
+  );
+  const search = (text: string) => {
+    const next = new URLSearchParams(params);
+    if (text) next.set("q", text);
+    else next.delete("q");
+    setParams(next);
+  };
   return (
     <Card title={t("payments.title")}>
-      <SectionSearch value={q} onSearch={(text) => setParams(text ? { q: text } : {})} />
+      <div className="list-bar">
+        <label className="inline-field">
+          {t("money.filter_from")}
+          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+        </label>
+        <label className="inline-field">
+          {t("money.filter_to")}
+          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+        </label>
+        <select value={account} onChange={(e) => setAccount(e.target.value)} aria-label={t("payments.account")}>
+          <option value="">{t("money.filter_all_accounts")}</option>
+          {(accounts.data?.cash_accounts ?? []).map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.name}
+            </option>
+          ))}
+        </select>
+        <select value={article} onChange={(e) => setArticle(e.target.value)} aria-label={t("money.article")}>
+          <option value="">{t("money.filter_all_articles")}</option>
+          {(articles.data?.articles ?? []).map((a) => (
+            <option key={a.id} value={a.id}>
+              {nameOf(a)}
+            </option>
+          ))}
+        </select>
+        <SectionSearch compact value={q} onSearch={search} />
+      </div>
       {payments.isLoading ? <Loading /> : null}
       {!payments.isLoading && items.length === 0 ? <p className="muted">{t("payments.none")}</p> : null}
       {items.length ? (
@@ -196,7 +291,9 @@ function PaymentsList() {
   );
 }
 
-export function CashAccountsEditor() {
+/** `creation` keeps the form of a new account under the list — the setup wizard uses it; in
+ * «Finance» an account is created step by step from the button of the column. */
+export function CashAccountsEditor({ creation = true }: { creation?: boolean }) {
   const { t } = useTranslation();
   const can = useCan();
   const accounts = useCashAccounts();
@@ -243,7 +340,7 @@ export function CashAccountsEditor() {
           onClose={() => setOpened(null)}
         />
       ) : null}
-      {can("finance.cash_account.manage") ? <CreateAccount /> : null}
+      {creation && can("finance.cash_account.manage") ? <CreateAccount /> : null}
     </>
   );
 }
@@ -333,7 +430,9 @@ function AccountRow({
   const { t } = useTranslation();
   const company = useCompany();
   const refresh = useRefresh();
+  // The name is only shown; it is changed after «Edit» (decision of 11.11.2026).
   const [name, setName] = useState(account.name);
+  const [editing, setEditing] = useState(false);
   const rename = useCommand<Record<string, unknown>, unknown>(
     `/c/${company.public_id}/cash-accounts/${account.id}`,
     "PATCH",
@@ -345,8 +444,8 @@ function AccountRow({
   return (
     <tr>
       <td>
-        {editable && account.state === "active" ? (
-          <input value={name} onChange={(e) => setName(e.target.value)} />
+        {editing ? (
+          <input autoFocus value={name} aria-label={t("cash.name")} onChange={(e) => setName(e.target.value)} />
         ) : (
           account.name
         )}
@@ -356,38 +455,49 @@ function AccountRow({
       <td>{account.currency}</td>
       {withBalance ? <td>{account.balance ?? "—"}</td> : null}
       <td>
-        {onOpen ? (
-          <button type="button" className="secondary" onClick={onOpen}>
-            {t("money.open_records")}
-          </button>
-        ) : null}
-        {account.state === "archived" ? (
-          <span className="badge">{t("cash.archived")}</span>
-        ) : editable ? (
-          <div className="actions" style={{ marginTop: 0 }}>
-            <button
-              type="button"
-              className="secondary"
-              disabled={name === account.name || !name.trim()}
-              onClick={async () => {
-                if ((await rename.run({ name, expected_version: account.version })) !== null)
-                  await refresh();
-              }}
-            >
-              {t("common.save")}
+        <div className="row-actions">
+          {account.state === "archived" ? <span className="badge">{t("cash.archived")}</span> : null}
+          {onOpen && !editing ? (
+            <button type="button" className="secondary small" style={{ padding: "4px 10px" }} onClick={onOpen}>
+              {t("money.open_records")}
             </button>
-            <button
-              type="button"
-              className="secondary"
-              onClick={async () => {
-                if ((await archive.run({ expected_version: account.version })) !== null)
-                  await refresh();
-              }}
-            >
-              {t("cash.archive")}
-            </button>
-          </div>
-        ) : null}
+          ) : null}
+          {account.state === "archived" || !editable ? null : editing ? (
+            <>
+              <IconButton
+                icon="check"
+                primary
+                label={t("common.save")}
+                disabled={name === account.name || !name.trim()}
+                onClick={async () => {
+                  if ((await rename.run({ name, expected_version: account.version })) !== null) {
+                    setEditing(false);
+                    await refresh();
+                  }
+                }}
+              />
+              <IconButton
+                icon="close"
+                label={t("common.cancel")}
+                onClick={() => {
+                  setName(account.name);
+                  setEditing(false);
+                }}
+              />
+            </>
+          ) : (
+            <>
+              <IconButton icon="edit" label={t("common.edit")} onClick={() => setEditing(true)} />
+              <IconButton
+                icon="archive"
+                label={t("cash.archive")}
+                onClick={async () => {
+                  if ((await archive.run({ expected_version: account.version })) !== null) await refresh();
+                }}
+              />
+            </>
+          )}
+        </div>
       </td>
     </tr>
   );

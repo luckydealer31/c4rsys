@@ -297,3 +297,19 @@ def test_snapshot_keeps_the_price_and_lines_stay(owner: Client, s: Scenario) -> 
     assert again["calculation"]["amount"] == "300.00"
     with pytest.raises(DatabaseError), transaction.atomic():
         ExtraServiceLine.objects.filter(pk=line["id"]).delete()
+
+
+def test_list_of_ordered_services_of_the_company(owner: Client, s: Scenario) -> None:
+    """Decision of 11.11.2026: the rental section lists the ordered services, by rights."""
+    service = _service(owner, s, name="Wash", pricing="quantity", unit="", price="50")
+    service_id = service.json()["service"]["id"]
+    line = _standalone(owner, s, service_id, client_id=s.client, quantity=1).json()["line"]
+
+    listed = owner.get(f"/api/c/{s.cmp}/service-lines")
+    assert listed.status_code == 200, listed.content
+    assert [item["id"] for item in listed.json()["lines"]] == [line["id"]]
+
+    viewer, _ = hire(
+        owner, s.cmp, "lines@example.com", [{"type": "grant", "permission": "vehicle.view"}]
+    )
+    assert viewer.get(f"/api/c/{s.cmp}/service-lines").json()["lines"] == []
