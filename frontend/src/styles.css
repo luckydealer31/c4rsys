@@ -452,3 +452,6 @@ label.check { display: inline-flex; gap: 6px; align-items: center; margin-right:
 .modal::backdrop { background: rgb(0 0 0 / 0.4); }
 .modal-body { padding: 20px; }
 @media (pointer: coarse), (max-width: 760px) { .icon-button { min-width: 44px; justify-content: center; } }
+.prices-table input:not([type="checkbox"]) { min-width: 84px; }
+.prices-table td:first-child { white-space: nowrap; }
+.error-text { color: var(--danger); }

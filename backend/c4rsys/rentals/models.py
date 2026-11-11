@@ -67,15 +67,17 @@ class Tariff(models.Model):
 
 
 class TariffRange(models.Model):
-    """Range of billable units with its rate (§ 13.2.5–13.2.8). Bounds are inclusive; the last
-    range has no upper bound. The whole structure is checked by the command that saves it."""
+    """Range of billable units (§ 13.2.5–13.2.8). Bounds are inclusive; the last range has no
+    upper bound. The whole structure is checked by the command that saves it. The price of a
+    range is set for each vehicle of the tariff (TariffVehicleRate; customer's decision of
+    11.11.2026); `rate` here is only the price proposed for a vehicle whose own is not given."""
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
     tariff = models.ForeignKey(Tariff, on_delete=models.PROTECT, related_name="ranges")
     from_units = models.PositiveIntegerField()
     to_units = models.PositiveIntegerField(null=True, blank=True)
-    rate = models.DecimalField(max_digits=20, decimal_places=4)
+    rate = models.DecimalField(max_digits=20, decimal_places=4, null=True, blank=True)
 
     class Meta:
         db_table = "tariff_range"
@@ -88,7 +90,9 @@ class TariffRange(models.Model):
                 condition=Q(to_units__isnull=True) | Q(to_units__gte=models.F("from_units")),
                 name="tariff_range_to_not_below_from",
             ),
-            models.CheckConstraint(condition=Q(rate__gt=0), name="tariff_range_rate_positive"),
+            models.CheckConstraint(
+                condition=Q(rate__isnull=True) | Q(rate__gt=0), name="tariff_range_rate_positive"
+            ),
         ]
 
     def __str__(self) -> str:
@@ -169,6 +173,30 @@ class TariffVehicleTerms(models.Model):
 
     def __str__(self) -> str:
         return f"{self.tariff_id}:{self.vehicle_card_id}"
+
+
+class TariffVehicleRate(models.Model):
+    """The price of a unit for a vehicle in one range of its tariff (customer's decision of
+    11.11.2026): every vehicle of a tariff has its own price in every range. The range is named
+    by its lower bound."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    terms = models.ForeignKey(TariffVehicleTerms, on_delete=models.CASCADE, related_name="rates")
+    from_units = models.PositiveIntegerField()
+    rate = models.DecimalField(max_digits=20, decimal_places=4)
+
+    class Meta:
+        db_table = "tariff_vehicle_rate"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["terms", "from_units"], name="tariff_vehicle_rate_terms_from_uniq"
+            ),
+            models.CheckConstraint(condition=Q(rate__gt=0), name="tariff_vehicle_rate_positive"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.terms_id}:{self.from_units}: {self.rate}"
 
 
 class Rental(models.Model):

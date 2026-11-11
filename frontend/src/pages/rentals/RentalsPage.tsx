@@ -48,7 +48,9 @@ export function RentalsPage() {
     tab === "rentals"
       ? [[can("rental.issue"), "/rentals/new", t("vehicles.action_rental")], booking]
       : tab === "services"
-        ? [[can("order.create"), "/rentals/services/order", t("rentals.action_service")], booking]
+        ? // TODO(spec): «Book a service» — the customer wants a booking of a service here, apart
+          // from the booking of a vehicle; what it is next to «Add an extra service» is OPEN.
+          [[can("order.create"), "/rentals/services/order", t("rentals.action_service")]]
         : [
             [can("tariff.create"), "/rentals/tariffs/new", t("rentals.action_tariff")],
             [can("tariff.create"), "/rentals/services/new", t("rentals.action_catalog_service")],
@@ -250,6 +252,15 @@ function RentalsList({ lines }: { lines: ServiceLine[] }) {
               {t(`rentals.filter_${key}`)}
             </button>
           ))}
+          {/* «All» turns the three back on (decision of 11.11.2026). */}
+          <button
+            type="button"
+            className="toggle-chip"
+            aria-pressed={kinds.length === ALL_KINDS.length}
+            onClick={() => setKinds(ALL_KINDS)}
+          >
+            {t("rentals.filter_all")}
+          </button>
         </div>
         {pending.length || waiting ? (
           <label className="small">

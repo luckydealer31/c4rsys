@@ -128,25 +128,24 @@ test("base example from registration to closing survives a restart", async ({ pa
   await page.getByRole("button", { name: t("vehicles.create") }).click();
   await expect(page.getByRole("heading", { name: "Toyota Yaris" })).toBeVisible();
 
-  // A tariff is created step by step: unit (a day from the issue), currency, ranges,
-  // availability, name; then its own page opens.
+  // A tariff is created step by step: name, currency, unit (a day from the issue), the ranges
+  // without a price, availability, then the vehicles — the marked one gets its price of the
+  // range; mileage and deposit are left empty: no limit, no deposit. Its own page opens.
   await page.goto(`${base}/rentals?tab=catalog`);
   await page.getByRole("link", { name: t("rentals.action_tariff") }).click();
   const onward = page.getByRole("button", { name: t("wizard.next"), exact: true });
+  await page.getByRole("textbox", { name: t("tariffs.name"), exact: true }).fill("Сутки");
   await onward.click();
   await page.getByLabel(t("cash.currency")).selectOption("THB");
   await onward.click();
-  await page.locator("tbody tr").first().locator("input").nth(2).fill("1000");
   await onward.click();
   await onward.click();
-  await page.getByRole("textbox", { name: t("tariffs.name"), exact: true }).fill("Сутки");
+  await onward.click();
+  await page.getByRole("checkbox", { name: "Toyota Yaris" }).check();
+  await page.getByRole("textbox", { name: `Toyota Yaris: ${t("terms.price")} 1` }).fill("1000");
   await page.getByRole("button", { name: t("tariffs.create"), exact: true }).click();
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Сутки");
-  await choose(page.getByRole("combobox", { name: t("terms.vehicle"), exact: true }), "Toyota Yaris");
-  await page.getByLabel(t("terms.mileage")).selectOption("unlimited");
-  await page.getByLabel(t("terms.deposit")).selectOption("none");
-  await page.getByRole("button", { name: t("terms.assign") }).click();
-  await expect(page.getByRole("row", { name: /Toyota Yaris/ })).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: "Toyota Yaris" })).toBeChecked();
 
   await page.goto(`${base}/clients`);
   // The client is created step by step: kind, the request by the ID is skipped, name, birth

@@ -1,4 +1,11 @@
-"""Tariff catalog: creation, change, archiving and availability (ТЗ § 13.1–13.2, § 23.4.4)."""
+"""Tariff catalog: creation, change, archiving and availability (ТЗ § 13.1–13.2, § 23.4.4).
+
+Customer's decision of 11.11.2026: a tariff has its ranges of units without a price; the price
+of a unit in every range is set for each vehicle of the tariff, with the vehicle's mileage and
+deposit terms. A rental is calculated from the prices of its vehicle (`rental_snapshot`). A
+range may still carry a price: it is only proposed to a vehicle whose own prices are not given
+(API clients); the interface always gives the prices of the vehicle.
+"""
 
 from dataclasses import dataclass
 from datetime import time
@@ -15,7 +22,13 @@ from c4rsys.fleet.models import VehicleCard
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext
 from c4rsys.platform.models import Currency
-from c4rsys.rentals.models import Tariff, TariffLocation, TariffRange, TariffVehicleTerms
+from c4rsys.rentals.models import (
+    Tariff,
+    TariffLocation,
+    TariffRange,
+    TariffVehicleRate,
+    TariffVehicleTerms,
+)
 from c4rsys.rentals.pricing import PriceRange
 
 RATE_PLACES = 4
@@ -44,22 +57,41 @@ def _rate(value: Any, field: str) -> Decimal:
     return rate
 
 
-def parse_ranges(value: Any) -> list[PriceRange]:
+@dataclass(frozen=True)
+class TariffBounds:
+    """A range of a tariff: its bounds and, optionally, the price proposed to vehicles."""
+
+    from_units: int
+    to_units: int | None
+    rate: Decimal | None = None
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "from": self.from_units,
+            "to": self.to_units,
+            "rate": None if self.rate is None else str(self.rate),
+        }
+
+
+def parse_ranges(value: Any) -> list[TariffBounds]:
     """Structure of § 13.2.8: whole positive units, inclusive bounds, the first range starts at 1,
-    each next one right after the previous upper bound, no gaps or overlaps, the last one open."""
+    each next one right after the previous upper bound, no gaps or overlaps, the last one open.
+    A range has no price of its own; a given one is only proposed to vehicles."""
     if not isinstance(value, list) or not value:
         raise errors.validation_error("ranges", code="RANGES_REQUIRED")
-    ranges: list[PriceRange] = []
+    ranges: list[TariffBounds] = []
     for index, item in enumerate(value):
         where = f"ranges[{index}]"
         if not isinstance(item, dict):
             raise errors.validation_error(where)
         upper = item.get("to")
         ranges.append(
-            PriceRange(
+            TariffBounds(
                 from_units=_positive_int(item.get("from"), f"{where}.from"),
                 to_units=None if upper is None else _positive_int(upper, f"{where}.to"),
-                rate=_rate(item.get("rate"), f"{where}.rate"),
+                rate=None
+                if item.get("rate") in (None, "")
+                else _rate(item.get("rate"), f"{where}.rate"),
             )
         )
     expected_from = 1
@@ -161,7 +193,7 @@ def snapshot(tariff: Tariff) -> dict[str, Any]:
             )
         ),
         "ranges": [
-            PriceRange(r.from_units, r.to_units, r.rate).as_dict()
+            TariffBounds(r.from_units, r.to_units, r.rate).as_dict()
             for r in tariff.ranges.order_by("from_units")
         ],
         "state": tariff.state,
@@ -175,7 +207,7 @@ def validate_locations(company_id: UUID, location_ids: frozenset[UUID]) -> None:
 
 
 def _write_scope_and_ranges(
-    tariff: Tariff, location_ids: frozenset[UUID] | None, ranges: list[PriceRange] | None
+    tariff: Tariff, location_ids: frozenset[UUID] | None, ranges: list[TariffBounds] | None
 ) -> None:
     if location_ids is not None:
         TariffLocation.objects.filter(tariff=tariff).delete()
@@ -195,13 +227,18 @@ def _write_scope_and_ranges(
             )
             for r in ranges
         )
+        # A vehicle keeps its prices of the ranges that stay; a removed range takes its price
+        # with it, and a new one waits for the price of each vehicle.
+        TariffVehicleRate.objects.filter(terms__tariff=tariff).exclude(
+            from_units__in=[r.from_units for r in ranges]
+        ).delete()
 
 
 @dataclass(frozen=True)
 class NewTariff:
     name: str
     currency: str  # empty: the company's main currency is proposed (§ 22.1.7)
-    ranges: list[PriceRange]
+    ranges: list[TariffBounds]
     location_ids: frozenset[UUID] | None  # None: the whole company (§ 13.1.3)
     # § 13.1.4: minute, hour, day or month; a day is «24 hours from issue» or settlement days
     # with a fixed daily boundary (§ 13.2.2).
@@ -269,7 +306,7 @@ class TariffChanges:
     (decision 22.10.2026). Existing rentals keep their snapshot (§ 13.6.1)."""
 
     name: str | None = None
-    ranges: list[PriceRange] | None = None
+    ranges: list[TariffBounds] | None = None
     location_ids: frozenset[UUID] | None = None
     all_locations: bool | None = None
 
@@ -327,9 +364,12 @@ class VehicleTerms:
     deposit_required: bool
     deposit_amount: Decimal | None
     deposit_hold_days: int | None
+    # The price of a unit in each range of the tariff, by the lower bound of the range.
+    rates: tuple[tuple[int, Decimal], ...] = ()
 
     def as_dict(self) -> dict[str, Any]:
         return {
+            "rates": [{"from": lower, "rate": str(rate)} for lower, rate in self.rates],
             "mileage": {
                 "mode": self.mileage_mode,
                 "included_per_unit": _text(self.included_per_unit),
@@ -368,10 +408,35 @@ def parse_amount(value: Any, field: str) -> Decimal:
     return _decimal(value, field, RATE_PLACES)
 
 
-def parse_vehicle_terms(data: dict[str, Any]) -> VehicleTerms:
-    """Mileage «unlimited» or «included» with the included distance per tariff unit and the price
-    of each unit over; deposit «not required» or «required» with a fixed amount and an optional
-    hold term in days (decision 22.10.2026). Both choices are explicit."""
+def parse_rates(tariff: Tariff, value: Any) -> tuple[tuple[int, Decimal], ...]:
+    """The prices of a vehicle: one for every range of the tariff, none for another range. Not
+    given at all — the prices proposed by the ranges, when every range proposes one."""
+    ranges = list(tariff.ranges.order_by("from_units"))
+    if value is None:
+        if any(r.rate is None for r in ranges):
+            raise errors.validation_error("rates", code="RATES_REQUIRED")
+        return tuple((r.from_units, r.rate) for r in ranges if r.rate is not None)
+    if not isinstance(value, list):
+        raise errors.validation_error("rates", code="RATES_REQUIRED")
+    given: dict[int, Decimal] = {}
+    for index, item in enumerate(value):
+        where = f"rates[{index}]"
+        if not isinstance(item, dict):
+            raise errors.validation_error(where)
+        given[_positive_int(item.get("from"), f"{where}.from")] = _rate(
+            item.get("rate"), f"{where}.rate"
+        )
+    if set(given) != {r.from_units for r in ranges}:
+        raise errors.validation_error("rates", code="RATES_REQUIRED")
+    return tuple(sorted(given.items()))
+
+
+def parse_vehicle_terms(tariff: Tariff, data: dict[str, Any]) -> VehicleTerms:
+    """The prices of the vehicle in the ranges of the tariff; mileage «unlimited» or «included»
+    with the included distance per tariff unit and the price of each unit over; deposit «not
+    required» or «required» with a fixed amount and an optional hold term in days (decision
+    22.10.2026). Both choices are explicit."""
+    rates = parse_rates(tariff, data.get("rates"))
     mileage = data.get("mileage")
     deposit = data.get("deposit")
     if not isinstance(mileage, dict) or mileage.get("mode") not in (
@@ -404,11 +469,13 @@ def parse_vehicle_terms(data: dict[str, Any]) -> VehicleTerms:
         if required
         else None,
         deposit_hold_days=hold if required else None,
+        rates=rates,
     )
 
 
 def terms_of(record: TariffVehicleTerms) -> VehicleTerms:
     return VehicleTerms(
+        rates=tuple(record.rates.order_by("from_units").values_list("from_units", "rate")),
         mileage_mode=record.mileage_mode,
         included_per_unit=record.included_per_unit,
         overage_price=record.overage_price,
@@ -456,6 +523,11 @@ def set_vehicle_terms(
     record.deposit_amount = terms.deposit_amount
     record.deposit_hold_days = terms.deposit_hold_days
     record.save()
+    TariffVehicleRate.objects.filter(terms=record).delete()
+    TariffVehicleRate.objects.bulk_create(
+        TariffVehicleRate(company_id=tariff.company_id, terms=record, from_units=lower, rate=rate)
+        for lower, rate in terms.rates
+    )
     ctx.audit(
         "tariff.vehicle_terms_set",
         object_type="tariff",
@@ -484,9 +556,52 @@ def rental_snapshot(tariff: Tariff, terms: TariffVehicleTerms) -> dict[str, Any]
         "tariff_id": str(tariff.id),
         "tariff_version": tariff.version,
         **snapshot(tariff),
+        "ranges": [r.as_dict() for r in vehicle_ranges(tariff, terms)],
         "currency_minor_units": tariff.currency.minor_units,
         "vehicle_terms": {**terms_of(terms).as_dict(), "mileage_unit": terms.mileage_unit},
     }
+
+
+def vehicle_ranges(tariff: Tariff, terms: TariffVehicleTerms) -> list[PriceRange]:
+    """The ranges of the tariff with the prices of the vehicle — what a rental is calculated
+    from. A range without the vehicle's price (added to the tariff later) refuses the rental
+    until the price is given."""
+    rates = dict(terms.rates.values_list("from_units", "rate"))
+    ranges = []
+    for item in tariff.ranges.order_by("from_units"):
+        rate = rates.get(item.from_units)
+        if rate is None:
+            raise errors.business_rule(
+                "TARIFF_VEHICLE_PRICES_MISSING", field="tariff_id", tariff=tariff.name
+            )
+        ranges.append(PriceRange(item.from_units, item.to_units, rate))
+    return ranges
+
+
+def vehicle_ranges_payload(tariff: Tariff, card: VehicleCard) -> list[dict[str, Any]]:
+    """The ranges with the prices of the vehicle for a list; a missing price is shown empty."""
+    terms = vehicle_terms(tariff, card)
+    rates = dict(terms.rates.values_list("from_units", "rate")) if terms else {}
+    return [
+        TariffBounds(r.from_units, r.to_units, rates.get(r.from_units)).as_dict()
+        for r in tariff.ranges.order_by("from_units")
+    ]
+
+
+def remove_vehicle_terms(ctx: CommandContext, tariff: Tariff, card: VehicleCard) -> None:
+    """Takes the tariff off the vehicle: it is no longer offered for the vehicle's new rentals."""
+    record = (
+        TariffVehicleTerms.objects.select_for_update()
+        .filter(tariff=tariff, vehicle_card=card)
+        .first()
+    )
+    if record is None:
+        raise errors.not_found()
+    before = {"vehicle_card": str(card.id), **terms_of(record).as_dict()}
+    record.delete()
+    ctx.audit(
+        "tariff.vehicle_terms_removed", object_type="tariff", object_id=tariff.id, before=before
+    )
 
 
 def vehicle_terms(tariff: Tariff, card: VehicleCard) -> TariffVehicleTerms | None:

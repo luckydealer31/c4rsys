@@ -10,7 +10,7 @@ import type {
   Client,
   IssueException,
   IssueRequirement,
-  PriceRange,
+  TariffRange,
   Rental,
   Warning,
 } from "../../api/types";
@@ -32,7 +32,7 @@ import {
   type PlaceValue,
 } from "./IssueRules";
 
-type VehicleTariff = { id: string; name: string; currency: string; ranges: PriceRange[] };
+type VehicleTariff = { id: string; name: string; currency: string; ranges: TariffRange[] };
 
 const UNMET_WARNING: Record<IssueRequirement["code"], string> = {
   payment: "PAYMENT_INCOMPLETE",

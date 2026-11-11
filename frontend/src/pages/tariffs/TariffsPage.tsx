@@ -2,16 +2,18 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, Navigate, useParams } from "react-router";
+import { Navigate, useParams } from "react-router";
 
 import { useApi } from "../../api/queries";
-import type { PriceRange, Tariff, Vehicle, VehicleTerms } from "../../api/types";
+import { api, type ApiError } from "../../api/client";
+import type { Tariff, TariffRange, VehicleTerms } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading, UnconfiguredConfirm } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { currencies } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
 import { useVehicles } from "../vehicles/VehiclesPage";
+import { EMPTY_ROW, rowBody, rowOf, rowProblem, VehiclePricesTable, type VehicleRow } from "./VehiclePrices";
 
 export function useTariffs() {
   const company = useCompany();
@@ -39,14 +41,15 @@ export function TariffsPage() {
   return <Navigate to={companyPath(company, "/rentals?tab=catalog")} replace />;
 }
 
-export function rangesText(ranges: PriceRange[], t: TFunction, unit = "day") {
+/** The ranges as text; with a price where one is given (the prices of a vehicle), else only
+ * the bounds — the prices of a tariff belong to its vehicles. */
+export function rangesText(ranges: TariffRange[], t: TFunction, unit = "day") {
   const short = unitShort(unit, t);
   return ranges
-    .map((r) =>
-      r.to === null
-        ? t("tariffs.range_open", { from: r.from, rate: Number(r.rate), unit: short })
-        : t("tariffs.range_closed", { from: r.from, to: r.to, rate: Number(r.rate), unit: short }),
-    )
+    .map((r) => {
+      const bounds = r.to === null ? t("terms.range_from", { from: r.from, unit: short }) : t("terms.range", { from: r.from, to: r.to, unit: short });
+      return r.rate === null ? bounds : `${bounds}: ${Number(r.rate)}`;
+    })
     .join("; ");
 }
 
@@ -61,8 +64,8 @@ export function kindBody(kind: Kind, boundary: string): Record<string, unknown> 
 
 export type RangeRow = { from: string; to: string; rate: string };
 
-function toRows(ranges: PriceRange[]): RangeRow[] {
-  return ranges.map((r) => ({ from: String(r.from), to: r.to === null ? "" : String(r.to), rate: r.rate }));
+function toRows(ranges: TariffRange[]): RangeRow[] {
+  return ranges.map((r) => ({ from: String(r.from), to: r.to === null ? "" : String(r.to), rate: "" }));
 }
 
 /** Range rows; the next «from» follows the previous «to» (§ 13.2.8). The server checks the
@@ -92,7 +95,6 @@ export function RangesEditor({
           <tr>
             <th>{t("tariffs.from", { unit: unitShort(unit, t) })}</th>
             <th>{t("tariffs.to", { unit: unitShort(unit, t) })}</th>
-            <th>{t("tariffs.rate", { unit: unitShort(unit, t) })}</th>
             <th />
           </tr>
         </thead>
@@ -109,9 +111,6 @@ export function RangesEditor({
                   placeholder={index === rows.length - 1 ? t("tariffs.no_limit") : ""}
                   onChange={(e) => set(index, "to", e.target.value)}
                 />
-              </td>
-              <td>
-                <input value={row.rate} inputMode="decimal" onChange={(e) => set(index, "rate", e.target.value)} />
               </td>
               <td>
                 {rows.length > 1 ? (
@@ -142,11 +141,8 @@ export function RangesEditor({
 }
 
 export function fromRows(rows: RangeRow[]) {
-  return rows.map((row) => ({
-    from: Number(row.from),
-    to: row.to.trim() === "" ? null : Number(row.to),
-    rate: row.rate.trim().replace(",", "."),
-  }));
+  // Bounds only: the price of a range is set for each vehicle (decision of 11.11.2026).
+  return rows.map((row) => ({ from: Number(row.from), to: row.to.trim() === "" ? null : Number(row.to) }));
 }
 
 function TariffForm({ tariff }: { tariff?: Tariff }) {
@@ -314,150 +310,80 @@ export function TariffPage() {
   );
 }
 
-function termsText(terms: VehicleTerms, t: TFunction) {
-  const mileage =
-    terms.mileage.mode === "unlimited"
-      ? t("terms.mileage_unlimited")
-      : t("terms.mileage_included", {
-          km: Number(terms.mileage.included_per_unit),
-          unit: terms.mileage_unit,
-          price: Number(terms.mileage.overage_price),
-          currency: terms.currency,
-        });
-  const deposit = terms.deposit.required
-    ? t("terms.deposit_required", {
-        amount: Number(terms.deposit.amount),
-        currency: terms.currency,
-        days: terms.deposit.hold_days ?? "—",
-      })
-    : t("terms.deposit_none");
-  return `${mileage}; ${deposit}`;
-}
-
+/** The vehicles of the tariff (customer's decision of 11.11.2026): all own and managed
+ * vehicles of the company with a mark; a marked vehicle has its own price in every range, its
+ * mileage included and the price over it, its deposit. Saving sets the terms of the marked
+ * vehicles and takes the tariff off the unmarked ones. A tariff limited to locations applies to
+ * a vehicle only while the vehicle is in one of them. */
 function TariffVehicles({ tariff }: { tariff: Tariff }) {
   const { t } = useTranslation();
   const company = useCompany();
   const can = useCan();
+  const client = useQueryClient();
   const terms = useApi<{ vehicles: VehicleTerms[] }>(
     ["tariff-vehicles", company.public_id, tariff.id],
     `/c/${company.public_id}/tariffs/${tariff.id}/vehicles`,
   );
   const vehicles = useVehicles();
-  const names = new Map((vehicles.data?.vehicles ?? []).map((v) => [v.id, v]));
-  return (
-    <Card title={t("tariffs.vehicles")}>
-      {(terms.data?.vehicles ?? []).length === 0 ? <p className="muted">{t("tariffs.no_vehicles")}</p> : null}
-      <table>
-        <tbody>
-          {(terms.data?.vehicles ?? []).map((item) => (
-            <tr key={item.vehicle_card_id}>
-              <td>
-                <Link to={companyPath(company, `/vehicles/${item.vehicle_card_id}`)}>
-                  {names.get(item.vehicle_card_id)?.name ?? item.vehicle_card_id}
-                </Link>
-              </td>
-              <td className="small">{termsText(item, t)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {can("tariff.edit") ? <TermsForm tariff={tariff} vehicles={vehicles.data?.vehicles ?? []} /> : null}
-    </Card>
+  const [edited, setEdited] = useState<Record<string, VehicleRow> | null>(null);
+  const [error, setError] = useState<ApiError | null>(null);
+  const [pending, setPending] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const assigned = new Map((terms.data?.vehicles ?? []).map((item) => [item.vehicle_card_id, item]));
+  const list = (vehicles.data?.vehicles ?? []).filter(
+    (v) => (v.relation === "own" || v.relation === "managed") && v.storage === null && (v.state !== "archived" || assigned.has(v.id)),
   );
-}
+  const rows = edited ?? Object.fromEntries([...assigned].map(([id, item]) => [id, rowOf(item)]));
+  const problem = list.some((v) => rowProblem(rows[v.id] ?? EMPTY_ROW, tariff.ranges));
+  const editable = can("tariff.edit") && tariff.state === "active";
 
-/** Both choices are explicit: unlimited or included mileage; no deposit or a deposit with an
- * amount and an optional hold term in days (§ 22.1.8, decisions 22.10.2026). */
-function TermsForm({ tariff, vehicles }: { tariff: Tariff; vehicles: Vehicle[] }) {
-  const { t } = useTranslation();
-  const company = useCompany();
-  const client = useQueryClient();
-  const [vehicleId, setVehicleId] = useState("");
-  const [mileage, setMileage] = useState<"" | "unlimited" | "included">("");
-  const [included, setIncluded] = useState("");
-  const [overage, setOverage] = useState("");
-  const [deposit, setDeposit] = useState<"" | "none" | "required">("");
-  const [amount, setAmount] = useState("");
-  const [holdDays, setHoldDays] = useState("");
-  const save = useCommand<Record<string, unknown>, unknown>(
-    () => `/c/${company.public_id}/tariffs/${tariff.id}/vehicles/${vehicleId}`,
-    "PUT",
-  );
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    const body = {
-      mileage:
-        mileage === "included"
-          ? { mode: "included", included_per_unit: included, overage_price: overage.replace(",", ".") }
-          : { mode: mileage },
-      deposit:
-        deposit === "required"
-          ? { required: true, amount: amount.replace(",", "."), hold_days: holdDays ? Number(holdDays) : null }
-          : { required: false },
-    };
-    if ((await save.run(body)) !== null) {
-      setVehicleId("");
-      await client.invalidateQueries({ queryKey: ["tariff-vehicles", company.public_id, tariff.id] });
-      await client.invalidateQueries({ queryKey: ["readiness", company.public_id] });
+  async function save() {
+    setPending(true);
+    setError(null);
+    setSaved(false);
+    try {
+      for (const vehicle of list) {
+        const row = rows[vehicle.id] ?? EMPTY_ROW;
+        const path = `/c/${company.public_id}/tariffs/${tariff.id}/vehicles/${vehicle.id}`;
+        if (row.checked) {
+          await api(path, { method: "PUT", body: rowBody(row, tariff.ranges), idempotencyKey: crypto.randomUUID() });
+        } else if (assigned.has(vehicle.id)) {
+          await api(path, { method: "DELETE", body: {}, idempotencyKey: crypto.randomUUID() });
+        }
+      }
+      setSaved(true);
+      setEdited(null);
+    } catch (caught) {
+      setError(caught as ApiError);
     }
+    setPending(false);
+    await client.invalidateQueries({ queryKey: ["tariff-vehicles", company.public_id, tariff.id] });
+    await client.invalidateQueries({ queryKey: ["readiness", company.public_id] });
   }
 
   return (
-    <form className="stack" onSubmit={submit} style={{ marginTop: 16 }}>
-      <h3>{t("terms.assign_title")}</h3>
-      <div className="row">
-        <Field label={t("terms.vehicle")}>
-          <select value={vehicleId} onChange={(e) => setVehicleId(e.target.value)}>
-            <option value="">—</option>
-            {vehicles.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.name} · {v.vehicle_id}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label={t("terms.mileage")}>
-          <select value={mileage} onChange={(e) => setMileage(e.target.value as typeof mileage)}>
-            <option value="">{t("terms.choose")}</option>
-            <option value="unlimited">{t("terms.mileage_unlimited")}</option>
-            <option value="included">{t("terms.mileage_limit")}</option>
-          </select>
-        </Field>
-        <Field label={t("terms.deposit")}>
-          <select value={deposit} onChange={(e) => setDeposit(e.target.value as typeof deposit)}>
-            <option value="">{t("terms.choose")}</option>
-            <option value="none">{t("terms.deposit_none")}</option>
-            <option value="required">{t("terms.deposit_yes")}</option>
-          </select>
-        </Field>
-      </div>
-      {mileage === "included" ? (
-        <div className="row">
-          <Field label={t("terms.included_per_day")}>
-            <input value={included} inputMode="decimal" onChange={(e) => setIncluded(e.target.value)} />
-          </Field>
-          <Field label={t("terms.overage_price")}>
-            <input value={overage} inputMode="decimal" onChange={(e) => setOverage(e.target.value)} />
-          </Field>
+    <Card title={t("terms.vehicles_title", { currency: tariff.currency })}>
+      {terms.isLoading || vehicles.isLoading ? <Loading /> : null}
+      <VehiclePricesTable
+        vehicles={list}
+        ranges={tariff.ranges}
+        rows={rows}
+        onChange={(next) => {
+          setSaved(false);
+          setEdited(next);
+        }}
+        unit={unitShort(tariff.unit, t)}
+        disabled={!editable}
+      />
+      <ErrorMessage error={error} />
+      {saved ? <div className="alert ok">{t("common.saved")}</div> : null}
+      {editable ? (
+        <div className="actions">
+          <button type="button" disabled={pending || problem || edited === null} onClick={() => void save()}>
+            {t("terms.assign")}
+          </button>
         </div>
       ) : null}
-      {deposit === "required" ? (
-        <div className="row">
-          <Field label={t("terms.deposit_amount")}>
-            <input value={amount} inputMode="decimal" onChange={(e) => setAmount(e.target.value)} />
-          </Field>
-          <Field label={t("terms.hold_days")}>
-            <input value={holdDays} inputMode="numeric" onChange={(e) => setHoldDays(e.target.value)} />
-          </Field>
-        </div>
-      ) : null}
-      <ErrorMessage error={save.error} />
-      <div className="actions">
-        <button type="submit" disabled={!vehicleId || !mileage || !deposit || save.pending}>
-          {t("terms.assign")}
-        </button>
-      </div>
-    </form>
+    </Card>
   );
 }

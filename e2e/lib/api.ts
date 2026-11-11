@@ -91,7 +91,7 @@ export async function createCompany(page: Page): Promise<Company> {
   const tariff = (
     (await ok(page, "POST", `/c/${cmp}/tariffs`, {
       name: "Сутки",
-      ranges: [{ from: 1, to: null, rate: "1000" }],
+      ranges: [{ from: 1, to: null }],
     })).tariff as { id: string }
   ).id;
   const vehicle = (
@@ -102,6 +102,7 @@ export async function createCompany(page: Page): Promise<Company> {
     })).vehicle as { id: string }
   ).id;
   await ok(page, "PUT", `/c/${cmp}/tariffs/${tariff}/vehicles/${vehicle}`, {
+    rates: [{ from: 1, rate: "1000" }],
     mileage: { mode: "unlimited" },
     deposit: { required: false },
   });

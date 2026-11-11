@@ -1294,7 +1294,9 @@
     "captcha_unavailable": "The bot check is unavailable right now. Try again in a few minutes.",
     "ip_rate_limited": "Too many requests from your network. Try again in an hour.",
     "request_too_large": "The request is too large.",
-    "maintenance_rule_duplicate": "This vehicle already has a rule for this work: «{{name}}»."
+    "maintenance_rule_duplicate": "This vehicle already has a rule for this work: «{{name}}».",
+    "rates_required": "Enter the price of the vehicle in every range of the tariff.",
+    "tariff_vehicle_prices_missing": "The tariff «{{tariff}}» has a range without a price for this vehicle. Enter it in the tariff."
   },
   "history": {
     "action": "Action",
@@ -1968,7 +1970,8 @@
     "action_service": "Add an extra service",
     "action_tariff": "Create a tariff",
     "action_catalog_service": "Create a service",
-    "wizard_some_locations": "Only some locations"
+    "wizard_some_locations": "Only some locations",
+    "filter_all": "All"
   },
   "rights": {
     "add": "Add rights",
@@ -2155,7 +2158,21 @@
     "mileage_limit": "Included mileage",
     "mileage_unlimited": "Unlimited mileage",
     "overage_price": "Price per unit over",
-    "vehicle": "Vehicle"
+    "vehicle": "Vehicle",
+    "vehicles_title": "Vehicles and prices, {{currency}}",
+    "select_all": "Select all",
+    "range": "{{from}}–{{to}} {{unit}}",
+    "range_from": "from {{from}} {{unit}}",
+    "price": "price for",
+    "included_short": "Mileage included per unit",
+    "overage_short": "Price over the mileage",
+    "hold_short": "Deposit held, days",
+    "not_marked": "Not on this tariff",
+    "no_vehicles": "There are no own or managed vehicles yet; they can be added to the tariff later.",
+    "table_hint": "Mark the vehicles of the tariff and enter the price of a unit in every range. Mileage empty — no limit; filled — the included mileage and the price of each unit over it. Deposit empty — not required; the days of holding are optional.",
+    "problem_rates": "Enter the price in every range.",
+    "problem_mileage": "The included mileage and the price over it go together.",
+    "problem_hold": "The days of holding need a deposit."
   },
   "timezones": {
     "Africa/Cairo": "Cairo",

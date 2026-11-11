@@ -174,3 +174,59 @@ def test_archived_tariff_drops_out_of_vehicle_tariffs(owner: Client, setup: dict
 
     post(owner, f"{path}/restore", {"expected_version": 2}, key())
     assert tariffs_for_vehicle(card).count() == 1
+
+
+def test_prices_belong_to_the_vehicle(owner: Client, setup: dict[str, str]) -> None:
+    """Customer's decision of 11.11.2026: a tariff has ranges without a price; every vehicle of
+    the tariff has its own price in every range."""
+    cmp = setup["cmp"]
+    tariff = post(
+        owner,
+        f"/api/c/{cmp}/tariffs",
+        {"name": "Ranges", "ranges": [{"from": 1, "to": 7}, {"from": 8, "to": None}]},
+        key(),
+    ).json()["tariff"]
+    assert tariff["ranges"] == [
+        {"from": 1, "to": 7, "rate": None},
+        {"from": 8, "to": None, "rate": None},
+    ]
+    s = {**setup, "tariff": tariff["id"]}
+
+    # No price, a price for a part of the ranges, a price for a range the tariff has not.
+    assert _put(owner, s, UNLIMITED_NO_DEPOSIT).json()["error"]["code"] == "RATES_REQUIRED"
+    partial = {**UNLIMITED_NO_DEPOSIT, "rates": [{"from": 1, "rate": "2500"}]}
+    assert _put(owner, s, partial).json()["error"]["code"] == "RATES_REQUIRED"
+    alien = {**UNLIMITED_NO_DEPOSIT, "rates": [{"from": 1, "rate": "1"}, {"from": 9, "rate": "1"}]}
+    assert _put(owner, s, alien).json()["error"]["code"] == "RATES_REQUIRED"
+
+    rates = [{"from": 1, "rate": "2500"}, {"from": 8, "rate": "2300"}]
+    saved = _put(owner, s, {**UNLIMITED_NO_DEPOSIT, "rates": rates})
+    assert saved.status_code == 200, saved.content
+    assert saved.json()["terms"]["rates"] == [
+        {"from": 1, "rate": "2500.0000"},
+        {"from": 8, "rate": "2300.0000"},
+    ]
+    # The vehicle sees its own prices in the tariff offered for its rental.
+    offered = owner.get(f"/api/c/{cmp}/vehicles/{s['vehicle']}/tariffs").json()["tariffs"]
+    mine = next(item for item in offered if item["id"] == tariff["id"])
+    assert [r["rate"] for r in mine["ranges"]] == ["2500.0000", "2300.0000"]
+
+    # A range added later waits for the price of the vehicle; the kept one keeps its price.
+    changed = owner.patch(
+        f"/api/c/{cmp}/tariffs/{tariff['id']}",
+        data={
+            "ranges": [{"from": 1, "to": 7}, {"from": 8, "to": 30}, {"from": 31, "to": None}],
+            "expected_version": tariff["version"],
+        },
+        content_type="application/json",
+        headers=key(),
+    )
+    assert changed.status_code == 200, changed.content
+    listed = owner.get(f"/api/c/{cmp}/tariffs/{tariff['id']}/vehicles").json()["vehicles"]
+    assert [r["from"] for r in listed[0]["rates"]] == [1, 8]
+
+    # The tariff is taken off the vehicle.
+    url = f"/api/c/{cmp}/tariffs/{tariff['id']}/vehicles/{s['vehicle']}"
+    removed = owner.delete(url, data={}, content_type="application/json", headers=key())
+    assert removed.status_code == 200, removed.content
+    assert owner.get(f"/api/c/{cmp}/tariffs/{tariff['id']}/vehicles").json()["vehicles"] == []

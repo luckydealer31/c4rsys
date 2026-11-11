@@ -419,7 +419,13 @@ export const rental: Rental = {
         "mode": "unlimited",
         "overage_price": null
       },
-      "mileage_unit": "km"
+      "mileage_unit": "km",
+      "rates": [
+        {
+          "from": 1,
+          "rate": "1000.0000"
+        }
+      ]
     }
   },
   "vehicle_card_id": "00000000-0000-0000-0000-000000000000",
@@ -541,7 +547,13 @@ export const bookingRental: Rental = {
         "mode": "unlimited",
         "overage_price": null
       },
-      "mileage_unit": "km"
+      "mileage_unit": "km",
+      "rates": [
+        {
+          "from": 1,
+          "rate": "1000.0000"
+        }
+      ]
     }
   },
   "vehicle_card_id": "00000000-0000-0000-0000-000000000000",

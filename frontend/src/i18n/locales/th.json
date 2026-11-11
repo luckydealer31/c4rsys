@@ -1294,7 +1294,9 @@
     "captcha_unavailable": "การตรวจสอบบอทไม่พร้อมใช้งานในขณะนี้ โปรดลองอีกครั้งในอีกสักครู่",
     "ip_rate_limited": "มีคำขอจากเครือข่ายของคุณมากเกินไป โปรดลองอีกครั้งในอีกหนึ่งชั่วโมง",
     "request_too_large": "คำขอมีขนาดใหญ่เกินไป",
-    "maintenance_rule_duplicate": "ยานพาหนะนี้มีกฎสำหรับงานนี้อยู่แล้ว: «{{name}}»"
+    "maintenance_rule_duplicate": "ยานพาหนะนี้มีกฎสำหรับงานนี้อยู่แล้ว: «{{name}}»",
+    "rates_required": "กรอกราคาของยานพาหนะในทุกช่วงของอัตรา",
+    "tariff_vehicle_prices_missing": "อัตรา «{{tariff}}» มีช่วงที่ยังไม่มีราคาสำหรับยานพาหนะนี้"
   },
   "history": {
     "action": "Action",
@@ -1968,7 +1970,8 @@
     "action_service": "เพิ่มบริการเสริม",
     "action_tariff": "สร้างอัตรา",
     "action_catalog_service": "สร้างบริการ",
-    "wizard_some_locations": "เฉพาะบางสถานที่"
+    "wizard_some_locations": "เฉพาะบางสถานที่",
+    "filter_all": "ทั้งหมด"
   },
   "rights": {
     "add": "Add rights",
@@ -2155,7 +2158,21 @@
     "mileage_limit": "Included mileage",
     "mileage_unlimited": "Unlimited mileage",
     "overage_price": "Price per unit over",
-    "vehicle": "Vehicle"
+    "vehicle": "Vehicle",
+    "vehicles_title": "ยานพาหนะและราคา, {{currency}}",
+    "select_all": "เลือกทั้งหมด",
+    "range": "{{from}}–{{to}} {{unit}}",
+    "range_from": "ตั้งแต่ {{from}} {{unit}}",
+    "price": "ราคาสำหรับ",
+    "included_short": "ระยะทางที่รวมต่อหน่วย",
+    "overage_short": "ราคาระยะทางส่วนเกิน",
+    "hold_short": "ระยะเวลากักเงินมัดจำ (วัน)",
+    "not_marked": "ไม่ได้ใช้อัตรานี้",
+    "no_vehicles": "ยังไม่มียานพาหนะ สามารถเพิ่มภายหลังได้",
+    "table_hint": "เลือกยานพาหนะและกรอกราคาต่อหน่วยในทุกช่วง ระยะทางว่าง — ไม่จำกัด เงินมัดจำว่าง — ไม่ต้องใช้",
+    "problem_rates": "กรอกราคาในทุกช่วง",
+    "problem_mileage": "ระยะทางที่รวมและราคาส่วนเกินต้องกรอกคู่กัน",
+    "problem_hold": "ระยะเวลากักต้องมีเงินมัดจำ"
   },
   "timezones": {
     "Africa/Cairo": "Cairo",

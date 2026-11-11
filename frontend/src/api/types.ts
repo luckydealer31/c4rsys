@@ -513,6 +513,9 @@ export type JournalEntry = {
 
 export type PriceRange = { from: number; to: number | null; rate: string };
 
+/** A range of a tariff: the bounds; the price is set for each vehicle (decision of 11.11.2026). */
+export type TariffRange = { from: number; to: number | null; rate: string | null };
+
 export type Tariff = {
   id: string;
   version: number;
@@ -523,7 +526,7 @@ export type Tariff = {
   day_boundary: string | null;
   all_locations: boolean;
   locations: string[];
-  ranges: PriceRange[];
+  ranges: TariffRange[];
   state: "active" | "archived";
 };
 
@@ -532,6 +535,7 @@ export type VehicleTerms = {
   mileage_unit: string;
   currency: string;
   version: number;
+  rates: { from: number; rate: string }[];
   mileage: { mode: "unlimited" | "included"; included_per_unit: string | null; overage_price: string | null };
   deposit: { required: boolean; amount: string | null; hold_days: number | null };
 };
@@ -550,7 +554,7 @@ export type TariffSnapshot = {
   all_locations: boolean;
   locations: string[];
   ranges: PriceRange[];
-  vehicle_terms: Pick<VehicleTerms, "mileage_unit" | "mileage" | "deposit">;
+  vehicle_terms: Pick<VehicleTerms, "mileage_unit" | "mileage" | "deposit" | "rates">;
 };
 
 export type Vehicle = {

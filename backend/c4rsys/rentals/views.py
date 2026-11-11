@@ -216,16 +216,27 @@ def tariff_vehicles(request: HttpRequest, cmp: str, tariff_id: UUID) -> JsonResp
     return JsonResponse({"vehicles": items})
 
 
-@require_http_methods(["PUT"])
+@require_http_methods(["PUT", "DELETE"])
 def tariff_vehicle_terms(
     request: HttpRequest, cmp: str, tariff_id: UUID, card_id: UUID
 ) -> JsonResponse:
     """Assigning a tariff to a vehicle is a change of the tariff: it needs tariff.edit
-    (decision 22.10.2026)."""
+    (decision 22.10.2026). DELETE takes the tariff off the vehicle (decision of 11.11.2026: the
+    vehicles of a tariff are marked in a list); rentals keep their snapshot (§ 13.6.1)."""
     context, actor = _actor(request, cmp)
-    _get_visible(context, actor, tariff_id)
+    tariff = _get_visible(context, actor, tariff_id)
     card = fleet.get_card(context.company.id, card_id)
-    terms = tariffs.parse_vehicle_terms(parse_json(request))
+    if request.method == "DELETE":
+
+        def remove(ctx: CommandContext) -> CommandResult:
+            locked = Tariff.objects.select_for_update().get(company=context.company, pk=tariff_id)
+            _require(actor, "tariff.edit", tariffs.availability_of(locked))
+            tariffs.remove_vehicle_terms(ctx, locked, card)
+            return CommandResult(200, {"removed": True})
+
+        removal = {"tariff_id": str(tariff_id), "vehicle_card_id": str(card_id)}
+        return run_and_respond(request, "tariff.remove_vehicle_terms", actor, removal, remove)
+    terms = tariffs.parse_vehicle_terms(tariff, parse_json(request))
 
     def handler(ctx: CommandContext) -> CommandResult:
         locked = Tariff.objects.select_for_update().get(company=context.company, pk=tariff_id)
@@ -908,7 +919,8 @@ def vehicle_tariffs(request: HttpRequest, cmp: str, card_id: UUID) -> JsonRespon
             "id": str(t.id),
             "name": t.name,
             "currency": t.currency_id,
-            "ranges": tariffs.snapshot(t)["ranges"],
+            # The prices of this vehicle in the ranges of the tariff.
+            "ranges": tariffs.vehicle_ranges_payload(t, card),
         }
         for t in tariffs.tariffs_for_vehicle(card).order_by("name")
     ]

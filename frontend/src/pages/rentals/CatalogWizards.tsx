@@ -3,15 +3,25 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router";
 
-import type { ApiError } from "../../api/client";
+import { api, type ApiError } from "../../api/client";
 import type { ExtraService, Tariff } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field } from "../../components/ui";
 import { companyPath, useCompany } from "../../layout/CompanyShell";
 import { currencies } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
-import { fromRows, kindBody, KINDS, RangesEditor, useTariffs, type Kind, type RangeRow } from "../tariffs/TariffsPage";
+import {
+  fromRows,
+  kindBody,
+  KINDS,
+  RangesEditor,
+  unitShort,
+  useTariffs,
+  type Kind,
+  type RangeRow,
+} from "../tariffs/TariffsPage";
 import { useVehicles } from "../vehicles/VehiclesPage";
+import { EMPTY_ROW, rowBody, rowProblem, VehiclePricesTable, type VehicleRow } from "../tariffs/VehiclePrices";
 
 /** The frame of a step-by-step creation in the rental section: a question per screen, «Back»,
  * «Skip» where the step is optional, «Next», and the creating button at the last step. */
@@ -23,6 +33,7 @@ function Steps({
   ready,
   pending,
   optional = false,
+  wide = false,
   createLabel,
   error,
   onBack,
@@ -36,6 +47,7 @@ function Steps({
   ready: boolean;
   pending: boolean;
   optional?: boolean;
+  wide?: boolean;
   createLabel: string;
   error: ApiError | null;
   onBack: () => void;
@@ -46,7 +58,7 @@ function Steps({
   const company = useCompany();
   const last = index === total - 1;
   return (
-    <div className="page">
+    <div className={wide ? "page full" : "page"}>
       <p>
         <Link to={companyPath(company, "/rentals?tab=catalog")}>← {t("rentals.tab_catalog")}</Link>
       </p>
@@ -126,9 +138,10 @@ function CurrencyStep({ value, onChange }: { value: string; onChange: (value: st
   );
 }
 
-/** A new tariff step by step (customer's decision of 11.11.2026): the unit of the count, the
- * currency, the price ranges, where it is available, the name. The unit and the currency stay
- * fixed afterwards (§ 13.1); vehicles are given the tariff on its page. */
+/** A new tariff step by step (customer's decisions of 11.11.2026): the name, the currency, the
+ * unit of the count, the ranges of units without a price, where it is available, and the
+ * vehicles — each marked one with its own price in every range, its mileage and its deposit.
+ * The unit and the currency stay fixed afterwards (§ 13.1). */
 export function NewTariffPage() {
   const { t } = useTranslation();
   const company = useCompany();
@@ -142,35 +155,72 @@ export function NewTariffPage() {
   const [scope, setScope] = useState<string[] | "all">("all");
   const [name, setName] = useState("");
   const create = useCommand<Record<string, unknown>, { tariff: Tariff }>(`/c/${company.public_id}/tariffs`);
-  const steps = ["unit", "currency", "ranges", "scope", "name"] as const;
-  const step = steps[index] ?? "unit";
+  const all = useVehicles();
+  // All own and managed vehicles: a vehicle moves between locations, so the list is not cut
+  // by the availability of the tariff.
+  const vehicles = (all.data?.vehicles ?? []).filter(
+    (v) => (v.relation === "own" || v.relation === "managed") && v.storage === null && v.state !== "archived",
+  );
+  const [prices, setPrices] = useState<Record<string, VehicleRow>>({});
+  const [created, setCreated] = useState<Tariff | null>(null);
+  const [failure, setFailure] = useState<ApiError | null>(null);
+  const [saving, setSaving] = useState(false);
+  const bounds = fromRows(rows);
+  const steps = ["name", "currency", "unit", "ranges", "scope", "vehicles"] as const;
+  const step = steps[index] ?? "name";
   const ready =
     step === "currency"
       ? currency !== ""
       : step === "ranges"
-        ? rows.every((row) => row.from.trim() !== "" && row.rate.trim() !== "")
+        ? rows.every((row, i) => row.from.trim() !== "" && (i === rows.length - 1 || row.to.trim() !== ""))
         : step === "scope"
           ? scope === "all" || scope.length > 0
           : step === "name"
             ? name.trim() !== ""
-            : true;
+            : step === "vehicles"
+              ? !vehicles.some((v) => rowProblem(prices[v.id] ?? EMPTY_ROW, bounds))
+              : true;
 
   async function next() {
     if (index < steps.length - 1) return setIndex(index + 1);
-    const result = await create.run({ name, ranges: fromRows(rows), locations: scope, currency, ...kindBody(kind, boundary) });
-    if (result) {
-      await client.invalidateQueries({ queryKey: ["tariffs", company.public_id] });
-      await client.invalidateQueries({ queryKey: ["readiness", company.public_id] });
-      navigate(companyPath(company, `/rentals/tariffs/${result.tariff.id}`));
+    setFailure(null);
+    setSaving(true);
+    // The tariff first, then the terms of each marked vehicle; a repeated «Create» after a
+    // refusal goes on with the tariff already made.
+    const tariff =
+      created ??
+      (await create.run({ name, ranges: bounds, locations: scope, currency, ...kindBody(kind, boundary) }))?.tariff ??
+      null;
+    if (tariff) {
+      setCreated(tariff);
+      try {
+        for (const vehicle of vehicles) {
+          const row = prices[vehicle.id] ?? EMPTY_ROW;
+          if (!row.checked) continue;
+          await api(`/c/${company.public_id}/tariffs/${tariff.id}/vehicles/${vehicle.id}`, {
+            method: "PUT",
+            body: rowBody(row, bounds),
+            idempotencyKey: crypto.randomUUID(),
+          });
+        }
+        await client.invalidateQueries({ queryKey: ["tariffs", company.public_id] });
+        await client.invalidateQueries({ queryKey: ["readiness", company.public_id] });
+        navigate(companyPath(company, `/rentals/tariffs/${tariff.id}`));
+      } catch (caught) {
+        setFailure(caught as ApiError);
+      }
     }
+    setSaving(false);
   }
 
+  const unitName = kind === "from_issue" || kind === "fixed_boundary" ? "day" : kind;
   const titles = {
     unit: t("tariffs.unit"),
     currency: t("cash.currency"),
     ranges: t("tariffs.ranges"),
     scope: t("tariffs.availability"),
     name: t("tariffs.name"),
+    vehicles: t("terms.vehicles_title", { currency }),
   };
   return (
     <Steps
@@ -179,9 +229,10 @@ export function NewTariffPage() {
       index={index}
       total={steps.length}
       ready={ready}
-      pending={create.pending}
+      pending={create.pending || saving}
       createLabel={t("tariffs.create")}
-      error={create.error}
+      error={create.error ?? failure}
+      wide={step === "vehicles"}
       onBack={() => setIndex(index - 1)}
       onNext={() => void next()}
     >
@@ -205,7 +256,17 @@ export function NewTariffPage() {
         <RangesEditor
           rows={rows}
           onChange={setRows}
-          unit={kind === "from_issue" || kind === "fixed_boundary" ? "day" : kind}
+          unit={unitName}
+        />
+      ) : null}
+      {step === "vehicles" ? (
+        <VehiclePricesTable
+          vehicles={vehicles}
+          ranges={bounds}
+          rows={prices}
+          onChange={setPrices}
+          unit={unitShort(unitName, t)}
+          disabled={created !== null && saving}
         />
       ) : null}
       {step === "scope" ? <Scope scope={scope} onChange={setScope} /> : null}
