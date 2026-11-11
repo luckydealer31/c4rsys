@@ -1306,7 +1306,8 @@
     "equipment_service_standalone_only": "ขณะนี้บริการที่มีอุปกรณ์สั่งได้เฉพาะแบบแยกเดี่ยว ไม่ผูกกับการเช่า",
     "service_without_equipment": "ผูกอุปกรณ์ได้เฉพาะกับบริการที่มีอุปกรณ์",
     "boolean_required": "เลือกใช่หรือไม่",
-    "equipment_in_use": "ชิ้น {{asset}} มีการจองหรือถูกส่งมอบภายใต้บริการนี้ กรุณาปิดหรือยกเลิกก่อน"
+    "equipment_in_use": "ชิ้น {{asset}} มีการจองหรือถูกส่งมอบภายใต้บริการนี้ กรุณาปิดหรือยกเลิกก่อน",
+    "equipment_not_returned": "อุปกรณ์ถูกส่งมอบอยู่ กรุณารับคืนก่อน"
   },
   "history": {
     "action": "Action",
@@ -1984,7 +1985,8 @@
     "action_catalog_service": "สร้างบริการ",
     "wizard_some_locations": "เฉพาะบางสถานที่",
     "filter_all": "ทั้งหมด",
-    "action_service_now": "สร้างบริการ"
+    "action_service_now": "สร้างบริการ",
+    "filter_services": "บริการ"
   },
   "rights": {
     "add": "Add rights",

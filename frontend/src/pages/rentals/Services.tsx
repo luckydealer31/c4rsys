@@ -445,7 +445,9 @@ function LineSettings({ line, onDone }: LineProps) {
         <p className="muted small">{t("services.auto_hint")}</p>
       ) : null}
       <ErrorMessage error={startCmd.error ?? completeCmd.error ?? unlinkCmd.error} />
-      {line.state === "planned" ? (
+      {/* A booked service is cancelled; a started or completed standalone one is annulled the
+          same way (decision of 11.11.2026). Equipment that is out is returned first. */}
+      {line.state === "planned" || (!linked && line.state !== "cancelled" && !(equipment && line.state === "started")) ? (
         <div className="row" style={{ alignItems: "flex-end" }}>
           <Field label={t("charges.cancel_reason")}>
             <input value={reason} onChange={(e) => setReason(e.target.value)} />

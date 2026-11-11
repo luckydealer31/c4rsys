@@ -184,8 +184,8 @@ def test_standalone_service_in_a_new_order(owner: Client, s: Scenario) -> None:
     assert _charged() == Decimal("100")
     started = _line_post(owner, s, changed.json()["line"], "start")
     assert started.json()["line"]["state"] == "started"
-    late_cancel = _line_post(owner, s, started.json()["line"], "cancel", reason="no")
-    assert late_cancel.json()["error"]["code"] == "SERVICE_ALREADY_STARTED"
+    # A started service is no longer refused a cancel: it is annulled (decision of 11.11.2026,
+    # see test_a_started_or_completed_service_is_annulled).
     done = _line_post(owner, s, started.json()["line"], "complete")
     assert done.json()["line"]["state"] == "completed"
     assert _order(owner, s, line["order_id"])["state"] == "ready_to_close"
@@ -340,3 +340,22 @@ def test_a_service_is_booked_without_a_client(owner: Client, s: Scenario) -> Non
     assert _charged() == Decimal("100")
     line = owner.get(f"/api/c/{s.cmp}/service-lines/{line['id']}").json()["line"]
     assert _line_post(owner, s, line, "start").json()["line"]["state"] == "started"
+
+
+def test_a_started_or_completed_service_is_annulled(owner: Client, s: Scenario) -> None:
+    """Decision of 11.11.2026: a service made by mistake is cancelled also after its start or
+    completion; its charge goes to zero and the order can then be cancelled."""
+    service = _service(owner, s, name="Wash", pricing="quantity", unit="", price="50")
+    service_id = service.json()["service"]["id"]
+    line = _standalone(owner, s, service_id, client_id=s.client, quantity=2).json()["line"]
+    line = _line_post(owner, s, line, "start").json()["line"]
+    line = _line_post(owner, s, line, "complete").json()["line"]
+    assert line["state"] == "completed" and _charged() == Decimal("100")
+
+    annulled = _line_post(owner, s, line, "cancel", reason="by mistake")
+
+    assert annulled.status_code == 200, annulled.content
+    assert annulled.json()["line"]["state"] == "cancelled"
+    assert _charged() == Decimal("0")
+    again = _line_post(owner, s, annulled.json()["line"], "cancel", reason="again")
+    assert again.json()["error"]["code"] == "SERVICE_LINE_CLOSED"

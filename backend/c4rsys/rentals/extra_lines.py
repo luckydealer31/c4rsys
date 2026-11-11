@@ -970,8 +970,11 @@ def auto_progress(now: datetime | None = None) -> tuple[int, int]:
 def cancel(
     ctx: CommandContext, company_id: UUID, line_id: UUID, reason: str, expected_version: int
 ) -> ExtraServiceLine:
-    """Only before the actual start (§ 13.4.15): a standalone planned service, a linked one while
-    the rental is a booking. The charge is brought to zero; the line stays."""
+    """Before the actual start (§ 13.4.15): a standalone booked service, a linked one while the
+    rental is a booking. A standalone service already started or completed is annulled the same
+    way, as a wrong rental is (decision З5; customer's decision of 11.11.2026: a service made
+    by mistake must be removable): the charge is brought to zero, the line and its history
+    stay. Equipment that is out is returned first."""
     if not reason.strip():
         raise errors.validation_error("reason", code="FIELD_REQUIRED")
     line = _locked_line(company_id, line_id, expected_version)
@@ -980,8 +983,11 @@ def cancel(
         rental = _locked_rental(company_id, line.rental_id)
         if rental.state != Rental.State.BOOKED:
             raise errors.business_rule("SERVICE_ALREADY_STARTED", state=display_state(line))
-    elif line.state != State.PLANNED:
-        raise errors.business_rule("SERVICE_ALREADY_STARTED", state=line.state)
+    elif line.state == State.CANCELLED:
+        raise errors.business_rule("SERVICE_LINE_CLOSED", state=line.state)
+    elif line.state == State.STARTED and line.asset_id is not None:
+        raise errors.business_rule("EQUIPMENT_NOT_RETURNED", field="asset_id")
+    annulled = line.rental_id is None and line.state != State.PLANNED
     before = _snapshot(line)
     if line.rental_id is not None:
         # The link is kept in the history; a cancelled line is standalone with its last place.
@@ -993,7 +999,7 @@ def cancel(
     line.cancelled_at = timezone.now()
     line.cancel_reason = reason.strip()
     _save(line, rental)
-    _audit(ctx, line, "service_line.cancelled", before)
+    _audit(ctx, line, "service_line.annulled" if annulled else "service_line.cancelled", before)
     charge_line(ctx, line, "cancelled")
     from c4rsys.orders import approvals
 
