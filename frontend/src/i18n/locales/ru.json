@@ -1596,7 +1596,9 @@
     "overdue": "Оплата просрочена",
     "filter_all": "Все заказы",
     "filter_debt": "С долгом",
-    "filter_overdue": "Просроченный долг"
+    "filter_overdue": "Просроченный долг",
+    "client_missing": "Клиент не указан",
+    "set_client": "Указать клиента"
   },
   "payments": {
     "account": "Касса или счёт",
@@ -1967,7 +1969,7 @@
     "service_rental": "Аренда",
     "service_rental_open": "Открыть аренду",
     "service_standalone": "без аренды",
-    "action_service": "Добавить доп. услугу",
+    "action_service": "Забронировать услугу",
     "action_tariff": "Создать тариф",
     "action_catalog_service": "Создать услугу",
     "wizard_some_locations": "Только в выбранных локациях",
@@ -3468,7 +3470,7 @@
     "cancel": "Отменить услугу",
     "settings": "Настройки",
     "hide": "Скрыть",
-    "state_planned": "запланирована",
+    "state_planned": "забронирована",
     "state_started": "оказывается",
     "state_completed": "завершена",
     "state_cancelled": "отменена",
@@ -3487,7 +3489,8 @@
     "location": "Локация оказания",
     "location_hint": "Доход услуги относится к ней.",
     "change_client": "изменить",
-    "apply_free": "Применить и к услугам"
+    "apply_free": "Применить и к услугам",
+    "client_later": "Клиента можно указать позже, в заказе; без клиента услугу нельзя начать оказывать."
   },
   "changes": {
     "extend_title": "Плановое окончание",

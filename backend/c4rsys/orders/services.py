@@ -636,6 +636,20 @@ def form_order(
     return order
 
 
+def set_client(
+    ctx: CommandContext, company_id: UUID, order_id: UUID, client_id: UUID, expected_version: int
+) -> Order:
+    """The client of an order made without one — by a booking of a vehicle or of a service — is
+    set from the order itself (§ 12.1.8; decision of 11.11.2026). A client once set stays."""
+    order = _locked(company_id, order_id, expected_version)
+    if order.state not in (Order.State.OPEN, Order.State.PRELIMINARY):
+        raise errors.business_rule("ORDER_CLOSED")
+    if order.client_id is not None:
+        raise errors.business_rule("ORDER_CLIENT_MISMATCH", field="client_id")
+    assign_client(ctx, order, client_id)
+    return order
+
+
 def set_responsible(
     ctx: CommandContext,
     company_id: UUID,

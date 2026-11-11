@@ -1596,7 +1596,9 @@
     "overdue": "Payment overdue",
     "filter_all": "All orders",
     "filter_debt": "With debt",
-    "filter_overdue": "Overdue debt"
+    "filter_overdue": "Overdue debt",
+    "client_missing": "The client is not specified",
+    "set_client": "Set the client"
   },
   "payments": {
     "account": "Cash desk or account",
@@ -1967,7 +1969,7 @@
     "service_rental": "Rental",
     "service_rental_open": "Open the rental",
     "service_standalone": "without a rental",
-    "action_service": "Add an extra service",
+    "action_service": "Book a service",
     "action_tariff": "Create a tariff",
     "action_catalog_service": "Create a service",
     "wizard_some_locations": "Only some locations",
@@ -3468,7 +3470,7 @@
     "cancel": "Cancel service",
     "settings": "Settings",
     "hide": "Hide",
-    "state_planned": "planned",
+    "state_planned": "booked",
     "state_started": "in progress",
     "state_completed": "completed",
     "state_cancelled": "cancelled",
@@ -3487,7 +3489,8 @@
     "location": "Location of the service",
     "location_hint": "The revenue of the service belongs to it.",
     "change_client": "change",
-    "apply_free": "Apply also to the services"
+    "apply_free": "Apply also to the services",
+    "client_later": "The client may be chosen later, in the order; the service does not start without a client."
   },
   "changes": {
     "extend_title": "Planned end",

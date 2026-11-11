@@ -536,7 +536,9 @@ class Standalone:
 def add_standalone(ctx: CommandContext, company_id: UUID, data: Standalone) -> ExtraServiceLine:
     """A standalone service in an open order of a client or in a new order with only this
     service (§ 12.1.4; decision У1). The location of the service is chosen; its revenue belongs
-    there (§ 13.4.14)."""
+    there (§ 13.4.14). A service is booked as a vehicle is (customer's decision of 11.11.2026):
+    the new order may have no client yet — «client not specified» (§ 12.1.8); its cost is
+    estimated until the client is set (decision Р25), and it does not start without one."""
     from c4rsys.companies import locations
     from c4rsys.parties import services as clients
 
@@ -551,13 +553,11 @@ def add_standalone(ctx: CommandContext, company_id: UUID, data: Standalone) -> E
             company_id, data.order_id, preliminary_ok=True, new_operation=True
         )
     else:
-        if data.client_id is None:
-            raise errors.validation_error("client_id", code="CLIENT_REQUIRED")
-        client = clients.get_client(company_id, data.client_id)
+        client = None if data.client_id is None else clients.get_client(company_id, data.client_id)
         order = orders.create_order(
             ctx,
             company_id=company_id,
-            client_id=client.id,
+            client_id=None if client is None else client.id,
             responsible_employment_id=data.responsible_employment_id,
         )
     line = ExtraServiceLine.objects.create(
@@ -675,6 +675,13 @@ def start(
         raise errors.business_rule("SERVICE_FOLLOWS_RENTAL")
     if line.state != State.PLANNED:
         raise errors.business_rule("SERVICE_NOT_PLANNED", state=line.state)
+    # A booked service is given to a client: the client is set before it starts, as before the
+    # issue of a booked vehicle (decision of 11.11.2026).
+    if (
+        orders.chargeable_client(line.order_id) is None
+        and not orders.get_order(company_id, line.order_id).is_internal
+    ):
+        raise errors.business_rule("CLIENT_REQUIRED", field="client_id")
     before = _snapshot(line)
     line.state = State.STARTED
     line.actual_start = _moment(at, "actual_start")

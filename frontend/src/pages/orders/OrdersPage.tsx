@@ -17,6 +17,7 @@ import { clientName } from "../clients/ClientsPage";
 import { LinkedTasks } from "../tasks/TasksPage";
 import { LinkedDocuments } from "../documents/DocumentsPage";
 import { CashReceipt, usePayments } from "../finance/CashReceipt";
+import { ClientFinder } from "../rentals/IssuePage";
 import { OrderServices } from "../rentals/Services";
 import { useCashAccounts } from "../finance/FinancePage";
 import { JournalTable } from "../settings/EmployeesPage";
@@ -232,8 +233,10 @@ export function OrderPage() {
               t("orders.internal")
             ) : client.data ? (
               <Link to={companyPath(company, `/clients/${client.data.client.id}`)}>{clientName(client.data.client)}</Link>
-            ) : (
+            ) : current.client_id ? (
               "—"
+            ) : (
+              <SetClient key={current.version} order={current} onDone={refresh} />
             )}
           </dd>
           <dt>{t("orders.responsible")}</dt>
@@ -396,5 +399,36 @@ export function OrderPage() {
         </Card>
       ) : null}
     </div>
+  );
+}
+
+/** An order made by a booking without a client: «client not specified» (§ 12.1.8). The client
+ * is found and set here; what was estimated is charged to them then (decision Р25). */
+function SetClient({ order, onDone }: { order: Order; onDone: () => Promise<void> }) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const can = useCan();
+  const [open, setOpen] = useState(false);
+  const set = useCommand<{ client_id: string; expected_version: number }, unknown>(
+    `/c/${company.public_id}/orders/${order.id}/client`,
+  );
+  const mayEdit = can("order.edit") && (order.state === "open" || order.state === "preliminary");
+  return (
+    <>
+      <span className="badge warn">{t("orders.client_missing")}</span>{" "}
+      {mayEdit && !open ? (
+        <button type="button" className="secondary small" style={{ padding: "4px 10px" }} onClick={() => setOpen(true)}>
+          {t("orders.set_client")}
+        </button>
+      ) : null}
+      {mayEdit && open ? (
+        <ClientFinder
+          onPick={async (client: Client) => {
+            if ((await set.run({ client_id: client.id, expected_version: order.version })) !== null) await onDone();
+          }}
+        />
+      ) : null}
+      <ErrorMessage error={set.error} />
+    </>
   );
 }

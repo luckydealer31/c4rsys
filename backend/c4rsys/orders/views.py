@@ -361,6 +361,29 @@ def order_responsible(request: HttpRequest, cmp: str, order_id: UUID) -> JsonRes
 
 
 @require_POST
+def order_client(request: HttpRequest, cmp: str, order_id: UUID) -> JsonResponse:
+    """§ 12.1.8: the client of an order made without one is set later, with «Change orders»."""
+    context, actor = _actor(request, cmp)
+    _order_for(actor, context.company.id, order_id, "order.edit")
+    data = parse_json(request)
+    client_id = _uuid(data, "client_id")
+    if client_id is None:
+        raise RuntimeError("A required id is given")
+    expected_version = get_int(data, "expected_version")
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        order = services.set_client(ctx, context.company.id, order_id, client_id, expected_version)
+        return _result(order)
+
+    payload = {
+        "order_id": str(order_id),
+        "client_id": str(client_id),
+        "expected_version": expected_version,
+    }
+    return run_and_respond(request, "order.set_client", actor, payload, handler)
+
+
+@require_POST
 def order_payment_due(request: HttpRequest, cmp: str, order_id: UUID) -> JsonResponse:
     """§ 12.2.6: sets, moves or removes the term of payment of the debt. PROPOSAL (block 16):
     with «Change orders» on the whole order; the reason is optional."""

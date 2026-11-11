@@ -714,7 +714,9 @@ export function ServiceLinePage() {
   );
 }
 
-/** A new order of a client with only a standalone service (§ 12.1.4; decision У1). */
+/** Booking a service (customer's decision of 11.11.2026): a new order with only a standalone
+ * service (§ 12.1.4; decision У1), as a booking of a vehicle — the client may be set later, in
+ * the order; the service does not start without one. */
 export function NewServiceOrderPage() {
   const { t } = useTranslation();
   const company = useCompany();
@@ -731,8 +733,9 @@ export function NewServiceOrderPage() {
       <p>
         <Link to={companyPath(company, "/rentals?tab=catalog")}>← {t("rentals.tab_catalog")}</Link>
       </p>
-      <h1>{t("services.new_order")}</h1>
+      <h1>{t("rentals.action_service")}</h1>
       <Card title={t("rentals.client")}>
+        <p className="muted small">{t("services.client_later")}</p>
         {client ? (
           <p>
             <strong>{clientName(client)}</strong>{" "}
@@ -762,9 +765,8 @@ export function NewServiceOrderPage() {
         <StandaloneFields
           pending={add.pending}
           error={add.error}
-          disabled={!client}
           onSubmit={async (body) => {
-            const result = await add.run({ ...body, client_id: client?.id });
+            const result = await add.run({ ...body, ...(client ? { client_id: client.id } : {}) });
             if (result) navigate(companyPath(company, `/orders/${result.line.order_id}`));
           }}
         />

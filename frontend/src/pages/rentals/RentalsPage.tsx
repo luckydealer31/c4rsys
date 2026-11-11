@@ -48,9 +48,7 @@ export function RentalsPage() {
     tab === "rentals"
       ? [[can("rental.issue"), "/rentals/new", t("vehicles.action_rental")], booking]
       : tab === "services"
-        ? // TODO(spec): «Book a service» — the customer wants a booking of a service here, apart
-          // from the booking of a vehicle; what it is next to «Add an extra service» is OPEN.
-          [[can("order.create"), "/rentals/services/order", t("rentals.action_service")]]
+        ? [[can("order.create"), "/rentals/services/order", t("rentals.action_service")]]
         : [
             [can("tariff.create"), "/rentals/tariffs/new", t("rentals.action_tariff")],
             [can("tariff.create"), "/rentals/services/new", t("rentals.action_catalog_service")],

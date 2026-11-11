@@ -1596,7 +1596,9 @@
     "overdue": "เกินกำหนดชำระ",
     "filter_all": "คำสั่งซื้อทั้งหมด",
     "filter_debt": "มีหนี้",
-    "filter_overdue": "หนี้เกินกำหนด"
+    "filter_overdue": "หนี้เกินกำหนด",
+    "client_missing": "ยังไม่ระบุลูกค้า",
+    "set_client": "ระบุลูกค้า"
   },
   "payments": {
     "account": "Cash desk or account",
@@ -1967,7 +1969,7 @@
     "service_rental": "การเช่า",
     "service_rental_open": "เปิดการเช่า",
     "service_standalone": "ไม่มีการเช่า",
-    "action_service": "เพิ่มบริการเสริม",
+    "action_service": "จองบริการ",
     "action_tariff": "สร้างอัตรา",
     "action_catalog_service": "สร้างบริการ",
     "wizard_some_locations": "เฉพาะบางสถานที่",
@@ -3468,7 +3470,7 @@
     "cancel": "ยกเลิกบริการ",
     "settings": "ตั้งค่า",
     "hide": "ซ่อน",
-    "state_planned": "วางแผนไว้",
+    "state_planned": "จองแล้ว",
     "state_started": "กำลังให้บริการ",
     "state_completed": "เสร็จแล้ว",
     "state_cancelled": "ยกเลิกแล้ว",
@@ -3487,7 +3489,8 @@
     "location": "สถานที่ให้บริการ",
     "location_hint": "รายได้ของบริการเป็นของสถานที่นี้",
     "change_client": "เปลี่ยน",
-    "apply_free": "ใช้กับบริการด้วย"
+    "apply_free": "ใช้กับบริการด้วย",
+    "client_later": "เลือกลูกค้าภายหลังได้ในคำสั่งซื้อ บริการเริ่มไม่ได้หากไม่มีลูกค้า"
   },
   "changes": {
     "extend_title": "เวลาสิ้นสุดตามแผน",

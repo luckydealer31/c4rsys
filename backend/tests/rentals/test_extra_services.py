@@ -313,3 +313,30 @@ def test_list_of_ordered_services_of_the_company(owner: Client, s: Scenario) -> 
         owner, s.cmp, "lines@example.com", [{"type": "grant", "permission": "vehicle.view"}]
     )
     assert viewer.get(f"/api/c/{s.cmp}/service-lines").json()["lines"] == []
+
+
+def test_a_service_is_booked_without_a_client(owner: Client, s: Scenario) -> None:
+    """Decision of 11.11.2026: a service is booked as a vehicle is — the client may be set
+    later; until then the cost is estimated and the service does not start."""
+    service = _service(owner, s, name="Wash", pricing="quantity", unit="", price="50")
+    service_id = service.json()["service"]["id"]
+
+    created = _standalone(owner, s, service_id, quantity=2)
+    assert created.status_code == 201, created.content
+    line = created.json()["line"]
+    order = _order(owner, s, line["order_id"])
+    assert order["client_id"] is None
+    assert _charged() == Decimal("0")
+    assert _line_post(owner, s, line, "start").json()["error"]["code"] == "CLIENT_REQUIRED"
+
+    named = post(
+        owner,
+        f"/api/c/{s.cmp}/orders/{order['id']}/client",
+        {"client_id": s.client, "expected_version": order["version"]},
+        key(),
+    )
+    assert named.status_code == 200, named.content
+    assert named.json()["order"]["client_id"] == s.client
+    assert _charged() == Decimal("100")
+    line = owner.get(f"/api/c/{s.cmp}/service-lines/{line['id']}").json()["line"]
+    assert _line_post(owner, s, line, "start").json()["line"]["state"] == "started"
