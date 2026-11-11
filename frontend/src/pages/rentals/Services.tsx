@@ -345,7 +345,10 @@ function LineSettings({ line, onDone }: LineProps) {
   const equipment = line.equipment !== null;
   const locations = useLocations();
   const [returnPlace, setReturnPlace] = useState(line.location_id ?? "");
-  const editable = (linked ? can("rental.issue") : can("order.edit")) && !line.finished;
+  // A completed standalone service still opens its settings: it may be cancelled as made by
+  // mistake (decision of 11.11.2026).
+  const editable =
+    (linked ? can("rental.issue") : can("order.edit")) && (!line.finished || (!linked && line.state === "completed"));
   const closed = line.state === "completed" || line.state === "cancelled";
   const [quantity, setQuantity] = useState(String(line.quantity ?? ""));
   const [start, setStart] = useState(line.period?.start ? toLocalInput(new Date(line.period.start), zone) : "");
