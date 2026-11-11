@@ -61,11 +61,12 @@ export function useRentals(enabled = true) {
 
 /** Garage (§ 8.7.2; customer's decisions of 24.10.2026 and 11.11.2026). Own and managed vehicles
  * are one list, grouped by location, with the switches «own» / «managed»; the schedule is the
- * second view of the same vehicles with the same switches; client vehicles are a separate list.
+ * second view of the same vehicles with the same switches. Client vehicles are a third switch of
+ * the list, apart from the two: it shows only them, without locations, and is not in the schedule.
  * The actions of the section stand in a column on the right. */
 type Relation = "own" | "managed" | "client";
 type View = "list" | "schedule" | "client";
-const VIEWS: View[] = ["list", "schedule", "client"];
+const VIEWS: View[] = ["list", "schedule"];
 const FLEET: ("own" | "managed")[] = ["own", "managed"];
 
 export function VehiclesPage() {
@@ -121,7 +122,7 @@ export function VehiclesPage() {
     (v) => (only ? true : shown.has(v.relation as Relation)) && v.storage === null,
   );
   const groups = (view === "client"
-    ? [{ id: "client", name: t("vehicles.client_group"), vehicles: list }]
+    ? [{ id: "client", name: "", vehicles: list }]
     : [
     ...(locations.data?.locations ?? []).map((l) => ({
       id: l.id,
@@ -164,8 +165,8 @@ export function VehiclesPage() {
                 key={key}
                 type="button"
                 role="tab"
-                aria-selected={view === key}
-                className={view === key ? "active" : ""}
+                aria-selected={(view === "client" ? "list" : view) === key}
+                className={(view === "client" ? "list" : view) === key ? "active" : ""}
                 onClick={() => go({ view: key })}
               >
                 {t(`vehicles.view_${key}`)}
@@ -173,6 +174,7 @@ export function VehiclesPage() {
             ))}
           </div>
           <div className="garage-bar">
+            {/* The client list is a list of its own: the switches of the fleet are not in it. */}
             {view === "client"
               ? null
               : FLEET.map((key) => (
@@ -186,6 +188,16 @@ export function VehiclesPage() {
                     {t(`vehicles.tab_${key}`)}
                   </button>
                 ))}
+            {view === "schedule" ? null : (
+              <button
+                type="button"
+                className={view === "client" ? "toggle-chip" : "toggle-chip apart"}
+                aria-pressed={view === "client"}
+                onClick={() => go({ view: view === "client" ? "list" : "client", rel: "" })}
+              >
+                {t("vehicles.tab_client")}
+              </button>
+            )}
             {view === "schedule" ? null : <SectionSearch compact value={q} onSearch={(text) => go({ q: text })} />}
           </div>
           {only ? (
