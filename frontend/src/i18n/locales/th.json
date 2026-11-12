@@ -2671,7 +2671,9 @@
     "documents_pass_nobody": "ไม่มีผู้รับสำเนาเอกสาร: เจ้าของยังไม่ได้รับการยืนยันในระบบ",
     "section_registration": "การจดทะเบียน",
     "plate_country_other_option": "อื่น ๆ — พิมพ์เอง",
-    "plate_country_other": "ชื่อประเทศ"
+    "plate_country_other": "ชื่อประเทศ",
+    "document_issued_by": "ออกโดย",
+    "document_issued_by_short": "ออกโดย {{who}}"
   },
   "warehouse": {
     "action_create": "Create",

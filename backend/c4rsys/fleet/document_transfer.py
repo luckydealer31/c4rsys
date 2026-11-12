@@ -32,6 +32,7 @@ class Item:
     valid_until: date | None
     file_id: UUID | None
     file_name: str
+    issued_by: str = ""
 
 
 def parse_ids(value: Any) -> list[UUID]:
@@ -65,13 +66,31 @@ def owner_items(vehicle_id: UUID, *, user_id: UUID | None, company_id: UUID | No
         if card is None:
             return []
         return [
-            Item(d.id, d.name, d.number, d.valid_from, d.valid_until, d.file_id, d.file_name)
+            Item(
+                d.id,
+                d.name,
+                d.number,
+                d.valid_from,
+                d.valid_until,
+                d.file_id,
+                d.file_name,
+                d.issued_by,
+            )
             for d in card_documents.active_of(card.id)
         ]
     if not vehicle_documents.is_owner(vehicle_id, user_id=user_id, company_id=None):
         return []
     return [
-        Item(d.id, d.title or d.doc_type, v.details, v.issued_on, v.valid_until, v.file_id, "")
+        Item(
+            d.id,
+            d.title or d.doc_type,
+            v.details,
+            v.issued_on,
+            v.valid_until,
+            v.file_id,
+            "",
+            v.issued_by,
+        )
         for d, v in vehicle_documents.active_documents(vehicle_id)
     ]
 
@@ -82,6 +101,7 @@ def items_payload(items: list[Item]) -> list[dict[str, Any]]:
             "id": str(i.id),
             "name": i.name,
             "number": i.number,
+            "issued_by": i.issued_by,
             "valid_from": i.valid_from.isoformat() if i.valid_from else None,
             "valid_until": i.valid_until.isoformat() if i.valid_until else None,
             "has_file": i.file_id is not None,
@@ -127,6 +147,7 @@ def to_company(
             file_id=item.file_id,
             file_name=item.file_name,
             source=source,
+            issued_by=item.issued_by,
         )
     return len(document_ids)
 
@@ -158,7 +179,9 @@ def to_owner(ctx: CommandContext, card: VehicleCard, document_ids: list[UUID]) -
     owner_user_id, target = found
     kind = "company" if target is not None else "person"
     items = [
-        Item(d.id, d.name, d.number, d.valid_from, d.valid_until, d.file_id, d.file_name)
+        Item(
+            d.id, d.name, d.number, d.valid_from, d.valid_until, d.file_id, d.file_name, d.issued_by
+        )
         for d in card_documents.active_of(card.id)
     ]
     chosen = _chosen(items, document_ids)
@@ -174,6 +197,7 @@ def to_owner(ctx: CommandContext, card: VehicleCard, document_ids: list[UUID]) -
                 file_id=item.file_id,
                 file_name=item.file_name,
                 source={"company": str(card.company_id)},
+                issued_by=item.issued_by,
             )
         else:
             vehicle_documents.receive_from_company(
@@ -187,6 +211,7 @@ def to_owner(ctx: CommandContext, card: VehicleCard, document_ids: list[UUID]) -
                 valid_from=item.valid_from,
                 valid_until=item.valid_until,
                 file_id=item.file_id,
+                issued_by=item.issued_by,
             )
     ctx.audit(
         "vehicle_document.passed_to_owner",

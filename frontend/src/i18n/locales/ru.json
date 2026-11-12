@@ -2671,7 +2671,9 @@
     "documents_pass_nobody": "Передать копии документов некому: собственник не подтверждён в системе.",
     "section_registration": "Регистрация",
     "plate_country_other_option": "Другая — ввести вручную",
-    "plate_country_other": "Название страны"
+    "plate_country_other": "Название страны",
+    "document_issued_by": "Кем выдан",
+    "document_issued_by_short": "выдан: {{who}}"
   },
   "warehouse": {
     "action_create": "Создать",

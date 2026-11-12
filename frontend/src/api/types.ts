@@ -295,6 +295,7 @@ export type PassableDocument = {
   id: string;
   name: string;
   number: string;
+  issued_by: string;
   valid_from: string | null;
   valid_until: string | null;
   has_file: boolean;
@@ -711,6 +712,8 @@ export type GlobalDocumentVersion = {
   id: string;
   number: number;
   details: string;
+  /** Who issued the document. */
+  issued_by?: string;
   issued_on: string | null;
   valid_until: string | null;
   has_file: boolean;
@@ -2337,6 +2340,8 @@ export type CardDocument = {
   name: string;
   /** The series and the number in one field. */
   number: string;
+  /** Who issued the document. */
+  issued_by: string;
   valid_from: string | null;
   valid_until: string | null;
   has_file: boolean;

@@ -1388,6 +1388,8 @@ class VehicleCardDocument(models.Model):
     name = models.CharField(max_length=200)
     # The series and the number together, as the company writes them (decision of 12.11.2026).
     number = models.CharField(max_length=150, blank=True, default="")
+    # Who issued the document (decision of 12.11.2026).
+    issued_by = models.CharField(max_length=200, blank=True, default="")
     valid_from = models.DateField(null=True, blank=True)
     valid_until = models.DateField(null=True, blank=True)
     file_id = models.UUIDField(null=True, blank=True)
@@ -1459,6 +1461,8 @@ class VehicleDocumentVersion(models.Model):
     document = models.ForeignKey(VehicleDocument, on_delete=models.PROTECT, related_name="versions")
     number = models.PositiveIntegerField()
     details = models.CharField(max_length=1000, blank=True, default="")
+    # Who issued the document (decision of 12.11.2026).
+    issued_by = models.CharField(max_length=200, blank=True, default="")
     issued_on = models.DateField(null=True, blank=True)
     valid_until = models.DateField(null=True, blank=True)
     file_id = models.UUIDField(null=True, blank=True)

@@ -84,6 +84,7 @@ def _version_payload(v: VehicleDocumentVersion) -> dict[str, Any]:
         "id": str(v.id),
         "number": v.number,
         "details": v.details,
+        "issued_by": v.issued_by,
         "issued_on": v.issued_on.isoformat() if v.issued_on else None,
         "valid_until": v.valid_until.isoformat() if v.valid_until else None,
         "has_file": v.file_id is not None,
@@ -240,6 +241,7 @@ def owner_save(
     valid_until: date | None,
     file_id: UUID | None,
     keep_file: bool,
+    issued_by: str = "",
 ) -> VehicleDocumentVersion:
     """The owner's document in the same form as the company's (decision of 12.11.2026): the
     name, the series and number, the start and the end of the term, an optional file. A change
@@ -273,6 +275,7 @@ def owner_save(
         ctx,
         doc,
         details=number,
+        issued_by=issued_by,
         issued_on=valid_from,
         valid_until=valid_until,
         file_id=file_id,
@@ -326,6 +329,7 @@ def receive_from_company(
     valid_from: date | None,
     valid_until: date | None,
     file_id: UUID | None,
+    issued_by: str = "",
 ) -> VehicleDocumentVersion:
     """A copy the managing company passes to the owner: the owner's own document from now on."""
     doc = VehicleDocument.objects.create(
@@ -338,6 +342,7 @@ def receive_from_company(
         ctx,
         doc,
         details=number,
+        issued_by=issued_by,
         issued_on=valid_from,
         valid_until=valid_until,
         file_id=file_id,
@@ -361,12 +366,14 @@ def _new_version(
     owner_company_id: UUID | None,
     source_company_id: UUID | None = None,
     source_version_id: UUID | None = None,
+    issued_by: str = "",
 ) -> VehicleDocumentVersion:
     last = doc.versions.order_by("-number").first()
     version = VehicleDocumentVersion.objects.create(
         document=doc,
         number=(last.number + 1) if last else 1,
         details=details,
+        issued_by=issued_by,
         issued_on=issued_on,
         valid_until=valid_until,
         file_id=file_id,

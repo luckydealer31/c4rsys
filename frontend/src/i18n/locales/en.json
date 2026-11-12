@@ -2671,7 +2671,9 @@
     "documents_pass_nobody": "There is nobody to pass copies of documents to: the owner is not confirmed in the system.",
     "section_registration": "Registration",
     "plate_country_other_option": "Other — type it in",
-    "plate_country_other": "Name of the country"
+    "plate_country_other": "Name of the country",
+    "document_issued_by": "Issued by",
+    "document_issued_by_short": "issued by {{who}}"
   },
   "warehouse": {
     "action_create": "Create",

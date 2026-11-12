@@ -504,6 +504,7 @@ def _document_data(data: dict[str, Any]) -> card_documents.DocumentData:
     return card_documents.DocumentData(
         name=get_str(data, "name", max_length=200),
         number=get_str(data, "number", max_length=150, required=False),
+        issued_by=get_str(data, "issued_by", max_length=200, required=False),
         valid_from=_day(data, "valid_from"),
         valid_until=_day(data, "valid_until"),
         file_id=file_id,
@@ -516,6 +517,7 @@ def _document_payload(d: card_documents.DocumentData) -> dict[str, Any]:
     return {
         "name": d.name,
         "number": d.number,
+        "issued_by": d.issued_by,
         "valid_from": d.valid_from.isoformat() if d.valid_from else None,
         "valid_until": d.valid_until.isoformat() if d.valid_until else None,
         "file_id": str(d.file_id) if d.file_id else None,

@@ -166,6 +166,7 @@ function Documents({ detail }: { detail: GarageVehicleDetail }) {
   const refresh = () => client.invalidateQueries({ queryKey: ["cabinet-garage", detail.vehicle_id] });
   const row = (d: GlobalDocument) => ({
     number: d.current?.details ?? "",
+    issued_by: d.current?.issued_by ?? "",
     valid_from: d.current?.issued_on ?? null,
     valid_until: d.current?.valid_until ?? null,
   });

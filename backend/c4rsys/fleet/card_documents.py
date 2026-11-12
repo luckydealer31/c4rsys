@@ -37,6 +37,7 @@ class DocumentData:
     file_name: str
     # On a change: no new file is given and the attached one stays.
     keep_file: bool = False
+    issued_by: str = ""
 
 
 def payload(d: VehicleCardDocument) -> dict[str, Any]:
@@ -45,6 +46,7 @@ def payload(d: VehicleCardDocument) -> dict[str, Any]:
         "version": d.version,
         "name": d.name,
         "number": d.number,
+        "issued_by": d.issued_by,
         "valid_from": d.valid_from.isoformat() if d.valid_from else None,
         "valid_until": d.valid_until.isoformat() if d.valid_until else None,
         "has_file": d.file_id is not None,
@@ -63,6 +65,7 @@ def _snapshot(d: VehicleCardDocument) -> dict[str, Any]:
     return {
         "name": d.name,
         "number": d.number,
+        "issued_by": d.issued_by,
         "valid_from": d.valid_from,
         "valid_until": d.valid_until,
         "file_id": str(d.file_id) if d.file_id else None,
@@ -120,6 +123,7 @@ def add(
         vehicle_card_id=card.id,
         name=data.name,
         number=data.number,
+        issued_by=data.issued_by,
         valid_from=data.valid_from,
         valid_until=data.valid_until,
         file_id=data.file_id,
@@ -149,6 +153,7 @@ def change(
     before = _snapshot(d)
     d.name = data.name
     d.number = data.number
+    d.issued_by = data.issued_by
     d.valid_from = data.valid_from
     d.valid_until = data.valid_until
     if data.file_id != d.file_id and not (data.keep_file and data.file_id is None):
@@ -204,6 +209,7 @@ def receive(
     file_id: UUID | None,
     file_name: str,
     source: dict[str, Any],
+    issued_by: str = "",
 ) -> VehicleCardDocument:
     """A copy passed to the company: its own document from now on. The file is the same stored
     file; it is read through the card of each side."""
@@ -212,6 +218,7 @@ def receive(
         vehicle_card_id=card.id,
         name=name[:200],
         number=number[:150],
+        issued_by=issued_by[:200],
         valid_from=valid_from,
         valid_until=valid_until
         if not valid_from or not valid_until or valid_until >= valid_from

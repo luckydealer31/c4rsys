@@ -240,7 +240,7 @@ test("base example from registration to closing survives a restart", async ({ pa
 
   // A document of the vehicle: added in the settings of its card, shown on the main tab.
   await page.goto(`${base}/vehicles`);
-  await page.locator('a[href*="/vehicles/"]:not([href$="/new"])').first().click();
+  await page.locator('a[href*="/vehicles/"]:not([href*="/vehicles/new"])').first().click();
   await expect(page.getByRole("tab", { name: t("vehicles.card_settings") })).toBeVisible();
   const cardUrl = page.url().split("?")[0];
   await page.getByRole("tab", { name: t("vehicles.card_settings") }).click();

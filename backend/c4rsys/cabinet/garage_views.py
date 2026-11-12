@@ -61,6 +61,7 @@ def add_document(request: HttpRequest, vehicle_id: str) -> JsonResponse:
     document_id = _uuid(data.get("document_id"), "document_id")
     name = get_str(data, "name", max_length=300)
     number = get_str(data, "number", max_length=150, required=False)
+    issued_by = get_str(data, "issued_by", max_length=200, required=False)
     valid_from = _date(data.get("valid_from"), "valid_from")
     valid_until = _date(data.get("valid_until"), "valid_until")
     file_id = _uuid(data.get("file_id"), "file_id")
@@ -75,6 +76,7 @@ def add_document(request: HttpRequest, vehicle_id: str) -> JsonResponse:
             document_id=document_id,
             name=name,
             number=number,
+            issued_by=issued_by,
             valid_from=valid_from,
             valid_until=valid_until,
             file_id=file_id,
@@ -87,6 +89,7 @@ def add_document(request: HttpRequest, vehicle_id: str) -> JsonResponse:
         "document_id": str(document_id) if document_id else None,
         "name": name,
         "number": number,
+        "issued_by": issued_by,
         "valid_from": valid_from.isoformat() if valid_from else None,
         "valid_until": valid_until.isoformat() if valid_until else None,
         "file_id": str(file_id) if file_id else None,

@@ -472,7 +472,12 @@ def test_owner_passes_copies_to_the_managing_company(owner: Client, s: Scenario)
     vhl = card["vehicle_id"]
     pdf = upload(somchai, "vehicle_document", b"%PDF-1.4\n" + b"0" * 50, key="vd-2")
     book = _owner_document(
-        somchai, vhl, "Blue Book", number="AB 123", file_id=pdf.json()["file"]["id"]
+        somchai,
+        vhl,
+        "Blue Book",
+        number="AB 123",
+        issued_by="DLT Phuket",
+        file_id=pdf.json()["file"]["id"],
     )
     policy = _owner_document(somchai, vhl, "Policy", valid_until="2027-01-01")
     licence = _owner_document(somchai, vhl, "Licence")
@@ -496,7 +501,12 @@ def test_owner_passes_copies_to_the_managing_company(owner: Client, s: Scenario)
     )
     assert done.status_code == 200, done.content
     [copy] = owner.get(url).json()["vehicle"]["card_documents"]
-    assert (copy["name"], copy["number"], copy["has_file"]) == ("Blue Book", "AB 123", True)
+    assert (copy["name"], copy["number"], copy["issued_by"], copy["has_file"]) == (
+        "Blue Book",
+        "AB 123",
+        "DLT Phuket",
+        True,
+    )
     assert owner.get(f"{url}/card-documents/{copy['id']}/file").status_code == 200
     # Later, while the management is confirmed, from the personal garage.
     managers = somchai.get(f"/api/cabinet/garage/{vhl}").json()["vehicle"]["managers"]
@@ -531,7 +541,7 @@ def test_company_passes_copies_to_the_owner_at_the_end(owner: Client, s: Scenari
     added = post(
         owner,
         f"{url}/card-documents",
-        {"name": "Insurance", "number": "P-77", "valid_until": "2027-06-01"},
+        {"name": "Insurance", "number": "P-77", "issued_by": "AXA", "valid_until": "2027-06-01"},
         key(),
     )
     [document] = added.json()["vehicle"]["card_documents"]
@@ -569,8 +579,9 @@ def test_company_passes_copies_to_the_owner_at_the_end(owner: Client, s: Scenari
     assert ended.status_code == 200, ended.content
     # The owner got his own copy of the chosen document; the company keeps its documents.
     mine = somchai.get(f"/api/cabinet/garage/{card['vehicle_id']}").json()["vehicle"]["documents"]
-    assert [(d["name"], d["current"]["details"], d["current"]["valid_until"]) for d in mine] == [
-        ("Insurance", "P-77", "2027-06-01")
-    ]
+    assert [
+        (d["name"], d["current"]["details"], d["current"]["issued_by"], d["current"]["valid_until"])
+        for d in mine
+    ] == [("Insurance", "P-77", "AXA", "2027-06-01")]
     kept = owner.get(url).json()["vehicle"]["card_documents"]
     assert {d["name"] for d in kept} == {"Insurance", "Internal note"}

@@ -16,7 +16,7 @@ export function useDay() {
   return (day: string) => new Date(`${day}T00:00:00`).toLocaleDateString(i18n.language);
 }
 
-type Details = { number: string; valid_from: string | null; valid_until: string | null };
+type Details = { number: string; issued_by?: string; valid_from: string | null; valid_until: string | null };
 
 /** «AB 123456 · from … · until …» — only what is filled. */
 export function useDetails() {
@@ -25,6 +25,7 @@ export function useDetails() {
   return (d: Details) =>
     [
       d.number,
+      d.issued_by ? t("vehicles.document_issued_by_short", { who: d.issued_by }) : "",
       d.valid_from ? t("documents.from_date", { date: day(d.valid_from) }) : "",
       d.valid_until ? t("documents.until_date", { date: day(d.valid_until) }) : "",
     ]
@@ -69,6 +70,7 @@ export function VehicleDocumentsList({ vehicle }: { vehicle: Vehicle }) {
 export type DocumentDraft = {
   name: string;
   number: string;
+  issued_by?: string;
   valid_from: string | null;
   valid_until: string | null;
   has_file: boolean;
@@ -93,6 +95,7 @@ export function DocumentForm({
   const [draft, setDraft] = useState({
     name: initial?.name ?? "",
     number: initial?.number ?? "",
+    issued_by: initial?.issued_by ?? "",
     valid_from: initial?.valid_from ?? "",
     valid_until: initial?.valid_until ?? "",
   });
@@ -137,6 +140,9 @@ export function DocumentForm({
       </Field>
       <Field label={t("vehicles.document_number")}>
         <input maxLength={150} value={draft.number} onChange={set("number")} />
+      </Field>
+      <Field label={t("vehicles.document_issued_by")}>
+        <input maxLength={200} value={draft.issued_by} onChange={set("issued_by")} />
       </Field>
       <div className="row">
         <Field label={t("vehicles.document_valid_from")}>
