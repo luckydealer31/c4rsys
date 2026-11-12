@@ -14,7 +14,7 @@ from c4rsys.accounts.middleware import require_user
 from c4rsys.companies import access
 from c4rsys.companies import services as companies
 from c4rsys.companies.views import run_and_respond
-from c4rsys.fleet import owner_requests
+from c4rsys.fleet import document_transfer, owner_requests
 from c4rsys.fleet.models import VehicleCard
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
@@ -90,7 +90,7 @@ def incoming(request: HttpRequest, cmp: str) -> JsonResponse:
     context, _ = _answerer(request, cmp)
     now = timezone.now()
     items = [
-        owner_requests.incoming_payload(r, now)
+        owner_requests.incoming_payload(r, now, company_id=context.company.id)
         for r in owner_requests.for_company(context.company.id)
         .select_related("company", "vehicle")
         .prefetch_related("answers")
@@ -102,15 +102,26 @@ def incoming(request: HttpRequest, cmp: str) -> JsonResponse:
 @require_POST
 def incoming_answer(request: HttpRequest, cmp: str, request_id: UUID) -> JsonResponse:
     context, actor = _answerer(request, cmp)
-    given = parse_json(request).get("answers")
+    body = parse_json(request)
+    given = body.get("answers")
+    documents = document_transfer.parse_ids(body.get("document_ids"))
 
     def handler(ctx: CommandContext) -> CommandResult:
-        done = owner_requests.answer_as_company(ctx, context.company, request_id, given)
+        done = owner_requests.answer_as_company(ctx, context.company, request_id, given, documents)
         return CommandResult(
-            200, {"request": owner_requests.incoming_payload(done, timezone.now())}
+            200,
+            {
+                "request": owner_requests.incoming_payload(
+                    done, timezone.now(), company_id=context.company.id
+                )
+            },
         )
 
-    payload = {"request_id": str(request_id), "answers": given}
+    payload = {
+        "request_id": str(request_id),
+        "answers": given,
+        "document_ids": sorted(str(d) for d in documents),
+    }
     return run_and_respond(request, "vehicle.owner_answer", actor, payload, handler)
 
 
@@ -120,7 +131,7 @@ def mine(request: HttpRequest) -> JsonResponse:
     user, _session = require_user(request)
     now = timezone.now()
     items = [
-        owner_requests.incoming_payload(r, now)
+        owner_requests.incoming_payload(r, now, user_id=user.id)
         for r in owner_requests.for_user(user)
         .select_related("company", "vehicle")
         .prefetch_related("answers")
@@ -132,14 +143,21 @@ def mine(request: HttpRequest) -> JsonResponse:
 @require_POST
 def my_answer(request: HttpRequest, request_id: UUID) -> JsonResponse:
     user, session = require_user(request)
-    given = parse_json(request).get("answers")
+    body = parse_json(request)
+    given = body.get("answers")
+    documents = document_transfer.parse_ids(body.get("document_ids"))
 
     def handler(ctx: CommandContext) -> CommandResult:
-        done = owner_requests.answer_as_user(ctx, user, request_id, given)
+        done = owner_requests.answer_as_user(ctx, user, request_id, given, documents)
         return CommandResult(
-            200, {"request": owner_requests.incoming_payload(done, timezone.now())}
+            200,
+            {"request": owner_requests.incoming_payload(done, timezone.now(), user_id=user.id)},
         )
 
     actor = Actor(user_id=user.id, session_id=session.id)
-    payload = {"request_id": str(request_id), "answers": given}
+    payload = {
+        "request_id": str(request_id),
+        "answers": given,
+        "document_ids": sorted(str(d) for d in documents),
+    }
     return run_and_respond(request, "vehicle.owner_answer", actor, payload, handler)

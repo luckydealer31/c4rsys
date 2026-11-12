@@ -1,12 +1,13 @@
 """Documents of a vehicle kept by the company in its card (customer's decision of 12.11.2026).
 
 The company names the document itself (a vehicle passport is called differently in different
-countries), gives its series and number, the start and the end of its term — either, both or
-none — and may attach a JPEG or PDF file. A document is added, changed and sent to the archive.
+countries), gives its series and number in one field, the start and the end of its term —
+either, both or none — and may attach a JPEG or PDF file. A document is added, changed and
+sent to the archive.
 These are the company's own records: the owner's global documents (§ 8.2.3) are kept apart.
 
-TODO(spec): passing these documents between the owner and the managing company at the start and
-the end of the management (the customer described it on 12.11.2026) is not designed yet.
+Copies pass between the owner and the managing company (`document_transfer`): the receiver gets
+its own document and keeps it itself.
 """
 
 from dataclasses import dataclass
@@ -29,7 +30,6 @@ FILE_TYPES = ("image/jpeg", "application/pdf")
 @dataclass(frozen=True)
 class DocumentData:
     name: str
-    series: str
     number: str
     valid_from: date | None
     valid_until: date | None
@@ -44,7 +44,6 @@ def payload(d: VehicleCardDocument) -> dict[str, Any]:
         "id": str(d.id),
         "version": d.version,
         "name": d.name,
-        "series": d.series,
         "number": d.number,
         "valid_from": d.valid_from.isoformat() if d.valid_from else None,
         "valid_until": d.valid_until.isoformat() if d.valid_until else None,
@@ -63,7 +62,6 @@ def card_payload(card: VehicleCard) -> list[dict[str, Any]]:
 def _snapshot(d: VehicleCardDocument) -> dict[str, Any]:
     return {
         "name": d.name,
-        "series": d.series,
         "number": d.number,
         "valid_from": d.valid_from,
         "valid_until": d.valid_until,
@@ -121,7 +119,6 @@ def add(
         company_id=company_id,
         vehicle_card_id=card.id,
         name=data.name,
-        series=data.series,
         number=data.number,
         valid_from=data.valid_from,
         valid_until=data.valid_until,
@@ -151,7 +148,6 @@ def change(
     _check(ctx, company_id, data, d.file_id)
     before = _snapshot(d)
     d.name = data.name
-    d.series = data.series
     d.number = data.number
     d.valid_from = data.valid_from
     d.valid_until = data.valid_until
@@ -185,6 +181,51 @@ def archive(
         object_id=card.id,
         before={"document": str(d.id), "state": "active"},
         after={"document": str(d.id), "state": d.state, "name": d.name},
+    )
+    return d
+
+
+def active_of(card_id: UUID) -> list[VehicleCardDocument]:
+    return list(
+        VehicleCardDocument.objects.filter(
+            vehicle_card_id=card_id, state=VehicleCardDocument.State.ACTIVE
+        ).order_by("created_at")
+    )
+
+
+def receive(
+    ctx: CommandContext,
+    card: VehicleCard,
+    *,
+    name: str,
+    number: str,
+    valid_from: date | None,
+    valid_until: date | None,
+    file_id: UUID | None,
+    file_name: str,
+    source: dict[str, Any],
+) -> VehicleCardDocument:
+    """A copy passed to the company: its own document from now on. The file is the same stored
+    file; it is read through the card of each side."""
+    d = VehicleCardDocument.objects.create(
+        company_id=card.company_id,
+        vehicle_card_id=card.id,
+        name=name[:200],
+        number=number[:150],
+        valid_from=valid_from,
+        valid_until=valid_until
+        if not valid_from or not valid_until or valid_until >= valid_from
+        else None,
+        file_id=file_id,
+        file_name=file_name if file_id else "",
+        created_by_user_id=ctx.actor.user_id,
+    )
+    ctx.audit(
+        "vehicle_document.received",
+        object_type="vehicle_card",
+        object_id=card.id,
+        after={"document": str(d.id), **_snapshot(d), "source": source},
+        company_id=card.company_id,
     )
     return d
 

@@ -165,9 +165,8 @@ def test_global_documents_and_company_copies(owner: Client, s: Scenario) -> None
         somchai,
         f"/api/cabinet/garage/{vhl}/documents",
         {
-            "doc_type": "insurance",
-            "title": "Policy",
-            "details": "No. 1",
+            "name": "Policy",
+            "number": "No. 1",
             "valid_until": "2027-10-31",
             "file_id": uploaded.json()["file"]["id"],
         },
@@ -178,7 +177,12 @@ def test_global_documents_and_company_copies(owner: Client, s: Scenario) -> None
     again = post(
         somchai,
         f"/api/cabinet/garage/{vhl}/documents",
-        {"document_id": doc["id"], "details": "No. 2", "valid_until": "2028-10-31"},
+        {
+            "document_id": doc["id"],
+            "name": "Policy",
+            "number": "No. 2",
+            "valid_until": "2028-10-31",
+        },
         key(),
     )
     versions = again.json()["vehicle"]["documents"][0]["versions"]
@@ -188,10 +192,12 @@ def test_global_documents_and_company_copies(owner: Client, s: Scenario) -> None
     # The copies of a company whose management is not confirmed are not offered.
     assert again.json()["vehicle"]["copies"] == []
     answer(somchai, request["id"], link=True, management=True)
+    # The confirmed management alone opens nothing (decision of 12.11.2026): the company gets
+    # only the copies the owner passes to it.
     docs = owner.get(url).json()["vehicle"]["global_documents"]
-    assert docs["access"] == "management" and len(docs["documents"]) == 1
+    assert docs["access"] is None and docs["documents"] == []
     version_file = owner.get(f"{url}/global-documents/versions/{versions[1]['id']}/file")
-    assert version_file.status_code == 200
+    assert version_file.status_code == 404
     offered = somchai.get(f"/api/cabinet/garage/{vhl}").json()["vehicle"]["copies"]
     assert offered[0]["company"] == "Test Rent"
     decide_url = (
@@ -402,3 +408,169 @@ def _sold_with_manager(owner: Client, s: Scenario, buyer_id: str, other: Any) ->
     del line
     seller_period = VehicleOwnership.objects.get(owner_company_id=seller.company_id)
     assert seller_period.ended_at is not None
+
+
+def _owner_document(client: Client, vhl: str, name: str, **more: Any) -> dict[str, Any]:
+    added = post(client, f"/api/cabinet/garage/{vhl}/documents", {"name": name, **more}, key())
+    assert added.status_code == 201, added.content
+    found: dict[str, Any] = next(
+        d for d in added.json()["vehicle"]["documents"] if d["name"] == name
+    )
+    return found
+
+
+def test_owner_documents_have_the_form_of_the_company(owner: Client, s: Scenario) -> None:
+    """The name, the series and number in one field, the start and the end of the term; a file
+    is optional; a change is a new version; an archived document is not changed."""
+    somchai, usr = person("somchai@example.com")
+    card = _managed(owner, s, usr)
+    request = ask(owner, s.cmp, card["id"]).json()["request"]
+    answer(somchai, request["id"], ownership=True)
+    vhl = card["vehicle_id"]
+    assert (
+        post(somchai, f"/api/cabinet/garage/{vhl}/documents", {"name": ""}, key()).status_code
+        == 400
+    )
+    doc = _owner_document(somchai, vhl, "Blue Book")
+    assert (doc["archived"], doc["current"]["details"], doc["current"]["has_file"]) == (
+        False,
+        "",
+        False,
+    )
+    changed = _owner_document(
+        somchai,
+        vhl,
+        "Green Book",
+        document_id=doc["id"],
+        number="AB 123",
+        valid_from="2026-01-01",
+        valid_until="2027-01-01",
+    )
+    assert changed["id"] == doc["id"]
+    assert (changed["current"]["details"], changed["current"]["issued_on"]) == (
+        "AB 123",
+        "2026-01-01",
+    )
+    assert len(changed["versions"]) == 2
+    archived = post(somchai, f"/api/cabinet/garage/{vhl}/documents/{doc['id']}/archive", {}, key())
+    assert archived.json()["vehicle"]["documents"][0]["archived"] is True
+    again = post(
+        somchai,
+        f"/api/cabinet/garage/{vhl}/documents",
+        {"document_id": doc["id"], "name": "Other"},
+        key(),
+    )
+    assert again.json()["error"]["code"] == "VEHICLE_DOCUMENT_ARCHIVED"
+
+
+def test_owner_passes_copies_to_the_managing_company(owner: Client, s: Scenario) -> None:
+    somchai, usr = person("somchai@example.com")
+    card = _managed(owner, s, usr)
+    url = f"/api/c/{s.cmp}/vehicles/{card['id']}"
+    request = ask(owner, s.cmp, card["id"]).json()["request"]
+    answer(somchai, request["id"], ownership=True)
+    vhl = card["vehicle_id"]
+    pdf = upload(somchai, "vehicle_document", b"%PDF-1.4\n" + b"0" * 50, key="vd-2")
+    book = _owner_document(
+        somchai, vhl, "Blue Book", number="AB 123", file_id=pdf.json()["file"]["id"]
+    )
+    policy = _owner_document(somchai, vhl, "Policy", valid_until="2027-01-01")
+    licence = _owner_document(somchai, vhl, "Licence")
+    # The open request offers the owner his documents to pass with the answer.
+    mine = somchai.get("/api/owner-requests").json()["requests"][0]
+    assert {d["name"] for d in mine["documents"]} == {"Blue Book", "Policy", "Licence"}
+    # Without the confirmed management there is nobody to pass them to.
+    early = post(
+        somchai,
+        f"/api/owner-requests/{request['id']}/answer",
+        {"answers": {"link": True}, "document_ids": [book["id"]]},
+        key(),
+    )
+    assert early.json()["error"]["code"] == "VEHICLE_DOCUMENTS_NEED_MANAGEMENT"
+    # With the answer that confirms the management: the chosen ones only.
+    done = post(
+        somchai,
+        f"/api/owner-requests/{request['id']}/answer",
+        {"answers": {"link": True, "management": True}, "document_ids": [book["id"]]},
+        key(),
+    )
+    assert done.status_code == 200, done.content
+    [copy] = owner.get(url).json()["vehicle"]["card_documents"]
+    assert (copy["name"], copy["number"], copy["has_file"]) == ("Blue Book", "AB 123", True)
+    assert owner.get(f"{url}/card-documents/{copy['id']}/file").status_code == 200
+    # Later, while the management is confirmed, from the personal garage.
+    managers = somchai.get(f"/api/cabinet/garage/{vhl}").json()["vehicle"]["managers"]
+    later = post(
+        somchai,
+        f"/api/cabinet/garage/{vhl}/documents/pass",
+        {"card_id": managers[0]["card_id"], "document_ids": [policy["id"]]},
+        key(),
+    )
+    assert later.status_code == 200, later.content
+    names = [d["name"] for d in owner.get(url).json()["vehicle"]["card_documents"]]
+    assert names == ["Blue Book", "Policy"]
+    # The copy is the company's own: its change does not touch the owner's document.
+    changed = owner.put(
+        f"{url}/card-documents/{copy['id']}",
+        data={"name": "Blue Book (copy)", "expected_version": copy["version"]},
+        content_type="application/json",
+        headers=key(),
+    )
+    assert changed.status_code == 200, changed.content
+    own = somchai.get(f"/api/cabinet/garage/{vhl}").json()["vehicle"]["documents"]
+    assert {d["name"] for d in own} == {"Blue Book", "Policy", "Licence"}
+    assert licence["id"] not in {
+        d["id"] for d in owner.get(url).json()["vehicle"]["card_documents"]
+    }
+
+
+def test_company_passes_copies_to_the_owner_at_the_end(owner: Client, s: Scenario) -> None:
+    somchai, usr = person("somchai@example.com")
+    card = _managed(owner, s, usr)
+    url = f"/api/c/{s.cmp}/vehicles/{card['id']}"
+    added = post(
+        owner,
+        f"{url}/card-documents",
+        {"name": "Insurance", "number": "P-77", "valid_until": "2027-06-01"},
+        key(),
+    )
+    [document] = added.json()["vehicle"]["card_documents"]
+    post(owner, f"{url}/card-documents", {"name": "Internal note"}, key())
+    current = owner.get(url).json()["vehicle"]
+    # Nobody to pass to until the owner is confirmed.
+    assert current["documents_recipient"] is None
+    refused = post(
+        owner,
+        f"{url}/end-management",
+        {
+            "reason": "contract ended",
+            "then": "archive",
+            "expected_version": current["version"],
+            "document_ids": [document["id"]],
+        },
+        key(),
+    )
+    assert refused.json()["error"]["code"] == "VEHICLE_DOCUMENTS_NO_RECIPIENT"
+    request = ask(owner, s.cmp, card["id"]).json()["request"]
+    answer(somchai, request["id"], ownership=True, link=True, management=True)
+    current = owner.get(url).json()["vehicle"]
+    assert current["documents_recipient"] == "person"
+    ended = post(
+        owner,
+        f"{url}/end-management",
+        {
+            "reason": "contract ended",
+            "then": "archive",
+            "expected_version": current["version"],
+            "document_ids": [document["id"]],
+        },
+        key(),
+    )
+    assert ended.status_code == 200, ended.content
+    # The owner got his own copy of the chosen document; the company keeps its documents.
+    mine = somchai.get(f"/api/cabinet/garage/{card['vehicle_id']}").json()["vehicle"]["documents"]
+    assert [(d["name"], d["current"]["details"], d["current"]["valid_until"]) for d in mine] == [
+        ("Insurance", "P-77", "2027-06-01")
+    ]
+    kept = owner.get(url).json()["vehicle"]["card_documents"]
+    assert {d["name"] for d in kept} == {"Insurance", "Internal note"}

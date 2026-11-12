@@ -308,10 +308,12 @@ def end_management(
     reason: str,
     then: str,
     expected_version: int,
+    document_ids: list[UUID] | None = None,
 ) -> VehicleCard:
     """The vehicle returns to the owner in the accounting of relations, without a warehouse
     (§ 8.3.17). The card is archived or stays as a client vehicle of the service (PROPOSAL: the
-    employee chooses)."""
+    employee chooses). The company may pass copies of its documents of the vehicle to the
+    confirmed owner (decision of 12.11.2026)."""
     card = _locked(company_id, card_id, expected_version)
     reason = _require_reason(reason)
     if card.relation != Relation.MANAGED or card.state != VehicleCard.State.ACTIVE:
@@ -320,6 +322,10 @@ def end_management(
         raise errors.validation_error("then", code="CHOICE_REQUIRED")
     now = timezone.now()
     _require_free(card, now)
+    if document_ids:
+        from c4rsys.fleet import document_transfer
+
+        document_transfer.to_owner(ctx, card, document_ids)
     owner_requests.close_open(ctx, card, "management_ended")
     if then == "archive":
         _archive(ctx, card, "management_ended", reason, now)

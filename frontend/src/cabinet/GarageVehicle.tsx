@@ -3,11 +3,11 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router";
 
-import { uploadFile } from "../api/client";
 import { useApi } from "../api/queries";
-import type { GarageVehicleDetail, TransferReversal } from "../api/types";
+import type { GarageVehicleDetail, GlobalDocument, TransferReversal } from "../api/types";
 import { useCommand } from "../api/useCommand";
-import { Card, ErrorMessage, Field, Loading } from "../components/ui";
+import { Card, ErrorMessage, Field, IconButton, Loading, Modal } from "../components/ui";
+import { DocumentChecklist, DocumentForm, useDetails } from "../pages/vehicles/VehicleDocuments";
 import { deviceTimeZone, formatMoment } from "../time";
 
 /** A vehicle of the personal garage (ТЗ § 7.1.2): what the managing companies pass by category
@@ -142,111 +142,156 @@ function Reversals({ items }: { items: TransferReversal[] }) {
   );
 }
 
-const DOC_TYPES = ["passport", "registration", "insurance", "other"] as const;
-
+/** The owner's documents of the vehicle in the same form as a company keeps them (decision of
+ * 12.11.2026): the name, the series and number, the dates, an optional file; a change is kept as a
+ * new version (§ 8.2.3). Copies are passed to a company whose management is confirmed. */
 function Documents({ detail }: { detail: GarageVehicleDetail }) {
   const { t } = useTranslation();
   const client = useQueryClient();
+  const describe = useDetails();
   const base = `/cabinet/garage/${detail.vehicle_id}`;
-  const [docType, setDocType] = useState<string>("insurance");
-  const [documentId, setDocumentId] = useState("");
-  const [details, setDetails] = useState("");
-  const [validUntil, setValidUntil] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [editing, setEditing] = useState<GlobalDocument | "new" | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const [passed, setPassed] = useState<string[]>([]);
+  const managers = detail.managers.filter((m) => m.confirmed);
+  const [target, setTarget] = useState("");
   const add = useCommand<Record<string, unknown>, unknown>(`${base}/documents`);
+  const archive = useCommand<{ id: string }, unknown>((body) => `${base}/documents/${body.id}/archive`);
+  const pass = useCommand<{ card_id: string; document_ids: string[] }, unknown>(`${base}/documents/pass`);
+  const [passedTo, setPassedTo] = useState("");
   // The body carries the address of the copy; the server reads only the decision fields.
   const decide = useCommand<{ path: string; decision: string; document_id?: string; doc_type?: string }, unknown>(
     (body) => body.path,
   );
   const refresh = () => client.invalidateQueries({ queryKey: ["cabinet-garage", detail.vehicle_id] });
-
-  async function save() {
-    setUploading(true);
-    try {
-      const fileId = file ? (await uploadFile("vehicle_document", file)).id : null;
-      const result = await add.run({
-        document_id: documentId || null,
-        doc_type: documentId ? null : docType,
-        details,
-        valid_until: validUntil || null,
-        file_id: fileId,
-      });
-      if (result !== null) {
-        setDetails("");
-        setValidUntil("");
-        setFile(null);
-        await refresh();
-      }
-    } finally {
-      setUploading(false);
-    }
-  }
+  const row = (d: GlobalDocument) => ({
+    number: d.current?.details ?? "",
+    valid_from: d.current?.issued_on ?? null,
+    valid_until: d.current?.valid_until ?? null,
+  });
+  const active = detail.documents.filter((d) => !d.archived);
+  const shown = showArchived ? detail.documents : active;
+  const cardId = target || managers[0]?.card_id || "";
 
   return (
     <Card title={t("cabinet.documents_title")}>
       <p className="muted small">{t("cabinet.documents_hint")}</p>
-      {detail.documents.map((d) => (
-        <div key={d.id} style={{ marginBottom: 8 }}>
-          <strong>{t(`vehicles.document_type_${d.doc_type}`)}</strong>
-          {d.title ? ` · ${d.title}` : ""}
-          <ul className="plain small">
-            {d.versions.map((v) => (
-              <li key={v.id}>
-                v{v.number} · {v.details || "—"}
-                {v.valid_until ? ` · ${t("vehicles.document_valid_until", { date: v.valid_until })}` : ""}
-                {v.source === "company_copy" ? ` · ${t("vehicles.document_from_copy")}` : ""}
-                {v.has_file ? (
-                  <>
-                    {" · "}
-                    <a href={`/api${base}/documents/versions/${v.id}/file`} target="_blank" rel="noreferrer">
+      {shown.length === 0 ? <p className="muted">{t("vehicles.documents_none")}</p> : null}
+      {shown.length ? (
+        <table>
+          <tbody>
+            {shown.map((d) => (
+              <tr key={d.id}>
+                <td>
+                  <strong>{d.name}</strong>{" "}
+                  {d.archived ? <span className="badge">{t("vehicles.document_archived")}</span> : null}
+                </td>
+                <td className="small">{describe(row(d)) || "—"}</td>
+                <td className="small">
+                  {d.current?.has_file ? (
+                    <a href={`/api${base}/documents/versions/${d.current.id}/file`} target="_blank" rel="noreferrer">
                       {t("vehicles.document_file")}
                     </a>
-                  </>
-                ) : null}
-              </li>
+                  ) : null}
+                </td>
+                <td className="row-actions">
+                  {d.archived ? null : (
+                    <>
+                      <IconButton icon="edit" label={`${t("common.edit")}: ${d.name}`} onClick={() => setEditing(d)} />
+                      <IconButton
+                        icon="archive"
+                        label={`${t("vehicles.document_to_archive")}: ${d.name}`}
+                        disabled={archive.pending}
+                        onClick={async () => {
+                          if (!window.confirm(t("vehicles.document_archive_confirm", { name: d.name }))) return;
+                          if ((await archive.run({ id: d.id })) !== null) await refresh();
+                        }}
+                      />
+                    </>
+                  )}
+                </td>
+              </tr>
             ))}
-          </ul>
-        </div>
-      ))}
-      <div className="row">
-        <Field label={t("cabinet.document_target")}>
-          <select value={documentId} onChange={(e) => setDocumentId(e.target.value)}>
-            <option value="">{t("cabinet.document_new")}</option>
-            {detail.documents.map((d) => (
-              <option key={d.id} value={d.id}>
-                {t(`vehicles.document_type_${d.doc_type}`)} {d.title}
-              </option>
-            ))}
-          </select>
-        </Field>
-        {documentId ? null : (
-          <Field label={t("cabinet.document_type")}>
-            <select value={docType} onChange={(e) => setDocType(e.target.value)}>
-              {DOC_TYPES.map((d) => (
-                <option key={d} value={d}>
-                  {t(`vehicles.document_type_${d}`)}
-                </option>
-              ))}
-            </select>
-          </Field>
-        )}
-        <Field label={t("cabinet.document_details")}>
-          <input value={details} onChange={(e) => setDetails(e.target.value)} />
-        </Field>
-        <Field label={t("cabinet.document_valid_until")}>
-          <input type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} />
-        </Field>
-        <Field label={t("cabinet.document_file")}>
-          <input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-        </Field>
-      </div>
-      <ErrorMessage error={add.error} />
+          </tbody>
+        </table>
+      ) : null}
+      <ErrorMessage error={archive.error} />
       <div className="actions">
-        <button type="button" disabled={uploading || add.pending || (!file && !details.trim())} onClick={() => void save()}>
-          {t("cabinet.document_add")}
+        <button type="button" className="secondary" onClick={() => setEditing("new")}>
+          {t("vehicles.document_add")}
         </button>
+        {detail.documents.some((d) => d.archived) ? (
+          <button type="button" className="toggle-chip" aria-pressed={showArchived} onClick={() => setShowArchived(!showArchived)}>
+            {t("vehicles.documents_archive")}
+          </button>
+        ) : null}
       </div>
+      {editing ? (
+        <Modal
+          title={editing === "new" ? t("vehicles.document_add") : t("vehicles.document_edit")}
+          onClose={() => setEditing(null)}
+        >
+          <DocumentForm
+            initial={
+              editing === "new"
+                ? null
+                : { name: editing.name, ...row(editing), has_file: Boolean(editing.current?.has_file), file_name: "" }
+            }
+            error={add.error}
+            onCancel={() => setEditing(null)}
+            save={async (body) => {
+              const result = await add.run(editing === "new" ? body : { ...body, document_id: editing.id });
+              if (result === null) return false;
+              setEditing(null);
+              await refresh();
+              return true;
+            }}
+          />
+        </Modal>
+      ) : null}
+      {managers.length && active.length ? (
+        <>
+          <h3>{t("cabinet.documents_pass_title")}</h3>
+          <p className="muted small">{t("cabinet.documents_pass_hint")}</p>
+          {managers.length > 1 ? (
+            <Field label={t("cabinet.documents_pass_company")}>
+              <select value={cardId} onChange={(e) => setTarget(e.target.value)}>
+                {managers.map((m) => (
+                  <option key={m.card_id} value={m.card_id}>
+                    {m.company.display_name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          ) : (
+            <p>{managers[0]?.company.display_name}</p>
+          )}
+          <DocumentChecklist
+            items={active.map((d) => ({ id: d.id, name: d.name, ...row(d) }))}
+            chosen={passed}
+            onChange={(ids) => {
+              setPassed(ids);
+              setPassedTo("");
+            }}
+          />
+          <ErrorMessage error={pass.error} />
+          {passedTo ? <p className="badge ok">{t("cabinet.documents_passed", { company: passedTo })}</p> : null}
+          <div className="actions">
+            <button
+              type="button"
+              disabled={!passed.length || !cardId || pass.pending}
+              onClick={async () => {
+                if ((await pass.run({ card_id: cardId, document_ids: passed })) !== null) {
+                  setPassedTo(managers.find((m) => m.card_id === cardId)?.company.display_name ?? "");
+                  setPassed([]);
+                }
+              }}
+            >
+              {t("cabinet.documents_pass_button")}
+            </button>
+          </div>
+        </>
+      ) : null}
       {detail.copies.length ? (
         <>
           <h3>{t("cabinet.copies_title")}</h3>
@@ -269,9 +314,7 @@ function Documents({ detail }: { detail: GarageVehicleDetail }) {
                         className="secondary"
                         disabled={decide.pending}
                         onClick={async () => {
-                          const body = documentId
-                            ? { path: `${path}/decide`, decision: "accepted", document_id: documentId }
-                            : { path: `${path}/decide`, decision: "accepted", doc_type: docType };
+                          const body = { path: `${path}/decide`, decision: "accepted", doc_type: "other" };
                           if ((await decide.run(body)) !== null) await refresh();
                         }}
                       >
@@ -293,7 +336,6 @@ function Documents({ detail }: { detail: GarageVehicleDetail }) {
               );
             })}
           </ul>
-          <p className="muted small">{t("cabinet.copy_target_hint")}</p>
           <ErrorMessage error={decide.error} />
         </>
       ) : null}

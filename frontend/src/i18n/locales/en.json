@@ -250,7 +250,9 @@
     "vehicle_split_code_rejected": "Wrong code of a split",
     "vehicle_document_added": "Vehicle document added",
     "vehicle_document_changed": "Vehicle document changed",
-    "vehicle_document_archived": "Vehicle document archived"
+    "vehicle_document_archived": "Vehicle document archived",
+    "vehicle_document_received": "Copy of a vehicle document received",
+    "vehicle_document_passed_to_owner": "Copies of vehicle documents passed to the owner"
   },
   "finance_articles": {
     "archive": "Archive",
@@ -1312,7 +1314,9 @@
     "equipment_in_use": "Unit {{asset}} has bookings or is handed out under this service. Finish or cancel them first.",
     "equipment_not_returned": "The equipment is handed out: accept its return first.",
     "vehicle_document_file_type": "Only a JPEG or PDF file fits.",
-    "vehicle_document_archived": "The document is archived and is not changed."
+    "vehicle_document_archived": "The document is archived and is not changed.",
+    "vehicle_documents_need_management": "Copies of documents are passed only to a company whose management you confirmed.",
+    "vehicle_documents_no_recipient": "There is nobody to pass copies of documents to: the owner is not confirmed in the system."
   },
   "history": {
     "action": "Action",
@@ -2654,8 +2658,7 @@
     "document_edit": "Change the document",
     "document_name": "Name",
     "document_name_hint": "What the document is called in your country: vehicle passport, Blue Book, insurance policy…",
-    "document_series": "Series",
-    "document_number": "Number",
+    "document_number": "Series and number",
     "document_valid_from": "Start (issue) date",
     "document_valid_to": "End date",
     "document_file_attach": "File",
@@ -2663,7 +2666,11 @@
     "document_file_remove": "Remove the file",
     "document_to_archive": "To the archive",
     "document_archived": "archived",
-    "document_archive_confirm": "Send the document “{{name}}” to the archive?"
+    "document_archive_confirm": "Send the document “{{name}}” to the archive?",
+    "documents_pass_all": "All",
+    "documents_pass_owner": "Pass copies of documents to the owner",
+    "documents_pass_owner_hint": "The owner gets his own copies of the ticked documents with their files and keeps them himself. The company keeps its documents.",
+    "documents_pass_nobody": "There is nobody to pass copies of documents to: the owner is not confirmed in the system."
   },
   "warehouse": {
     "action_create": "Create",
@@ -4692,7 +4699,9 @@
     "ask_management": "Do you agree that this company manages the vehicle?",
     "final": "An answer cannot be changed later: a new decision needs a new request of the company. You may answer some questions now and the rest later.",
     "answer": "Answer",
-    "closed_owner_changed": "Closed: another owner of the vehicle was given."
+    "closed_owner_changed": "Closed: another owner of the vehicle was given.",
+    "documents_title": "Pass copies of documents to the company",
+    "documents_hint": "Optional: all, some or none. The company gets its own copies with their files and keeps them itself."
   },
   "cabinet": {
     "title": "Personal cabinet",
@@ -4792,7 +4801,7 @@
     "reversal_accept": "Confirm the error",
     "reversal_reject": "Reject",
     "documents_title": "Documents of the vehicle",
-    "documents_hint": "Not public: companies read them only within your confirmed management. A new version never replaces the earlier ones.",
+    "documents_hint": "You keep the documents of the vehicle. A change is kept as a new version. Companies get only the copies you pass to them.",
     "document_target": "Document",
     "document_new": "a new document",
     "document_type": "Type",
@@ -4804,7 +4813,12 @@
     "copies_hint": "Accept a copy as a new version of the document, or leave it in that company only.",
     "copy_accept": "Accept as a version",
     "copy_keep": "Keep in the company",
-    "copy_target_hint": "An accepted copy goes to the document chosen above, or to a new one of the chosen type."
+    "copy_target_hint": "An accepted copy goes to the document chosen above, or to a new one of the chosen type.",
+    "documents_pass_title": "Pass copies to the managing company",
+    "documents_pass_hint": "The company gets its own copies of the ticked documents with their files. Your documents stay with you.",
+    "documents_pass_company": "Company",
+    "documents_pass_button": "Pass copies",
+    "documents_passed": "Copies passed: {{company}}"
   },
   "exports": {
     "title": "Full data export",

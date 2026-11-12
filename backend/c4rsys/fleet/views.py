@@ -18,6 +18,7 @@ from c4rsys.fleet import (
     card_documents,
     characteristics,
     confirmations,
+    document_transfer,
     identity,
     listing,
     merges,
@@ -98,6 +99,8 @@ def _payload(
     )
     body["global_documents"] = vehicle_documents.card_payload(card)
     body["card_documents"] = card_documents.card_payload(card)
+    # Whether copies of the documents can be passed to the owner at the end of the management.
+    body["documents_recipient"] = document_transfer.recipient(card)
     body["transfer_reversals"] = lifecycle.reversals_of_card(card)
     body["sold_to_profile"] = lifecycle.sold_ownership(card) is not None
     return body

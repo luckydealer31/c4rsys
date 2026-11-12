@@ -42,7 +42,7 @@ def test_add_change_and_archive(owner: Client, s: Scenario) -> None:
     added = post(owner, f"{_url(s)}/card-documents", {"name": "Blue Book"}, key())
     assert added.status_code == 201, added.content
     [d] = added.json()["vehicle"]["card_documents"]
-    assert (d["name"], d["series"], d["valid_from"], d["has_file"], d["state"]) == (
+    assert (d["name"], d["number"], d["valid_from"], d["has_file"], d["state"]) == (
         "Blue Book",
         "",
         None,
@@ -66,8 +66,7 @@ def test_add_change_and_archive(owner: Client, s: Scenario) -> None:
         f"{_url(s)}/card-documents/{d['id']}",
         {
             "name": "Blue Book",
-            "series": "AB",
-            "number": "123456",
+            "number": "AB 123456",
             "valid_from": "2026-05-01",
             "valid_until": "2027-05-01",
             "expected_version": d["version"],
@@ -75,9 +74,8 @@ def test_add_change_and_archive(owner: Client, s: Scenario) -> None:
     )
     assert changed.status_code == 200, changed.content
     [d2] = changed.json()["vehicle"]["card_documents"]
-    assert (d2["series"], d2["number"], d2["valid_from"], d2["valid_until"]) == (
-        "AB",
-        "123456",
+    assert (d2["number"], d2["valid_from"], d2["valid_until"]) == (
+        "AB 123456",
         "2026-05-01",
         "2027-05-01",
     )

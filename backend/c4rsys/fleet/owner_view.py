@@ -26,6 +26,7 @@ from c4rsys.fleet.models import (
     VehicleOwnership,
 )
 from c4rsys.platform import errors
+from c4rsys.platform.commands import CommandContext
 
 # (company_id, card_id, until) -> works done before the moment: {"at", "work", "odometer", ...}
 WorkHistory = Callable[[UUID, UUID, datetime | None], list[dict[str, Any]]]
@@ -125,6 +126,25 @@ def detail(user_id: UUID, public_id: str) -> dict[str, Any]:
             if r.vehicle_id == vehicle.id or r.ownership_id == ownership.id
         ],
     }
+
+
+def pass_documents(
+    ctx: CommandContext, user_id: UUID, vehicle: Vehicle, card_id: UUID, document_ids: list[UUID]
+) -> None:
+    """Copies of the owner's documents to a company that manages the vehicle with his
+    confirmation now."""
+    from c4rsys.fleet import document_transfer
+
+    card = (
+        VehicleCard.objects.select_for_update()
+        .filter(pk=card_id, vehicle_id__in=identity.family(identity.resolve(vehicle.id)))
+        .first()
+    )
+    if card is None:
+        raise errors.not_found()
+    document_transfer.to_company(
+        ctx, card, owner_user_id=user_id, owner_company_id=None, document_ids=document_ids
+    )
 
 
 def open_reversals(user_id: UUID) -> list[dict[str, Any]]:

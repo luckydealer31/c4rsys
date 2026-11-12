@@ -272,16 +272,32 @@ def _parse(value: Any) -> dict[str, bool]:
 
 
 def answer_as_user(
-    ctx: CommandContext, user: UserAccount, request_id: UUID, given: Any
+    ctx: CommandContext,
+    user: UserAccount,
+    request_id: UUID,
+    given: Any,
+    documents: list[UUID] | None = None,
 ) -> VehicleOwnerRequest:
-    return _answer(ctx, for_user(user), request_id, _parse(given), user=user, company=None)
+    return _answer(
+        ctx, for_user(user), request_id, _parse(given), documents or [], user=user, company=None
+    )
 
 
 def answer_as_company(
-    ctx: CommandContext, company: Company, request_id: UUID, given: Any
+    ctx: CommandContext,
+    company: Company,
+    request_id: UUID,
+    given: Any,
+    documents: list[UUID] | None = None,
 ) -> VehicleOwnerRequest:
     return _answer(
-        ctx, for_company(company.id), request_id, _parse(given), user=None, company=company
+        ctx,
+        for_company(company.id),
+        request_id,
+        _parse(given),
+        documents or [],
+        user=None,
+        company=company,
     )
 
 
@@ -290,6 +306,7 @@ def _answer(
     query: QuerySet[VehicleOwnerRequest],
     request_id: UUID,
     given: dict[str, bool],
+    documents: list[UUID],
     *,
     user: UserAccount | None,
     company: Company | None,
@@ -346,7 +363,19 @@ def _answer(
         from c4rsys.fleet import disclosure
 
         disclosure.start_confirmation(request, now)
-    after = {"request": str(request.id), "answers": given, "complete": complete}
+    after: dict[str, Any] = {"request": str(request.id), "answers": given, "complete": complete}
+    if documents:
+        # The owner passes copies of his documents with the answer that confirms the management
+        # (decision of 12.11.2026); without the confirmation there is nobody to pass them to.
+        from c4rsys.fleet import document_transfer
+
+        after["documents"] = document_transfer.to_company(
+            ctx,
+            card,
+            owner_user_id=user_id,
+            owner_company_id=company.id if company else None,
+            document_ids=documents,
+        )
     if ownership:
         after["ownership"] = ownership
     if given.get(Question.LINK) is True:
@@ -513,11 +542,31 @@ def owner_status(card: VehicleCard, batch: "Batch | None" = None) -> dict[str, A
     }
 
 
-def incoming_payload(request: VehicleOwnerRequest, now: datetime) -> dict[str, Any]:
-    """For the owner: who asks, which vehicle, the answers given so far."""
+def incoming_payload(
+    request: VehicleOwnerRequest,
+    now: datetime,
+    *,
+    user_id: UUID | None = None,
+    company_id: UUID | None = None,
+) -> dict[str, Any]:
+    """For the owner: who asks, which vehicle, the answers given so far — and, while the request
+    is open, his documents of the vehicle he may pass with the answer."""
+    from c4rsys.fleet import document_transfer
+
     facts = characteristics.describe(request.vehicle)
     company = request.company
+    state = effective_state(request, now)
+    documents = (
+        document_transfer.items_payload(
+            document_transfer.owner_items(
+                request.vehicle_id, user_id=user_id, company_id=company_id
+            )
+        )
+        if state == State.OPEN and (user_id or company_id)
+        else []
+    )
     return {
+        "documents": documents,
         "id": str(request.id),
         "state": effective_state(request, now),
         "company": {"public_id": company.public_id, "display_name": company.display_name},

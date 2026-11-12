@@ -250,7 +250,9 @@
     "vehicle_split_code_rejected": "รหัสการแยกไม่ถูกต้อง",
     "vehicle_document_added": "เพิ่มเอกสารของยานพาหนะ",
     "vehicle_document_changed": "แก้ไขเอกสารของยานพาหนะ",
-    "vehicle_document_archived": "ย้ายเอกสารของยานพาหนะไปคลังเก็บ"
+    "vehicle_document_archived": "ย้ายเอกสารของยานพาหนะไปคลังเก็บ",
+    "vehicle_document_received": "ได้รับสำเนาเอกสารของยานพาหนะ",
+    "vehicle_document_passed_to_owner": "ส่งสำเนาเอกสารของยานพาหนะให้เจ้าของแล้ว"
   },
   "finance_articles": {
     "archive": "เก็บเข้าคลัง",
@@ -1312,7 +1314,9 @@
     "equipment_in_use": "ชิ้น {{asset}} มีการจองหรือถูกส่งมอบภายใต้บริการนี้ กรุณาปิดหรือยกเลิกก่อน",
     "equipment_not_returned": "อุปกรณ์ถูกส่งมอบอยู่ กรุณารับคืนก่อน",
     "vehicle_document_file_type": "ใช้ได้เฉพาะไฟล์ JPEG หรือ PDF",
-    "vehicle_document_archived": "เอกสารอยู่ในคลังเก็บและแก้ไขไม่ได้"
+    "vehicle_document_archived": "เอกสารอยู่ในคลังเก็บและแก้ไขไม่ได้",
+    "vehicle_documents_need_management": "ส่งสำเนาเอกสารได้เฉพาะบริษัทที่คุณยืนยันการจัดการแล้ว",
+    "vehicle_documents_no_recipient": "ไม่มีผู้รับสำเนาเอกสาร: เจ้าของยังไม่ได้รับการยืนยันในระบบ"
   },
   "history": {
     "action": "Action",
@@ -2654,8 +2658,7 @@
     "document_edit": "แก้ไขเอกสาร",
     "document_name": "ชื่อเอกสาร",
     "document_name_hint": "ชื่อเอกสารที่ใช้ในประเทศของคุณ เช่น เล่มทะเบียน กรมธรรม์ประกันภัย",
-    "document_series": "ชุดเอกสาร",
-    "document_number": "เลขที่",
+    "document_number": "ชุดและเลขที่เอกสาร",
     "document_valid_from": "วันที่เริ่ม (วันที่ออก)",
     "document_valid_to": "วันที่สิ้นสุด",
     "document_file_attach": "ไฟล์",
@@ -2663,7 +2666,11 @@
     "document_file_remove": "นำไฟล์ออก",
     "document_to_archive": "ย้ายไปคลังเก็บ",
     "document_archived": "อยู่ในคลังเก็บ",
-    "document_archive_confirm": "ย้ายเอกสาร “{{name}}” ไปคลังเก็บหรือไม่"
+    "document_archive_confirm": "ย้ายเอกสาร “{{name}}” ไปคลังเก็บหรือไม่",
+    "documents_pass_all": "ทั้งหมด",
+    "documents_pass_owner": "ส่งสำเนาเอกสารให้เจ้าของ",
+    "documents_pass_owner_hint": "เจ้าของจะได้รับสำเนาเอกสารที่เลือกพร้อมไฟล์และดูแลเอง เอกสารของบริษัทยังคงอยู่",
+    "documents_pass_nobody": "ไม่มีผู้รับสำเนาเอกสาร: เจ้าของยังไม่ได้รับการยืนยันในระบบ"
   },
   "warehouse": {
     "action_create": "Create",
@@ -4692,7 +4699,9 @@
     "ask_management": "ยินยอมให้บริษัทนี้จัดการยานพาหนะหรือไม่",
     "final": "คำตอบเปลี่ยนภายหลังไม่ได้ ตอบบางข้อก่อนได้",
     "answer": "ตอบ",
-    "closed_owner_changed": "ปิดแล้ว: มีการระบุเจ้าของยานพาหนะรายอื่น"
+    "closed_owner_changed": "ปิดแล้ว: มีการระบุเจ้าของยานพาหนะรายอื่น",
+    "documents_title": "ส่งสำเนาเอกสารให้บริษัท",
+    "documents_hint": "ไม่บังคับ: ทั้งหมด บางส่วน หรือไม่ส่งเลย บริษัทจะได้รับสำเนาพร้อมไฟล์และดูแลเอง"
   },
   "cabinet": {
     "title": "บัญชีส่วนตัว",
@@ -4792,7 +4801,7 @@
     "reversal_accept": "ยืนยันความผิดพลาด",
     "reversal_reject": "ปฏิเสธ",
     "documents_title": "เอกสารรถ",
-    "documents_hint": "ไม่เป็นสาธารณะ: บริษัทเห็นเฉพาะภายใต้การจัดการที่คุณยืนยัน เวอร์ชันใหม่ไม่แทนที่เวอร์ชันเดิม",
+    "documents_hint": "คุณเป็นผู้ดูแลเอกสารของยานพาหนะ การแก้ไขจะบันทึกเป็นเวอร์ชันใหม่ บริษัทจะได้รับเฉพาะสำเนาที่คุณส่งให้",
     "document_target": "เอกสาร",
     "document_new": "เอกสารใหม่",
     "document_type": "ประเภท",
@@ -4804,7 +4813,12 @@
     "copies_hint": "ยอมรับสำเนาเป็นเวอร์ชันใหม่ หรือเก็บไว้ที่บริษัทนั้นเท่านั้น",
     "copy_accept": "ยอมรับเป็นเวอร์ชัน",
     "copy_keep": "เก็บไว้ที่บริษัท",
-    "copy_target_hint": "สำเนาที่ยอมรับจะเพิ่มในเอกสารที่เลือกด้านบน หรือเป็นเอกสารใหม่ตามประเภทที่เลือก"
+    "copy_target_hint": "สำเนาที่ยอมรับจะเพิ่มในเอกสารที่เลือกด้านบน หรือเป็นเอกสารใหม่ตามประเภทที่เลือก",
+    "documents_pass_title": "ส่งสำเนาให้บริษัทผู้จัดการ",
+    "documents_pass_hint": "บริษัทจะได้รับสำเนาเอกสารที่เลือกพร้อมไฟล์ เอกสารของคุณยังคงอยู่กับคุณ",
+    "documents_pass_company": "บริษัท",
+    "documents_pass_button": "ส่งสำเนา",
+    "documents_passed": "ส่งสำเนาแล้ว: {{company}}"
   },
   "exports": {
     "title": "ส่งออกข้อมูลทั้งหมด",

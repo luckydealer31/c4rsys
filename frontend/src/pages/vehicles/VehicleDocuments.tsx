@@ -1,8 +1,8 @@
 /** Documents of a vehicle kept by the company in its card (customer's decision of 12.11.2026):
  * the name, the series and the number, the start and the end of the term, an optional JPEG or PDF
  * file. The main tab shows them; they are added, changed and archived in the settings. */
-import { useState, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import { ApiError, uploadFile } from "../../api/client";
@@ -11,18 +11,20 @@ import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, IconButton, Modal } from "../../components/ui";
 import { useCan, useCompany } from "../../layout/CompanyShell";
 
-function useDay() {
+export function useDay() {
   const { i18n } = useTranslation();
   return (day: string) => new Date(`${day}T00:00:00`).toLocaleDateString(i18n.language);
 }
 
+type Details = { number: string; valid_from: string | null; valid_until: string | null };
+
 /** «AB 123456 · from … · until …» — only what is filled. */
-function useDetails() {
+export function useDetails() {
   const { t } = useTranslation();
   const day = useDay();
-  return (d: CardDocument) =>
+  return (d: Details) =>
     [
-      [d.series, d.number].filter(Boolean).join(" "),
+      d.number,
       d.valid_from ? t("documents.from_date", { date: day(d.valid_from) }) : "",
       d.valid_until ? t("documents.until_date", { date: day(d.valid_until) }) : "",
     ]
@@ -64,35 +66,41 @@ export function VehicleDocumentsList({ vehicle }: { vehicle: Vehicle }) {
   );
 }
 
-type Draft = { name: string; series: string; number: string; valid_from: string; valid_until: string };
+export type DocumentDraft = {
+  name: string;
+  number: string;
+  valid_from: string | null;
+  valid_until: string | null;
+  has_file: boolean;
+  file_name: string;
+};
 
-function DocumentForm({
-  vehicle,
-  document,
-  onDone,
+/** The form of a document of a vehicle, the same for a company and for the owner: the name, the
+ * series and number in one field, the start and the end of the term, an optional JPEG or PDF.
+ * `save` gets the body of the command and answers whether it was accepted. */
+export function DocumentForm({
+  initial,
+  save,
+  error,
+  onCancel,
 }: {
-  vehicle: Vehicle;
-  document: CardDocument | null;
-  onDone: () => void;
+  initial: DocumentDraft | null;
+  save: (body: Record<string, unknown>) => Promise<boolean>;
+  error: ApiError | null;
+  onCancel: () => void;
 }) {
   const { t } = useTranslation();
-  const company = useCompany();
-  const client = useQueryClient();
-  const base = `/c/${company.public_id}/vehicles/${vehicle.id}/card-documents`;
-  const add = useCommand<Record<string, unknown>, unknown>(base);
-  const change = useCommand<Record<string, unknown>, unknown>(`${base}/${document?.id ?? ""}`, "PUT");
-  const [draft, setDraft] = useState<Draft>({
-    name: document?.name ?? "",
-    series: document?.series ?? "",
-    number: document?.number ?? "",
-    valid_from: document?.valid_from ?? "",
-    valid_until: document?.valid_until ?? "",
+  const [draft, setDraft] = useState({
+    name: initial?.name ?? "",
+    number: initial?.number ?? "",
+    valid_from: initial?.valid_from ?? "",
+    valid_until: initial?.valid_until ?? "",
   });
   const [file, setFile] = useState<File | null>(null);
-  const [keepFile, setKeepFile] = useState(Boolean(document?.has_file));
+  const [keepFile, setKeepFile] = useState(Boolean(initial?.has_file));
   const [uploadError, setUploadError] = useState<ApiError | null>(null);
   const [busy, setBusy] = useState(false);
-  const set = (key: keyof Draft) => (event: { target: { value: string } }) =>
+  const set = (key: keyof typeof draft) => (event: { target: { value: string } }) =>
     setDraft({ ...draft, [key]: event.target.value });
 
   async function submit(event: FormEvent) {
@@ -113,16 +121,10 @@ function DocumentForm({
           setUploadError(caught instanceof ApiError ? caught : new ApiError(0, null));
           return;
         }
-      } else if (document && keepFile) {
+      } else if (initial && keepFile) {
         body.keep_file = true;
       }
-      const result = document
-        ? await change.run({ ...body, expected_version: document.version })
-        : await add.run(body);
-      if (result !== null) {
-        await client.invalidateQueries({ queryKey: ["vehicle", company.public_id, vehicle.id] });
-        onDone();
-      }
+      await save(body);
     } finally {
       setBusy(false);
     }
@@ -133,14 +135,9 @@ function DocumentForm({
       <Field label={t("vehicles.document_name")} hint={t("vehicles.document_name_hint")}>
         <input autoFocus required maxLength={200} value={draft.name} onChange={set("name")} />
       </Field>
-      <div className="row">
-        <Field label={t("vehicles.document_series")}>
-          <input maxLength={50} value={draft.series} onChange={set("series")} />
-        </Field>
-        <Field label={t("vehicles.document_number")}>
-          <input maxLength={100} value={draft.number} onChange={set("number")} />
-        </Field>
-      </div>
+      <Field label={t("vehicles.document_number")}>
+        <input maxLength={150} value={draft.number} onChange={set("number")} />
+      </Field>
       <div className="row">
         <Field label={t("vehicles.document_valid_from")}>
           <input type="date" value={draft.valid_from} onChange={set("valid_from")} />
@@ -149,25 +146,94 @@ function DocumentForm({
           <input type="date" value={draft.valid_until} onChange={set("valid_until")} />
         </Field>
       </div>
-      {document?.has_file && keepFile && !file ? (
+      {initial?.has_file && keepFile && !file ? (
         <p>
-          {t("vehicles.document_file")}: {document.file_name || "—"}{" "}
+          {t("vehicles.document_file")}
+          {initial.file_name ? `: ${initial.file_name}` : ""}{" "}
           <IconButton icon="trash" label={t("vehicles.document_file_remove")} onClick={() => setKeepFile(false)} />
         </p>
       ) : null}
       <Field label={t("vehicles.document_file_attach")} hint={t("vehicles.document_file_hint")}>
         <input type="file" accept="image/jpeg,application/pdf" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
       </Field>
-      <ErrorMessage error={uploadError ?? add.error ?? change.error} />
+      <ErrorMessage error={uploadError ?? error} />
       <div className="actions">
         <button type="submit" disabled={busy || !draft.name.trim()}>
           {t("common.save")}
         </button>
-        <button type="button" className="secondary" onClick={onDone}>
+        <button type="button" className="secondary" onClick={onCancel}>
           {t("common.cancel")}
         </button>
       </div>
     </form>
+  );
+}
+
+/** Documents to pass as copies: all, some or none are ticked. */
+export function DocumentChecklist({
+  items,
+  chosen,
+  onChange,
+}: {
+  items: (Details & { id: string; name: string })[];
+  chosen: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  const { t } = useTranslation();
+  const details = useDetails();
+  const all = items.length > 0 && chosen.length === items.length;
+  return (
+    <div className="stack" style={{ gap: 4 }}>
+      {items.length > 1 ? (
+        <label className="small">
+          <input type="checkbox" checked={all} onChange={() => onChange(all ? [] : items.map((d) => d.id))} />{" "}
+          {t("vehicles.documents_pass_all")}
+        </label>
+      ) : null}
+      {items.map((d) => (
+        <label key={d.id}>
+          <input
+            type="checkbox"
+            checked={chosen.includes(d.id)}
+            onChange={() => onChange(chosen.includes(d.id) ? chosen.filter((id) => id !== d.id) : [...chosen, d.id])}
+          />{" "}
+          {d.name}
+          <span className="muted small">{details(d) ? ` · ${details(d)}` : ""}</span>
+        </label>
+      ))}
+    </div>
+  );
+}
+
+function CardDocumentForm({
+  vehicle,
+  document,
+  onDone,
+}: {
+  vehicle: Vehicle;
+  document: CardDocument | null;
+  onDone: () => void;
+}) {
+  const company = useCompany();
+  const client = useQueryClient();
+  const base = `/c/${company.public_id}/vehicles/${vehicle.id}/card-documents`;
+  const add = useCommand<Record<string, unknown>, unknown>(base);
+  const change = useCommand<Record<string, unknown>, unknown>(`${base}/${document?.id ?? ""}`, "PUT");
+  return (
+    <DocumentForm
+      initial={document}
+      error={add.error ?? change.error}
+      onCancel={onDone}
+      save={async (body) => {
+        const result = document
+          ? await change.run({ ...body, expected_version: document.version })
+          : await add.run(body);
+        if (result === null) return false;
+        await client.invalidateQueries({ queryKey: ["vehicle", company.public_id, vehicle.id] });
+        onDone();
+        return true;
+      }}
+    />
   );
 }
 
@@ -248,7 +314,7 @@ export function VehicleDocumentsSettings({ vehicle }: { vehicle: Vehicle }) {
           title={editing === "new" ? t("vehicles.document_add") : t("vehicles.document_edit")}
           onClose={() => setEditing(null)}
         >
-          <DocumentForm vehicle={vehicle} document={editing === "new" ? null : editing} onDone={() => setEditing(null)} />
+          <CardDocumentForm vehicle={vehicle} document={editing === "new" ? null : editing} onDone={() => setEditing(null)} />
         </Modal>
       ) : null}
     </Card>

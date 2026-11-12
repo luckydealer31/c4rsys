@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useApi } from "../../api/queries";
+import { DocumentChecklist } from "./VehicleDocuments";
 import type { Vehicle, VehicleRestriction } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field } from "../../components/ui";
@@ -401,6 +402,9 @@ export function RelationCard({ vehicle }: { vehicle: Vehicle }) {
   const [then, setThen] = useState("archive");
   const [location, setLocation] = useState(vehicle.location_id ?? "");
   const [relation, setRelation] = useState("managed");
+  // Copies of the company's documents the owner gets at the end of the management.
+  const [passed, setPassed] = useState<string[]>([]);
+  const passable = (vehicle.card_documents ?? []).filter((d) => d.state === "active");
   const archive = useVehicleCommand(vehicle, "archive");
   const end = useVehicleCommand(vehicle, "end-management");
   const take = useVehicleCommand(vehicle, "take-into-management");
@@ -485,10 +489,21 @@ export function RelationCard({ vehicle }: { vehicle: Vehicle }) {
           <p className="muted small">
             {vehicle.relation === "managed" ? t("vehicles.end_management_hint") : t("vehicles.archive_hint")}
           </p>
+          {vehicle.relation === "managed" && mayRelation && passable.length ? (
+            vehicle.documents_recipient ? (
+              <>
+                <h3>{t("vehicles.documents_pass_owner")}</h3>
+                <p className="muted small">{t("vehicles.documents_pass_owner_hint")}</p>
+                <DocumentChecklist items={passable} chosen={passed} onChange={setPassed} />
+              </>
+            ) : (
+              <p className="muted small">{t("vehicles.documents_pass_nobody")}</p>
+            )
+          ) : null}
           <ErrorMessage error={archive.error ?? end.error ?? take.error} />
           <div className="actions">
             {vehicle.relation === "managed" && mayRelation ? (
-              <button type="button" disabled={!reason.trim() || end.pending} onClick={() => void run(end, { then })}>
+              <button type="button" disabled={!reason.trim() || end.pending} onClick={() => void run(end, { then, document_ids: passed })}>
                 {t("vehicles.end_management_button")}
               </button>
             ) : null}

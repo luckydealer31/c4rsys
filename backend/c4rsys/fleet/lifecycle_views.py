@@ -15,6 +15,7 @@ from c4rsys.companies import access
 from c4rsys.fleet import (
     card_documents,
     disclosure,
+    document_transfer,
     lifecycle,
     odometer,
     owners,
@@ -267,6 +268,7 @@ def end_management(request: HttpRequest, cmp: str, card_id: UUID) -> JsonRespons
     expected_version = get_int(body, "expected_version")
     reason = get_str(body, "reason", max_length=REASON_MAX)
     then = get_str(body, "then", max_length=10, required=False) or "archive"
+    documents = document_transfer.parse_ids(body.get("document_ids"))
 
     def handler(ctx: CommandContext) -> CommandResult:
         lifecycle.end_management(
@@ -276,6 +278,7 @@ def end_management(request: HttpRequest, cmp: str, card_id: UUID) -> JsonRespons
             reason=reason,
             then=then,
             expected_version=expected_version,
+            document_ids=documents,
         )
         return CommandResult(200, _refreshed(context.company.id, card_id))
 
@@ -284,6 +287,7 @@ def end_management(request: HttpRequest, cmp: str, card_id: UUID) -> JsonRespons
         "reason": reason,
         "then": then,
         "expected_version": expected_version,
+        "document_ids": sorted(str(d) for d in documents),
     }
     return services_run(request, "vehicle.end_management", actor, payload, handler)
 
@@ -499,8 +503,7 @@ def _document_data(data: dict[str, Any]) -> card_documents.DocumentData:
         raise errors.validation_error("file_id") from exc
     return card_documents.DocumentData(
         name=get_str(data, "name", max_length=200),
-        series=get_str(data, "series", max_length=50, required=False),
-        number=get_str(data, "number", max_length=100, required=False),
+        number=get_str(data, "number", max_length=150, required=False),
         valid_from=_day(data, "valid_from"),
         valid_until=_day(data, "valid_until"),
         file_id=file_id,
@@ -512,7 +515,6 @@ def _document_data(data: dict[str, Any]) -> card_documents.DocumentData:
 def _document_payload(d: card_documents.DocumentData) -> dict[str, Any]:
     return {
         "name": d.name,
-        "series": d.series,
         "number": d.number,
         "valid_from": d.valid_from.isoformat() if d.valid_from else None,
         "valid_until": d.valid_until.isoformat() if d.valid_until else None,

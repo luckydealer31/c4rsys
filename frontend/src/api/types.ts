@@ -286,6 +286,18 @@ export type IncomingOwnerRequest = {
   created_at: string;
   expires_at: string;
   answers: Partial<Record<"link" | "ownership" | "management", boolean>>;
+  /** The owner's documents of the vehicle he may pass with the answer that confirms the
+   * management. */
+  documents: PassableDocument[];
+};
+
+export type PassableDocument = {
+  id: string;
+  name: string;
+  number: string;
+  valid_from: string | null;
+  valid_until: string | null;
+  has_file: boolean;
 };
 
 /** A request to link a card with a c4rsys profile and the link it became (§ 6.2.5–6.3, К4). */
@@ -651,6 +663,8 @@ export type Vehicle = {
   } | null;
   /** Documents the company keeps in the card (decision of 12.11.2026). */
   card_documents?: CardDocument[];
+  /** Who gets copies of the documents at the end of the management; null — nobody. */
+  documents_recipient?: "person" | "company" | null;
   global_documents?: {
     access: "ownership" | "management" | "grant" | null;
     documents: GlobalDocument[];
@@ -708,6 +722,9 @@ export type GlobalDocument = {
   id: string;
   doc_type: string;
   title: string;
+  /** The name the owner gave (decision of 12.11.2026); older documents show their type. */
+  name: string;
+  archived: boolean;
   current: GlobalDocumentVersion | null;
   versions: GlobalDocumentVersion[];
 };
@@ -726,6 +743,8 @@ export type TransferReversal = {
 /** What the owner sees of one company managing the vehicle (§ 8.3.6, § 8.3.15). */
 export type OwnerDisclosure = {
   company: { public_id: string; display_name: string };
+  /** The card of the vehicle in that company: copies of documents are passed to it. */
+  card_id: string;
   confirmed: boolean;
   offered: string[];
   categories: {
@@ -2313,7 +2332,7 @@ export type CardDocument = {
   id: string;
   version: number;
   name: string;
-  series: string;
+  /** The series and the number in one field. */
   number: string;
   valid_from: string | null;
   valid_until: string | null;

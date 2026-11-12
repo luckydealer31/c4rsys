@@ -289,6 +289,8 @@ def for_owner(
         categories.append(item)
     return {
         "company": {"public_id": card.company.public_id, "display_name": card.company.display_name},
+        # The card the owner's copies of documents are passed to while the management is confirmed.
+        "card_id": str(card.id),
         "confirmed": mine,
         "offered": offered,
         "categories": categories,

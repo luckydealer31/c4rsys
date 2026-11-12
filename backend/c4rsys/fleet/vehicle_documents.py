@@ -21,7 +21,7 @@ from uuid import UUID
 
 from django.utils import timezone
 
-from c4rsys.fleet import disclosure, identity
+from c4rsys.fleet import identity
 from c4rsys.fleet.models import (
     VehicleCard,
     VehicleCopyDecision,
@@ -34,6 +34,7 @@ from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
 
 PURPOSE = "vehicle_document"
+FILE_TYPES = ("image/jpeg", "application/pdf")
 
 
 def current_owner(vehicle_id: UUID) -> VehicleOwnership | None:
@@ -58,14 +59,8 @@ def company_access(card: VehicleCard) -> str | None:
         return None
     if current.owner_company_id == card.company_id:
         return "ownership"
-    confirmed = disclosure.confirmed_now(card.id)
-    if (
-        confirmed is not None
-        and card.state == VehicleCard.State.ACTIVE
-        and confirmed.owner_user_id == current.owner_user_id
-        and confirmed.owner_company_id == current.owner_company_id
-    ):
-        return "management"
+    # The confirmed management alone gives no access (decision of 12.11.2026): the managing
+    # company gets only the copies the owner passes to it (`document_transfer`).
     grant = VehicleDocumentGrant.objects.filter(
         vehicle_id=identity.resolve(card.vehicle_id),
         company_id=card.company_id,
@@ -106,6 +101,9 @@ def documents_payload(vehicle_id: UUID) -> list[dict[str, Any]]:
                 "id": str(d.id),
                 "doc_type": d.doc_type,
                 "title": d.title,
+                # The name the owner gave; older documents had only a type.
+                "name": d.title or d.doc_type,
+                "archived": d.archived_at is not None,
                 "current": _version_payload(versions[0]) if versions else None,
                 "versions": [_version_payload(v) for v in versions],
             }
@@ -213,6 +211,140 @@ def add_version(
         source=VehicleDocumentVersion.Source.OWNER,
         owner_user_id=owner_user_id,
         owner_company_id=owner_company_id,
+    )
+
+
+def _owned(vehicle_id: UUID, document_id: UUID) -> VehicleDocument:
+    doc = (
+        VehicleDocument.objects.select_for_update()
+        .filter(pk=document_id, vehicle_id__in=identity.family(identity.resolve(vehicle_id)))
+        .first()
+    )
+    if doc is None:
+        raise errors.not_found()
+    if doc.archived_at is not None:
+        raise errors.business_rule("VEHICLE_DOCUMENT_ARCHIVED")
+    return doc
+
+
+def owner_save(
+    ctx: CommandContext,
+    vehicle_id: UUID,
+    *,
+    owner_user_id: UUID | None,
+    owner_company_id: UUID | None,
+    document_id: UUID | None,
+    name: str,
+    number: str,
+    valid_from: date | None,
+    valid_until: date | None,
+    file_id: UUID | None,
+    keep_file: bool,
+) -> VehicleDocumentVersion:
+    """The owner's document in the same form as the company's (decision of 12.11.2026): the
+    name, the series and number, the start and the end of the term, an optional file. A change
+    is a new version: the earlier ones stay (§ 8.2.3)."""
+    from c4rsys.files import services as files
+    from c4rsys.files.models import StoredFile
+
+    _require_owner(vehicle_id, owner_user_id, owner_company_id)
+    if valid_from and valid_until and valid_until < valid_from:
+        raise errors.validation_error("valid_until", code="PERIOD_INVALID")
+    if file_id is not None:
+        files.usable(file_id, purpose=PURPOSE, user_id=ctx.actor.user_id)
+        if StoredFile.objects.get(pk=file_id).content_type not in FILE_TYPES:
+            raise errors.validation_error("file", code="VEHICLE_DOCUMENT_FILE_TYPE")
+    if document_id is not None:
+        doc = _owned(vehicle_id, document_id)
+        if doc.title != name:
+            doc.title = name
+            doc.save(update_fields=["title"])
+        if file_id is None and keep_file:
+            last = doc.versions.order_by("-number").first()
+            file_id = last.file_id if last else None
+    else:
+        doc = VehicleDocument.objects.create(
+            vehicle_id=identity.resolve(vehicle_id),
+            doc_type=VehicleDocument.Type.OTHER,
+            title=name,
+            created_by_user_id=ctx.actor.user_id,
+        )
+    return _new_version(
+        ctx,
+        doc,
+        details=number,
+        issued_on=valid_from,
+        valid_until=valid_until,
+        file_id=file_id,
+        source=VehicleDocumentVersion.Source.OWNER,
+        owner_user_id=owner_user_id,
+        owner_company_id=owner_company_id,
+    )
+
+
+def owner_archive(
+    ctx: CommandContext,
+    vehicle_id: UUID,
+    document_id: UUID,
+    *,
+    owner_user_id: UUID | None,
+    owner_company_id: UUID | None,
+) -> VehicleDocument:
+    _require_owner(vehicle_id, owner_user_id, owner_company_id)
+    doc = _owned(vehicle_id, document_id)
+    doc.archived_at = timezone.now()
+    doc.save(update_fields=["archived_at"])
+    ctx.audit(
+        "vehicle.document_archived",
+        object_type="vehicle_document",
+        object_id=doc.id,
+        after={"vehicle": str(doc.vehicle_id), "name": doc.title or doc.doc_type},
+        company_id=owner_company_id,
+    )
+    return doc
+
+
+def active_documents(vehicle_id: UUID) -> list[tuple[VehicleDocument, VehicleDocumentVersion]]:
+    """The owner's documents not in the archive, each with its current version."""
+    result = []
+    for d in _documents(vehicle_id):
+        last = d.versions.order_by("-number").first()
+        if d.archived_at is None and last is not None:
+            result.append((d, last))
+    return result
+
+
+def receive_from_company(
+    ctx: CommandContext,
+    vehicle_id: UUID,
+    *,
+    owner_user_id: UUID | None,
+    owner_company_id: UUID | None,
+    company_id: UUID,
+    name: str,
+    number: str,
+    valid_from: date | None,
+    valid_until: date | None,
+    file_id: UUID | None,
+) -> VehicleDocumentVersion:
+    """A copy the managing company passes to the owner: the owner's own document from now on."""
+    doc = VehicleDocument.objects.create(
+        vehicle_id=identity.resolve(vehicle_id),
+        doc_type=VehicleDocument.Type.OTHER,
+        title=name,
+        created_by_user_id=ctx.actor.user_id,
+    )
+    return _new_version(
+        ctx,
+        doc,
+        details=number,
+        issued_on=valid_from,
+        valid_until=valid_until,
+        file_id=file_id,
+        source=VehicleDocumentVersion.Source.COMPANY_COPY,
+        owner_user_id=owner_user_id,
+        owner_company_id=owner_company_id,
+        source_company_id=company_id,
     )
 
 

@@ -7,6 +7,7 @@ import type { IncomingOwnerRequest } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Loading } from "../../components/ui";
 import { deviceTimeZone, formatMoment } from "../../time";
+import { DocumentChecklist } from "../vehicles/VehicleDocuments";
 
 const QUESTIONS = ["link", "ownership", "management"] as const;
 
@@ -37,7 +38,14 @@ function OwnerRequestAnswer({ base, request }: { base: string; request: Incoming
   const { t, i18n } = useTranslation();
   const client = useQueryClient();
   const [choice, setChoice] = useState<Record<string, boolean>>({});
-  const reply = useCommand<{ answers: Record<string, boolean> }, unknown>(`${base}/${request.id}/answer`);
+  const [passed, setPassed] = useState<string[]>([]);
+  const reply = useCommand<{ answers: Record<string, boolean>; document_ids?: string[] }, unknown>(
+    `${base}/${request.id}/answer`,
+  );
+  // Copies of documents go with the answer that makes all three «yes»: the management is
+  // confirmed and there is somebody to pass them to (decision of 12.11.2026).
+  const confirms =
+    choice.management === true && QUESTIONS.every((q) => (request.answers[q] ?? choice[q]) === true);
   const v = request.vehicle;
   const vehicleText = [v.make, v.model, v.year, v.plate].filter(Boolean).join(" · ");
 
@@ -86,6 +94,13 @@ function OwnerRequestAnswer({ base, request }: { base: string; request: Incoming
           </div>
         );
       })}
+      {confirms && request.documents.length ? (
+        <>
+          <h3>{t("owner_requests.documents_title")}</h3>
+          <p className="muted small">{t("owner_requests.documents_hint")}</p>
+          <DocumentChecklist items={request.documents} chosen={passed} onChange={setPassed} />
+        </>
+      ) : null}
       <p className="muted small">{t("owner_requests.final")}</p>
       <ErrorMessage error={reply.error} />
       <div className="actions">
@@ -93,8 +108,10 @@ function OwnerRequestAnswer({ base, request }: { base: string; request: Incoming
           type="button"
           disabled={!Object.keys(choice).length || reply.pending}
           onClick={async () => {
-            if ((await reply.run({ answers: choice })) !== null) {
+            const body = confirms && passed.length ? { answers: choice, document_ids: passed } : { answers: choice };
+            if ((await reply.run(body)) !== null) {
               setChoice({});
+              setPassed([]);
               await client.invalidateQueries({ queryKey: ["incoming-owner-requests", base] });
             }
           }}

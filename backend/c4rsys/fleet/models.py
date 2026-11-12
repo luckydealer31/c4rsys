@@ -1371,9 +1371,9 @@ class VehicleDisclosureSetting(models.Model):
 
 class VehicleCardDocument(models.Model):
     """A document of the vehicle the company keeps in its own card: the name the company gives
-    it, the series and the number, the dates of the start and the end of its term and, if the
-    company wishes, a JPEG or PDF file. It is added, changed and sent to the archive; nothing is
-    deleted. It is not the owner's global document (§ 8.2.3)."""
+    it, the series and the number in one field, the dates of the start and the end of its term
+    and, if the company wishes, a JPEG or PDF file. It is added, changed and sent to the
+    archive; nothing is deleted. It is not the owner's global document (§ 8.2.3)."""
 
     class State(models.TextChoices):
         ACTIVE = "active"
@@ -1383,8 +1383,8 @@ class VehicleCardDocument(models.Model):
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
     vehicle_card = models.ForeignKey(VehicleCard, on_delete=models.PROTECT, related_name="+")
     name = models.CharField(max_length=200)
-    series = models.CharField(max_length=50, blank=True, default="")
-    number = models.CharField(max_length=100, blank=True, default="")
+    # The series and the number together, as the company writes them (decision of 12.11.2026).
+    number = models.CharField(max_length=150, blank=True, default="")
     valid_from = models.DateField(null=True, blank=True)
     valid_until = models.DateField(null=True, blank=True)
     file_id = models.UUIDField(null=True, blank=True)
@@ -1431,6 +1431,8 @@ class VehicleDocument(models.Model):
     vehicle = models.ForeignKey(Vehicle, on_delete=models.PROTECT, related_name="+")
     doc_type = models.CharField(max_length=20, choices=Type.choices)
     title = models.CharField(max_length=300, blank=True, default="")
+    # The owner sent the document to the archive: it is kept and no longer changed.
+    archived_at = models.DateTimeField(null=True, blank=True)
     created_by_user_id = models.UUIDField()
     created_at = models.DateTimeField(default=now)
 
