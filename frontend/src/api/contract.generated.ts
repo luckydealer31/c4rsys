@@ -185,7 +185,7 @@ export const vehicle: Vehicle = {
     "doors": null,
     "drive": "",
     "engine_number": "",
-    "engine_volume_l": null,
+    "engine_volume_cc": null,
     "frame_number": "",
     "fuel_type": "",
     "gears": null,

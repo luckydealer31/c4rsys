@@ -847,7 +847,8 @@ export type VehicleCharacteristics = {
   fuel_type: string;
   transmission: string;
   drive: string;
-  engine_volume_l: string | null;
+  /** Cubic centimetres. */
+  engine_volume_cc: number | null;
   power_hp: number | null;
   seats: number | null;
   doors: number | null;

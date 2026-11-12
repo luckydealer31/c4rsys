@@ -46,7 +46,7 @@ TRANSMISSIONS = ["manual", "automatic", "robot", "cvt"]
 DRIVES = ["fwd", "rwd", "awd"]
 
 # Characteristics kept as decimals; in the API they are strings.
-DECIMAL_FIELDS = ("engine_volume_l", "tank_volume_l", "battery_kwh", "cargo_volume_m3")
+DECIMAL_FIELDS = ("tank_volume_l", "battery_kwh", "cargo_volume_m3")
 # The optional characteristics added in block 12, part Б (§ 8.1.12).
 EXTRA_FIELDS = (
     "manufacturer",
@@ -150,7 +150,8 @@ class Characteristics:
     fuel_type: str = ""
     transmission: str = ""
     drive: str = ""
-    engine_volume_l: Decimal | None = None
+    # Cubic centimetres (decision of 12.11.2026): 1490, not 1.5 l.
+    engine_volume_cc: int | None = None
     power_hp: int | None = None
     seats: int | None = None
     doors: int | None = None
@@ -220,7 +221,7 @@ def parse(data: dict[str, Any], this_year: int) -> Characteristics:
         fuel_type=_choice(data, "fuel_type", FUEL_TYPES),
         transmission=_choice(data, "transmission", TRANSMISSIONS),
         drive=_choice(data, "drive", DRIVES),
-        engine_volume_l=_decimal(data, "engine_volume_l"),
+        engine_volume_cc=_int(data, "engine_volume_cc", 1, 99999),
         power_hp=_int(data, "power_hp", 1, 5000),
         seats=_int(data, "seats", 1, 200),
         doors=_int(data, "doors", 0, 10),
@@ -279,7 +280,7 @@ def apply(vehicle: Vehicle, value: Characteristics) -> None:
         "fuel_type",
         "transmission",
         "drive",
-        "engine_volume_l",
+        "engine_volume_cc",
         "power_hp",
         "seats",
         "doors",
@@ -325,7 +326,7 @@ def describe(vehicle: Vehicle, batch: "Batch | None" = None) -> dict[str, Any]:
         "fuel_type": vehicle.fuel_type,
         "transmission": vehicle.transmission,
         "drive": vehicle.drive,
-        "engine_volume_l": str(vehicle.engine_volume_l) if vehicle.engine_volume_l else None,
+        "engine_volume_cc": vehicle.engine_volume_cc,
         "power_hp": vehicle.power_hp,
         "seats": vehicle.seats,
         "doors": vehicle.doors,
@@ -357,7 +358,7 @@ FIELDS = (
     "fuel_type",
     "transmission",
     "drive",
-    "engine_volume_l",
+    "engine_volume_cc",
     "power_hp",
     "seats",
     "doors",

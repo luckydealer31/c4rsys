@@ -461,5 +461,7 @@ label.check { display: inline-flex; gap: 6px; align-items: center; margin-right:
 .inspections-split { display: grid; gap: 0 20px; align-items: start; }
 @media (min-width: 1000px) { .inspections-split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
 .document-summary li { margin-bottom: 8px; }
+.card-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-bottom: var(--gap); }
+.card-head h1 { margin: 0; }
 .facts-columns { display: grid; gap: 8px 48px; }
 @media (min-width: 900px) { .facts-columns { grid-template-columns: 1fr 1fr; align-items: start; } }

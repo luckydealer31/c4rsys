@@ -310,8 +310,8 @@ export function VehiclesPage() {
 // The main data of the vehicle in the order the customer named on 12.11.2026: what does not
 // change (the colour aside). The rest of the characteristics follow in the second column.
 const MAIN = [
-  "vehicle_type", "make", "model", "year", "body_type", "color", "#plate", "vin", "body_number", "chassis_number",
-  "frame_number", "engine_number", "engine_volume_l", "power_hp", "fuel_type", "tank_volume_l", "battery_kwh",
+  "vehicle_type", "make", "model", "year", "body_type", "color", "vin", "body_number", "chassis_number",
+  "frame_number", "engine_number", "engine_volume_cc", "power_hp", "fuel_type", "tank_volume_l", "battery_kwh",
 ];
 
 /** Identification data and characteristics of the vehicle; a coincidence of VIN or plate with
@@ -368,7 +368,7 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
     [t("vehicles.fuel_type"), option("vehicles.fuel", c.fuel_type), "fuel_type"],
     [t("vehicles.transmission"), option("vehicles.gearbox", c.transmission), "transmission"],
     [t("vehicles.drive"), option("vehicles.drives", c.drive), "drive"],
-    [t("vehicles.engine_volume_l"), c.engine_volume_l ?? "", "engine_volume_l"],
+    [t("vehicles.engine_volume_cc"), c.engine_volume_cc ? String(c.engine_volume_cc) : "", "engine_volume_cc"],
     [t("vehicles.power_hp"), c.power_hp ? String(c.power_hp) : "", "power_hp"],
     [t("vehicles.seats"), c.seats ? String(c.seats) : "", "seats"],
     [t("vehicles.doors"), c.doors !== null ? String(c.doors) : "", "doors"],
@@ -386,27 +386,8 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
     [t("vehicles.inventory_number"), c.inventory_number ?? ""],
     [t("vehicles.barcode"), c.barcode ?? ""],
   ];
-  return (
-    <Card title={t("vehicles.card_main")}>
-      {c.identifier_matches.length ? (
-        <div className="alert warn">
-          {c.identifier_matches.map((m) => t(`vehicles.match_${m}`)).join(" ")}
-        </div>
-      ) : null}
-      {/* Two columns (decision of 12.11.2026): the characteristics on the left — the main ones
-          in the named order, then the owner, the mileage and the rest; the documents of the
-          vehicle on the right. Documents are added and changed in the settings of the card. */}
-      <div className="facts-columns">
-        {[
-          [
-            ...MAIN.flatMap((key) => facts.filter(([, , field]) => field === key)),
-            ...facts.filter(([, , field]) => !field),
-            ...facts.filter(([, , field]) => field === "#odometer"),
-            ...facts.filter(([, , field]) => field && !field.startsWith("#") && !MAIN.includes(field)),
-          ],
-        ].map(
-          (column, index) => (
-            <dl key={index} className="facts">
+  const renderFacts = (column: [string, string, string?][]) => (
+            <dl className="facts">
               {column
                 .filter(([, value, field]) => value || (field && working[field]))
                 .map(([label, value, field]) => {
@@ -438,10 +419,26 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
             );
           })}
             </dl>
-          ),
-        )}
+  );
+  return (
+    <Card title={t("vehicles.card_main")}>
+      {c.identifier_matches.length ? (
+        <div className="alert warn">
+          {c.identifier_matches.map((m) => t(`vehicles.match_${m}`)).join(" ")}
+        </div>
+      ) : null}
+      {/* Two columns (decisions of 12.11.2026): the characteristics on the left; on the right the
+          plate and the owner, and under them the documents — the documents of a vehicle follow
+          its plate. Documents are added and changed in the settings of the card. */}
+      <div className="facts-columns">
+        {renderFacts([
+          ...MAIN.flatMap((key) => facts.filter(([, , field]) => field === key)),
+          ...facts.filter(([, , field]) => field === "#odometer"),
+          ...facts.filter(([, , field]) => field && !field.startsWith("#") && !MAIN.includes(field)),
+        ])}
         <div>
-          <h3 style={{ marginTop: 0 }}>{t("nav.documents")}</h3>
+          {renderFacts([...facts.filter(([, , field]) => field === "#plate"), ...facts.filter(([, , field]) => !field)])}
+          <h3 style={{ marginTop: 20 }}>{t("nav.documents")}</h3>
           <GlobalDocumentsList vehicle={vehicle} />
           <VehicleDocumentsList vehicle={vehicle} />
         </div>
@@ -530,11 +527,13 @@ export function VehiclePage() {
 
   return (
     <div className="page wide">
-      <h1>{data.name}</h1>
-      {/* The ID of the vehicle in the system and its current mileage stand under the name. */}
-      <p className="muted" style={{ marginTop: -8 }}>
-        {data.vehicle_id} <span className="badge">{t(`vehicles.relation_${data.relation}`)}</span>
-      </p>
+      {/* One line (decision of 12.11.2026): the name, the ID of the vehicle in the system and its
+          relation to the company — so that the tabs stand higher. */}
+      <div className="card-head">
+        <h1>{data.name}</h1>
+        <span className="muted">{data.vehicle_id}</span>
+        <span className="badge">{t(`vehicles.relation_${data.relation}`)}</span>
+      </div>
       {stored ? (
         <div className="alert warn">
           {t("vehicles.in_warehouse", {

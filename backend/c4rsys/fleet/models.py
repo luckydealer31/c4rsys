@@ -88,7 +88,8 @@ class Vehicle(models.Model):
     fuel_type = models.CharField(max_length=30, blank=True, default="")
     transmission = models.CharField(max_length=30, blank=True, default="")
     drive = models.CharField(max_length=30, blank=True, default="")
-    engine_volume_l = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True)
+    # Cubic centimetres (customer's decision of 12.11.2026).
+    engine_volume_cc = models.PositiveIntegerField(null=True, blank=True)
     power_hp = models.PositiveSmallIntegerField(null=True, blank=True)
     seats = models.PositiveSmallIntegerField(null=True, blank=True)
     doors = models.PositiveSmallIntegerField(null=True, blank=True)

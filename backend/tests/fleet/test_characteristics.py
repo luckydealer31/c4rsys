@@ -60,7 +60,7 @@ def test_name_is_formed_from_make_model_and_plate(owner: Client, cmp: str, locat
         body_type="hatchback",
         fuel_type="petrol",
         transmission="automatic",
-        engine_volume_l="1.5",
+        engine_volume_cc=1490,
         seats=5,
     )
 
@@ -68,7 +68,7 @@ def test_name_is_formed_from_make_model_and_plate(owner: Client, cmp: str, locat
     vehicle = response.json()["vehicle"]
     assert vehicle["name"] == "Toyota Yaris กข 1234"
     assert vehicle["characteristics"]["plate_country"] == "TH"
-    assert vehicle["characteristics"]["engine_volume_l"] == "1.5"
+    assert vehicle["characteristics"]["engine_volume_cc"] == 1490
     assert vehicle["characteristics"]["identifier_matches"] == []
 
 

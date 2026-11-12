@@ -33,7 +33,7 @@ from c4rsys.platform.commands import CommandContext
 from c4rsys.warehouse.imports import Checked, Scope
 
 OWNER_COLUMNS = ("owner_kind", "owner_lookup", "owner_name", "owner_contact")
-NUMBERS = ("year", "power_hp", "seats", "doors")
+NUMBERS = ("year", "engine_volume_cc", "power_hp", "seats", "doors")
 
 
 def _make(text: str, vehicle_type: str) -> tuple[str, str, str]:
@@ -96,7 +96,7 @@ class VehiclesTemplate:
         "fuel_type": 30,
         "transmission": 30,
         "drive": 30,
-        "engine_volume_l": 5,
+        "engine_volume_cc": 6,
         "power_hp": 5,
         "seats": 3,
         "doors": 2,
@@ -164,7 +164,7 @@ class VehiclesTemplate:
         ),
         "transmission": ("manual, automatic, robot, cvt", "КПП: manual, automatic, robot, cvt", ""),
         "drive": ("fwd, rwd, awd", "Привод: fwd, rwd, awd", ""),
-        "engine_volume_l": ("Engine volume, liters", "Объём двигателя, л", "2.5"),
+        "engine_volume_cc": ("Engine volume, cc", "Объём двигателя, см³", "1490"),
         "power_hp": ("Power, hp", "Мощность, л. с.", ""),
         "seats": ("Seats", "Мест", ""),
         "doors": ("Doors", "Дверей", ""),
@@ -213,7 +213,7 @@ class VehiclesTemplate:
                 "fuel_type",
                 "transmission",
                 "drive",
-                "engine_volume_l",
+                "engine_volume_cc",
             )
         }
         data["make"], data["make_other"], data["vehicle_type"] = _make(

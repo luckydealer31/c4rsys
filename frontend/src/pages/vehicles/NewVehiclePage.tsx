@@ -54,7 +54,7 @@ type Form = {
   fuel_type: string;
   transmission: string;
   drive: string;
-  engine_volume_l: string;
+  engine_volume_cc: string;
   power_hp: string;
   seats: string;
   doors: string;
@@ -96,7 +96,7 @@ const EMPTY: Form = {
   fuel_type: "",
   transmission: "",
   drive: "",
-  engine_volume_l: "",
+  engine_volume_cc: "",
   power_hp: "",
   seats: "",
   doors: "",
@@ -156,7 +156,7 @@ function formOf(vehicle: Vehicle): Form {
     fuel_type: c.fuel_type,
     transmission: c.transmission,
     drive: c.drive,
-    engine_volume_l: c.engine_volume_l ?? "",
+    engine_volume_cc: text(c.engine_volume_cc),
     power_hp: text(c.power_hp),
     seats: text(c.seats),
     doors: text(c.doors),
@@ -272,7 +272,7 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
       fuel_type: form.fuel_type,
       transmission: form.transmission,
       drive: form.drive,
-      engine_volume_l: form.engine_volume_l || undefined,
+      engine_volume_cc: number(form.engine_volume_cc),
       power_hp: number(form.power_hp),
       seats: number(form.seats),
       doors: number(form.doors),
@@ -501,12 +501,14 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
             <Field label={t("vehicles.drive")}>{choose("drive", o.drives, "vehicles.drives")}</Field>
           </div>
           <div className="row">
-            <Field label={t("vehicles.engine_volume_l")}>
+            <Field label={t("vehicles.engine_volume_cc")}>
               <input
-                inputMode="decimal"
-                disabled={locked("engine_volume_l")}
-                value={form.engine_volume_l}
-                onChange={(e) => set({ engine_volume_l: e.target.value.replace(",", ".") })}
+                type="number"
+                min={1}
+                max={99999}
+                disabled={locked("engine_volume_cc")}
+                value={form.engine_volume_cc}
+                onChange={(e) => set({ engine_volume_cc: e.target.value })}
               />
             </Field>
             <Field label={t("vehicles.power_hp")}>

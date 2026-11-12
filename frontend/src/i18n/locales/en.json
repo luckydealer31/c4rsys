@@ -2283,7 +2283,7 @@
       "rwd": "Rear"
     },
     "edit_title": "Edit vehicle",
-    "engine_volume_l": "Engine volume, l",
+    "engine_volume_cc": "Engine volume, cc",
     "free": "Free",
     "fuel": {
       "diesel": "Diesel",
