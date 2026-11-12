@@ -46,6 +46,7 @@ export function InspectionList({ items, showVehicle }: { items: Inspection[]; sh
               {formatMoment(item.state === "planned" ? item.planned_at : item.performed_at, zoneOf(item), i18n.language)}
               {" · "}
               {t(`inspections.application_${item.application}`)}
+              {item.odometer ? ` · ${Number(item.odometer)} ${item.odometer_unit}` : ""}
               {showVehicle && vehicle ? ` · ${vehicle.name}` : ""}
               {item.state === "saved" ? ` · ${t(`inspections.check_${item.check_status}`)}` : ""}
               {photos ? ` · ${t("inspections.photo_count", { count: photos })}` : ""}

@@ -13,7 +13,7 @@ import { formatMoment } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
 import { SectionSearch } from "../search/SearchPage";
 import { LinkedTasks } from "../tasks/TasksPage";
-import { LinkedDocuments } from "../documents/DocumentsPage";
+import { DocumentSummary, LinkedDocuments } from "../documents/DocumentsPage";
 import { VehicleService } from "../service/VehicleService";
 import { VehicleParts } from "../warehouse/Reserves";
 import { OwnerRequestCard } from "./OwnerRequestCard";
@@ -37,6 +37,7 @@ import {
   DisclosureCard,
   DisposeCard,
   GlobalDocumentsCard,
+  GlobalDocumentsList,
   HistoryCard,
   OdometerCard,
   RelationCard,
@@ -309,7 +310,7 @@ export function VehiclesPage() {
 // The main data of the vehicle in the order the customer named on 12.11.2026: what does not
 // change (the colour aside). The rest of the characteristics follow in the second column.
 const MAIN = [
-  "vehicle_type", "make", "model", "year", "body_type", "color", "vin", "body_number", "chassis_number",
+  "vehicle_type", "make", "model", "year", "body_type", "color", "#plate", "vin", "body_number", "chassis_number",
   "frame_number", "engine_number", "engine_volume_l", "power_hp", "fuel_type", "tank_volume_l", "battery_kwh",
 ];
 
@@ -392,13 +393,13 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
           {c.identifier_matches.map((m) => t(`vehicles.match_${m}`)).join(" ")}
         </div>
       ) : null}
-      {/* Two columns (decision of 12.11.2026): the main data that does not change on the left;
-          on the right what changes — the plate, the owner, the mileage — and the rest. */}
+      {/* Two columns (decision of 12.11.2026): the characteristics on the left — the main ones
+          in the named order, then the owner, the mileage and the rest; the documents of the
+          vehicle on the right. Documents are added and changed in the settings of the card. */}
       <div className="facts-columns">
         {[
-          MAIN.flatMap((key) => facts.filter(([, , field]) => field === key)),
           [
-            ...facts.filter(([, , field]) => field === "#plate"),
+            ...MAIN.flatMap((key) => facts.filter(([, , field]) => field === key)),
             ...facts.filter(([, , field]) => !field),
             ...facts.filter(([, , field]) => field === "#odometer"),
             ...facts.filter(([, , field]) => field && !field.startsWith("#") && !MAIN.includes(field)),
@@ -439,6 +440,11 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
             </dl>
           ),
         )}
+        <div>
+          <h3 style={{ marginTop: 0 }}>{t("nav.documents")}</h3>
+          <GlobalDocumentsList vehicle={vehicle} />
+          <DocumentSummary objectType="vehicle" objectId={vehicle.id} />
+        </div>
       </div>
       {vehicle.changes_global === false ? (
         <p className="muted small">{t("vehicles.not_owner_hint")}</p>
@@ -564,9 +570,6 @@ export function VehiclePage() {
       <VehicleFacts vehicle={data} />
       <ConflictsCard vehicle={data} />
       <ProposalsCard vehicle={data} />
-      {/* The documents of the vehicle stand with its main data (decision of 12.11.2026). */}
-      <GlobalDocumentsCard vehicle={data} />
-      <LinkedDocuments objectType="vehicle" objectId={data.id} />
       </>
       ) : null}
       {/* Name, contexts of use and the odometer with its unit (decision of 11.11.2026: these are
@@ -615,6 +618,10 @@ export function VehiclePage() {
         <ErrorMessage error={update.error} />
           </Card>
           <OdometerCard vehicle={data} />
+          {/* Documents of the vehicle are added and changed here (decision of 12.11.2026); making
+              a document by a template is not offered in the card of a vehicle. */}
+          <GlobalDocumentsCard vehicle={data} />
+          <LinkedDocuments objectType="vehicle" objectId={data.id} templates={false} />
         </>
       ) : null}
       {tab === "service" ? (

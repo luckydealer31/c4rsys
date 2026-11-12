@@ -4004,7 +4004,9 @@
     "scope_change": "Изменить",
     "scope_chosen": "Выбранные локации и контексты",
     "scope_save": "Сохранить область",
-    "scope_cancel": "Отмена"
+    "scope_cancel": "Отмена",
+    "from_date": "от {{date}}",
+    "until_date": "до {{date}}"
   },
   "document_fields": {
     "company__name": "Название компании",

@@ -4004,7 +4004,9 @@
     "scope_change": "เปลี่ยน",
     "scope_chosen": "สาขาและบริบทที่เลือก",
     "scope_save": "บันทึกขอบเขต",
-    "scope_cancel": "ยกเลิก"
+    "scope_cancel": "ยกเลิก",
+    "from_date": "ตั้งแต่ {{date}}",
+    "until_date": "ถึง {{date}}"
   },
   "document_fields": {
     "company__name": "ชื่อบริษัท",

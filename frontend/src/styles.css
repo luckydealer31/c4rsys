@@ -460,5 +460,6 @@ label.check { display: inline-flex; gap: 6px; align-items: center; margin-right:
    11.11.2026). */
 .inspections-split { display: grid; gap: 0 20px; align-items: start; }
 @media (min-width: 1000px) { .inspections-split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.document-summary li { margin-bottom: 8px; }
 .facts-columns { display: grid; gap: 8px 48px; }
 @media (min-width: 900px) { .facts-columns { grid-template-columns: 1fr 1fr; align-items: start; } }

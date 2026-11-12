@@ -719,6 +719,41 @@ export function GlobalDocumentsCard({ vehicle }: { vehicle: Vehicle }) {
   );
 }
 
+/** The owner's documents the company may read, as a short list: the type, the details, the date
+ * of issue and the end of the term of the current version (§ 8.2.3). */
+export function GlobalDocumentsList({ vehicle }: { vehicle: Vehicle }) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const documents = vehicle.global_documents?.documents ?? [];
+  if (documents.length === 0) return null;
+  return (
+    <ul className="plain document-summary">
+      {documents.map((d) => {
+        const v = d.versions[0];
+        return (
+          <li key={d.id}>
+            <strong>{t(`vehicles.document_type_${d.doc_type}`)}</strong>
+            <span className="muted small">
+              {d.title ? ` · ${d.title}` : ""}
+              {v?.details ? ` · ${v.details}` : ""}
+              {v?.issued_on ? ` · ${t("documents.from_date", { date: v.issued_on })}` : ""}
+              {v?.valid_until ? ` · ${t("documents.until_date", { date: v.valid_until })}` : ""}
+            </span>
+            {v?.has_file ? (
+              <>
+                {" "}
+                <a href={`/api/c/${company.public_id}/vehicles/${vehicle.id}/global-documents/versions/${v.id}/file`} target="_blank" rel="noreferrer">
+                  {t("vehicles.document_file")}
+                </a>
+              </>
+            ) : null}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 /** § 8.2.6, § 8.2.11, § 8.7.6: periods of the company's work, owners and plates. */
 export function HistoryCard({ vehicle }: { vehicle: Vehicle }) {
   const { t } = useTranslation();

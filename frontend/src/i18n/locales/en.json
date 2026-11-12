@@ -4004,7 +4004,9 @@
     "scope_change": "Change",
     "scope_chosen": "Chosen locations and contexts",
     "scope_save": "Save the scope",
-    "scope_cancel": "Cancel"
+    "scope_cancel": "Cancel",
+    "from_date": "from {{date}}",
+    "until_date": "until {{date}}"
   },
   "document_fields": {
     "company__name": "Company name",
