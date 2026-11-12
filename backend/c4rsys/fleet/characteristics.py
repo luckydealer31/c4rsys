@@ -143,6 +143,8 @@ class Characteristics:
     engine_number: str = ""
     plate: str = ""
     plate_country: str = ""
+    # The country typed by hand when it is not in the list; empty when a listed one is chosen.
+    plate_country_other: str = ""
     # The region or the registration authority of the plate, where it applies (§ 8.6.1).
     plate_region: str = ""
     color: str = ""
@@ -215,6 +217,7 @@ def parse(data: dict[str, Any], this_year: int) -> Characteristics:
         engine_number=_text(data, "engine_number", 40).upper(),
         plate=_text(data, "plate", 20),
         plate_country=plate_country,
+        plate_country_other="" if plate_country else _text(data, "plate_country_other", 60),
         plate_region=_text(data, "plate_region", 60),
         color=_text(data, "color", 60),
         body_type=_choice(data, "body_type", BODY_TYPES),
@@ -320,6 +323,7 @@ def describe(vehicle: Vehicle, batch: "Batch | None" = None) -> dict[str, Any]:
         "engine_number": vehicle.engine_number,
         "plate": plate.number if plate else "",
         "plate_country": plate.country if plate else "",
+        "plate_country_other": plate.country_other if plate else "",
         "plate_region": plate.region if plate else "",
         "color": vehicle.color,
         "body_type": vehicle.body_type,

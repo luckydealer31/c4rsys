@@ -317,11 +317,8 @@ const MAIN = [
 /** Identification data and characteristics of the vehicle; a coincidence of VIN or plate with
  * another vehicle is shown as a reason to check (§ 8.6.3). */
 function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const c = vehicle.characteristics;
-  const country = c.plate_country
-    ? new Intl.DisplayNames([i18n.language], { type: "region" }).of(c.plate_country)
-    : "";
   const option = (prefix: string, value: string) => (value ? t(`${prefix}.${value}`) : "");
   const can = useCan();
   const company = useCompany();
@@ -358,7 +355,8 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
     [t("vehicles.year"), c.year ? String(c.year) : "", "year"],
     [t("vehicles.odometer"), vehicle.odometer ? `${Number(vehicle.odometer.value)} ${vehicle.odometer.unit}` : "", "#odometer"],
     [t("vehicles.color"), c.color, "color"],
-    [t("vehicles.plate"), [c.plate, country, c.plate_region].filter(Boolean).join(", "), "#plate"],
+    // Only the number: the country of registration is kept but not shown (decision of 12.11.2026).
+    [t("vehicles.plate"), c.plate, "#plate"],
     [t("vehicles.vin"), c.vin, "vin"],
     [t("vehicles.body_number"), c.body_number, "body_number"],
     [t("vehicles.chassis_number"), c.chassis_number, "chassis_number"],

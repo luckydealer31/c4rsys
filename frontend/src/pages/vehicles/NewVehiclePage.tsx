@@ -43,7 +43,7 @@ type Form = {
   year: string;
   plate: string;
   plate_country: string;
-  plate_region: string;
+  plate_country_other: string;
   vin: string;
   body_number: string;
   chassis_number: string;
@@ -85,7 +85,7 @@ const EMPTY: Form = {
   year: "",
   plate: "",
   plate_country: "",
-  plate_region: "",
+  plate_country_other: "",
   vin: "",
   body_number: "",
   chassis_number: "",
@@ -172,7 +172,7 @@ function formOf(vehicle: Vehicle): Form {
     owner_contact: o?.contact ?? "",
     owner_client_id: o?.client?.id ?? "",
     client_owner_kind: o && vehicle.relation === "client" && o.kind !== "none" ? o.kind : "client",
-    plate_region: c.plate_region ?? "",
+    plate_country_other: c.plate_country_other ?? "",
   };
   // § 8.2.1: the card's own working values are edited in place of the global ones.
   const values = form as unknown as Record<string, string>;
@@ -187,6 +187,9 @@ function formOf(vehicle: Vehicle): Form {
   }
   return form;
 }
+
+// The choice «other» of the country of registration: the name is typed by hand.
+const OTHER_COUNTRY = "__other__";
 
 function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
   const { t, i18n } = useTranslation();
@@ -238,6 +241,7 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
     usesCatalogMake,
   );
   const countryList = useMemo(() => countries(i18n.language), [i18n.language]);
+  const [otherCountry, setOtherCountry] = useState(Boolean(vehicle?.characteristics.plate_country_other));
 
   const makeName = usesCatalogMake
     ? (makes.data?.makes.find((m) => m.code === form.make)?.name ?? "")
@@ -261,7 +265,9 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
       year: number(form.year),
       plate: form.plate,
       plate_country: form.plate_country,
-      plate_region: form.plate_region,
+      plate_country_other: form.plate_country ? "" : form.plate_country_other,
+      // The region of registration is no longer kept (decision of 12.11.2026).
+      plate_region: "",
       vin: form.vin,
       body_number: form.body_number,
       chassis_number: form.chassis_number,
@@ -455,22 +461,6 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
             <Field label={t("vehicles.vin")} hint={t("vehicles.vin_hint")}>
               <input value={form.vin} disabled={locked("vin")} onChange={(e) => set({ vin: e.target.value })} />
             </Field>
-            <Field label={t("vehicles.plate")}>
-              <input value={form.plate} onChange={(e) => set({ plate: e.target.value })} />
-            </Field>
-            <Field label={t("vehicles.plate_country")}>
-              <select value={form.plate_country} onChange={(e) => set({ plate_country: e.target.value })}>
-                <option value="">—</option>
-                {countryList.map((c) => (
-                  <option key={c.code} value={c.code}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label={t("vehicles.plate_region")} hint={t("vehicles.plate_region_hint")}>
-              <input value={form.plate_region} onChange={(e) => set({ plate_region: e.target.value })} />
-            </Field>
           </div>
           <div className="row">
             <Field label={t("vehicles.body_number")}>
@@ -485,6 +475,42 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
             <Field label={t("vehicles.engine_number")}>
               <input value={form.engine_number} disabled={locked("engine_number")} onChange={(e) => set({ engine_number: e.target.value })} />
             </Field>
+          </div>
+        </Card>
+        {/* The registration is not identification (decision of 12.11.2026): the plate and its
+            country change, and the region is not asked. */}
+        <Card title={t("vehicles.section_registration")}>
+          <div className="row">
+            <Field label={t("vehicles.plate")}>
+              <input value={form.plate} onChange={(e) => set({ plate: e.target.value })} />
+            </Field>
+            <Field label={t("vehicles.plate_country")}>
+              <select
+                value={otherCountry ? OTHER_COUNTRY : form.plate_country}
+                onChange={(e) => {
+                  const other = e.target.value === OTHER_COUNTRY;
+                  setOtherCountry(other);
+                  set({ plate_country: other ? "" : e.target.value, plate_country_other: "" });
+                }}
+              >
+                <option value="">—</option>
+                {countryList.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.name}
+                  </option>
+                ))}
+                <option value={OTHER_COUNTRY}>{t("vehicles.plate_country_other_option")}</option>
+              </select>
+            </Field>
+            {otherCountry ? (
+              <Field label={t("vehicles.plate_country_other")}>
+                <input
+                  maxLength={60}
+                  value={form.plate_country_other}
+                  onChange={(e) => set({ plate_country_other: e.target.value })}
+                />
+              </Field>
+            ) : null}
           </div>
         </Card>
 

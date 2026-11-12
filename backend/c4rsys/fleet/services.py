@@ -185,6 +185,7 @@ def create_vehicle(ctx: CommandContext, company: Company, data: NewVehicle) -> V
             number=data.details.plate,
             number_normalized=characteristics.normalize_plate(data.details.plate),
             country=data.details.plate_country,
+            country_other=data.details.plate_country_other,
             region=data.details.plate_region,
             valid_from=now,
         )
@@ -278,6 +279,7 @@ def update_details(
     plate_changed = (
         (current.number if current else "") != details.plate
         or (current.country if current else "") != details.plate_country
+        or (current.country_other if current else "") != details.plate_country_other
         or (current.region if current else "") != details.plate_region
     )
     if plate_changed:
@@ -290,6 +292,7 @@ def update_details(
                 number=details.plate,
                 number_normalized=characteristics.normalize_plate(details.plate),
                 country=details.plate_country,
+                country_other=details.plate_country_other,
                 region=details.plate_region,
                 valid_from=now,
             )

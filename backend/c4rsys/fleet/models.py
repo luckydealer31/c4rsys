@@ -138,6 +138,8 @@ class VehiclePlate(models.Model):
     number = models.CharField(max_length=20)
     number_normalized = models.CharField(max_length=20, db_index=True)
     country = models.CharField(max_length=2, blank=True, default="")
+    # A country that is not in the list, typed by hand (decision of 12.11.2026).
+    country_other = models.CharField(max_length=60, blank=True, default="")
     # The region or the registration authority, where it applies (§ 8.6.1).
     region = models.CharField(max_length=60, blank=True, default="")
     valid_from = models.DateTimeField(default=now)

@@ -72,6 +72,28 @@ def test_name_is_formed_from_make_model_and_plate(owner: Client, cmp: str, locat
     assert vehicle["characteristics"]["identifier_matches"] == []
 
 
+def test_country_of_registration_typed_by_hand(owner: Client, cmp: str, location: str) -> None:
+    """A country that is not in the list is typed by hand (decision of 12.11.2026); a listed
+    country clears it."""
+    response = create(
+        owner, cmp, location, name="Niva", plate="A123BC", plate_country_other="Abkhazia"
+    )
+    assert response.status_code == 201, response.content
+    facts = response.json()["vehicle"]["characteristics"]
+    assert (facts["plate_country"], facts["plate_country_other"]) == ("", "Abkhazia")
+    listed = create(
+        owner,
+        cmp,
+        location,
+        name="Lada",
+        plate="B456DE",
+        plate_country="ru",
+        plate_country_other="Abkhazia",
+    )
+    facts = listed.json()["vehicle"]["characteristics"]
+    assert (facts["plate_country"], facts["plate_country_other"]) == ("RU", "")
+
+
 def test_manual_name_and_other_make_as_text(owner: Client, cmp: str, location: str) -> None:
     response = create(
         owner, cmp, location, name="Белый скутер", vehicle_type="moped", make_other="Vespa"

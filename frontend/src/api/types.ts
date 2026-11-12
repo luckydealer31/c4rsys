@@ -841,6 +841,8 @@ export type VehicleCharacteristics = {
   engine_number: string;
   plate: string;
   plate_country: string;
+  /** A country typed by hand when it is not in the list. */
+  plate_country_other?: string;
   plate_region?: string;
   color: string;
   body_type: string;

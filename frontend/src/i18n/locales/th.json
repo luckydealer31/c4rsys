@@ -2404,8 +2404,6 @@
     "match_frame_number": "มีหมายเลขเฟรมนี้ในรถคันอื่นแล้ว",
     "missing_card_merged": "การ์ดถูกรวมกับการ์ดอื่น",
     "missing_in_warehouse": "ยานพาหนะอยู่ในคลัง",
-    "plate_region": "ภูมิภาคที่จดทะเบียน",
-    "plate_region_hint": "ถ้ามี: ภูมิภาคหรือหน่วยงานจดทะเบียน",
     "conflicts_title": "ข้อขัดแย้งของตัวระบุ",
     "conflicts_hint": "ตัวระบุของการ์ดนี้ตรงกับระเบียนอื่นใน c4rsys ข้อมูลของระเบียนอื่นจะไม่แสดง; ฝ่ายตรวจสอบของ c4rsys จะตรวจสอบ คุณยังทำงานกับการ์ดได้ตามปกติ",
     "conflict_number": "ข้อขัดแย้ง № {{number}}",
@@ -2670,7 +2668,10 @@
     "documents_pass_all": "ทั้งหมด",
     "documents_pass_owner": "ส่งสำเนาเอกสารให้เจ้าของ",
     "documents_pass_owner_hint": "เจ้าของจะได้รับสำเนาเอกสารที่เลือกพร้อมไฟล์และดูแลเอง เอกสารของบริษัทยังคงอยู่",
-    "documents_pass_nobody": "ไม่มีผู้รับสำเนาเอกสาร: เจ้าของยังไม่ได้รับการยืนยันในระบบ"
+    "documents_pass_nobody": "ไม่มีผู้รับสำเนาเอกสาร: เจ้าของยังไม่ได้รับการยืนยันในระบบ",
+    "section_registration": "การจดทะเบียน",
+    "plate_country_other_option": "อื่น ๆ — พิมพ์เอง",
+    "plate_country_other": "ชื่อประเทศ"
   },
   "warehouse": {
     "action_create": "Create",

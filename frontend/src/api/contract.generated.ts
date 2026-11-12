@@ -202,6 +202,7 @@ export const vehicle: Vehicle = {
     "payload_kg": null,
     "plate": "",
     "plate_country": "",
+    "plate_country_other": "",
     "plate_region": "",
     "power_hp": null,
     "range_km": null,

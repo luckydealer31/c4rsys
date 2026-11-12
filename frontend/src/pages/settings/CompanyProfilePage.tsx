@@ -204,11 +204,15 @@ function ProfileHistoryCard() {
   );
 }
 
+/** Codes that are no longer in use and repeat the name of a current country — «SU» is shown as
+ * Russia, «DD» as Germany and so on: without them a country is listed once. */
+const RETIRED = ["AN", "HV", "DY", "BU", "ZR", "CS", "YU", "DD", "FX", "UK", "NH", "RH", "SU", "TP", "VD", "YD"];
+
 /** Country codes known to the browser (ISO 3166-1 alpha-2), by their names in the language. */
 export function countries(locale: string): { code: string; name: string }[] {
   const names = new Intl.DisplayNames([locale], { type: "region" });
   const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  const pseudo = new Set(["EU", "EZ", "UN", "QO", "XA", "XB", "ZZ"]);
+  const pseudo = new Set(["EU", "EZ", "UN", "QO", "XA", "XB", "ZZ", ...RETIRED]);
   const result: { code: string; name: string }[] = [];
   for (const a of letters) {
     for (const b of letters) {

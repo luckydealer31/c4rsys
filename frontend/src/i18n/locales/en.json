@@ -2404,8 +2404,6 @@
     "match_frame_number": "Another vehicle in the system has this frame number — a reason to check the data.",
     "missing_card_merged": "the card is merged into another one",
     "missing_in_warehouse": "the vehicle is in a warehouse",
-    "plate_region": "Region of registration",
-    "plate_region_hint": "Where it applies: the region or the registration authority.",
     "conflicts_title": "Conflicts of identifiers",
     "conflicts_hint": "An identifier of this card matches another record in c4rsys. The data of the other record are not shown; the c4rsys verification checks the match. You keep working with the card.",
     "conflict_number": "Conflict № {{number}}",
@@ -2670,7 +2668,10 @@
     "documents_pass_all": "All",
     "documents_pass_owner": "Pass copies of documents to the owner",
     "documents_pass_owner_hint": "The owner gets his own copies of the ticked documents with their files and keeps them himself. The company keeps its documents.",
-    "documents_pass_nobody": "There is nobody to pass copies of documents to: the owner is not confirmed in the system."
+    "documents_pass_nobody": "There is nobody to pass copies of documents to: the owner is not confirmed in the system.",
+    "section_registration": "Registration",
+    "plate_country_other_option": "Other — type it in",
+    "plate_country_other": "Name of the country"
   },
   "warehouse": {
     "action_create": "Create",
