@@ -2632,11 +2632,9 @@
     "scope_fleet": "กองรถ",
     "scope_title": "ยานพาหนะใด",
     "view_trips": "การเดินทาง",
-    "card_main": "รายละเอียด",
+    "card_main": "ข้อมูลหลัก",
     "card_service": "การบำรุงรักษา",
     "card_inspections": "การตรวจสภาพ",
-    "card_damages": "ความเสียหาย",
-    "card_documents": "เอกสาร",
     "card_rentals": "การเช่า",
     "card_moves": "การเคลื่อนย้าย",
     "card_tasks": "งาน",
@@ -5126,7 +5124,8 @@
     "act_hint": "บันทึกจะยึดผลการตรวจสภาพที่บันทึกไว้นี้และส่งให้ลูกค้าหรือผู้เข้าร่วมลงนาม",
     "act_create": "สร้างบันทึก",
     "act_no_signer": "ไม่มีผู้ลงนาม: ส่งจากหน้าเอกสาร",
-    "act_of_invalid": "การตรวจสภาพนี้ไม่ถูกต้อง บันทึกและลายมือชื่อยังคงเก็บไว้"
+    "act_of_invalid": "การตรวจสภาพนี้ไม่ถูกต้อง บันทึกและลายมือชื่อยังคงเก็บไว้",
+    "no_scheme_card": "ไม่มีแผนผังสำหรับประเภทยานพาหนะและตัวถังนี้"
   },
   "offline": {
     "app_hint": "No connection to the server. Only local drafts of inspections are available on this device; rentals, service and other operations need the connection.",

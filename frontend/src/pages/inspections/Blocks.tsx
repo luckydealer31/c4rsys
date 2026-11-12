@@ -13,6 +13,7 @@ import { DamageList, damageText } from "./DamagesEditor";
 import { amount, EstimateForm } from "./DamagePage";
 import { InspectionList } from "./InspectionsPage";
 import { PhotoInput, PhotoThumb } from "./Media";
+import { schemeFor, VehicleScheme } from "./schemes";
 
 function newPath(params: Record<string, string>): string {
   return `/inspections/new?${new URLSearchParams(params).toString()}`;
@@ -40,19 +41,34 @@ export function VehicleInspectionsCard({ vehicle }: { vehicle: Vehicle }) {
   );
 }
 
-/** § 10.5.2: damages are events of the vehicle's history; created only by an inspection. */
+/** § 10.5.2: damages are events of the vehicle's history; created only by an inspection. They are
+ * shown on the scheme of the vehicle, chosen by its kind and body type (§ 10.3.6), with the same
+ * numbers as in the list below; a damage described by text has no mark. */
 export function VehicleDamagesCard({ vehicle }: { vehicle: Vehicle }) {
   const { t } = useTranslation();
   const damages = useVehicleDamages(vehicle.id);
   const items = damages.data?.damages ?? [];
   const [all, setAll] = useState(false);
   const shown = all ? items : items.filter((d) => d.state === "actual");
+  const scheme = schemeFor(vehicle.characteristics.vehicle_type, vehicle.characteristics.body_type);
+  const marks = shown.flatMap((d, index) =>
+    d.zone_scheme && d.zone_x !== null && d.zone_y !== null
+      ? [{ x: Number(d.zone_x), y: Number(d.zone_y), view: null, label: String(index + 1) }]
+      : [],
+  );
   return (
     <Card title={t("inspections.damages")}>
       {damages.isLoading ? <Loading /> : null}
+      {scheme ? (
+        <div className="scheme-box">
+          <VehicleScheme id={scheme} marks={marks} label={(view) => t(`inspections.view_${view}`)} />
+        </div>
+      ) : (
+        <p className="muted small">{t("inspections.no_scheme_card")}</p>
+      )}
       <p className="muted small">{t("inspections.damages_only_by_inspection")}</p>
       {!damages.isLoading && shown.length === 0 ? <p className="muted">{t("inspections.no_damages")}</p> : null}
-      <DamageList damages={shown} />
+      <DamageList damages={shown} numbered />
       {items.length > shown.length || all ? (
         <label className="small">
           <input type="checkbox" checked={all} onChange={() => setAll(!all)} /> {t("inspections.show_all_damages")}

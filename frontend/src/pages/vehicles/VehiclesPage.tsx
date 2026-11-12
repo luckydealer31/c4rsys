@@ -62,7 +62,7 @@ export function useRentals(enabled = true) {
   );
 }
 
-type CardTab = "main" | "service" | "inspections" | "damages" | "documents" | "rentals" | "moves" | "tasks" | "ownership" | "history" | "settings";
+type CardTab = "main" | "service" | "inspections" | "rentals" | "moves" | "tasks" | "ownership" | "history" | "settings";
 
 /** Garage (§ 8.7.2; customer's decisions of 24.10.2026 and 11.11.2026). Own and managed vehicles
  * are one list, grouped by location, with the switches «own» / «managed»; the schedule is the
@@ -306,12 +306,12 @@ export function VehiclesPage() {
   );
 }
 
-// The technical characteristics: the right column of the card.
-const TECHNICAL = new Set([
-  "body_type", "fuel_type", "transmission", "drive", "engine_volume_l", "power_hp", "seats", "doors",
-  "manufacturer", "manufacture_country", "modification", "tank_volume_l", "battery_kwh", "range_km", "gears",
-  "curb_weight_kg", "gross_weight_kg", "payload_kg", "cargo_volume_m3",
-]);
+// The main data of the vehicle in the order the customer named on 12.11.2026: what does not
+// change (the colour aside). The rest of the characteristics follow in the second column.
+const MAIN = [
+  "vehicle_type", "make", "model", "year", "body_type", "color", "vin", "body_number", "chassis_number",
+  "frame_number", "engine_number", "engine_volume_l", "power_hp", "fuel_type", "tank_volume_l", "battery_kwh",
+];
 
 /** Identification data and characteristics of the vehicle; a coincidence of VIN or plate with
  * another vehicle is shown as a reason to check (§ 8.6.3). */
@@ -355,9 +355,9 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
     [t("vehicles.make"), c.make_name, "make"],
     [t("vehicles.model"), c.model_name, "model"],
     [t("vehicles.year"), c.year ? String(c.year) : "", "year"],
-    [t("vehicles.odometer"), vehicle.odometer ? `${Number(vehicle.odometer.value)} ${vehicle.odometer.unit}` : ""],
+    [t("vehicles.odometer"), vehicle.odometer ? `${Number(vehicle.odometer.value)} ${vehicle.odometer.unit}` : "", "#odometer"],
     [t("vehicles.color"), c.color, "color"],
-    [t("vehicles.plate"), [c.plate, country, c.plate_region].filter(Boolean).join(", ")],
+    [t("vehicles.plate"), [c.plate, country, c.plate_region].filter(Boolean).join(", "), "#plate"],
     [t("vehicles.vin"), c.vin, "vin"],
     [t("vehicles.body_number"), c.body_number, "body_number"],
     [t("vehicles.chassis_number"), c.chassis_number, "chassis_number"],
@@ -386,16 +386,24 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
     [t("vehicles.barcode"), c.barcode ?? ""],
   ];
   return (
-    <Card title={t("vehicles.section_characteristics")}>
+    <Card title={t("vehicles.card_main")}>
       {c.identifier_matches.length ? (
         <div className="alert warn">
           {c.identifier_matches.map((m) => t(`vehicles.match_${m}`)).join(" ")}
         </div>
       ) : null}
-      {/* Two columns by meaning (decision of 11.11.2026): what identifies the vehicle on the
-          left, its technical data on the right. */}
+      {/* Two columns (decision of 12.11.2026): the main data that does not change on the left;
+          on the right what changes — the plate, the owner, the mileage — and the rest. */}
       <div className="facts-columns">
-        {[facts.filter(([, , field]) => !field || !TECHNICAL.has(field)), facts.filter(([, , field]) => field && TECHNICAL.has(field))].map(
+        {[
+          MAIN.flatMap((key) => facts.filter(([, , field]) => field === key)),
+          [
+            ...facts.filter(([, , field]) => field === "#plate"),
+            ...facts.filter(([, , field]) => !field),
+            ...facts.filter(([, , field]) => field === "#odometer"),
+            ...facts.filter(([, , field]) => field && !field.startsWith("#") && !MAIN.includes(field)),
+          ],
+        ].map(
           (column, index) => (
             <dl key={index} className="facts">
               {column
@@ -499,8 +507,7 @@ export function VehiclePage() {
   // A vehicle in a warehouse or of a client has fewer of them (§ 8.1.2, § 8.1.5).
   const tabs: CardTab[] = [
     "main",
-    ...(stored ? [] : (["service", "inspections", "damages"] as CardTab[])),
-    "documents",
+    ...(stored ? [] : (["service", "inspections"] as CardTab[])),
     ...(isClient ? [] : (["rentals", "moves"] as CardTab[])),
     ...(stored && data.state === "active" ? (["moves"] as CardTab[]) : []),
     "tasks",
@@ -508,7 +515,10 @@ export function VehiclePage() {
     "history",
     "settings",
   ];
-  const asked = search.get("merge") ? "ownership" : search.get("tab");
+  // Old addresses: damages are shown with the inspections, documents on the main tab.
+  const old: Record<string, string> = { damages: "inspections", documents: "main" };
+  const named = search.get("tab") ?? "";
+  const asked = search.get("merge") ? "ownership" : (old[named] ?? named);
   const tab: CardTab = tabs.find((key) => key === asked) ?? "main";
   const openTab = (key: CardTab) => setSearch(key === "main" ? {} : { tab: key }, { replace: true });
 
@@ -554,6 +564,9 @@ export function VehiclePage() {
       <VehicleFacts vehicle={data} />
       <ConflictsCard vehicle={data} />
       <ProposalsCard vehicle={data} />
+      {/* The documents of the vehicle stand with its main data (decision of 12.11.2026). */}
+      <GlobalDocumentsCard vehicle={data} />
+      <LinkedDocuments objectType="vehicle" objectId={data.id} />
       </>
       ) : null}
       {/* Name, contexts of use and the odometer with its unit (decision of 11.11.2026: these are
@@ -610,24 +623,22 @@ export function VehiclePage() {
           <VehicleParts vehicle={data} />
         </>
       ) : null}
+      {/* The inspections and, beside them, the damages on the scheme of the vehicle — one tab
+          (decision of 12.11.2026). */}
       {tab === "inspections" ? (
-        <>
-          <VehicleInspectionsCard vehicle={data} />
-          {/* Inspections started on this device and not sent yet (§ 10.4.2–10.4.4). */}
-          <DraftsPanel
-            scope={draftScope}
-            base={companyPath(company)}
-            zone={timeZone}
-            canCreate={can("inspection.create")}
-          />
-        </>
-      ) : null}
-      {tab === "damages" ? <VehicleDamagesCard vehicle={data} /> : null}
-      {tab === "documents" ? (
-        <>
-          <GlobalDocumentsCard vehicle={data} />
-          <LinkedDocuments objectType="vehicle" objectId={data.id} />
-        </>
+        <div className="inspections-split">
+          <div>
+            <VehicleInspectionsCard vehicle={data} />
+            {/* Inspections started on this device and not sent yet (§ 10.4.2–10.4.4). */}
+            <DraftsPanel
+              scope={draftScope}
+              base={companyPath(company)}
+              zone={timeZone}
+              canCreate={can("inspection.create")}
+            />
+          </div>
+          <VehicleDamagesCard vehicle={data} />
+        </div>
       ) : null}
       {tab === "moves" ? (
         <>
