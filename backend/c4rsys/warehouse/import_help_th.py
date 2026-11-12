@@ -39,7 +39,7 @@ TH: dict[str, str] = {
     ),
     "manual, automatic, robot, cvt": "manual, automatic, robot, cvt — ระบบเกียร์",
     "fwd, rwd, awd": "fwd, rwd, awd — ระบบขับเคลื่อน",
-    "Engine volume, liters": "ความจุเครื่องยนต์ ลิตร",
+    "Engine volume, cc": "ความจุเครื่องยนต์ ซีซี",
     "Power, hp": "กำลัง แรงม้า",
     "Seats": "จำนวนที่นั่ง",
     "Doors": "จำนวนประตู",
