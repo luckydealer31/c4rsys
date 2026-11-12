@@ -3,7 +3,7 @@
 from django.contrib.postgres.constraints import ExclusionConstraint
 from django.contrib.postgres.fields import DateTimeRangeField, RangeOperators
 from django.db import models
-from django.db.models import Q
+from django.db.models import F, Q
 from django.utils.timezone import now
 
 from c4rsys.companies.models import ActivityContext, Company, Location
@@ -1364,6 +1364,53 @@ class VehicleDisclosureSetting(models.Model):
 
     def __str__(self) -> str:
         return f"disclosure {self.vehicle_card_id}"
+
+
+# --- Documents of a vehicle kept by the company (customer's decision of 12.11.2026) ------------
+
+
+class VehicleCardDocument(models.Model):
+    """A document of the vehicle the company keeps in its own card: the name the company gives
+    it, the series and the number, the dates of the start and the end of its term and, if the
+    company wishes, a JPEG or PDF file. It is added, changed and sent to the archive; nothing is
+    deleted. It is not the owner's global document (§ 8.2.3)."""
+
+    class State(models.TextChoices):
+        ACTIVE = "active"
+        ARCHIVED = "archived"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    vehicle_card = models.ForeignKey(VehicleCard, on_delete=models.PROTECT, related_name="+")
+    name = models.CharField(max_length=200)
+    series = models.CharField(max_length=50, blank=True, default="")
+    number = models.CharField(max_length=100, blank=True, default="")
+    valid_from = models.DateField(null=True, blank=True)
+    valid_until = models.DateField(null=True, blank=True)
+    file_id = models.UUIDField(null=True, blank=True)
+    file_name = models.CharField(max_length=255, blank=True, default="")
+    state = models.CharField(max_length=10, choices=State.choices, default=State.ACTIVE)
+    archived_at = models.DateTimeField(null=True, blank=True)
+    created_by_user_id = models.UUIDField()
+    created_at = models.DateTimeField(default=now)
+    updated_at = models.DateTimeField(auto_now=True)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "vehicle_card_document"
+        indexes = [models.Index(fields=["vehicle_card", "state"], name="vehicle_card_document_idx")]
+        constraints = [
+            models.CheckConstraint(condition=~Q(name=""), name="vehicle_card_document_named"),
+            models.CheckConstraint(
+                condition=Q(valid_from__isnull=True)
+                | Q(valid_until__isnull=True)
+                | Q(valid_until__gte=F("valid_from")),
+                name="vehicle_card_document_term",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.name}:{self.vehicle_card_id}"
 
 
 # --- Global documents of a vehicle (ТЗ § 8.2.3–8.2.4, § 8.2.7) -------------------------------

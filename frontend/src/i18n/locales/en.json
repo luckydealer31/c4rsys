@@ -247,7 +247,10 @@
     "employee_rights_request_cancelled": "Rights request withdrawn",
     "employee_rights_confirmation_outdated": "Rights request outdated",
     "employee_rights_split": "Rights split into narrower ones",
-    "vehicle_split_code_rejected": "Wrong code of a split"
+    "vehicle_split_code_rejected": "Wrong code of a split",
+    "vehicle_document_added": "Vehicle document added",
+    "vehicle_document_changed": "Vehicle document changed",
+    "vehicle_document_archived": "Vehicle document archived"
   },
   "finance_articles": {
     "archive": "Archive",
@@ -1307,7 +1310,9 @@
     "service_without_equipment": "Units are attached only to a service with equipment.",
     "boolean_required": "Choose yes or no.",
     "equipment_in_use": "Unit {{asset}} has bookings or is handed out under this service. Finish or cancel them first.",
-    "equipment_not_returned": "The equipment is handed out: accept its return first."
+    "equipment_not_returned": "The equipment is handed out: accept its return first.",
+    "vehicle_document_file_type": "Only a JPEG or PDF file fits.",
+    "vehicle_document_archived": "The document is archived and is not changed."
   },
   "history": {
     "action": "Action",
@@ -2641,7 +2646,24 @@
     "card_ownership": "Ownership and archive",
     "card_history": "History",
     "card_settings": "Settings",
-    "unit_change_open": "Change the unit"
+    "unit_change_open": "Change the unit",
+    "documents_title": "Vehicle documents",
+    "documents_none": "No documents.",
+    "documents_archive": "Archive",
+    "document_add": "Add a document",
+    "document_edit": "Change the document",
+    "document_name": "Name",
+    "document_name_hint": "What the document is called in your country: vehicle passport, Blue Book, insurance policy…",
+    "document_series": "Series",
+    "document_number": "Number",
+    "document_valid_from": "Start (issue) date",
+    "document_valid_to": "End date",
+    "document_file_attach": "File",
+    "document_file_hint": "Optional: JPEG or PDF, up to 2 MB.",
+    "document_file_remove": "Remove the file",
+    "document_to_archive": "To the archive",
+    "document_archived": "archived",
+    "document_archive_confirm": "Send the document “{{name}}” to the archive?"
   },
   "warehouse": {
     "action_create": "Create",

@@ -3,7 +3,7 @@ management, write-off and disposal, the odometer unit and replacement, what is p
 owner, the global documents (ТЗ § 8.1.6, § 8.2.3–8.2.13, § 8.3.4–8.3.17, § 8.4.2, § 8.7.5–8.7.6,
 § 8.8, § 23.5)."""
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 from uuid import UUID
@@ -13,6 +13,7 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 
 from c4rsys.companies import access
 from c4rsys.fleet import (
+    card_documents,
     disclosure,
     lifecycle,
     odometer,
@@ -475,6 +476,117 @@ def global_document_file(
     if item is None:
         raise errors.not_found()
     return files.file_response(item)
+
+
+# --- Documents kept by the company (decision of 12.11.2026) --------------------------------------
+
+
+def _day(data: dict[str, Any], key: str) -> date | None:
+    value = data.get(key)
+    if value in (None, ""):
+        return None
+    try:
+        return date.fromisoformat(str(value))
+    except ValueError as exc:
+        raise errors.validation_error(key, code="DATE_INVALID") from exc
+
+
+def _document_data(data: dict[str, Any]) -> card_documents.DocumentData:
+    raw = data.get("file_id")
+    try:
+        file_id = UUID(str(raw)) if raw not in (None, "") else None
+    except ValueError as exc:
+        raise errors.validation_error("file_id") from exc
+    return card_documents.DocumentData(
+        name=get_str(data, "name", max_length=200),
+        series=get_str(data, "series", max_length=50, required=False),
+        number=get_str(data, "number", max_length=100, required=False),
+        valid_from=_day(data, "valid_from"),
+        valid_until=_day(data, "valid_until"),
+        file_id=file_id,
+        file_name=get_str(data, "file_name", max_length=255, required=False),
+        keep_file=data.get("keep_file") is True,
+    )
+
+
+def _document_payload(d: card_documents.DocumentData) -> dict[str, Any]:
+    return {
+        "name": d.name,
+        "series": d.series,
+        "number": d.number,
+        "valid_from": d.valid_from.isoformat() if d.valid_from else None,
+        "valid_until": d.valid_until.isoformat() if d.valid_until else None,
+        "file_id": str(d.file_id) if d.file_id else None,
+        "file_name": d.file_name,
+        "keep_file": d.keep_file,
+    }
+
+
+@require_http_methods(["POST"])
+def card_document_add(request: HttpRequest, cmp: str, card_id: UUID) -> JsonResponse:
+    context, actor, card = _card(request, cmp, card_id)
+    _require(actor, "vehicle.edit", card)
+    data = _document_data(parse_json(request))
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        card_documents.add(ctx, context.company.id, card_id, data)
+        return CommandResult(201, _refreshed(context.company.id, card_id))
+
+    payload = {"card_id": str(card_id), **_document_payload(data)}
+    return services_run(request, "vehicle.document_add", actor, payload, handler)
+
+
+@require_http_methods(["PUT"])
+def card_document_change(
+    request: HttpRequest, cmp: str, card_id: UUID, document_id: UUID
+) -> JsonResponse:
+    context, actor, card = _card(request, cmp, card_id)
+    _require(actor, "vehicle.edit", card)
+    body = parse_json(request)
+    data = _document_data(body)
+    expected = get_int(body, "expected_version")
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        card_documents.change(ctx, context.company.id, card_id, document_id, data, expected)
+        return CommandResult(200, _refreshed(context.company.id, card_id))
+
+    payload = {
+        "card_id": str(card_id),
+        "document_id": str(document_id),
+        "expected_version": expected,
+        **_document_payload(data),
+    }
+    return services_run(request, "vehicle.document_change", actor, payload, handler)
+
+
+@require_http_methods(["POST"])
+def card_document_archive(
+    request: HttpRequest, cmp: str, card_id: UUID, document_id: UUID
+) -> JsonResponse:
+    context, actor, card = _card(request, cmp, card_id)
+    _require(actor, "vehicle.edit", card)
+    expected = get_int(parse_json(request), "expected_version")
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        card_documents.archive(ctx, context.company.id, card_id, document_id, expected)
+        return CommandResult(200, _refreshed(context.company.id, card_id))
+
+    payload = {
+        "card_id": str(card_id),
+        "document_id": str(document_id),
+        "expected_version": expected,
+    }
+    return services_run(request, "vehicle.document_archive", actor, payload, handler)
+
+
+@require_GET
+def card_document_file(
+    request: HttpRequest, cmp: str, card_id: UUID, document_id: UUID
+) -> HttpResponse:
+    from c4rsys.files import services as files
+
+    _context, _actor_, card = _card(request, cmp, card_id)
+    return files.file_response(card_documents.file_of(card, document_id))
 
 
 def services_run(

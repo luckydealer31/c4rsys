@@ -15,6 +15,7 @@ from c4rsys.companies import services as companies
 from c4rsys.companies.models import Employment
 from c4rsys.companies.views import run_and_respond
 from c4rsys.fleet import (
+    card_documents,
     characteristics,
     confirmations,
     identity,
@@ -96,6 +97,7 @@ def _payload(
         disclosure.card_payload(card) if card.relation == VehicleCard.Relation.MANAGED else None
     )
     body["global_documents"] = vehicle_documents.card_payload(card)
+    body["card_documents"] = card_documents.card_payload(card)
     body["transfer_reversals"] = lifecycle.reversals_of_card(card)
     body["sold_to_profile"] = lifecycle.sold_ownership(card) is not None
     return body

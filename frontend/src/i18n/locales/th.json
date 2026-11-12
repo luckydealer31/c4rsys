@@ -247,7 +247,10 @@
     "employee_rights_request_cancelled": "ถอนคำขอสิทธิ์",
     "employee_rights_confirmation_outdated": "คำขอสิทธิ์หมดอายุ",
     "employee_rights_split": "แยกสิทธิ์เป็นสิทธิ์ย่อย",
-    "vehicle_split_code_rejected": "รหัสการแยกไม่ถูกต้อง"
+    "vehicle_split_code_rejected": "รหัสการแยกไม่ถูกต้อง",
+    "vehicle_document_added": "เพิ่มเอกสารของยานพาหนะ",
+    "vehicle_document_changed": "แก้ไขเอกสารของยานพาหนะ",
+    "vehicle_document_archived": "ย้ายเอกสารของยานพาหนะไปคลังเก็บ"
   },
   "finance_articles": {
     "archive": "เก็บเข้าคลัง",
@@ -1307,7 +1310,9 @@
     "service_without_equipment": "ผูกอุปกรณ์ได้เฉพาะกับบริการที่มีอุปกรณ์",
     "boolean_required": "เลือกใช่หรือไม่",
     "equipment_in_use": "ชิ้น {{asset}} มีการจองหรือถูกส่งมอบภายใต้บริการนี้ กรุณาปิดหรือยกเลิกก่อน",
-    "equipment_not_returned": "อุปกรณ์ถูกส่งมอบอยู่ กรุณารับคืนก่อน"
+    "equipment_not_returned": "อุปกรณ์ถูกส่งมอบอยู่ กรุณารับคืนก่อน",
+    "vehicle_document_file_type": "ใช้ได้เฉพาะไฟล์ JPEG หรือ PDF",
+    "vehicle_document_archived": "เอกสารอยู่ในคลังเก็บและแก้ไขไม่ได้"
   },
   "history": {
     "action": "Action",
@@ -2641,7 +2646,24 @@
     "card_ownership": "กรรมสิทธิ์และคลังเก็บ",
     "card_history": "ประวัติ",
     "card_settings": "การตั้งค่า",
-    "unit_change_open": "เปลี่ยนหน่วย"
+    "unit_change_open": "เปลี่ยนหน่วย",
+    "documents_title": "เอกสารของยานพาหนะ",
+    "documents_none": "ไม่มีเอกสาร",
+    "documents_archive": "คลังเก็บ",
+    "document_add": "เพิ่มเอกสาร",
+    "document_edit": "แก้ไขเอกสาร",
+    "document_name": "ชื่อเอกสาร",
+    "document_name_hint": "ชื่อเอกสารที่ใช้ในประเทศของคุณ เช่น เล่มทะเบียน กรมธรรม์ประกันภัย",
+    "document_series": "ชุดเอกสาร",
+    "document_number": "เลขที่",
+    "document_valid_from": "วันที่เริ่ม (วันที่ออก)",
+    "document_valid_to": "วันที่สิ้นสุด",
+    "document_file_attach": "ไฟล์",
+    "document_file_hint": "ไม่บังคับ: JPEG หรือ PDF ไม่เกิน 2 MB",
+    "document_file_remove": "นำไฟล์ออก",
+    "document_to_archive": "ย้ายไปคลังเก็บ",
+    "document_archived": "อยู่ในคลังเก็บ",
+    "document_archive_confirm": "ย้ายเอกสาร “{{name}}” ไปคลังเก็บหรือไม่"
   },
   "warehouse": {
     "action_create": "Create",

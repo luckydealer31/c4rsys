@@ -237,4 +237,21 @@ test("base example from registration to closing survives a restart", async ({ pa
   }
   await expect(history.getByRole("row").filter({ hasText: t("actions.charge_recorded") })).toHaveCount(1);
   await expect(history.getByRole("row").filter({ hasText: t("actions.payment_received") })).toHaveCount(1);
+
+  // A document of the vehicle: added in the settings of its card, shown on the main tab.
+  await page.goto(`${base}/vehicles`);
+  await page.locator('a[href*="/vehicles/"]').first().click();
+  await expect(page.getByRole("tab", { name: t("vehicles.card_settings") })).toBeVisible();
+  const cardUrl = page.url().split("?")[0];
+  await page.getByRole("tab", { name: t("vehicles.card_settings") }).click();
+  await page.getByRole("button", { name: t("vehicles.document_add") }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel(t("vehicles.document_name")).fill("Blue Book");
+  await dialog.getByLabel(t("vehicles.document_number")).fill("123456");
+  await dialog.getByLabel(t("vehicles.document_valid_to")).fill("2027-05-01");
+  await dialog.getByRole("button", { name: t("common.save") }).click();
+  await expect(card(page, t("vehicles.documents_title"))).toContainText("Blue Book");
+  await page.goto(cardUrl);
+  await expect(card(page, t("vehicles.card_main"))).toContainText("Blue Book");
+  await expect(card(page, t("vehicles.card_main"))).toContainText("123456");
 });

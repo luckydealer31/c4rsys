@@ -649,6 +649,8 @@ export type Vehicle = {
     confirmed_since: string | null;
     history: { categories: string[]; effective_from: string; created_at: string }[];
   } | null;
+  /** Documents the company keeps in the card (decision of 12.11.2026). */
+  card_documents?: CardDocument[];
   global_documents?: {
     access: "ownership" | "management" | "grant" | null;
     documents: GlobalDocument[];
@@ -2305,6 +2307,19 @@ export type DamageEvent = {
   created_by_user_id: string;
   created_at: string;
   files: { file_id: string; role: "selected" | "fix_result" }[];
+};
+
+export type CardDocument = {
+  id: string;
+  version: number;
+  name: string;
+  series: string;
+  number: string;
+  valid_from: string | null;
+  valid_until: string | null;
+  has_file: boolean;
+  file_name: string;
+  state: "active" | "archived";
 };
 
 export type Damage = {

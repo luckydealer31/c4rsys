@@ -247,7 +247,10 @@
     "employee_rights_request_cancelled": "Запрос прав отозван",
     "employee_rights_confirmation_outdated": "Запрос прав устарел",
     "employee_rights_split": "Права разделены на более узкие",
-    "vehicle_split_code_rejected": "Неверный код разделения"
+    "vehicle_split_code_rejected": "Неверный код разделения",
+    "vehicle_document_added": "Добавлен документ ТС",
+    "vehicle_document_changed": "Изменён документ ТС",
+    "vehicle_document_archived": "Документ ТС отправлен в архив"
   },
   "finance_articles": {
     "archive": "В архив",
@@ -1307,7 +1310,9 @@
     "service_without_equipment": "Экземпляры привязываются только к услуге с оборудованием.",
     "boolean_required": "Выберите «да» или «нет».",
     "equipment_in_use": "У экземпляра {{asset}} есть брони или выдача по этой услуге. Сначала завершите или отмените их.",
-    "equipment_not_returned": "Оборудование выдано: сначала примите возврат."
+    "equipment_not_returned": "Оборудование выдано: сначала примите возврат.",
+    "vehicle_document_file_type": "Подходит только файл JPEG или PDF.",
+    "vehicle_document_archived": "Документ в архиве и не меняется."
   },
   "history": {
     "action": "Действие",
@@ -2641,7 +2646,24 @@
     "card_ownership": "Владение и архив",
     "card_history": "История",
     "card_settings": "Настройки",
-    "unit_change_open": "Сменить единицу"
+    "unit_change_open": "Сменить единицу",
+    "documents_title": "Документы ТС",
+    "documents_none": "Документов нет.",
+    "documents_archive": "Архив",
+    "document_add": "Добавить документ",
+    "document_edit": "Изменить документ",
+    "document_name": "Название",
+    "document_name_hint": "Как документ называется у вас: ПТС, Blue Book, страховой полис…",
+    "document_series": "Серия",
+    "document_number": "Номер",
+    "document_valid_from": "Дата начала (выдачи)",
+    "document_valid_to": "Дата окончания",
+    "document_file_attach": "Файл",
+    "document_file_hint": "По желанию: JPEG или PDF, до 2 МБ.",
+    "document_file_remove": "Убрать файл",
+    "document_to_archive": "В архив",
+    "document_archived": "в архиве",
+    "document_archive_confirm": "Отправить документ «{{name}}» в архив?"
   },
   "warehouse": {
     "action_create": "Создать",

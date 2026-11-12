@@ -197,49 +197,7 @@ function UploadDocument({ target }: { target?: LinkTarget }) {
 
 /** Documents of a card: the same documents, seen through the link, by the rights on documents
  * (§ 18.1.9, § 18.5.3). */
-/** The active documents linked to a card as a short list: the name, the kind, the date of the
- * document and the end of its term; nothing is changed here. */
-export function DocumentSummary({ objectType, objectId }: LinkTarget) {
-  const { t } = useTranslation();
-  const company = useCompany();
-  const can = useCan();
-  const kinds = useDocumentKinds();
-  const kindName = useKindName();
-  const allowed = can("documents.view");
-  const list = useApi<{ documents: CompanyDocument[] }>(
-    ["documents", company.public_id, `object_type=${objectType}&object_id=${objectId}`],
-    `/c/${company.public_id}/documents?object_type=${objectType}&object_id=${objectId}`,
-    allowed,
-  );
-  if (!allowed) return null;
-  const items = (list.data?.documents ?? []).filter((d) => d.state === "active");
-  return (
-    <>
-      {list.isLoading ? <Loading /> : null}
-      {list.data && items.length === 0 ? <p className="muted">{t("documents.none")}</p> : null}
-      <ul className="plain document-summary">
-        {items.map((d) => (
-          <li key={d.id}>
-            <Link to={companyPath(company, `/documents/${d.id}`)}>{d.title}</Link>
-            <span className="muted small">
-              {" "}
-              · {kindName(kinds.data?.kinds.find((k) => k.id === d.kind_id))} · {t("documents.from_date", { date: d.document_date })}
-              {d.valid_until ? ` · ${t("documents.until_date", { date: d.valid_until })}` : ""}
-            </span>{" "}
-            {d.warning ? <span className="badge warn">{t(`documents.warning_${d.warning}`, { date: d.valid_until })}</span> : null}
-          </li>
-        ))}
-      </ul>
-    </>
-  );
-}
-
-export function LinkedDocuments({
-  objectType,
-  objectId,
-  readOnly = false,
-  templates = true,
-}: LinkTarget & { readOnly?: boolean; templates?: boolean }) {
+export function LinkedDocuments({ objectType, objectId, readOnly = false }: LinkTarget & { readOnly?: boolean }) {
   const { t } = useTranslation();
   const can = useCan();
   const refresh = useRefresh();
@@ -249,7 +207,7 @@ export function LinkedDocuments({
     <>
       <h2>{t("nav.documents")}</h2>
       {can("documents.view") ? <DocumentList query="" target={{ objectType, objectId }} /> : null}
-      {!readOnly && templates && can("documents.create") ? <MakeDocument objectType={objectType} objectId={objectId} onDone={refresh} /> : null}
+      {!readOnly && can("documents.create") ? <MakeDocument objectType={objectType} objectId={objectId} onDone={refresh} /> : null}
       {!readOnly && can("documents.upload") ? (
         adding ? (
           <UploadDocument target={{ objectType, objectId }} />

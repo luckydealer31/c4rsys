@@ -13,10 +13,10 @@ import { formatMoment } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
 import { SectionSearch } from "../search/SearchPage";
 import { LinkedTasks } from "../tasks/TasksPage";
-import { DocumentSummary, LinkedDocuments } from "../documents/DocumentsPage";
 import { VehicleService } from "../service/VehicleService";
 import { VehicleParts } from "../warehouse/Reserves";
 import { OwnerRequestCard } from "./OwnerRequestCard";
+import { VehicleDocumentsList, VehicleDocumentsSettings } from "./VehicleDocuments";
 import { DraftsPanel } from "../inspections/OfflineDrafts";
 import { useScope } from "../../offline/hooks";
 import { TripsView } from "../trips/TripsPage";
@@ -443,7 +443,7 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
         <div>
           <h3 style={{ marginTop: 0 }}>{t("nav.documents")}</h3>
           <GlobalDocumentsList vehicle={vehicle} />
-          <DocumentSummary objectType="vehicle" objectId={vehicle.id} />
+          <VehicleDocumentsList vehicle={vehicle} />
         </div>
       </div>
       {vehicle.changes_global === false ? (
@@ -620,8 +620,12 @@ export function VehiclePage() {
           <OdometerCard vehicle={data} />
           {/* Documents of the vehicle are added and changed here (decision of 12.11.2026); making
               a document by a template is not offered in the card of a vehicle. */}
-          <GlobalDocumentsCard vehicle={data} />
-          <LinkedDocuments objectType="vehicle" objectId={data.id} templates={false} />
+          <VehicleDocumentsSettings vehicle={data} />
+          {/* The owner's documents and the company's copies of them (§ 8.2.3, § 8.2.7) — only
+              when there are any. */}
+          {data.global_documents?.documents.length || data.global_documents?.copies.length ? (
+            <GlobalDocumentsCard vehicle={data} />
+          ) : null}
         </>
       ) : null}
       {tab === "service" ? (
