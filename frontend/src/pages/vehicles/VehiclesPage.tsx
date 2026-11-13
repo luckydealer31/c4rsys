@@ -12,6 +12,7 @@ import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { formatMoment } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
 import { SectionSearch } from "../search/SearchPage";
+import { VehicleFinance } from "./VehicleFinance";
 import { VehicleJournal } from "./VehicleJournal";
 import { VehicleService } from "../service/VehicleService";
 import { VehicleParts } from "../warehouse/Reserves";
@@ -65,7 +66,7 @@ export function useRentals(enabled = true) {
 
 type CardTab = "main" | "service" | "inspections" | "history" | "settings";
 // The parts of the history of a vehicle: one tab instead of four (decision of 13.11.2026).
-type HistoryPart = "rentals" | "moves" | "ownership" | "changes";
+type HistoryPart = "rentals" | "moves" | "finance" | "ownership" | "changes";
 
 /** Garage (§ 8.7.2; customer's decisions of 24.10.2026 and 11.11.2026). Own and managed vehicles
  * are one list, grouped by location, with the switches «own» / «managed»; the schedule is the
@@ -520,6 +521,7 @@ export function VehiclePage() {
   const parts: HistoryPart[] = [
     ...(isClient ? [] : (["rentals", "moves"] as HistoryPart[])),
     ...(stored && data.state === "active" ? (["moves"] as HistoryPart[]) : []),
+    ...(isClient ? [] : (["finance"] as HistoryPart[])),
     "ownership",
     "changes",
   ];
@@ -647,6 +649,7 @@ export function VehiclePage() {
           {/* Documents of the vehicle are added and changed here (decision of 12.11.2026); making
               a document by a template is not offered in the card of a vehicle. */}
           <VehicleDocumentsSettings vehicle={data} />
+          <RestrictionCard vehicle={data} />
           {/* The owner's documents and the company's copies of them (§ 8.2.3, § 8.2.7) — only
               when there are any. */}
           {data.global_documents?.documents.length || data.global_documents?.copies.length ? (
@@ -724,8 +727,7 @@ export function VehiclePage() {
       ) : null}
       {tab === "history" && part === "ownership" ? (
         <>
-          {data.relation === "own" ? <Acquisition vehicle={data} /> : null}
-          <RestrictionCard vehicle={data} />
+          <HistoryCard vehicle={data} />
           <RelationCard vehicle={data} />
           <DisposeCard vehicle={data} />
           <ReversalCard vehicle={data} />
@@ -736,7 +738,7 @@ export function VehiclePage() {
           <MergedHistory vehicle={data} />
         </>
       ) : null}
-      {tab === "history" && part === "changes" ? <HistoryCard vehicle={data} /> : null}
+      {tab === "history" && part === "finance" ? <VehicleFinance vehicle={data} /> : null}
       {tab === "history" && part === "changes" ? <VehicleJournal vehicle={data} /> : null}
     </div>
   );
@@ -875,43 +877,3 @@ function AssignedTariff({ tariff, vehicleId }: { tariff: Tariff; vehicleId: stri
 }
 
 /** The cost of acquisition of an own vehicle, for its payback (§ 21.4.2; decision О-3). */
-function Acquisition({ vehicle }: { vehicle: Vehicle }) {
-  const { t } = useTranslation();
-  const company = useCompany();
-  const can = useCan();
-  const client = useQueryClient();
-  const [cost, setCost] = useState(vehicle.acquisition?.cost ? String(Number(vehicle.acquisition.cost)) : "");
-  const [currency, setCurrency] = useState(vehicle.acquisition?.currency ?? company.main_currency ?? "");
-  const save = useCommand<Record<string, unknown>, { vehicle: Vehicle }>(`/c/${company.public_id}/vehicles/${vehicle.id}/acquisition`, "PUT");
-  const editable = can("vehicle.edit");
-  return (
-    <Card title={t("vehicles.acquisition")}>
-      <p className="muted small">{t("vehicles.acquisition_hint")}</p>
-      <div className="row">
-        <Field label={t("vehicles.acquisition_cost")}>
-          <input value={cost} inputMode="decimal" disabled={!editable} onChange={(e) => setCost(e.target.value.replace(/[^\d.]/g, ""))} />
-        </Field>
-        <Field label={t("vehicles.acquisition_currency")}>
-          <input value={currency} maxLength={3} disabled={!editable} onChange={(e) => setCurrency(e.target.value.toUpperCase())} />
-        </Field>
-        {editable ? (
-          <div className="actions">
-            <button
-              type="button"
-              className="secondary"
-              disabled={save.pending}
-              onClick={() =>
-                void save
-                  .run({ cost: cost || null, currency: cost ? currency : null, expected_version: vehicle.version })
-                  .then((r) => (r ? client.invalidateQueries({ queryKey: ["vehicle", company.public_id, vehicle.id] }) : undefined))
-              }
-            >
-              {t("common.save")}
-            </button>
-          </div>
-        ) : null}
-      </div>
-      <ErrorMessage error={save.error} />
-    </Card>
-  );
-}

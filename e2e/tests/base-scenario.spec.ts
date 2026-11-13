@@ -258,6 +258,16 @@ test("base example from registration to closing survives a restart", async ({ pa
   await expect(page.getByRole("dialog").locator(".file-preview-pages canvas")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
+  // Money of the vehicle: the cost of the acquisition is shown and changed by the pencil.
+  await page.goto(`${cardUrl}?tab=history&part=finance`);
+  await page.getByRole("button", { name: `${t("common.edit")}: ${t("vehicles.acquisition_cost")}` }).click();
+  await page.getByRole("dialog").getByLabel(t("vehicles.acquisition_cost")).fill("500000");
+  await page.getByRole("dialog").getByLabel(t("vehicles.acquisition_currency")).selectOption("THB");
+  await page.getByRole("dialog").getByRole("button", { name: t("common.save") }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(card(page, t("vehicles.acquisition"))).toContainText("THB");
+  await expect(card(page, t("vehicles.acquisition")).locator("input")).toHaveCount(0);
+  await expect(card(page, t("vehicles.finance_incomes"))).toBeVisible();
   // Who added the document is written in the journal of the card.
   await page.goto(`${cardUrl}?tab=history&part=changes`);
   await expect(card(page, t("vehicles.journal_title"))).toContainText(t("vehicles.journal_actions.vehicle_document-added"));

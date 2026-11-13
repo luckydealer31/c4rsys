@@ -399,8 +399,84 @@ def _vehicle_of_charges(company: Company) -> dict[tuple[str, UUID], UUID]:
     return found
 
 
-def _payback(actor: Actor, company: Company, where: Area, filters: Filters) -> list[Block]:
+@dataclass(frozen=True)
+class MoneyLine:
+    """One payout or one part of a receipt that belongs to a vehicle."""
+
+    vehicle_id: UUID
+    at: datetime | None
+    amount: Decimal
+    currency: str
+    movement: Any
+    order: Any = None
+
+
+Sums = dict[UUID, dict[str, Decimal]]
+
+
+def vehicle_money(
+    company: Company, ids: set[UUID]
+) -> tuple[Sums, Sums, list[MoneyLine], list[MoneyLine]]:
+    """What was spent on the vehicles and what they brought, by currency, with the lines the
+    sums are made of. Spent: the payouts of the company linked to the vehicle; a reversal takes
+    a payout back (§ 21.1.4). Brought: the receipts allocated to orders, divided between the
+    vehicles of the order by their charges."""
     from c4rsys.finance.models import ChargeEntry, MoneyMovement, PaymentAllocation
+
+    invested: Sums = defaultdict(lambda: defaultdict(Decimal))
+    spent: list[MoneyLine] = []
+    for m in (
+        MoneyMovement.objects.filter(
+            company=company, vehicle_id__in=ids, state=MoneyMovement.State.POSTED
+        )
+        .exclude(kind__in=("transfer", "opening"))
+        .select_related("reverses", "article")
+        .order_by("posted_at", "number")
+    ):
+        if m.direction == "out" and m.kind != "reversal":
+            sign = Decimal(1)
+        elif m.kind == "reversal" and m.reverses is not None and m.reverses.direction == "out":
+            sign = Decimal(-1)
+        else:
+            continue
+        invested[m.vehicle_id][m.currency_id] += sign * m.amount  # type: ignore[index]
+        spent.append(
+            MoneyLine(m.vehicle_id, m.posted_at, sign * m.amount, m.currency_id, m)  # type: ignore[arg-type]
+        )
+    owner = _vehicle_of_charges(company)
+    by_order: dict[UUID, dict[UUID, dict[str, Decimal]]] = defaultdict(
+        lambda: defaultdict(lambda: defaultdict(Decimal))
+    )
+    for c in ChargeEntry.objects.filter(company=company):
+        # The discount of a position belongs to the position's vehicle.
+        kind = c.source_type.removeprefix("discount_")
+        vid = owner.get((kind, c.source_id))
+        by_order[c.order_id][vid][c.currency_id] += c.amount  # type: ignore[index]
+    received: Sums = defaultdict(lambda: defaultdict(Decimal))
+    got: list[MoneyLine] = []
+    for a in (
+        PaymentAllocation.objects.filter(
+            company=company, state=PaymentAllocation.State.ACTIVE, order_id__in=list(by_order)
+        )
+        .select_related("money_movement", "order")
+        .order_by("money_movement__posted_at", "id")
+    ):
+        parts = by_order[a.order_id]
+        total = sum((v.get(a.currency_id, Decimal(0)) for v in parts.values()), Decimal(0))
+        if total <= 0:
+            continue
+        for vid, money in parts.items():
+            if vid in ids and money.get(a.currency_id):
+                share = a.amount * money[a.currency_id] / total
+                received[vid][a.currency_id] += share
+                movement = a.money_movement
+                got.append(
+                    MoneyLine(vid, movement.posted_at, share, a.currency_id, movement, a.order)
+                )
+    return invested, received, spent, got
+
+
+def _payback(actor: Actor, company: Company, where: Area, filters: Filters) -> list[Block]:
     from c4rsys.fleet.models import VehicleCard
 
     accounts = _accounts(actor, company)
@@ -417,40 +493,7 @@ def _payback(actor: Actor, company: Company, where: Area, filters: Filters) -> l
 
     if accounts is None or len(accounts) != _all_accounts(company).count() or not cards:
         return []
-    ids = {c.id for c in cards}
-    invested: dict[UUID, dict[str, Decimal]] = defaultdict(lambda: defaultdict(Decimal))
-    # Payouts linked to the vehicle; a reversal of a payout takes it back (§ 21.1.4).
-    for m in (
-        MoneyMovement.objects.filter(
-            company=company, vehicle_id__in=ids, state=MoneyMovement.State.POSTED
-        )
-        .exclude(kind__in=("transfer", "opening"))
-        .select_related("reverses")
-    ):
-        if m.direction == "out" and m.kind != "reversal":
-            invested[m.vehicle_id][m.currency_id] += m.amount  # type: ignore[index]
-        elif m.kind == "reversal" and m.reverses is not None and m.reverses.direction == "out":
-            invested[m.vehicle_id][m.currency_id] -= m.amount  # type: ignore[index]
-    owner = _vehicle_of_charges(company)
-    by_order: dict[UUID, dict[UUID, dict[str, Decimal]]] = defaultdict(
-        lambda: defaultdict(lambda: defaultdict(Decimal))
-    )
-    for c in ChargeEntry.objects.filter(company=company):
-        # The discount of a position belongs to the position's vehicle.
-        kind = c.source_type.removeprefix("discount_")
-        vid = owner.get((kind, c.source_id))
-        by_order[c.order_id][vid][c.currency_id] += c.amount  # type: ignore[index]
-    received: dict[UUID, dict[str, Decimal]] = defaultdict(lambda: defaultdict(Decimal))
-    for a in PaymentAllocation.objects.filter(
-        company=company, state=PaymentAllocation.State.ACTIVE, order_id__in=list(by_order)
-    ):
-        parts = by_order[a.order_id]
-        total = sum((v.get(a.currency_id, Decimal(0)) for v in parts.values()), Decimal(0))
-        if total <= 0:
-            continue
-        for vid, money in parts.items():
-            if vid in ids and money.get(a.currency_id):
-                received[vid][a.currency_id] += a.amount * money[a.currency_id] / total
+    invested, received, _spent, _got = vehicle_money(company, {c.id for c in cards})
     rows = []
     for card in cards:
         currency = card.acquisition_currency_id

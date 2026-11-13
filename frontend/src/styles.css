@@ -469,3 +469,4 @@ label.check { display: inline-flex; gap: 6px; align-items: center; margin-right:
 .modal-wide { width: min(960px, calc(100vw - 24px)); }
 .file-preview-image, .file-preview-pages canvas { display: block; max-width: 100%; height: auto; margin: 0 auto 8px;
   border: 1px solid var(--border); }
+th.num, td.num { text-align: right; white-space: nowrap; }

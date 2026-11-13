@@ -88,3 +88,13 @@ def test_payback_needs_the_cost_of_acquisition(owner: Client, s: Scenario, desk:
     # The payment of the order goes to the vehicle by its share of the order's charges.
     assert row["received"] == "1000.00" and row["acquisition"] == "300000.00"
     assert row["state"] == "not_paid_back"
+    # The card of the vehicle shows the same money (decision of 13.11.2026).
+    money = owner.get(f"/api/c/{s.cmp}/vehicles/{s.vehicle}/finance").json()
+    assert money["available"] and money["acquisition"] == {"cost": "300000.00", "currency": "THB"}
+    assert [(i["amount"], i["currency"], i["order_id"]) for i in money["incomes"]] == [
+        ("1000.00", "THB", rental["order_id"])
+    ]
+    assert money["expenses"] == []
+    assert money["totals"] == [
+        {"currency": "THB", "income": "1000.00", "expense": "0.00", "result": "1000.00"}
+    ]

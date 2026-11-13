@@ -261,3 +261,13 @@ def personal_detail(request: HttpRequest, cmp: str, dashboard_id: UUID) -> JsonR
         "v": expected,
     }
     return run_and_respond(request, "report.dashboard_change", actor, payload, handler)
+
+
+@require_GET
+def vehicle_finance(request: HttpRequest, cmp: str, card_id: UUID) -> JsonResponse:
+    """Money of one vehicle, for its card (decision of 13.11.2026)."""
+    from c4rsys.fleet.lifecycle_views import _card
+    from c4rsys.reports import vehicle_finance as money
+
+    context, actor, card = _card(request, cmp, card_id)
+    return JsonResponse(money.card_finance(actor, context.company, card))
