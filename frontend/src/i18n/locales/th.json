@@ -2731,15 +2731,18 @@
     "finance_result": "ผลรวม",
     "finance_incomes": "รายรับ",
     "finance_expenses": "รายจ่าย",
-    "finance_incomes_none": "ยังไม่มีรายรับ",
-    "finance_expenses_none": "ยังไม่มีรายจ่าย",
     "finance_empty": "ยังไม่มีรายการเงินของรถคันนี้",
     "finance_hidden": "แสดงข้อมูลเงินเฉพาะผู้ที่เข้าถึงบัญชีทั้งหมดของบริษัทได้",
     "finance_when": "เมื่อ",
     "finance_what": "สำหรับ",
     "finance_amount": "จำนวนเงิน",
     "finance_order": "คำสั่ง {{number}}",
-    "finance_payout": "รายการจ่าย {{number}}"
+    "finance_payout": "รายการจ่าย {{number}}",
+    "finance_moves": "รายรับและรายจ่าย",
+    "finance_moves_none": "ยังไม่มีรายรับหรือรายจ่าย",
+    "finance_kind": "ประเภท",
+    "finance_income_one": "รายรับ",
+    "finance_expense_one": "รายจ่าย"
   },
   "warehouse": {
     "action_create": "Create",

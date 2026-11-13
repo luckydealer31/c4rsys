@@ -85,18 +85,38 @@ function AcquisitionForm({ vehicle, onDone }: { vehicle: Vehicle; onDone: () => 
   );
 }
 
-function Lines({ items, income }: { items: Line[]; income: boolean }) {
+type Move = Line & { income: boolean };
+
+/** Incomes and expenses of the vehicle in one list (customer's decision of 14.11.2026): the two
+ * are rarely of the same length, so they go in order of dates, the newest first. */
+function Moves({ incomes, expenses }: { incomes: Line[]; expenses: Line[] }) {
   const { t, i18n } = useTranslation();
   const company = useCompany();
   const amount = useAmount();
-  if (items.length === 0) return <p className="muted">{t(income ? "vehicles.finance_incomes_none" : "vehicles.finance_expenses_none")}</p>;
+  const [sort, setSort] = useState<{ by: "at" | "amount"; desc: boolean }>({ by: "at", desc: true });
+  const items: Move[] = [...incomes.map((x) => ({ ...x, income: true })), ...expenses.map((x) => ({ ...x, income: false }))];
+  if (items.length === 0) return <p className="muted">{t("vehicles.finance_moves_none")}</p>;
+  const signed = (x: Move) => (x.income ? Number(x.amount) : -Number(x.amount));
+  items.sort((x, y) => {
+    const order = sort.by === "at" ? (x.at ?? "").localeCompare(y.at ?? "") : signed(x) - signed(y);
+    return sort.desc ? -order : order;
+  });
+  const head = (by: "at" | "amount", label: string) => (
+    <th className={by === "amount" ? "num" : undefined} aria-sort={sort.by === by ? (sort.desc ? "descending" : "ascending") : undefined}>
+      <button type="button" className="link" onClick={() => setSort({ by, desc: sort.by === by ? !sort.desc : true })}>
+        {label}
+        {sort.by === by ? (sort.desc ? " ↓" : " ↑") : ""}
+      </button>
+    </th>
+  );
   return (
     <table>
       <thead>
         <tr>
-          <th>{t("vehicles.finance_when")}</th>
+          {head("at", t("vehicles.finance_when"))}
+          <th>{t("vehicles.finance_kind")}</th>
           <th>{t("vehicles.finance_what")}</th>
-          <th className="num">{t("vehicles.finance_amount")}</th>
+          {head("amount", t("vehicles.finance_amount"))}
         </tr>
       </thead>
       <tbody>
@@ -105,8 +125,9 @@ function Lines({ items, income }: { items: Line[]; income: boolean }) {
           return (
             <tr key={`${line.id}-${line.order_id ?? ""}-${index}`}>
               <td className="small">{line.at ? formatMoment(line.at, company.timezone ?? "UTC", i18n.language) : "—"}</td>
+              <td>{t(line.income ? "vehicles.finance_income_one" : "vehicles.finance_expense_one")}</td>
               <td>
-                {income && line.order_id ? (
+                {line.income && line.order_id ? (
                   <Link to={companyPath(company, `/orders/${line.order_id}`)}>
                     {t("vehicles.finance_order", { number: line.order_number })}
                   </Link>
@@ -114,7 +135,10 @@ function Lines({ items, income }: { items: Line[]; income: boolean }) {
                   [article, line.note].filter(Boolean).join(" · ") || t("vehicles.finance_payout", { number: line.number })
                 )}
               </td>
-              <td className="num">{amount(line.amount, line.currency)}</td>
+              <td className={line.income ? "num" : "num error-text"}>
+                {line.income ? "+" : "−"}
+                {amount(line.amount, line.currency)}
+              </td>
             </tr>
           );
         })}
@@ -179,14 +203,9 @@ export function VehicleFinance({ vehicle }: { vehicle: Vehicle }) {
         </Card>
       </div>
       {data?.available ? (
-        <div className="inspections-split">
-          <Card title={t("vehicles.finance_expenses")}>
-            <Lines items={data.expenses ?? []} income={false} />
-          </Card>
-          <Card title={t("vehicles.finance_incomes")}>
-            <Lines items={data.incomes ?? []} income />
-          </Card>
-        </div>
+        <Card title={t("vehicles.finance_moves")}>
+          <Moves incomes={data.incomes ?? []} expenses={data.expenses ?? []} />
+        </Card>
       ) : null}
       {editing ? (
         <Modal title={t("vehicles.acquisition_cost")} onClose={() => setEditing(false)}>

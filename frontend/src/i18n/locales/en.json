@@ -2731,15 +2731,18 @@
     "finance_result": "Result",
     "finance_incomes": "Income",
     "finance_expenses": "Expenses",
-    "finance_incomes_none": "No income yet.",
-    "finance_expenses_none": "No expenses yet.",
     "finance_empty": "There is no money for this vehicle yet.",
     "finance_hidden": "Money is shown only to those who have access to all accounts of the company.",
     "finance_when": "When",
     "finance_what": "For what",
     "finance_amount": "Amount",
     "finance_order": "Order {{number}}",
-    "finance_payout": "Payout {{number}}"
+    "finance_payout": "Payout {{number}}",
+    "finance_moves": "Income and expenses",
+    "finance_moves_none": "No income or expenses yet.",
+    "finance_kind": "Type",
+    "finance_income_one": "Income",
+    "finance_expense_one": "Expense"
   },
   "warehouse": {
     "action_create": "Create",

@@ -2731,15 +2731,18 @@
     "finance_result": "Итог",
     "finance_incomes": "Доходы",
     "finance_expenses": "Расходы",
-    "finance_incomes_none": "Доходов пока нет.",
-    "finance_expenses_none": "Расходов пока нет.",
     "finance_empty": "Денег по этому ТС пока нет.",
     "finance_hidden": "Деньги видны только тем, у кого есть доступ ко всем счетам компании.",
     "finance_when": "Когда",
     "finance_what": "За что",
     "finance_amount": "Сумма",
     "finance_order": "Заказ {{number}}",
-    "finance_payout": "Выплата {{number}}"
+    "finance_payout": "Выплата {{number}}",
+    "finance_moves": "Доходы и расходы",
+    "finance_moves_none": "Доходов и расходов пока нет.",
+    "finance_kind": "Вид",
+    "finance_income_one": "Доход",
+    "finance_expense_one": "Расход"
   },
   "warehouse": {
     "action_create": "Создать",

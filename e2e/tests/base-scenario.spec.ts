@@ -267,7 +267,8 @@ test("base example from registration to closing survives a restart", async ({ pa
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(card(page, t("vehicles.acquisition"))).toContainText("THB");
   await expect(card(page, t("vehicles.acquisition")).locator("input")).toHaveCount(0);
-  await expect(card(page, t("vehicles.finance_incomes"))).toBeVisible();
+  // Incomes and expenses go in one list.
+  await expect(card(page, t("vehicles.finance_moves"))).toBeVisible();
   // Who added the document is written in the journal of the card.
   await page.goto(`${cardUrl}?tab=history&part=changes`);
   await expect(card(page, t("vehicles.journal_title"))).toContainText(t("vehicles.journal_actions.vehicle_document-added"));
