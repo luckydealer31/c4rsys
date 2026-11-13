@@ -96,5 +96,11 @@ def test_payback_needs_the_cost_of_acquisition(owner: Client, s: Scenario, desk:
     ]
     assert money["expenses"] == []
     assert money["totals"] == [
-        {"currency": "THB", "income": "1000.00", "expense": "0.00", "result": "1000.00"}
+        {
+            "currency": "THB",
+            "income": "1000.00",
+            "expense": "0.00",
+            "acquisition": "300000.00",
+            "result": "-299000.00",
+        }
     ]

@@ -470,3 +470,4 @@ label.check { display: inline-flex; gap: 6px; align-items: center; margin-right:
 .file-preview-image, .file-preview-pages canvas { display: block; max-width: 100%; height: auto; margin: 0 auto 8px;
   border: 1px solid var(--border); }
 th.num, td.num { text-align: right; white-space: nowrap; }
+.finance-figure { font-size: 1.35rem; }

@@ -30,7 +30,7 @@ type Finance = {
   acquisition: { cost: string; currency: string } | null;
   expenses?: Line[];
   incomes?: Line[];
-  totals?: { currency: string; income: string; expense: string; result: string }[];
+  totals?: { currency: string; income: string; expense: string; acquisition: string; result: string }[];
 };
 
 function useAmount() {
@@ -136,67 +136,57 @@ export function VehicleFinance({ vehicle }: { vehicle: Vehicle }) {
   const data = finance.data;
   const own = vehicle.relation === "own";
   const editable = own && can("vehicle.edit") && vehicle.state === "active";
+  const totals = data?.totals ?? [];
   return (
     <>
-      {own ? (
-        <Card title={t("vehicles.acquisition")}>
-          <p>
-            {t("vehicles.acquisition_cost")}:{" "}
-            <strong>
-              {vehicle.acquisition?.cost && vehicle.acquisition.currency
-                ? amount(vehicle.acquisition.cost, vehicle.acquisition.currency)
-                : t("vehicles.acquisition_not_set")}
-            </strong>{" "}
-            {editable ? <IconButton icon="edit" label={`${t("common.edit")}: ${t("vehicles.acquisition_cost")}`} onClick={() => setEditing(true)} /> : null}
-          </p>
-          <p className="muted small">{t("vehicles.acquisition_hint")}</p>
-        </Card>
-      ) : null}
-      {finance.isLoading ? <p className="muted">{t("common.loading")}</p> : null}
-      {data && !data.available ? (
-        <Card title={t("vehicles.finance_result")}>
-          <p className="muted">{t("vehicles.finance_hidden")}</p>
-        </Card>
-      ) : null}
-      {data?.available ? (
-        <>
-          <Card title={t("vehicles.finance_result")}>
-            {(data.totals ?? []).length === 0 ? <p className="muted">{t("vehicles.finance_empty")}</p> : null}
-            {(data.totals ?? []).length ? (
-              <table>
-                <thead>
-                  <tr>
-                    <th>{t("vehicles.acquisition_currency")}</th>
-                    <th className="num">{t("vehicles.finance_incomes")}</th>
-                    <th className="num">{t("vehicles.finance_expenses")}</th>
-                    <th className="num">{t("vehicles.finance_total")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(data.totals ?? []).map((row) => (
-                    <tr key={row.currency}>
-                      <td>{row.currency}</td>
-                      <td className="num">{amount(row.income, row.currency)}</td>
-                      <td className="num">{amount(row.expense, row.currency)}</td>
-                      <td className="num">
-                        <strong className={Number(row.result) < 0 ? "error-text" : undefined}>
-                          {Number(row.result) > 0 ? "+" : ""}
-                          {amount(row.result, row.currency)}
-                        </strong>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : null}
+      <div className="inspections-split">
+        {own ? (
+          <Card title={t("vehicles.acquisition")}>
+            <p>
+              <strong className="finance-figure">
+                {vehicle.acquisition?.cost && vehicle.acquisition.currency
+                  ? amount(vehicle.acquisition.cost, vehicle.acquisition.currency)
+                  : t("vehicles.acquisition_not_set")}
+              </strong>{" "}
+              {editable ? <IconButton icon="edit" label={`${t("common.edit")}: ${t("vehicles.acquisition_cost")}`} onClick={() => setEditing(true)} /> : null}
+            </p>
+            <p className="muted small">{t("vehicles.acquisition_hint")}</p>
           </Card>
+        ) : null}
+        <Card title={t("vehicles.finance_result")}>
+          {finance.isLoading ? <p className="muted">{t("common.loading")}</p> : null}
+          {data && !data.available ? <p className="muted">{t("vehicles.finance_hidden")}</p> : null}
+          {data?.available && totals.length === 0 ? <p className="muted">{t("vehicles.finance_empty")}</p> : null}
+          {totals.map((row) => (
+            <div key={row.currency} style={{ marginBottom: 8 }}>
+              <p style={{ marginBottom: 2 }}>
+                <strong className={Number(row.result) < 0 ? "finance-figure error-text" : "finance-figure"}>
+                  {Number(row.result) > 0 ? "+" : ""}
+                  {amount(row.result, row.currency)}
+                </strong>
+              </p>
+              <p className="muted small">
+                {[
+                  `${t("vehicles.finance_incomes")}: ${amount(row.income, row.currency)}`,
+                  `${t("vehicles.finance_expenses")}: ${amount(row.expense, row.currency)}`,
+                  Number(row.acquisition) ? `${t("vehicles.acquisition")}: ${amount(row.acquisition, row.currency)}` : "",
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+            </div>
+          ))}
+        </Card>
+      </div>
+      {data?.available ? (
+        <div className="inspections-split">
           <Card title={t("vehicles.finance_expenses")}>
             <Lines items={data.expenses ?? []} income={false} />
           </Card>
           <Card title={t("vehicles.finance_incomes")}>
             <Lines items={data.incomes ?? []} income />
           </Card>
-        </>
+        </div>
       ) : null}
       {editing ? (
         <Modal title={t("vehicles.acquisition_cost")} onClose={() => setEditing(false)}>
