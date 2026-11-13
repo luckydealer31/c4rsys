@@ -471,3 +471,6 @@ label.check { display: inline-flex; gap: 6px; align-items: center; margin-right:
   border: 1px solid var(--border); }
 th.num, td.num { text-align: right; white-space: nowrap; }
 .finance-figure { font-size: 1.35rem; }
+/* The date, the kind and the amount take as little as they need; «for what» takes the rest. */
+.finance-moves th:not(:nth-child(3)), .finance-moves td:not(:nth-child(3)) { width: 1%; white-space: nowrap; padding-right: 24px; }
+.finance-moves th:last-child, .finance-moves td:last-child { padding-right: 8px; }

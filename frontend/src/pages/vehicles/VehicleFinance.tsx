@@ -110,7 +110,7 @@ function Moves({ incomes, expenses }: { incomes: Line[]; expenses: Line[] }) {
     </th>
   );
   return (
-    <table>
+    <table className="finance-moves">
       <thead>
         <tr>
           {head("at", t("vehicles.finance_when"))}
