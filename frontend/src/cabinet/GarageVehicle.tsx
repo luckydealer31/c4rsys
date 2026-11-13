@@ -6,6 +6,7 @@ import { Link, useParams } from "react-router";
 import { useApi } from "../api/queries";
 import type { GarageVehicleDetail, GlobalDocument, TransferReversal } from "../api/types";
 import { useCommand } from "../api/useCommand";
+import { FilePreview } from "../components/FilePreview";
 import { Card, ErrorMessage, Field, IconButton, Loading, Modal } from "../components/ui";
 import { DocumentChecklist, DocumentForm, useDetails } from "../pages/vehicles/VehicleDocuments";
 import { deviceTimeZone, formatMoment } from "../time";
@@ -190,9 +191,7 @@ function Documents({ detail }: { detail: GarageVehicleDetail }) {
                 <td className="small">{describe(row(d)) || "—"}</td>
                 <td className="small">
                   {d.current?.has_file ? (
-                    <a href={`/api${base}/documents/versions/${d.current.id}/file`} target="_blank" rel="noreferrer">
-                      {t("vehicles.document_file")}
-                    </a>
+                    <FilePreview path={`${base}/documents/versions/${d.current.id}/file`} name={d.name} />
                   ) : null}
                 </td>
                 <td className="row-actions">
@@ -303,9 +302,7 @@ function Documents({ detail }: { detail: GarageVehicleDetail }) {
               return (
                 <li key={c.version_id} style={{ marginBottom: 6 }}>
                   {c.company} · {c.title} v{c.number} ·{" "}
-                  <a href={`/api${path}/file`} target="_blank" rel="noreferrer">
-                    {t("vehicles.document_file")}
-                  </a>{" "}
+                  <FilePreview path={`${path}/file`} name={c.title} />{" "}
                   {c.decision ? (
                     <span className="badge">{t(`vehicles.copy_decision_${c.decision}`)}</span>
                   ) : (

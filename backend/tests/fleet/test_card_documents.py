@@ -149,3 +149,23 @@ def test_needs_the_right_to_edit_the_vehicle(owner: Client, s: Scenario) -> None
     assert _documents(clerk, s) == []
     denied = post(clerk, f"{_url(s)}/card-documents", {"name": "Blue Book"}, key())
     assert denied.status_code == 403
+
+
+def test_author_of_a_document_and_the_journal_of_the_card(owner: Client, s: Scenario) -> None:
+    # Decision of 13.11.2026: who added a document and who changed the card is shown.
+    added = post(owner, f"{_url(s)}/card-documents", {"name": "Blue Book"}, key())
+    [d] = added.json()["vehicle"]["card_documents"]
+    assert d["added_by"] and d["added_at"]
+    _put(
+        owner,
+        f"{_url(s)}/card-documents/{d['id']}",
+        {"name": "Blue Book 2", "expected_version": d["version"]},
+    )
+    items = owner.get(f"{_url(s)}/journal").json()["items"]
+    assert [(i["action"], i["subject"]) for i in items[:2]] == [
+        ("vehicle_document.changed", "Blue Book 2"),
+        ("vehicle_document.added", "Blue Book"),
+    ]
+    assert all(i["author"] == d["added_by"] for i in items[:2])
+    # The journal is seen only by those who see the card.
+    assert Client().get(f"{_url(s)}/journal").status_code in (401, 403, 404)

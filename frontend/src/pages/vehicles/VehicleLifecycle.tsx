@@ -6,6 +6,7 @@ import { useApi } from "../../api/queries";
 import { DocumentChecklist } from "./VehicleDocuments";
 import type { Vehicle, VehicleRestriction } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
+import { FilePreview } from "../../components/FilePreview";
 import { Card, ErrorMessage, Field } from "../../components/ui";
 import { useCan, useCompany } from "../../layout/CompanyShell";
 import { formatMoment, fromLocalInput, toLocalInput } from "../../time";
@@ -705,9 +706,10 @@ export function GlobalDocumentsCard({ vehicle }: { vehicle: Vehicle }) {
                   <>
                     {" "}
                     ·{" "}
-                    <a href={`/api/c/${company.public_id}/vehicles/${vehicle.id}/global-documents/versions/${v.id}/file`} target="_blank" rel="noreferrer">
-                      {t("vehicles.document_file")}
-                    </a>
+                    <FilePreview
+                      path={`/c/${company.public_id}/vehicles/${vehicle.id}/global-documents/versions/${v.id}/file`}
+                      name={d.name || d.title || t("vehicles.document_file")}
+                    />
                   </>
                 ) : null}
               </li>
@@ -757,9 +759,10 @@ export function GlobalDocumentsList({ vehicle }: { vehicle: Vehicle }) {
             {v?.has_file ? (
               <>
                 {" "}
-                <a href={`/api/c/${company.public_id}/vehicles/${vehicle.id}/global-documents/versions/${v.id}/file`} target="_blank" rel="noreferrer">
-                  {t("vehicles.document_file")}
-                </a>
+                <FilePreview
+                  path={`/c/${company.public_id}/vehicles/${vehicle.id}/global-documents/versions/${v.id}/file`}
+                  name={d.name || d.title || t("vehicles.document_file")}
+                />
               </>
             ) : null}
           </li>

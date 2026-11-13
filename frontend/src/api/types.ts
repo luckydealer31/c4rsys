@@ -2347,6 +2347,9 @@ export type CardDocument = {
   has_file: boolean;
   file_name: string;
   state: "active" | "archived";
+  /** Who added the document and when. */
+  added_by: string;
+  added_at: string;
 };
 
 export type Damage = {

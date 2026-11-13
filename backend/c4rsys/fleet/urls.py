@@ -39,6 +39,7 @@ urlpatterns = [
     path(f"{V}card-documents/<uuid:document_id>", lifecycle_views.card_document_change),
     path(f"{V}card-documents/<uuid:document_id>/archive", lifecycle_views.card_document_archive),
     path(f"{V}card-documents/<uuid:document_id>/file", lifecycle_views.card_document_file),
+    path(f"{V}journal", lifecycle_views.card_journal),
     path("catalog/vehicle-options", views.catalog_options),
     path("catalog/vehicle-makes", views.catalog_makes),
     path("catalog/vehicle-makes/<str:make>/models", views.catalog_models),

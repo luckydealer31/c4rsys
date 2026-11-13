@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import { ApiError, uploadFile } from "../../api/client";
 import type { CardDocument, Vehicle } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
+import { FilePreview } from "../../components/FilePreview";
 import { Card, ErrorMessage, Field, IconButton, Modal } from "../../components/ui";
 import { useCan, useCompany } from "../../layout/CompanyShell";
 
@@ -34,17 +35,13 @@ export function useDetails() {
 }
 
 function FileLink({ vehicle, document }: { vehicle: Vehicle; document: CardDocument }) {
-  const { t } = useTranslation();
   const company = useCompany();
   if (!document.has_file) return null;
   return (
-    <a
-      href={`/api/c/${company.public_id}/vehicles/${vehicle.id}/card-documents/${document.id}/file`}
-      target="_blank"
-      rel="noreferrer"
-    >
-      {t("vehicles.document_file")}
-    </a>
+    <FilePreview
+      path={`/c/${company.public_id}/vehicles/${vehicle.id}/card-documents/${document.id}/file`}
+      name={document.name}
+    />
   );
 }
 
@@ -251,6 +248,7 @@ export function VehicleDocumentsSettings({ vehicle }: { vehicle: Vehicle }) {
   const can = useCan();
   const client = useQueryClient();
   const details = useDetails();
+  const day = useDay();
   const [editing, setEditing] = useState<CardDocument | "new" | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const archive = useCommand<{ id: string; expected_version: number }, unknown>(
@@ -283,6 +281,9 @@ export function VehicleDocumentsSettings({ vehicle }: { vehicle: Vehicle }) {
                 <td className="small">{details(d) || "—"}</td>
                 <td className="small">
                   <FileLink vehicle={vehicle} document={d} />
+                </td>
+                <td className="small muted">
+                  {d.added_by ? t("vehicles.document_added_by", { who: d.added_by, date: day(d.added_at.slice(0, 10)) }) : ""}
                 </td>
                 <td className="row-actions">
                   {editable && d.state === "active" ? (

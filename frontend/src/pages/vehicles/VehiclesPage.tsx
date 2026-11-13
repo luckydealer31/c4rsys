@@ -12,6 +12,7 @@ import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { formatMoment } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
 import { SectionSearch } from "../search/SearchPage";
+import { VehicleJournal } from "./VehicleJournal";
 import { VehicleService } from "../service/VehicleService";
 import { VehicleParts } from "../warehouse/Reserves";
 import { OwnerRequestCard } from "./OwnerRequestCard";
@@ -736,6 +737,7 @@ export function VehiclePage() {
         </>
       ) : null}
       {tab === "history" && part === "changes" ? <HistoryCard vehicle={data} /> : null}
+      {tab === "history" && part === "changes" ? <VehicleJournal vehicle={data} /> : null}
     </div>
   );
 }

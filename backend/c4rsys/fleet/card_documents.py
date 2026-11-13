@@ -17,6 +17,7 @@ from uuid import UUID
 
 from django.utils import timezone
 
+from c4rsys.accounts import services as accounts
 from c4rsys.files import services as files
 from c4rsys.files.models import StoredFile
 from c4rsys.fleet import services as fleet
@@ -40,7 +41,8 @@ class DocumentData:
     issued_by: str = ""
 
 
-def payload(d: VehicleCardDocument) -> dict[str, Any]:
+def payload(d: VehicleCardDocument, authors: dict[UUID, str] | None = None) -> dict[str, Any]:
+    names = authors if authors is not None else accounts.names({d.created_by_user_id})
     return {
         "id": str(d.id),
         "version": d.version,
@@ -52,13 +54,17 @@ def payload(d: VehicleCardDocument) -> dict[str, Any]:
         "has_file": d.file_id is not None,
         "file_name": d.file_name,
         "state": d.state,
+        # Who added the document and when (decision of 13.11.2026).
+        "added_by": names.get(d.created_by_user_id, ""),
+        "added_at": d.created_at.isoformat(),
     }
 
 
 def card_payload(card: VehicleCard) -> list[dict[str, Any]]:
     """The documents of the card: the active ones first, by the time they were added."""
-    items = VehicleCardDocument.objects.filter(vehicle_card_id=card.id).order_by("created_at")
-    return [payload(d) for d in sorted(items, key=lambda d: d.state != "active")]
+    items = list(VehicleCardDocument.objects.filter(vehicle_card_id=card.id).order_by("created_at"))
+    names = accounts.names({d.created_by_user_id for d in items})
+    return [payload(d, names) for d in sorted(items, key=lambda d: d.state != "active")]
 
 
 def _snapshot(d: VehicleCardDocument) -> dict[str, Any]:

@@ -593,6 +593,15 @@ def card_document_file(
     return files.file_response(card_documents.file_of(card, document_id))
 
 
+@require_GET
+def card_journal(request: HttpRequest, cmp: str, card_id: UUID) -> JsonResponse:
+    """Who did what with the card (decision of 13.11.2026)."""
+    from c4rsys.fleet import journal
+
+    _context, _actor_, card = _card(request, cmp, card_id)
+    return JsonResponse({"items": journal.card_journal(card)})
+
+
 def services_run(
     request: HttpRequest,
     command: str,

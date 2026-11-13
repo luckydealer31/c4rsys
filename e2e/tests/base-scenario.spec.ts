@@ -249,9 +249,41 @@ test("base example from registration to closing survives a restart", async ({ pa
   await dialog.getByLabel(t("vehicles.document_name")).fill("Blue Book");
   await dialog.getByLabel(t("vehicles.document_number")).fill("123456");
   await dialog.getByLabel(t("vehicles.document_valid_to")).fill("2027-05-01");
+  await dialog.locator("input[type=file]").setInputFiles({ name: "book.pdf", mimeType: "application/pdf", buffer: onePagePdf() });
   await dialog.getByRole("button", { name: t("common.save") }).click();
   await expect(card(page, t("vehicles.documents_title"))).toContainText("Blue Book");
+  // The file opens in a window of the interface, as pages drawn in place, not by a link.
+  await expect(card(page, t("vehicles.documents_title")).locator("a")).toHaveCount(0);
+  await page.getByRole("button", { name: `${t("files.preview_open")}: Blue Book` }).click();
+  await expect(page.getByRole("dialog").locator(".file-preview-pages canvas")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  // Who added the document is written in the journal of the card.
+  await page.goto(`${cardUrl}?tab=history&part=changes`);
+  await expect(card(page, t("vehicles.journal_title"))).toContainText(t("vehicles.journal_actions.vehicle_document-added"));
   await page.goto(cardUrl);
   await expect(card(page, t("vehicles.card_main"))).toContainText("Blue Book");
   await expect(card(page, t("vehicles.card_main"))).toContainText("123456");
 });
+
+/** A PDF of one page with a coloured rectangle, with a correct table of objects. */
+function onePagePdf(): Buffer {
+  const content = "0.2 0.4 0.8 rg 20 20 260 160 re f";
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 4 0 R /Resources << >> >>",
+    `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
+  ];
+  let body = "%PDF-1.4\n";
+  const offsets: number[] = [];
+  objects.forEach((object, index) => {
+    offsets.push(body.length);
+    body += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const start = body.length;
+  body += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const offset of offsets) body += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  body += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${start}\n%%EOF\n`;
+  return Buffer.from(body, "latin1");
+}

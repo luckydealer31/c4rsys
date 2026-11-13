@@ -465,3 +465,7 @@ label.check { display: inline-flex; gap: 6px; align-items: center; margin-right:
 .card-head h1 { margin: 0; }
 .facts-columns { display: grid; gap: 8px 48px; }
 @media (min-width: 900px) { .facts-columns { grid-template-columns: 1fr 1fr; align-items: start; } }
+/* A file of a document shown in a window (decision of 13.11.2026). */
+.modal-wide { width: min(960px, calc(100vw - 24px)); }
+.file-preview-image, .file-preview-pages canvas { display: block; max-width: 100%; height: auto; margin: 0 auto 8px;
+  border: 1px solid var(--border); }

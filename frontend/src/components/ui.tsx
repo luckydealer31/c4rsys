@@ -106,7 +106,18 @@ export function IconButton({
 }
 
 /** A window over the page for a short form; closed by its cross, Esc or a click outside. */
-export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+export function Modal({
+  title,
+  onClose,
+  children,
+  wide = false,
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+  /** For a picture or a page of a document: as wide as the screen allows. */
+  wide?: boolean;
+}) {
   const { t } = useTranslation();
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -117,7 +128,7 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
   return (
     <dialog
       ref={ref}
-      className="modal"
+      className={wide ? "modal modal-wide" : "modal"}
       aria-label={title}
       onCancel={(event) => {
         event.preventDefault();
