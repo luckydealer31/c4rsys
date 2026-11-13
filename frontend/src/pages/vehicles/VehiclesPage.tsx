@@ -12,7 +12,6 @@ import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { formatMoment } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
 import { SectionSearch } from "../search/SearchPage";
-import { LinkedTasks } from "../tasks/TasksPage";
 import { VehicleService } from "../service/VehicleService";
 import { VehicleParts } from "../warehouse/Reserves";
 import { OwnerRequestCard } from "./OwnerRequestCard";
@@ -63,7 +62,9 @@ export function useRentals(enabled = true) {
   );
 }
 
-type CardTab = "main" | "service" | "inspections" | "rentals" | "moves" | "tasks" | "ownership" | "history" | "settings";
+type CardTab = "main" | "service" | "inspections" | "history" | "settings";
+// The parts of the history of a vehicle: one tab instead of four (decision of 13.11.2026).
+type HistoryPart = "rentals" | "moves" | "ownership" | "changes";
 
 /** Garage (§ 8.7.2; customer's decisions of 24.10.2026 and 11.11.2026). Own and managed vehicles
  * are one list, grouped by location, with the switches «own» / «managed»; the schedule is the
@@ -509,19 +510,29 @@ export function VehiclePage() {
   const tabs: CardTab[] = [
     "main",
     ...(stored ? [] : (["service", "inspections"] as CardTab[])),
-    ...(isClient ? [] : (["rentals", "moves"] as CardTab[])),
-    ...(stored && data.state === "active" ? (["moves"] as CardTab[]) : []),
-    "tasks",
-    "ownership",
     "history",
     "settings",
   ];
-  // Old addresses: damages are shown with the inspections, documents on the main tab.
-  const old: Record<string, string> = { damages: "inspections", documents: "main" };
+  // Everything that happened to the vehicle is one tab «History» (decision of 13.11.2026): the
+  // rentals, the moves, the ownership with the archive, the changes of the card. There is no
+  // tab of tasks.
+  const parts: HistoryPart[] = [
+    ...(isClient ? [] : (["rentals", "moves"] as HistoryPart[])),
+    ...(stored && data.state === "active" ? (["moves"] as HistoryPart[]) : []),
+    "ownership",
+    "changes",
+  ];
+  // Old addresses: damages are shown with the inspections, documents on the main tab; the
+  // former tabs of rentals, moves and ownership are parts of the history.
+  const old: Record<string, string> = { damages: "inspections", documents: "main", tasks: "main" };
   const named = search.get("tab") ?? "";
-  const asked = search.get("merge") ? "ownership" : (old[named] ?? named);
+  const formerPart = parts.find((key) => key === named);
+  const asked = search.get("merge") || formerPart ? "history" : (old[named] ?? named);
   const tab: CardTab = tabs.find((key) => key === asked) ?? "main";
+  const askedPart = search.get("merge") ? "ownership" : (formerPart ?? search.get("part"));
+  const part: HistoryPart = parts.find((key) => key === askedPart) ?? parts[0] ?? "changes";
   const openTab = (key: CardTab) => setSearch(key === "main" ? {} : { tab: key }, { replace: true });
+  const openPart = (key: HistoryPart) => setSearch({ tab: "history", part: key }, { replace: true });
 
   return (
     <div className="page wide">
@@ -615,6 +626,23 @@ export function VehiclePage() {
         <ErrorMessage error={update.error} />
           </Card>
           <OdometerCard vehicle={data} />
+          {/* What is needed to rent the vehicle out and its prices in the tariffs: settings, not
+              history. */}
+          {isClient ? null : (
+            <Card>
+              <p style={{ margin: 0 }}>
+                {t("vehicles.rental_readiness")}:{" "}
+                {data.rental_readiness.ready ? (
+                  <span className="badge ok">{t("setup.ready")}</span>
+                ) : (
+                  <span className="badge warn">
+                    {data.rental_readiness.missing.map((m) => t(`vehicles.missing_${m}`)).join("; ")}
+                  </span>
+                )}
+              </p>
+            </Card>
+          )}
+          {isClient ? null : <VehicleTariffs vehicleId={data.id} />}
           {/* Documents of the vehicle are added and changed here (decision of 12.11.2026); making
               a document by a template is not offered in the card of a vehicle. */}
           <VehicleDocumentsSettings vehicle={data} />
@@ -648,54 +676,16 @@ export function VehiclePage() {
           <VehicleDamagesCard vehicle={data} />
         </div>
       ) : null}
-      {tab === "moves" ? (
-        <>
-          {isClient ? null : (
-            <Card>
-              <p style={{ margin: 0 }}>
-                {t("vehicles.location")}: <strong>{location?.name ?? "—"}</strong>
-              </p>
-            </Card>
-          )}
-          {isClient ? null : <VehicleMoves vehicle={data} />}
-          {data.relation === "own" && !stored && data.contexts.length === 0 ? (
-            <TransferToWarehouse vehicle={data} />
-          ) : null}
-          {stored && data.state === "active" ? <ReturnToGarage vehicle={data} /> : null}
-        </>
+      {tab === "history" ? (
+        <div className="segmented" role="group" style={{ marginBottom: 16 }}>
+          {parts.map((key) => (
+            <button key={key} type="button" aria-pressed={part === key} onClick={() => openPart(key)}>
+              {t(`vehicles.history_${key}`)}
+            </button>
+          ))}
+        </div>
       ) : null}
-      {tab === "tasks" ? <LinkedTasks objectType="vehicle" objectId={data.id} /> : null}
-      {tab === "ownership" ? (
-        <>
-          {data.relation === "own" ? <Acquisition vehicle={data} /> : null}
-          <RestrictionCard vehicle={data} />
-          <RelationCard vehicle={data} />
-          <DisposeCard vehicle={data} />
-          <ReversalCard vehicle={data} />
-          <DisclosureCard vehicle={data} />
-          {data.relation === "managed" ? <OwnerRequestCard vehicle={data} /> : null}
-          <MergeCard key={search.get("merge") ?? ""} vehicle={data} preselected={search.get("merge")} />
-          <MergesCard vehicle={data} />
-          <MergedHistory vehicle={data} />
-        </>
-      ) : null}
-      {tab === "history" ? <HistoryCard vehicle={data} /> : null}
-      {tab === "rentals" ? (
-        <Card>
-          <p style={{ margin: 0 }}>
-            {t("vehicles.rental_readiness")}:{" "}
-            {data.rental_readiness.ready ? (
-              <span className="badge ok">{t("setup.ready")}</span>
-            ) : (
-              <span className="badge warn">
-                {data.rental_readiness.missing.map((m) => t(`vehicles.missing_${m}`)).join("; ")}
-              </span>
-            )}
-          </p>
-        </Card>
-      ) : null}
-      {tab === "rentals" ? <VehicleTariffs vehicleId={data.id} /> : null}
-      {tab === "rentals" && can("rental.view") ? (
+      {tab === "history" && part === "rentals" && can("rental.view") ? (
         <Card title={t("vehicles.rentals")}>
           {own.length === 0 ? <p className="muted">{t("vehicles.no_rentals")}</p> : null}
           <table>
@@ -715,6 +705,37 @@ export function VehiclePage() {
           </table>
         </Card>
       ) : null}
+      {tab === "history" && part === "moves" ? (
+        <>
+          {isClient ? null : (
+            <Card>
+              <p style={{ margin: 0 }}>
+                {t("vehicles.location")}: <strong>{location?.name ?? "—"}</strong>
+              </p>
+            </Card>
+          )}
+          {isClient ? null : <VehicleMoves vehicle={data} />}
+          {data.relation === "own" && !stored && data.contexts.length === 0 ? (
+            <TransferToWarehouse vehicle={data} />
+          ) : null}
+          {stored && data.state === "active" ? <ReturnToGarage vehicle={data} /> : null}
+        </>
+      ) : null}
+      {tab === "history" && part === "ownership" ? (
+        <>
+          {data.relation === "own" ? <Acquisition vehicle={data} /> : null}
+          <RestrictionCard vehicle={data} />
+          <RelationCard vehicle={data} />
+          <DisposeCard vehicle={data} />
+          <ReversalCard vehicle={data} />
+          <DisclosureCard vehicle={data} />
+          {data.relation === "managed" ? <OwnerRequestCard vehicle={data} /> : null}
+          <MergeCard key={search.get("merge") ?? ""} vehicle={data} preselected={search.get("merge")} />
+          <MergesCard vehicle={data} />
+          <MergedHistory vehicle={data} />
+        </>
+      ) : null}
+      {tab === "history" && part === "changes" ? <HistoryCard vehicle={data} /> : null}
     </div>
   );
 }

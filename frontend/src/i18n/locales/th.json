@@ -2642,10 +2642,6 @@
     "card_main": "ข้อมูลหลัก",
     "card_service": "การบำรุงรักษา",
     "card_inspections": "การตรวจสภาพ",
-    "card_rentals": "การเช่า",
-    "card_moves": "การเคลื่อนย้าย",
-    "card_tasks": "งาน",
-    "card_ownership": "กรรมสิทธิ์และคลังเก็บ",
     "card_history": "ประวัติ",
     "card_settings": "การตั้งค่า",
     "unit_change_open": "เปลี่ยนหน่วย",
@@ -2673,7 +2669,11 @@
     "plate_country_other_option": "อื่น ๆ — พิมพ์เอง",
     "plate_country_other": "ชื่อประเทศ",
     "document_issued_by": "ออกโดย",
-    "document_issued_by_short": "ออกโดย {{who}}"
+    "document_issued_by_short": "ออกโดย {{who}}",
+    "history_rentals": "การเช่า",
+    "history_moves": "การย้าย",
+    "history_ownership": "การเป็นเจ้าของและคลังเก็บ",
+    "history_changes": "การเปลี่ยนแปลงข้อมูล"
   },
   "warehouse": {
     "action_create": "Create",

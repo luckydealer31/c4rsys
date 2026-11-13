@@ -2642,10 +2642,6 @@
     "card_main": "Основное",
     "card_service": "Обслуживание",
     "card_inspections": "Осмотры",
-    "card_rentals": "Аренды",
-    "card_moves": "Перемещения",
-    "card_tasks": "Задачи",
-    "card_ownership": "Владение и архив",
     "card_history": "История",
     "card_settings": "Настройки",
     "unit_change_open": "Сменить единицу",
@@ -2673,7 +2669,11 @@
     "plate_country_other_option": "Другая — ввести вручную",
     "plate_country_other": "Название страны",
     "document_issued_by": "Кем выдан",
-    "document_issued_by_short": "выдан: {{who}}"
+    "document_issued_by_short": "выдан: {{who}}",
+    "history_rentals": "Аренды",
+    "history_moves": "Перемещения",
+    "history_ownership": "Владение и архив",
+    "history_changes": "Изменения карточки"
   },
   "warehouse": {
     "action_create": "Создать",

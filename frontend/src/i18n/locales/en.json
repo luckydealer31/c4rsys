@@ -2642,10 +2642,6 @@
     "card_main": "Main",
     "card_service": "Maintenance",
     "card_inspections": "Inspections",
-    "card_rentals": "Rentals",
-    "card_moves": "Moves",
-    "card_tasks": "Tasks",
-    "card_ownership": "Ownership and archive",
     "card_history": "History",
     "card_settings": "Settings",
     "unit_change_open": "Change the unit",
@@ -2673,7 +2669,11 @@
     "plate_country_other_option": "Other — type it in",
     "plate_country_other": "Name of the country",
     "document_issued_by": "Issued by",
-    "document_issued_by_short": "issued by {{who}}"
+    "document_issued_by_short": "issued by {{who}}",
+    "history_rentals": "Rentals",
+    "history_moves": "Moves",
+    "history_ownership": "Ownership and archive",
+    "history_changes": "Changes of the card"
   },
   "warehouse": {
     "action_create": "Create",
