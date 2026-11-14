@@ -272,6 +272,8 @@ test("base example from registration to closing survives a restart", async ({ pa
   await expect(page).toHaveURL(/\/vehicles$/);
   // The garage is a tab of «Company»; the schedule and the trips are tabs of «Rental».
   await expect(page.getByRole("tab", { name: t("company.tab_garage") })).toHaveAttribute("aria-selected", "true");
+  // The picture of the type of the vehicle stands before its name.
+  await expect(page.getByRole("img", { name: t("vehicles.type_passenger_car") })).toBeVisible();
   await expect(page.getByRole("link", { name: t("nav.garage"), exact: true })).toHaveCount(0);
   // The menu (decision of 14.11.2026): home, finance, rental, settings; the orders are a tab of
   // «Finance», the tasks a tab of «Home», the documents a tab of «Company».

@@ -483,3 +483,7 @@ th.num, td.num { text-align: right; white-space: nowrap; }
   pointer-events: none; max-width: calc(100% - 40px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .float-field > input, .float-field > select, .float-field > textarea { padding-top: 19px; padding-bottom: 5px; }
 .float-field > small { display: block; margin-top: 2px; }
+
+/* The picture of the vehicle's type before its name in a list. */
+.vehicle-type-icon { display: inline-block; flex: none; color: var(--muted); }
+td.vehicle-cell { display: flex; align-items: center; gap: 12px; }

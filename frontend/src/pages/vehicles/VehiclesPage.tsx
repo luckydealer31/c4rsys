@@ -8,6 +8,7 @@ import type { RentalSummary, Tariff, Vehicle, VehicleTerms } from "../../api/typ
 import { useCommand } from "../../api/useCommand";
 import { Icon } from "../../components/icons";
 import { Card, ErrorMessage, Field, IconButton, Loading } from "../../components/ui";
+import { VehicleTypeIcon } from "../../components/VehicleTypeIcon";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { CompanyTabs, workHome } from "../../layout/CompanyTabs";
 import { formatMoment } from "../../time";
@@ -237,13 +238,19 @@ export function VehiclesPage() {
                       <tbody>
                         {group.vehicles.map((vehicle) => (
                           <tr key={vehicle.id}>
-                            <td>
+                            <td className="vehicle-cell">
+                              <VehicleTypeIcon
+                                type={vehicle.characteristics.vehicle_type}
+                                body={vehicle.characteristics.body_type}
+                              />
+                              <div>
                               <Link to={companyPath(company, `/vehicles/${vehicle.id}`)}>{vehicle.name}</Link>{" "}
                               {/* One list for own and managed: the managed ones are marked. */}
                               {view !== "client" && vehicle.relation === "managed" ? (
                                 <span className="badge">{t("vehicles.relation_managed")}</span>
                               ) : null}
                               <div className="muted small">{vehicle.vehicle_id}</div>
+                              </div>
                             </td>
                             {view === "client" ? null : (
                               <td>
