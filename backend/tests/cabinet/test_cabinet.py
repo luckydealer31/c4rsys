@@ -36,6 +36,26 @@ def linked_person(owner: Client, s: Scenario) -> Client:
     return ivan
 
 
+def test_companies_where_the_person_works_are_listed_apart(owner: Client, s: Scenario) -> None:
+    """Decision of 14.11.2026: the cabinet shows the companies of the owner or employee apart
+    from those the person is a client of; only the name, the ID, the position and the address."""
+    body = owner.get("/api/cabinet/companies", HTTP_HOST=CABINET).json()
+
+    assert body["companies"] == []
+    assert [(c["display_name"], c["public_id"]) for c in body["working"]] == [("Test Rent", s.cmp)]
+    assert body["working"][0]["url"].endswith(f"/c/{s.cmp}")
+    assert set(body["working"][0]) == {
+        "public_id",
+        "display_name",
+        "position_code",
+        "position_name",
+        "url",
+    }
+    # A client of the company is not its employee.
+    ivan = linked_person(owner, s)
+    assert ivan.get("/api/cabinet/companies", HTTP_HOST=CABINET).json()["working"] == []
+
+
 def test_history_of_a_linked_company(owner: Client, s: Scenario) -> None:
     rented = issue(owner, s, actual_start=(timezone.now() - timedelta(days=1)).isoformat())
     assert rented.status_code == 201, rented.content

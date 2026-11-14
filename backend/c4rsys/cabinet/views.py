@@ -54,7 +54,8 @@ def site(request: HttpRequest) -> JsonResponse:
 
 @require_GET
 def companies(request: HttpRequest) -> JsonResponse:
-    """Companies linked to the profile (§ 7.1.3); a broken link keeps what was shared."""
+    """Companies linked to the profile as a client (§ 7.1.3) — a broken link keeps what was
+    shared — and the companies the person works in."""
     user, _session = require_user(request)
     items = [
         {
@@ -70,7 +71,15 @@ def companies(request: HttpRequest) -> JsonResponse:
         }
         for link in links.links_of_user(user.id)
     ]
-    return JsonResponse({"companies": items})
+    # Apart from them, the companies the person owns or works in (decision of 14.11.2026): a
+    # name and the address of the company in the working interface, where its data is.
+    from c4rsys.companies import services as companies_service
+
+    working = [
+        {**item, "url": f"{settings.C4R_PUBLIC_URL}/c/{item['public_id']}"}
+        for item in companies_service.working_companies(user)
+    ]
+    return JsonResponse({"companies": items, "working": working})
 
 
 def _money(currency: str, value: Decimal, places: dict[str, int]) -> str:

@@ -30,6 +30,14 @@ export function useSite() {
   });
 }
 
+type WorkingCompany = {
+  public_id: string;
+  display_name: string;
+  position_code: string;
+  position_name: string;
+  url: string;
+};
+
 type LinkedCompany = {
   link_id: string;
   company: { public_id: string; display_name: string };
@@ -138,14 +146,38 @@ export function CabinetApp({ user }: { user: User }) {
 function CabinetHome() {
   const { t } = useTranslation();
   const when = useWhen();
-  const companies = useApi<{ companies: LinkedCompany[] }>(["cabinet-companies"], "/cabinet/companies");
+  const companies = useApi<{ companies: LinkedCompany[]; working?: WorkingCompany[] }>(
+    ["cabinet-companies"],
+    "/cabinet/companies",
+  );
+  const working = companies.data?.working ?? [];
   return (
     <div className="page">
       <h1>{t("cabinet.companies")}</h1>
       <LinkRequests base="/profile-links" title={t("links.my_title")} hideEmpty pendingOnly />
       <IncomingDataRequests base="/profile-data-requests" title={t("data_requests.my_title")} />
       <OwnerRequests base="/owner-requests" title={t("owner_requests.my_title")} hideEmpty />
-      <Card>
+      {/* The companies the person owns or works in stand apart from those the person is a
+          client of (decision of 14.11.2026): a card with the name only; the company itself opens
+          in the working interface. */}
+      {working.length ? (
+        <Card title={t("cabinet.working_title")}>
+          {working.map((c) => (
+            <a key={c.public_id} className="list-link" href={c.url}>
+              <span>
+                <strong>{c.display_name}</strong> <span className="muted small">{c.public_id}</span>
+                <br />
+                <span className="muted small">
+                  {c.position_name || (c.position_code ? t(`positions.${c.position_code}`) : t("cabinet.working_owner"))}
+                  {" · "}
+                  {t("cabinet.working_open")}
+                </span>
+              </span>
+            </a>
+          ))}
+        </Card>
+      ) : null}
+      <Card title={t("cabinet.client_title")}>
         {companies.isLoading ? <Loading /> : null}
         {companies.data?.companies.length === 0 ? <p className="muted">{t("cabinet.no_companies")}</p> : null}
         {(companies.data?.companies ?? []).map((c) => (

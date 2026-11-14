@@ -178,6 +178,26 @@ def companies_of(user: UserAccount) -> QuerySet[Company]:
     return Company.objects.filter(current_share | employed).distinct().order_by("display_name")
 
 
+def working_companies(user: UserAccount) -> list[dict[str, Any]]:
+    """The companies the person owns or works in, for the personal cabinet (customer's decision
+    of 14.11.2026): the name, the ID and the position only — nothing of the company's data."""
+    positions = {
+        e.company_id: e.position
+        for e in Employment.objects.select_related("position").filter(
+            user=user, state=Employment.State.ACTIVE
+        )
+    }
+    return [
+        {
+            "public_id": company.public_id,
+            "display_name": company.display_name,
+            "position_code": positions[company.id].code if company.id in positions else "",
+            "position_name": positions[company.id].name if company.id in positions else "",
+        }
+        for company in companies_of(user)
+    ]
+
+
 # --- Active company (§ 3.3.8, docs/stage1/STAGE1_COMMANDS_API.md) ---------------------------
 
 

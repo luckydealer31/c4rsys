@@ -4793,7 +4793,7 @@
     "garage": "My garage",
     "requests": "Requests",
     "profile": "Profile",
-    "no_companies": "No company is linked with your profile yet. A company sends a request; you confirm it here.",
+    "no_companies": "No company has linked you as a client yet. A company sends a request, you confirm it here.",
     "linked_since": "linked since {{at}}",
     "link_broken": "link broken {{at}}",
     "broken_hint": "The link is broken: you see the history shared before; new operations are not shown.",
@@ -4901,7 +4901,11 @@
     "documents_pass_hint": "The company gets its own copies of the ticked documents with their files. Your documents stay with you.",
     "documents_pass_company": "Company",
     "documents_pass_button": "Pass copies",
-    "documents_passed": "Copies passed: {{company}}"
+    "documents_passed": "Copies passed: {{company}}",
+    "working_title": "Where you work",
+    "client_title": "Where you are a client",
+    "working_owner": "Owner",
+    "working_open": "Open in the working interface"
   },
   "exports": {
     "title": "Full data export",
