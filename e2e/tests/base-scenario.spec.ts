@@ -243,6 +243,11 @@ test("base example from registration to closing survives a restart", async ({ pa
   await page.locator('a[href*="/vehicles/"]:not([href*="/vehicles/new"])').first().click();
   await expect(page.getByRole("tab", { name: t("vehicles.card_settings") })).toBeVisible();
   const cardUrl = page.url().split("?")[0];
+  // «Back» returns to the list the card was opened from, also after looking through its tabs.
+  await page.getByRole("tab", { name: t("vehicles.card_history") }).click();
+  await page.getByRole("button", { name: `← ${t("common.back")}` }).click();
+  await expect(page).toHaveURL(/\/vehicles$/);
+  await page.goto(cardUrl);
   await page.getByRole("tab", { name: t("vehicles.card_settings") }).click();
   await page.getByRole("button", { name: t("vehicles.document_add") }).click();
   const dialog = page.getByRole("dialog");

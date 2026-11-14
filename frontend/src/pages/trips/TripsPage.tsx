@@ -343,7 +343,9 @@ export function TripPage() {
       <Card>
         <dl className="facts">
           <dt>{t("trips.vehicle")}</dt>
-          <dd>{d.vehicle_name ?? "—"}</dd>
+          <dd>
+            <Link to={companyPath(company, `/vehicles/${d.vehicle_card_id}`)}>{d.vehicle_name ?? t("trips.vehicle")}</Link>
+          </dd>
           <dt>{t("trips.route")}</dt>
           <dd>
             {pointText(d.from, locations.data?.locations)} → {pointText(d.to, locations.data?.locations)}

@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, Navigate, useParams, useSearchParams } from "react-router";
+import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 
 import { useApi } from "../../api/queries";
 import type { RentalSummary, Tariff, Vehicle, VehicleTerms } from "../../api/types";
@@ -467,6 +467,8 @@ export function VehiclePage() {
   const can = useCan();
   const client = useQueryClient();
   const [search, setSearch] = useSearchParams();
+  const navigate = useNavigate();
+  const route = useLocation();
   const draftScope = useScope();
   const vehicle = useApi<{ vehicle: Vehicle }>(["vehicle", company.public_id, id], `/c/${company.public_id}/vehicles/${id}`);
   const locations = useLocations();
@@ -542,6 +544,16 @@ export function VehiclePage() {
       {/* One line (decision of 12.11.2026): the name, the ID of the vehicle in the system and its
           relation to the company — so that the tabs stand higher. */}
       <div className="card-head">
+        {/* Back to where the card was opened from — the list, the schedule, a trip (decision of
+            14.11.2026). The tabs of the card replace the address, so one step back leaves the
+            card. Opened by a direct address, the card leads back to the list. */}
+        {route.key !== "default" ? (
+          <button type="button" className="link" onClick={() => navigate(-1)}>
+            ← {t("common.back")}
+          </button>
+        ) : (
+          <Link to={companyPath(company, "/vehicles")}>← {t("nav.garage")}</Link>
+        )}
         <h1>{data.name}</h1>
         <span className="muted">{data.vehicle_id}</span>
         <span className="badge">{t(`vehicles.relation_${data.relation}`)}</span>

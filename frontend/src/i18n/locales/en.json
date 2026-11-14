@@ -384,7 +384,8 @@
     "save": "Save",
     "saved": "Saved.",
     "archive_anyway": "Archive anyway",
-    "unconfigured_warning": "After this the location will be «not configured» and will take no new operations: {{locations}}. Existing bookings, rentals and orders go on."
+    "unconfigured_warning": "After this the location will be «not configured» and will take no new operations: {{locations}}. Existing bookings, rentals and orders go on.",
+    "back": "Back"
   },
   "companies": {
     "company_id": "Company ID",
