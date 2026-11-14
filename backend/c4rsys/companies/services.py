@@ -267,6 +267,7 @@ REQUISITES = {
     "legal_address": 500,
     "actual_address": 500,
     "phone": 40,
+    "phone_label": 100,
     "email": 254,
     "website": 300,
     "description": 2000,
@@ -350,6 +351,7 @@ def profile_snapshot(company: Company) -> dict[str, Any]:
         "main_currency": company.main_currency_id,
         **{key: getattr(company, key) for key in REQUISITES},
         "identifiers": company.identifiers,
+        "extra_phones": company.extra_phones,
     }
 
 
@@ -495,7 +497,7 @@ def update_profile(
         company.timezone = changes["timezone"]
     if "main_currency" in changes:
         company.main_currency = validate_currency(changes["main_currency"])
-    for key in [*REQUISITES, "identifiers"]:
+    for key in [*REQUISITES, "identifiers", "extra_phones"]:
         if key in changes:
             setattr(company, key, changes[key])
     after = profile_snapshot(company)
@@ -508,6 +510,7 @@ def update_profile(
             "main_currency",
             *REQUISITES,
             "identifiers",
+            "extra_phones",
             "version",
             "updated_at",
         ]

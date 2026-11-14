@@ -86,10 +86,17 @@ test("base example from registration to closing survives a restart", async ({ pa
 
   await page.goto(`${base}/settings/company`);
   await page.getByLabel(t("companies.main_currency")).selectOption("THB");
+  // Several phones of the company, each with whose it is; a new row appears by itself.
+  await page.getByLabel(`${t("company.phone")} 1`).fill("+66 80 000 0001");
+  await page.getByLabel(`${t("company.phone_label")} 1`).fill("Директор");
+  await page.getByLabel(`${t("company.phone")} 2`).fill("+66 80 000 0002");
+  await page.getByLabel(`${t("company.phone_label")} 2`).fill("Бухгалтер");
   await page.getByRole("main").locator("form").getByRole("button", { name: t("common.save") }).click();
   await expect(page.getByText(t("common.saved"))).toBeVisible();
 
   await page.goto(`${base}/company`);
+  await expect(page.locator("dl.facts")).toContainText("Директор");
+  await expect(page.locator("dl.facts")).toContainText("+66 80 000 0002");
   // The card of the company shows the filled fields only; a new location is added in a window.
   await expect(page.locator("dl.facts dd", { hasText: /^—$/ })).toHaveCount(0);
   await page.getByRole("button", { name: t("locations.create_title") }).click();

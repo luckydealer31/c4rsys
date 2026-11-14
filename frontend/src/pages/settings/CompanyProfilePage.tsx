@@ -16,14 +16,13 @@ const REQUISITE_FIELDS = [
   "legal_form",
   "legal_address",
   "actual_address",
-  "phone",
   "email",
   "website",
 ] as const;
 
 type Requisites = Pick<
   Company,
-  (typeof REQUISITE_FIELDS)[number] | "country" | "description" | "identifiers"
+  (typeof REQUISITE_FIELDS)[number] | "country" | "description" | "identifiers" | "phone" | "phone_label" | "extra_phones"
 >;
 
 function requisitesOf(company: Company): Requisites {
@@ -33,6 +32,8 @@ function requisitesOf(company: Company): Requisites {
     legal_address: company.legal_address,
     actual_address: company.actual_address,
     phone: company.phone,
+    phone_label: company.phone_label,
+    extra_phones: company.extra_phones,
     email: company.email,
     website: company.website,
     country: company.country,
@@ -379,6 +380,46 @@ export function CompanyProfileForm({
                 </div>
               ))}
               <small className="muted">{t("company.identifiers_hint")}</small>
+            </div>
+            {/* The phones of the company (decision of 14.11.2026): the first row is the main
+                number, the next ones are further numbers; each with whose it is. */}
+            <div className="field">
+              <span>{t("company.phones")}</span>
+              {[{ number: extra.phone, label: extra.phone_label }, ...extra.extra_phones, { number: "", label: "" }].map(
+                (item, index, rows) => {
+                  const change = (next: { number: string; label: string }) => {
+                    const all = rows.slice(0, -1);
+                    all[index] = next;
+                    const [main, ...rest] = all;
+                    setExtra({
+                      ...extra,
+                      phone: main?.number ?? "",
+                      phone_label: main?.label ?? "",
+                      extra_phones: rest,
+                    });
+                  };
+                  return (
+                    <div className="row" key={index} style={{ marginBottom: 8 }}>
+                      <input
+                        type="tel"
+                        aria-label={`${t("company.phone")} ${index + 1}`}
+                        placeholder={t("company.phone")}
+                        value={item.number}
+                        disabled={!editable}
+                        onChange={(e) => change({ ...item, number: e.target.value })}
+                      />
+                      <input
+                        aria-label={`${t("company.phone_label")} ${index + 1}`}
+                        placeholder={t("company.phone_label")}
+                        value={item.label}
+                        disabled={!editable}
+                        onChange={(e) => change({ ...item, label: e.target.value })}
+                      />
+                    </div>
+                  );
+                },
+              )}
+              <small className="muted">{t("company.phones_hint")}</small>
             </div>
             <Field label={t("company.description")}>
               <textarea

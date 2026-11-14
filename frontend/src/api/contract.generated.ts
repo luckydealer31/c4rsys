@@ -24,6 +24,7 @@ export const company: Company = {
     "position_code": "director",
     "position_name": ""
   },
+  "extra_phones": [],
   "identifiers": [],
   "legal_address": "",
   "legal_form": "",
@@ -36,6 +37,7 @@ export const company: Company = {
     "warehouse"
   ],
   "phone": "",
+  "phone_label": "",
   "public_fields": [],
   "public_id": "ID-000000",
   "setup": {

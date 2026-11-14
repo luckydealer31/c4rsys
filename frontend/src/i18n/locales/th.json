@@ -440,7 +440,10 @@
     "main_currency": "สกุลเงินหลัก",
     "tab_about": "เกี่ยวกับบริษัท",
     "tab_garage": "โรงรถ",
-    "tab_contacts": "รายชื่อติดต่อ"
+    "tab_contacts": "รายชื่อติดต่อ",
+    "phones": "หมายเลขโทรศัพท์",
+    "phone_label": "หมายเลขของใคร: ผู้อำนวยการ ฝ่ายบัญชี สำนักงาน…",
+    "phones_hint": "หมายเลขแรกคือหมายเลขหลัก แถวใหม่จะปรากฏเมื่อกรอกแถวสุดท้ายแล้ว"
   },
   "contexts": {
     "module_later": "Work in this section comes with its module; its sections by location are already shown.",
@@ -1321,7 +1324,8 @@
     "vehicle_document_file_type": "ใช้ได้เฉพาะไฟล์ JPEG หรือ PDF",
     "vehicle_document_archived": "เอกสารอยู่ในคลังเก็บและแก้ไขไม่ได้",
     "vehicle_documents_need_management": "ส่งสำเนาเอกสารได้เฉพาะบริษัทที่คุณยืนยันการจัดการแล้ว",
-    "vehicle_documents_no_recipient": "ไม่มีผู้รับสำเนาเอกสาร: เจ้าของยังไม่ได้รับการยืนยันในระบบ"
+    "vehicle_documents_no_recipient": "ไม่มีผู้รับสำเนาเอกสาร: เจ้าของยังไม่ได้รับการยืนยันในระบบ",
+    "phone_incomplete": "กรุณาระบุหมายเลขคู่กับคำอธิบาย"
   },
   "history": {
     "action": "Action",

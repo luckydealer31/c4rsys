@@ -61,6 +61,10 @@ class Company(models.Model):
     legal_address = models.CharField(max_length=500, blank=True, default="")
     actual_address = models.CharField(max_length=500, blank=True, default="")
     phone = models.CharField(max_length=40, blank=True, default="")
+    # Whose number it is — «director», «office» (customer's decision of 14.11.2026) — and the
+    # further numbers of the company with such captions: [{"number": …, "label": …}].
+    phone_label = models.CharField(max_length=100, blank=True, default="")
+    extra_phones = models.JSONField(default=list, blank=True)
     email = models.CharField(max_length=254, blank=True, default="")
     website = models.CharField(max_length=300, blank=True, default="")
     description = models.TextField(blank=True, default="")

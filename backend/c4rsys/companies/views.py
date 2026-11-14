@@ -42,6 +42,7 @@ def run_and_respond(
 
 COUNTRY_RE = re.compile(r"^[A-Z]{2}$")
 MAX_IDENTIFIERS = 10
+MAX_PHONES = 10
 
 
 def _requisites(data: dict[str, Any]) -> dict[str, Any]:
@@ -75,6 +76,23 @@ def _requisites(data: dict[str, Any]) -> dict[str, Any]:
                     raise errors.validation_error("identifiers", code="IDENTIFIER_INCOMPLETE")
                 identifiers.append({"type": kind, "value": value})
         changes["identifiers"] = identifiers
+    if "extra_phones" in data:
+        # Further numbers of the company, each with a caption of whose it is (decision of
+        # 14.11.2026). The caption is optional, the number is not.
+        items = data["extra_phones"]
+        if not isinstance(items, list) or len(items) > MAX_PHONES:
+            raise errors.validation_error("extra_phones")
+        phones = []
+        for item in items:
+            if not isinstance(item, dict):
+                raise errors.validation_error("extra_phones")
+            number = get_str(item, "number", max_length=40, required=False)
+            label = get_str(item, "label", max_length=100, required=False)
+            if number or label:
+                if not number:
+                    raise errors.validation_error("extra_phones", code="PHONE_INCOMPLETE")
+                phones.append({"number": number, "label": label})
+        changes["extra_phones"] = phones
     return changes
 
 
@@ -107,6 +125,7 @@ def _company_payload(company: Company, context: services.CompanyContext | None) 
         "deactivated_at": company.deactivated_at.isoformat() if company.deactivated_at else None,
         **{key: getattr(company, key) for key in services.REQUISITES},
         "identifiers": company.identifiers,
+        "extra_phones": company.extra_phones,
         "public_fields": list(company.public_fields),
     }
     if context is not None:

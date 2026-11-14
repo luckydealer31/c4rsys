@@ -245,10 +245,35 @@ def test_optional_profile_data_of_3_1_5(owner: Client) -> None:
     assert body["actual_address"] == ""
 
 
+def test_several_phones_of_the_company_with_captions(owner: Client) -> None:
+    """Decision of 14.11.2026: the main number and further ones, each with whose it is."""
+    company = create_company(owner).json()["company"]
+    data = {
+        "expected_version": company["version"],
+        "phone": "+66 80 000 0001",
+        "phone_label": "Директор",
+        "extra_phones": [
+            {"number": "+66 80 000 0002", "label": "Бухгалтер"},
+            {"number": "+66 76 000 003", "label": ""},
+            {"number": "", "label": ""},
+        ],
+    }
+
+    body = patch_company(owner, company["public_id"], data).json()["company"]
+
+    assert body["phone"] == "+66 80 000 0001"
+    assert body["phone_label"] == "Директор"
+    assert body["extra_phones"] == [
+        {"number": "+66 80 000 0002", "label": "Бухгалтер"},
+        {"number": "+66 76 000 003", "label": ""},
+    ]
+
+
 @pytest.mark.parametrize(
     ("field", "value", "code"),
     [
         ("country", "Russia", "FIELD_TOO_LONG"),
+        ("extra_phones", [{"number": "", "label": "Офис"}], "PHONE_INCOMPLETE"),
         ("country", "1A", "COUNTRY_INVALID"),
         ("email", "office", "EMAIL_INVALID"),
         ("identifiers", [{"type": "ИНН", "value": ""}], "IDENTIFIER_INCOMPLETE"),

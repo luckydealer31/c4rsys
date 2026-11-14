@@ -44,6 +44,9 @@ export type Company = CompanySummary & {
   legal_address: string;
   actual_address: string;
   phone: string;
+  /** Whose number it is; further numbers with such captions (decision of 14.11.2026). */
+  phone_label: string;
+  extra_phones: { number: string; label: string }[];
   email: string;
   website: string;
   description: string;

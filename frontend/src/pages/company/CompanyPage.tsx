@@ -31,7 +31,9 @@ export function CompanyPage() {
     ...company.identifiers.map((item): [string, string] => [item.type, item.value]),
     [t("company.legal_address"), company.legal_address],
     [t("company.actual_address"), company.actual_address],
-    [t("company.phone"), company.phone],
+    // Each number with whose it is; without a caption — «Phone» (decision of 14.11.2026).
+    [company.phone_label || t("company.phone"), company.phone],
+    ...company.extra_phones.map((item): [string, string] => [item.label || t("company.phone"), item.number]),
     [t("company.email"), company.email],
     [t("company.website"), company.website],
     [t("companies.timezone"), company.timezone ? zoneLabel(company.timezone) : ""],
