@@ -240,7 +240,9 @@ function MainApp({ cabinet }: { cabinet: boolean }) {
         <Route path="finance" element={<FinancePage />} />
         <Route path="finance/accounts/new" element={<NewAccountPage />} />
         <Route path="settings" element={<SettingsPage />} />
-        <Route path="settings/company" element={<CompanyProfilePage />} />
+        <Route path="company/settings" element={<CompanyProfilePage />} />
+        {/* The settings of the company are a tab of «Company» (decision of 14.11.2026). */}
+        <Route path="settings/company" element={<Navigate to="../company/settings" replace />} />
         <Route path="settings/org" element={<OrgPage />} />
         <Route path="settings/positions" element={<PositionsPage />} />
         <Route path="settings/permission-sets" element={<PermissionSetsPage />} />

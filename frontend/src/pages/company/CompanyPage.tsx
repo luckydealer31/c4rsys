@@ -63,7 +63,12 @@ export function CompanyPage() {
                   <div className="profile-head">
                     {company.logo ? null : <Avatar file={null} name={company.display_name} size={72} square />}
                     <div>
-                      <h1 style={{ margin: 0 }}>{company.display_name}</h1>
+                      {/* «Leave the company» stands next to its name (decision of 14.11.2026);
+                          it returns to «My companies» (decision of 24.10.2026). */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <h1 style={{ margin: 0 }}>{company.display_name}</h1>
+                        <IconButton icon="exit" label={t("company.leave")} onClick={() => navigate("/companies")} />
+                      </div>
                       <div className="muted">{company.public_id}</div>
                     </div>
                   </div>
@@ -79,14 +84,7 @@ export function CompanyPage() {
                     </dl>
                   ) : null}
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 12 }}>
-                  <div className="actions" style={{ margin: 0 }}>
-                    {/* The profile is changed in «Settings», not from the card (decision of 14.11.2026). */}
-                    {/* Leaving the company returns to «My companies» (decision of 24.10.2026). */}
-                    <IconButton icon="exit" label={t("company.leave")} onClick={() => navigate("/companies")} />
-                  </div>
-                  {company.logo ? <Avatar file={company.logo} name={company.display_name} size={220} square /> : null}
-                </div>
+                {company.logo ? <Avatar file={company.logo} name={company.display_name} size={220} square /> : null}
               </div>
             </Card>
           </div>

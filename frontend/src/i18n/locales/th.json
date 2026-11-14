@@ -441,7 +441,8 @@
     "tab_contacts": "รายชื่อติดต่อ",
     "phone_label": "หมายเลขของใคร",
     "identifier_add": "เพิ่มหมายเลขประจำตัว",
-    "phone_add": "เพิ่มหมายเลขโทรศัพท์"
+    "phone_add": "เพิ่มหมายเลขโทรศัพท์",
+    "tab_settings": "การตั้งค่า"
   },
   "contexts": {
     "module_later": "Work in this section comes with its module; its sections by location are already shown.",
@@ -2038,8 +2039,6 @@
     "mechanic": "ช่าง"
   },
   "settings": {
-    "company": "Company profile",
-    "company_hint": "Name, logo, time zone, currency, details.",
     "employees": "Employees",
     "employees_hint": "Invitations, rights, access and journal.",
     "language": "Language",

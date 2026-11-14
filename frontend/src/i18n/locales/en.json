@@ -441,7 +441,8 @@
     "tab_contacts": "Contacts",
     "phone_label": "Whose number",
     "identifier_add": "Add an identifier",
-    "phone_add": "Add a phone"
+    "phone_add": "Add a phone",
+    "tab_settings": "Settings"
   },
   "contexts": {
     "module_later": "Work in this section comes with its module; its sections by location are already shown.",
@@ -2038,8 +2039,6 @@
     "mechanic": "Mechanic"
   },
   "settings": {
-    "company": "Company profile",
-    "company_hint": "Name, logo, time zone, currency, details.",
     "employees": "Employees",
     "employees_hint": "Invitations, rights, access and journal.",
     "language": "Language",

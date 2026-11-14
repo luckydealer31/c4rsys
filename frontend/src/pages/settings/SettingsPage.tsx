@@ -26,7 +26,6 @@ export function SettingsPage() {
   const top = company.employment?.is_top_authority;
   const links = [
     ["setup", "/setup", can("company.settings")],
-    ["company", "/settings/company", can("company.settings")],
     // § 5.2, § 5.1.5: the organisation structure and the positions handbook.
     ["org", "/settings/org", EMPLOYEE_VIEW.some(can)],
     ["positions", "/settings/positions", EMPLOYEE_VIEW.some(can)],

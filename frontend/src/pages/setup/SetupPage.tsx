@@ -222,9 +222,9 @@ function ReadinessCheck({ readiness }: { readiness: Readiness }) {
   const { t } = useTranslation();
   const company = useCompany();
   const links: Record<string, string> = {
-    timezone: "/settings/company",
-    main_currency: "/settings/company",
-    display_name: "/settings/company",
+    timezone: "/company/settings",
+    main_currency: "/company/settings",
+    display_name: "/company/settings",
     no_timezone: "/company",
     no_context: "/company",
     no_tariff: "/rentals/tariffs",

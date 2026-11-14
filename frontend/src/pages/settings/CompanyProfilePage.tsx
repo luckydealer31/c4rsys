@@ -9,6 +9,7 @@ import { Avatar, ImagePicker } from "../../components/images";
 import { TimeZoneSelect } from "../../components/TimeZoneSelect";
 import { Card, ErrorMessage, Field, FloatField, Loading } from "../../components/ui";
 import { useCan, useCompany } from "../../layout/CompanyShell";
+import { CompanyTabs } from "../../layout/CompanyTabs";
 import { currencies, deviceTimeZone, formatMoment } from "../../time";
 
 type RequisiteField = "legal_name" | "legal_form" | "legal_address" | "actual_address" | "email" | "website";
@@ -42,8 +43,9 @@ export function CompanyProfilePage() {
   const company = useCompany();
   const can = useCan();
   return (
-    <div className="page">
-      <h1>{t("company.settings")}</h1>
+    <div className="page full">
+      <CompanyTabs current="settings" />
+      <h1 className="sr-only">{t("company.settings")}</h1>
       <CompanyProfileForm withRequisites />
       {company.employment?.is_top_authority || company.employment?.has_full_rights ? (
         <PublicFieldsCard key={company.version} />

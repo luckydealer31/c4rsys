@@ -84,7 +84,10 @@ test("base example from registration to closing survives a restart", async ({ pa
   await expect(page).toHaveURL(/\/c\/CMP-[A-Z0-9]+\/setup$/);
   const base = new URL(page.url()).pathname.replace(/\/setup$/, "");
 
+  // The settings of the company are a tab of «Company»; the old address leads there.
   await page.goto(`${base}/settings/company`);
+  await expect(page).toHaveURL(/\/company\/settings$/);
+  await expect(page.getByRole("tab", { name: t("company.tab_settings") })).toHaveAttribute("aria-selected", "true");
   await page.getByLabel(t("companies.main_currency")).selectOption("THB");
   // Several phones of the company, each with whose it is; a new row appears by itself.
   await page.getByLabel(`${t("company.phone")} 1`).fill("+66 80 000 0001");
