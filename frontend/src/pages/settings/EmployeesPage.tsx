@@ -51,7 +51,6 @@ export function positionName(position: Employee["position"], t: (key: string) =>
 export function EmployeesList() {
   const { t } = useTranslation();
   const company = useCompany();
-  const can = useCan();
   const employees = useEmployees();
   const catalog = useCatalog();
   return (
@@ -97,12 +96,13 @@ export function EmployeesList() {
           </tbody>
         </table>
       </Card>
-      {can("employee.invite") ? <InviteForm /> : null}
     </>
   );
 }
 
-function InviteForm() {
+/** The invitation of a new employee: opened by the button «New employee» in a window, not shown
+ * with the list all the time (customer's decision of 14.11.2026). */
+export function InviteForm({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
   const company = useCompany();
   const can = useCan();
@@ -135,7 +135,6 @@ function InviteForm() {
   }
 
   return (
-    <Card title={t("employees.invite_title")}>
       <form className="stack" onSubmit={submit}>
         <div className="row">
           <Field label={t("employees.target")} hint={t("employees.target_hint")}>
@@ -174,9 +173,11 @@ function InviteForm() {
           <button type="submit" disabled={!target.trim() || !position.trim() || invite.pending}>
             {t("employees.invite")}
           </button>
+          <button type="button" className="secondary" onClick={onClose}>
+            {t(sent ? "common.close" : "common.cancel")}
+          </button>
         </div>
       </form>
-    </Card>
   );
 }
 

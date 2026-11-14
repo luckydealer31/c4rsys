@@ -150,7 +150,7 @@ test("base example from registration to closing survives a restart", async ({ pa
   await page.goto(`${base}/clients`);
   // The client is created step by step: kind, the request by the ID is skipped, name, birth
   // date is skipped, contacts.
-  await page.getByRole("link", { name: t("clients.create") }).click();
+  await page.getByRole("link", { name: t("clients.new_button") }).click();
   const further = page.getByRole("button", { name: t("wizard.next"), exact: true });
   const skip = page.getByRole("button", { name: t("wizard.skip"), exact: true });
   await further.click();
@@ -164,6 +164,13 @@ test("base example from registration to closing survives a restart", async ({ pa
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Иван");
   await page.goto(`${base}/clients`);
   await expect(page.getByRole("link", { name: "Иван Петров" })).toBeVisible();
+  // Employees: the list only; the invitation opens in a window by the button «New employee».
+  await page.getByRole("tab", { name: t("clients.tab_employees") }).click();
+  await expect(page.getByLabel(t("employees.target"))).toHaveCount(0);
+  await page.getByRole("button", { name: t("employees.new_button") }).click();
+  await expect(page.getByRole("dialog").getByLabel(t("employees.target"))).toBeVisible();
+  await page.getByRole("dialog").locator("form").getByRole("button", { name: t("common.cancel") }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 
   // Issue: 3 days ago at 10:00, odometer 10 000, fuel 8.
   await page.goto(`${base}/rentals/new`);

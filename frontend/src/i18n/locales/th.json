@@ -374,7 +374,8 @@
     "wizard_contacts": "ข้อมูลติดต่อ",
     "wizard_name_required": "ต้องระบุชื่อและนามสกุล",
     "wizard_company_required": "ต้องระบุชื่อบริษัท",
-    "wizard_contact_required": "ต้องระบุโทรศัพท์หรืออีเมล"
+    "wizard_contact_required": "ต้องระบุโทรศัพท์หรืออีเมล",
+    "new_button": "ลูกค้าใหม่"
   },
   "common": {
     "cancel": "Cancel",
@@ -385,7 +386,8 @@
     "saved": "Saved.",
     "archive_anyway": "ย้ายไปเก็บถาวรต่อไป",
     "unconfigured_warning": "หลังจากนี้สถานที่จะ «ยังไม่ได้ตั้งค่า» และไม่รับงานใหม่: {{locations}} การจอง การเช่า และคำสั่งซื้อที่มีอยู่จะดำเนินต่อไป",
-    "back": "ย้อนกลับ"
+    "back": "ย้อนกลับ",
+    "close": "ปิด"
   },
   "companies": {
     "company_id": "Company ID",
@@ -458,7 +460,6 @@
     "invitation": "Invitation",
     "invitation_sent": "The invitation is sent; it is valid for 7 days.",
     "invite": "Invite",
-    "invite_title": "Invite an employee",
     "journal": "Journal of actions",
     "name": "Employee",
     "not_linked": "Not linked to a profile yet",
@@ -490,7 +491,8 @@
     "terminate_confirm": "ยุติ",
     "terminated_at": "ยุติการเข้าถึงเมื่อ {{at}}",
     "terminated_note": "ประวัติการทำงานของพนักงานยังอยู่ในบริษัท",
-    "journal_export": "ส่งออกบันทึก (CSV)"
+    "journal_export": "ส่งออกบันทึก (CSV)",
+    "new_button": "พนักงานใหม่"
   },
   "errors": {
     "allocation_exceeds_payment": "The allocated sum exceeds the payment.",
@@ -2280,7 +2282,7 @@
     "contexts": "Used in",
     "contexts_hint": "Any vehicle of the company can be serviced. Only an own vehicle is transferred to the warehouse — by a separate operation, with the warehouse module.",
     "create": "Create vehicle",
-    "create_button": "Create vehicle",
+    "create_button": "ยานพาหนะใหม่",
     "create_title": "New vehicle",
     "doors": "Doors",
     "drive": "Drive",
@@ -2887,7 +2889,8 @@
     "list_not_allowed": "คุณไม่มีสิทธิ์ดูรายชื่อคู่ค้า",
     "create_title": "คู่ค้ารายใหม่",
     "create": "สร้างคู่ค้า",
-    "archived": "เก็บถาวรแล้ว"
+    "archived": "เก็บถาวรแล้ว",
+    "new_button": "คู่ค้าใหม่"
   },
   "receipts": {
     "create": "รับสินค้าใหม่",

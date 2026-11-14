@@ -374,7 +374,8 @@
     "wizard_contacts": "Contacts",
     "wizard_name_required": "The first and the last name are required.",
     "wizard_company_required": "The company name is required.",
-    "wizard_contact_required": "A phone or an email is required."
+    "wizard_contact_required": "A phone or an email is required.",
+    "new_button": "New client"
   },
   "common": {
     "cancel": "Cancel",
@@ -385,7 +386,8 @@
     "saved": "Saved.",
     "archive_anyway": "Archive anyway",
     "unconfigured_warning": "After this the location will be «not configured» and will take no new operations: {{locations}}. Existing bookings, rentals and orders go on.",
-    "back": "Back"
+    "back": "Back",
+    "close": "Close"
   },
   "companies": {
     "company_id": "Company ID",
@@ -458,7 +460,6 @@
     "invitation": "Invitation",
     "invitation_sent": "The invitation is sent; it is valid for 7 days.",
     "invite": "Invite",
-    "invite_title": "Invite an employee",
     "journal": "Journal of actions",
     "name": "Employee",
     "not_linked": "Not linked to a profile yet",
@@ -490,7 +491,8 @@
     "terminate_confirm": "Terminate",
     "terminated_at": "Access terminated {{at}}",
     "terminated_note": "The history of the employee's actions stays in the company.",
-    "journal_export": "Export the journal (CSV)"
+    "journal_export": "Export the journal (CSV)",
+    "new_button": "New employee"
   },
   "errors": {
     "allocation_exceeds_payment": "The allocated sum exceeds the payment.",
@@ -2280,7 +2282,7 @@
     "contexts": "Used in",
     "contexts_hint": "Any vehicle of the company can be serviced. Only an own vehicle is transferred to the warehouse — by a separate operation, with the warehouse module.",
     "create": "Create vehicle",
-    "create_button": "Create vehicle",
+    "create_button": "New vehicle",
     "create_title": "New vehicle",
     "doors": "Doors",
     "drive": "Drive",
@@ -2887,7 +2889,8 @@
     "list_not_allowed": "You may not view the list of counterparties.",
     "create_title": "New counterparty",
     "create": "Create counterparty",
-    "archived": "Archived"
+    "archived": "Archived",
+    "new_button": "New counterparty"
   },
   "receipts": {
     "create": "New receipt",

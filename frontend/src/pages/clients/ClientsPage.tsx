@@ -10,10 +10,10 @@ import { ClientGroupsCard } from "../orders/Discounts";
 import type { Client, ClientContact, Messenger } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Icon } from "../../components/icons";
-import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
+import { Card, ErrorMessage, Field, Loading, Modal } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { CompanyTabs } from "../../layout/CompanyTabs";
-import { EmployeesList } from "../settings/EmployeesPage";
+import { EmployeesList, InviteForm } from "../settings/EmployeesPage";
 import { CounterpartiesList } from "./Counterparties";
 import { LinkedTasks } from "../tasks/TasksPage";
 import { LinkedDocuments } from "../documents/DocumentsPage";
@@ -69,6 +69,7 @@ export function ClientsPage() {
   const can = useCan();
   const [params, setParams] = useSearchParams();
   const tabs = peopleTabs(can);
+  const [inviting, setInviting] = useState(false);
   const wanted = params.get("tab") as PeopleTab | null;
   const tab = wanted && tabs.includes(wanted) ? wanted : tabs[0];
   if (!tab) {
@@ -84,10 +85,11 @@ export function ClientsPage() {
   // 11.11.2026); the cards are created step by step on their own pages.
   const actions: [boolean, string, string][] =
     tab === "clients"
-      ? [[can("client.create"), "/clients/new", t("clients.create")]]
+      ? [[can("client.create"), "/clients/new", t("clients.new_button")]]
       : tab === "counterparties"
-        ? [[can("counterparty.create"), "/clients/counterparties/new", t("counterparties.create")]]
-        : [];
+        ? [[can("counterparty.create"), "/clients/counterparties/new", t("counterparties.new_button")]]
+        : // Not a path: the invitation opens in a window over the list.
+          [[can("employee.invite"), "invite", t("employees.new_button")]];
   const allowed = actions.filter(([may]) => may);
   return (
     <div className="page full">
@@ -115,14 +117,25 @@ export function ClientsPage() {
         </div>
         {allowed.length ? (
           <aside className="side-actions" aria-label={t("vehicles.actions_title")}>
-            {allowed.map(([, path, label]) => (
-              <Link key={path} className="button secondary" to={companyPath(company, path)}>
-                <Icon name="plus" size={16} /> {label}
-              </Link>
-            ))}
+            {allowed.map(([, path, label]) =>
+              path.startsWith("/") ? (
+                <Link key={path} className="button secondary" to={companyPath(company, path)}>
+                  <Icon name="plus" size={16} /> {label}
+                </Link>
+              ) : (
+                <button key={path} type="button" className="secondary" onClick={() => setInviting(true)}>
+                  <Icon name="plus" size={16} /> {label}
+                </button>
+              ),
+            )}
           </aside>
         ) : null}
       </div>
+      {inviting ? (
+        <Modal wide title={t("employees.new_button")} onClose={() => setInviting(false)}>
+          <InviteForm onClose={() => setInviting(false)} />
+        </Modal>
+      ) : null}
     </div>
   );
 }
