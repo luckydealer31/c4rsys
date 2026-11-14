@@ -122,7 +122,7 @@ export function TasksPage() {
     .filter(Boolean)
     .join("&");
   return (
-    <div className="page">
+    <div className="page full">
       <HomeTabs current="tasks" />
       <h1>{t("nav.tasks")}</h1>
       <div className="actions" style={{ marginTop: 0, marginBottom: 12 }}>

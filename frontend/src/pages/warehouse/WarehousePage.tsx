@@ -28,7 +28,7 @@ export function WarehousePage() {
   const wanted = params.get("tab") as Tab | null;
   const tab: Tab = wanted && TABS.includes(wanted) ? wanted : "stock";
   return (
-    <div className="page">
+    <div className="page full">
       <h1>{t("nav.warehouse")}</h1>
       <div className="tabs" role="tablist">
         {TABS.map((key) => (

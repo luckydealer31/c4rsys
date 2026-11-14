@@ -40,7 +40,7 @@ export function ServicePage() {
     : ["work", "schedule", ...(mayTrips(can) ? (["trips"] as ServiceTab[]) : [])];
   const tab = tabs.find((key) => key === params.get("tab")) ?? "work";
   return (
-    <div className={tabs.length > 1 ? "page full" : "page"}>
+    <div className="page full">
       <h1>{t("nav.service")}</h1>
       {tabs.length > 1 ? (
         <div className="tabs left" role="tablist">

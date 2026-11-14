@@ -28,7 +28,7 @@ export function DashboardsPage() {
   // Without a dashboard to see, «Home» opens the tasks at once (decision of 14.11.2026).
   if (visible.length === 0 && tasks) return <Navigate to={companyPath(company, "/tasks")} replace />;
   return (
-    <div className="page">
+    <div className="page full">
       <HomeTabs current="dashboards" />
       <h1>{t("nav.dashboards")}</h1>
       <div className="actions no-print" style={{ marginTop: 0, marginBottom: 12 }}>

@@ -49,7 +49,7 @@ export function SettingsPage() {
     ["staff_access", "/settings/staff-access", can("company.security")],
   ] as const;
   return (
-    <div className="page">
+    <div className="page full">
       <h1>{t("nav.settings")}</h1>
       {links
         .filter(([, , visible]) => visible)
