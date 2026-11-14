@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Navigate } from "react-router";
 
-import { useCan } from "../../layout/CompanyShell";
+import { companyPath, useCan, useCompany, useMayTasks } from "../../layout/CompanyShell";
 import { HomeTabs } from "../../layout/CompanyTabs";
 import { PersonalDashboards } from "../reports/Personal";
 import { ExportButton, ReportView } from "../reports/Report";
@@ -22,6 +23,10 @@ export function DashboardsPage() {
   ] as const;
   const visible = tabs.filter(([, shown]) => shown).map(([key]) => key);
   const [tab, setTab] = useState<string>(visible[0] ?? "");
+  const company = useCompany();
+  const tasks = useMayTasks();
+  // Without a dashboard to see, «Home» opens the tasks at once (decision of 14.11.2026).
+  if (visible.length === 0 && tasks) return <Navigate to={companyPath(company, "/tasks")} replace />;
   return (
     <div className="page">
       <HomeTabs current="dashboards" />

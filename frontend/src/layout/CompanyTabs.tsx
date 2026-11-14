@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 
 import { contextAvailable } from "../contexts";
-import { companyPath, useCan, useCompany, useMayTasks } from "./CompanyShell";
+import { companyPath, useCan, useCompany, useMayDashboards, useMayTasks } from "./CompanyShell";
 
 function Strip({ label, tabs, current }: { label: string; tabs: [key: string, text: string, path: string][]; current: string }) {
   const company = useCompany();
@@ -55,8 +55,9 @@ export function CompanyTabs({ current }: { current: CompanyTab }) {
 export function HomeTabs({ current }: { current: "dashboards" | "tasks" }) {
   const { t } = useTranslation();
   const tasks = useMayTasks();
+  const dashboards = useMayDashboards();
   const tabs: [string, string, string][] = [
-    ["dashboards", t("nav.dashboards"), "/dashboards"],
+    ...(dashboards || !tasks ? [["dashboards", t("nav.dashboards"), "/dashboards"] as [string, string, string]] : []),
     ...(tasks ? [["tasks", t("nav.tasks"), "/tasks"] as [string, string, string]] : []),
   ];
   return <Strip label={t("nav.home")} tabs={tabs} current={current} />;

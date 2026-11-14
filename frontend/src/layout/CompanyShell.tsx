@@ -43,6 +43,12 @@ export function useMayTasks(): boolean {
   return [...permissions].some((p) => p.startsWith("tasks."));
 }
 
+/** Whether some dashboard is open to the employee (§ 21.1.1): otherwise «Home» is the tasks. */
+export function useMayDashboards(): boolean {
+  const { permissions } = useActive();
+  return permissions.has("reports.view") || permissions.has("warehouse.view");
+}
+
 export function companyPath(company: Pick<Company, "public_id">, path = ""): string {
   return `/c/${company.public_id}${path}`;
 }

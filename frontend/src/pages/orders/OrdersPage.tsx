@@ -95,7 +95,7 @@ export function OrdersPage() {
   }
 
   return (
-    <div className="page">
+    <div className="page full">
       <FinanceTabs current="orders" />
       <h1>{t("nav.orders")}</h1>
       {can("order.create") ? <NewOrder /> : null}

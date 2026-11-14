@@ -73,7 +73,7 @@ export function ClientsPage() {
   const tab = wanted && tabs.includes(wanted) ? wanted : tabs[0];
   if (!tab) {
     return (
-      <div className="page">
+      <div className="page full">
         <CompanyTabs current="contacts" />
         <h1>{t("nav.clients")}</h1>
         <p className="muted">{t("clients.nothing_allowed")}</p>

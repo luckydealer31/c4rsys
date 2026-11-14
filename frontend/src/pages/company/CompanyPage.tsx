@@ -34,7 +34,7 @@ export function CompanyPage() {
     [t("companies.main_currency"), company.main_currency ?? ""],
   ];
   return (
-    <div className="page">
+    <div className="page full">
       <CompanyTabs current="about" />
       {company.setup_completed_at === null && can("company.settings") ? (
         <div className="alert warn">

@@ -46,7 +46,7 @@ export function DocumentsPage() {
   const [q, setQ] = useState("");
   const query = [filter, q ? `q=${encodeURIComponent(q)}` : ""].filter(Boolean).join("&");
   return (
-    <div className="page">
+    <div className="page full">
       <CompanyTabs current="documents" />
       <h1>{t("nav.documents")}</h1>
       <div className="actions" style={{ marginBottom: 12, marginTop: 0 }}>
