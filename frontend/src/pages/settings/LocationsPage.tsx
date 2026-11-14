@@ -21,7 +21,12 @@ const CONTEXT_TYPES = AVAILABLE_CONTEXTS;
 function connected(company: { modules?: string[] }, type: string): boolean {
   return !company.modules || company.modules.includes(type);
 }
-const shown = (contexts: Location["contexts"]) => contexts.filter((c) => contextAvailable(c.type));
+// Always in one order — rental, service, warehouse — not in the order the contexts were added
+// to the location (customer's decision of 14.11.2026).
+const shown = (contexts: Location["contexts"]) =>
+  contexts
+    .filter((c) => contextAvailable(c.type))
+    .sort((a, b) => CONTEXT_TYPES.indexOf(a.type) - CONTEXT_TYPES.indexOf(b.type));
 
 export function useLocations() {
   const company = useCompany();

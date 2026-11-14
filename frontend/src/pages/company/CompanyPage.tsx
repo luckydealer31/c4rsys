@@ -51,44 +51,52 @@ export function CompanyPage() {
         </div>
       ) : null}
       <div className={mayAdd || mayLinks ? "split" : ""}>
-        <div className="inspections-split">
-          <Card>
-            <div className="profile-head">
-              <Avatar file={company.logo} name={company.display_name} size={72} square />
-              <div style={{ flex: 1 }}>
-                <h1 style={{ margin: 0 }}>{company.display_name}</h1>
-                <div className="muted">
-                  {t("companies.company_id")}: <strong>{company.public_id}</strong>
+        <div>
+          {/* With a logo the card is wide and the logo takes its right part; without one the
+              card is narrower (decision of 14.11.2026). */}
+          <div style={{ maxWidth: company.logo ? 1000 : 640 }}>
+            <Card>
+              <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="profile-head">
+                    {company.logo ? null : <Avatar file={null} name={company.display_name} size={72} square />}
+                    <div>
+                      <h1 style={{ margin: 0 }}>{company.display_name}</h1>
+                      <div className="muted">{company.public_id}</div>
+                    </div>
+                  </div>
+                  {company.description ? <p>{company.description}</p> : null}
+                  {filled.length ? (
+                    <dl className="facts" style={{ marginTop: 16 }}>
+                      {filled.map(([label, value], index) => (
+                        <div key={index} style={{ display: "contents" }}>
+                          <dt>{label}</dt>
+                          <dd>{value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  ) : null}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 12 }}>
+                  <div className="actions" style={{ margin: 0 }}>
+                    {can("company.settings") ? (
+                      <IconButton
+                        icon="edit"
+                        label={t("common.edit")}
+                        onClick={() => navigate(companyPath(company, "/settings/company"))}
+                      />
+                    ) : null}
+                    {/* Leaving the company returns to «My companies» (decision of 24.10.2026). */}
+                    <IconButton icon="exit" label={t("company.leave")} onClick={() => navigate("/companies")} />
+                  </div>
+                  {company.logo ? <Avatar file={company.logo} name={company.display_name} size={220} square /> : null}
                 </div>
               </div>
-              <div className="actions" style={{ margin: 0, alignSelf: "flex-start" }}>
-                {can("company.settings") ? (
-                  <IconButton
-                    icon="edit"
-                    label={t("common.edit")}
-                    onClick={() => navigate(companyPath(company, "/settings/company"))}
-                  />
-                ) : null}
-                {/* Leaving the company returns to «My companies» (decision of 24.10.2026). */}
-                <IconButton icon="exit" label={t("company.leave")} onClick={() => navigate("/companies")} />
-              </div>
-            </div>
-            {company.description ? <p>{company.description}</p> : null}
-            {filled.length ? (
-              <dl className="facts" style={{ marginTop: 16 }}>
-                {filled.map(([label, value], index) => (
-                  <div key={index} style={{ display: "contents" }}>
-                    <dt>{label}</dt>
-                    <dd>{value}</dd>
-                  </div>
-                ))}
-              </dl>
-            ) : null}
-          </Card>
-          <div>
-            <h2 style={{ marginTop: 0 }}>{t("settings.locations")}</h2>
-            <LocationsEditor creation={false} />
+            </Card>
           </div>
+          {/* The locations go below the card, one after another. */}
+          <h2>{t("settings.locations")}</h2>
+          <LocationsEditor creation={false} />
         </div>
         {mayAdd || mayLinks ? (
           <aside className="side-actions" aria-label={t("vehicles.actions_title")}>
