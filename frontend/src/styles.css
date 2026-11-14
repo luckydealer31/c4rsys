@@ -474,3 +474,12 @@ th.num, td.num { text-align: right; white-space: nowrap; }
 /* The date, the kind and the amount take as little as they need; «for what» takes the rest. */
 .finance-moves th:not(:nth-child(3)), .finance-moves td:not(:nth-child(3)) { width: 1%; white-space: nowrap; padding-right: 24px; }
 .finance-moves th:last-child, .finance-moves td:last-child { padding-right: 8px; }
+
+/* Caption inside the field; fields in pairs. */
+.form-grid { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 700px) { .form-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.float-field { display: block; position: relative; }
+.float-field > span { position: absolute; left: 13px; top: 5px; font-size: 0.72rem; line-height: 1; color: var(--muted);
+  pointer-events: none; max-width: calc(100% - 40px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.float-field > input, .float-field > select, .float-field > textarea { padding-top: 19px; padding-bottom: 5px; }
+.float-field > small { display: block; margin-top: 2px; }

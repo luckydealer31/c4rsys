@@ -81,13 +81,7 @@ export function CompanyPage() {
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 12 }}>
                   <div className="actions" style={{ margin: 0 }}>
-                    {can("company.settings") ? (
-                      <IconButton
-                        icon="edit"
-                        label={t("common.edit")}
-                        onClick={() => navigate(companyPath(company, "/settings/company"))}
-                      />
-                    ) : null}
+                    {/* The profile is changed in «Settings», not from the card (decision of 14.11.2026). */}
                     {/* Leaving the company returns to «My companies» (decision of 24.10.2026). */}
                     <IconButton icon="exit" label={t("company.leave")} onClick={() => navigate("/companies")} />
                   </div>

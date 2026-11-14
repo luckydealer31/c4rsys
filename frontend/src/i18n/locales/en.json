@@ -415,14 +415,12 @@
     "identifier_type": "Type, e.g. Tax ID",
     "identifier_value": "Number",
     "identifiers": "Registration and tax identifiers",
-    "identifiers_hint": "A new line appears as you fill the last one.",
     "leave": "Leave the company",
     "legal_address": "Legal address",
     "legal_form": "Legal form",
     "legal_name": "Legal name",
     "phone": "Phone",
     "profile": "Company profile",
-    "requisites": "Details",
     "settings": "Company settings",
     "setup_not_completed": "The initial setup is not completed yet.",
     "website": "Website",
@@ -441,9 +439,9 @@
     "tab_about": "About",
     "tab_garage": "Garage",
     "tab_contacts": "Contacts",
-    "phones": "Phones",
-    "phone_label": "Whose number: director, accountant, office…",
-    "phones_hint": "The first number is the main one. A new row appears when the last one is filled."
+    "phone_label": "Whose number",
+    "identifier_add": "Add an identifier",
+    "phone_add": "Add a phone"
   },
   "contexts": {
     "module_later": "Work in this section comes with its module; its sections by location are already shown.",

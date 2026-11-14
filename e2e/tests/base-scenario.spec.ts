@@ -89,6 +89,9 @@ test("base example from registration to closing survives a restart", async ({ pa
   // Several phones of the company, each with whose it is; a new row appears by itself.
   await page.getByLabel(`${t("company.phone")} 1`).fill("+66 80 000 0001");
   await page.getByLabel(`${t("company.phone_label")} 1`).fill("Директор");
+  // One row at first; a further number is added by the button.
+  await expect(page.getByLabel(`${t("company.phone")} 2`)).toHaveCount(0);
+  await page.getByRole("button", { name: `+ ${t("company.phone_add")}` }).click();
   await page.getByLabel(`${t("company.phone")} 2`).fill("+66 80 000 0002");
   await page.getByLabel(`${t("company.phone_label")} 2`).fill("Бухгалтер");
   await page.getByRole("main").locator("form").getByRole("button", { name: t("common.save") }).click();

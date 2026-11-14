@@ -415,14 +415,12 @@
     "identifier_type": "Type, e.g. Tax ID",
     "identifier_value": "Number",
     "identifiers": "Registration and tax identifiers",
-    "identifiers_hint": "A new line appears as you fill the last one.",
     "leave": "Leave the company",
     "legal_address": "Legal address",
     "legal_form": "Legal form",
     "legal_name": "Legal name",
     "phone": "Phone",
     "profile": "Company profile",
-    "requisites": "Details",
     "settings": "Company settings",
     "setup_not_completed": "The initial setup is not completed yet.",
     "website": "Website",
@@ -441,9 +439,9 @@
     "tab_about": "เกี่ยวกับบริษัท",
     "tab_garage": "โรงรถ",
     "tab_contacts": "รายชื่อติดต่อ",
-    "phones": "หมายเลขโทรศัพท์",
-    "phone_label": "หมายเลขของใคร: ผู้อำนวยการ ฝ่ายบัญชี สำนักงาน…",
-    "phones_hint": "หมายเลขแรกคือหมายเลขหลัก แถวใหม่จะปรากฏเมื่อกรอกแถวสุดท้ายแล้ว"
+    "phone_label": "หมายเลขของใคร",
+    "identifier_add": "เพิ่มหมายเลขประจำตัว",
+    "phone_add": "เพิ่มหมายเลขโทรศัพท์"
   },
   "contexts": {
     "module_later": "Work in this section comes with its module; its sections by location are already shown.",

@@ -39,6 +39,18 @@ export function Field({
   );
 }
 
+/** A field with its caption inside the box, above the value (customer's decision of
+ * 14.11.2026): takes no line of its own. */
+export function FloatField({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
+  return (
+    <label className="float-field">
+      <span>{label}</span>
+      {children}
+      {hint ? <small className="muted">{hint}</small> : null}
+    </label>
+  );
+}
+
 export function Card({ title, children }: { title?: string; children: ReactNode }) {
   return (
     <section className="card">

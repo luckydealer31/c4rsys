@@ -7,22 +7,15 @@ import type { Company, JournalEntry, PartyCard } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Avatar, ImagePicker } from "../../components/images";
 import { TimeZoneSelect } from "../../components/TimeZoneSelect";
-import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
+import { Card, ErrorMessage, Field, FloatField, Loading } from "../../components/ui";
 import { useCan, useCompany } from "../../layout/CompanyShell";
 import { currencies, deviceTimeZone, formatMoment } from "../../time";
 
-const REQUISITE_FIELDS = [
-  "legal_name",
-  "legal_form",
-  "legal_address",
-  "actual_address",
-  "email",
-  "website",
-] as const;
+type RequisiteField = "legal_name" | "legal_form" | "legal_address" | "actual_address" | "email" | "website";
 
 type Requisites = Pick<
   Company,
-  (typeof REQUISITE_FIELDS)[number] | "country" | "description" | "identifiers" | "phone" | "phone_label" | "extra_phones"
+  RequisiteField | "country" | "description" | "identifiers" | "phone" | "phone_label" | "extra_phones"
 >;
 
 function requisitesOf(company: Company): Requisites {
@@ -251,6 +244,23 @@ export function CompanyProfileForm({
     "PATCH",
   );
   const editable = can("company.settings");
+  const text = (key: RequisiteField) => (
+    <FloatField label={t(`company.${key}`)}>
+      <input value={extra[key]} disabled={!editable} onChange={(e) => setExtra({ ...extra, [key]: e.target.value })} />
+    </FloatField>
+  );
+  // Empty rows are dropped by the server, so a row added and left empty changes nothing.
+  const identifierRows = extra.identifiers.length ? extra.identifiers : [{ type: "", value: "" }];
+  const setIdentifier = (index: number, item: { type: string; value: string }) => {
+    const items = [...identifierRows];
+    items[index] = item;
+    setExtra({ ...extra, identifiers: items });
+  };
+  const phoneRows = [{ number: extra.phone, label: extra.phone_label }, ...extra.extra_phones];
+  const setPhone = (index: number, item: { number: string; label: string }) => {
+    if (index === 0) setExtra({ ...extra, phone: item.number, phone_label: item.label });
+    else setExtra({ ...extra, extra_phones: extra.extra_phones.map((x, i) => (i === index - 1 ? item : x)) });
+  };
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -277,9 +287,7 @@ export function CompanyProfileForm({
   return (
     <Card>
       <form className="stack" onSubmit={submit}>
-        <p className="muted small">
-          {t("companies.company_id")}: {company.public_id}
-        </p>
+        <p className="muted small">{company.public_id}</p>
         <Field label={t("companies.logo")}>
           <ImagePicker
             purpose="company_logo"
@@ -290,53 +298,21 @@ export function CompanyProfileForm({
             onChange={(logo) => setForm({ ...form, logo })}
           />
         </Field>
-        <div className="row">
-          <Field label={t("companies.display_name")}>
+        {/* The fields go in pairs, in the order of the customer (14.11.2026); the caption of a
+            field stands inside it, not above. */}
+        <div className="form-grid">
+          <FloatField label={t("companies.display_name")}>
             <input
               value={form.display_name}
               disabled={!editable}
               onChange={(e) => setForm({ ...form, display_name: e.target.value })}
             />
-          </Field>
-          <Field
-            label={t("companies.timezone")}
-            hint={company.timezone ? undefined : t("companies.timezone_confirm")}
-          >
-            <TimeZoneSelect
-              value={form.timezone}
-              disabled={!editable}
-              onChange={(timezone) => setForm({ ...form, timezone })}
-            />
-          </Field>
-          <Field label={t("companies.main_currency")} hint={t("companies.main_currency_hint")}>
-            <select
-              value={form.main_currency}
-              disabled={!editable}
-              onChange={(e) => setForm({ ...form, main_currency: e.target.value })}
-            >
-              <option value="">—</option>
-              {currencies().map((code) => (
-                <option key={code} value={code}>
-                  {code}
-                </option>
-              ))}
-            </select>
-          </Field>
-        </div>
-        {withRequisites ? (
-          <>
-            <h3>{t("company.requisites")}</h3>
-            <div className="row">
-              {REQUISITE_FIELDS.map((key) => (
-                <Field key={key} label={t(`company.${key}`)}>
-                  <input
-                    value={extra[key]}
-                    disabled={!editable}
-                    onChange={(e) => setExtra({ ...extra, [key]: e.target.value })}
-                  />
-                </Field>
-              ))}
-              <Field label={t("company.country")}>
+          </FloatField>
+          {withRequisites ? (
+            <>
+              {text("legal_name")}
+              {text("legal_form")}
+              <FloatField label={t("company.country")}>
                 <select
                   value={extra.country}
                   disabled={!editable}
@@ -349,88 +325,119 @@ export function CompanyProfileForm({
                     </option>
                   ))}
                 </select>
-              </Field>
-            </div>
-            <div className="field">
-              <span>{t("company.identifiers")}</span>
-              {[...extra.identifiers, { type: "", value: "" }].map((item, index) => (
-                <div className="row" key={index} style={{ marginBottom: 8 }}>
-                  <input
-                    aria-label={t("company.identifier_type")}
-                    placeholder={t("company.identifier_type")}
-                    value={item.type}
-                    disabled={!editable}
-                    onChange={(e) => {
-                      const items = [...extra.identifiers];
-                      items[index] = { ...item, type: e.target.value };
-                      setExtra({ ...extra, identifiers: items });
-                    }}
-                  />
-                  <input
-                    aria-label={t("company.identifier_value")}
-                    placeholder={t("company.identifier_value")}
-                    value={item.value}
-                    disabled={!editable}
-                    onChange={(e) => {
-                      const items = [...extra.identifiers];
-                      items[index] = { ...item, value: e.target.value };
-                      setExtra({ ...extra, identifiers: items });
-                    }}
-                  />
+              </FloatField>
+              {text("legal_address")}
+              {text("actual_address")}
+            </>
+          ) : null}
+        </div>
+        {withRequisites ? (
+          <>
+            {/* One row at first; further ones are added by the button when needed. */}
+            <div>
+              <div className="muted small" style={{ marginBottom: 4 }}>
+                {t("company.identifiers")}
+              </div>
+              {identifierRows.map((item, index) => (
+                <div className="form-grid" key={index} style={{ marginBottom: 8 }}>
+                  <FloatField label={`${t("company.identifier_type")}${index ? ` ${index + 1}` : ""}`}>
+                    <input
+                      value={item.type}
+                      disabled={!editable}
+                      onChange={(e) => setIdentifier(index, { ...item, type: e.target.value })}
+                    />
+                  </FloatField>
+                  <FloatField label={`${t("company.identifier_value")}${index ? ` ${index + 1}` : ""}`}>
+                    <input
+                      value={item.value}
+                      disabled={!editable}
+                      onChange={(e) => setIdentifier(index, { ...item, value: e.target.value })}
+                    />
+                  </FloatField>
                 </div>
               ))}
-              <small className="muted">{t("company.identifiers_hint")}</small>
+              {editable ? (
+                <button
+                  type="button"
+                  className="link"
+                  onClick={() => setExtra({ ...extra, identifiers: [...identifierRows, { type: "", value: "" }] })}
+                >
+                  + {t("company.identifier_add")}
+                </button>
+              ) : null}
+            </div>
+            <div className="form-grid">
+              {text("email")}
+              {text("website")}
             </div>
             {/* The phones of the company (decision of 14.11.2026): the first row is the main
                 number, the next ones are further numbers; each with whose it is. */}
-            <div className="field">
-              <span>{t("company.phones")}</span>
-              {[{ number: extra.phone, label: extra.phone_label }, ...extra.extra_phones, { number: "", label: "" }].map(
-                (item, index, rows) => {
-                  const change = (next: { number: string; label: string }) => {
-                    const all = rows.slice(0, -1);
-                    all[index] = next;
-                    const [main, ...rest] = all;
-                    setExtra({
-                      ...extra,
-                      phone: main?.number ?? "",
-                      phone_label: main?.label ?? "",
-                      extra_phones: rest,
-                    });
-                  };
-                  return (
-                    <div className="row" key={index} style={{ marginBottom: 8 }}>
-                      <input
-                        type="tel"
-                        aria-label={`${t("company.phone")} ${index + 1}`}
-                        placeholder={t("company.phone")}
-                        value={item.number}
-                        disabled={!editable}
-                        onChange={(e) => change({ ...item, number: e.target.value })}
-                      />
-                      <input
-                        aria-label={`${t("company.phone_label")} ${index + 1}`}
-                        placeholder={t("company.phone_label")}
-                        value={item.label}
-                        disabled={!editable}
-                        onChange={(e) => change({ ...item, label: e.target.value })}
-                      />
-                    </div>
-                  );
-                },
-              )}
-              <small className="muted">{t("company.phones_hint")}</small>
+            <div>
+              {phoneRows.map((item, index) => (
+                <div className="form-grid" key={index} style={{ marginBottom: 8 }}>
+                  <FloatField label={`${t("company.phone")} ${index + 1}`}>
+                    <input
+                      type="tel"
+                      value={item.number}
+                      disabled={!editable}
+                      onChange={(e) => setPhone(index, { ...item, number: e.target.value })}
+                    />
+                  </FloatField>
+                  <FloatField label={`${t("company.phone_label")} ${index + 1}`}>
+                    <input
+                      value={item.label}
+                      disabled={!editable}
+                      onChange={(e) => setPhone(index, { ...item, label: e.target.value })}
+                    />
+                  </FloatField>
+                </div>
+              ))}
+              {editable ? (
+                <button
+                  type="button"
+                  className="link"
+                  onClick={() => setExtra({ ...extra, extra_phones: [...extra.extra_phones, { number: "", label: "" }] })}
+                >
+                  + {t("company.phone_add")}
+                </button>
+              ) : null}
             </div>
-            <Field label={t("company.description")}>
+            <FloatField label={t("company.description")}>
               <textarea
                 rows={3}
                 value={extra.description}
                 disabled={!editable}
                 onChange={(e) => setExtra({ ...extra, description: e.target.value })}
               />
-            </Field>
+            </FloatField>
           </>
         ) : null}
+        <div className="form-grid">
+          <FloatField
+            label={t("companies.timezone")}
+            hint={company.timezone ? undefined : t("companies.timezone_confirm")}
+          >
+            <TimeZoneSelect
+              value={form.timezone}
+              disabled={!editable}
+              onChange={(timezone) => setForm({ ...form, timezone })}
+            />
+          </FloatField>
+          <FloatField label={t("companies.main_currency")} hint={t("companies.main_currency_hint")}>
+            <select
+              value={form.main_currency}
+              disabled={!editable}
+              onChange={(e) => setForm({ ...form, main_currency: e.target.value })}
+            >
+              <option value="">—</option>
+              {currencies().map((code) => (
+                <option key={code} value={code}>
+                  {code}
+                </option>
+              ))}
+            </select>
+          </FloatField>
+        </div>
         <ErrorMessage error={save.error} />
         {saved ? <div className="alert ok">{t("common.saved")}</div> : null}
         {editable ? (
