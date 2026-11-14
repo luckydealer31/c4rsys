@@ -26,7 +26,8 @@ const KINDS: Record<Kind, string[] | null> = {
   cancelled: ["cancelled", "annulled"],
   all: null,
 };
-const ALL_KINDS = Object.keys(KINDS) as Kind[];
+// The order of the buttons (decision of 14.11.2026): all, rentals, bookings, cancelled.
+const ALL_KINDS: Kind[] = ["all", "rentals", "bookings", "cancelled"];
 // The same for the ordered services: in progress or done, booked, cancelled, all.
 const SERVICE_KINDS: Record<Kind, string[] | null> = {
   rentals: ["started", "completed"],
@@ -59,9 +60,9 @@ export function RentalsPage() {
   const can = useCan();
   const [params, setParams] = useSearchParams();
   // The schedule and the trips are tabs of the rental (customer's decision of 14.11.2026); the
-  // schedule is the first one.
-  const TABS: Tab[] = ["schedule", "rentals", ...(mayTrips(can) ? (["trips"] as Tab[]) : []), "services", "catalog"];
-  const tab: Tab = TABS.find((key) => key === params.get("tab")) ?? "schedule";
+  // list of rentals and bookings is the first one, the schedule follows it.
+  const TABS: Tab[] = ["rentals", "schedule", ...(mayTrips(can) ? (["trips"] as Tab[]) : []), "services", "catalog"];
+  const tab: Tab = TABS.find((key) => key === params.get("tab")) ?? "rentals";
   const lines = useApi<{ lines: ServiceLine[] }>(
     ["service-lines", company.public_id],
     `/c/${company.public_id}/service-lines`,
@@ -96,7 +97,7 @@ export function RentalsPage() {
                 role="tab"
                 aria-selected={tab === key}
                 className={tab === key ? "active" : ""}
-                onClick={() => setParams(key === "schedule" ? {} : { tab: key })}
+                onClick={() => setParams(key === "rentals" ? {} : { tab: key })}
               >
                 {t(`rentals.tab_${key}`)}
               </button>
