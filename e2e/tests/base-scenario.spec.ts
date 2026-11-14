@@ -90,13 +90,16 @@ test("base example from registration to closing survives a restart", async ({ pa
   await expect(page.getByText(t("common.saved"))).toBeVisible();
 
   await page.goto(`${base}/company`);
-  await page.getByRole("button", { name: t("locations.add") }).click();
-  const location = card(page, t("locations.create_title"));
+  // The card of the company shows the filled fields only; a new location is added in a window.
+  await expect(page.locator("dl.facts dd", { hasText: /^—$/ })).toHaveCount(0);
+  await page.getByRole("button", { name: t("locations.create_title") }).click();
+  const location = page.getByRole("dialog");
   await location.getByLabel(t("locations.name")).fill("Пхукет");
   await location.getByLabel(t("companies.timezone")).selectOption("Asia/Bangkok");
   await location.getByRole("checkbox", { name: t("contexts.rental") }).check();
   await location.getByRole("button", { name: t("locations.create") }).click();
   await expect(page.getByRole("heading", { name: "Пхукет" })).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 
   // Cash desks are on the «Cash desks and accounts» tab of the finance section.
   await page.goto(`${base}/finance?tab=accounts`);

@@ -32,7 +32,8 @@ export function useLocations() {
 }
 
 /** Locations with their contexts, state and schedule (§ 4.1–4.4, § 22.1.5–22.1.6). */
-export function LocationsEditor({ createOpen = false }: { createOpen?: boolean }) {
+/** `creation={false}`: the list only — the button «New location» stands elsewhere on the page. */
+export function LocationsEditor({ createOpen = false, creation = true }: { createOpen?: boolean; creation?: boolean }) {
   const { t } = useTranslation();
   const can = useCan();
   const locations = useLocations();
@@ -47,7 +48,7 @@ export function LocationsEditor({ createOpen = false }: { createOpen?: boolean }
       {locations.data?.locations.length === 0 ? (
         <p className="muted">{t("locations.none")}</p>
       ) : null}
-      {can("location.create") ? <CreateLocation initiallyOpen={createOpen} /> : null}
+      {creation && can("location.create") ? <CreateLocation initiallyOpen={createOpen} /> : null}
     </>
   );
 }
@@ -80,7 +81,8 @@ function CreateLocation({ initiallyOpen }: { initiallyOpen: boolean }) {
   return <CreateLocationForm onDone={() => setOpen(initiallyOpen)} />;
 }
 
-function CreateLocationForm({ onDone }: { onDone: () => void }) {
+/** `bare`: without a card of its own — for a window that has its title. */
+export function CreateLocationForm({ onDone, bare = false }: { onDone: () => void; bare?: boolean }) {
   const { t } = useTranslation();
   const company = useCompany();
   const refresh = useRefresh();
@@ -107,8 +109,7 @@ function CreateLocationForm({ onDone }: { onDone: () => void }) {
     }
   }
 
-  return (
-    <Card title={t("locations.create_title")}>
+  const form = (
       <form className="stack" onSubmit={submit}>
         <div className="row">
           <Field label={t("locations.name")}>
@@ -147,8 +148,8 @@ function CreateLocationForm({ onDone }: { onDone: () => void }) {
           </button>
         </div>
       </form>
-    </Card>
   );
+  return bare ? form : <Card title={t("locations.create_title")}>{form}</Card>;
 }
 
 const CONTEXT_ICONS: Record<ContextType, IconName> = {
