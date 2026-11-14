@@ -9,6 +9,7 @@ import { useCommand } from "../../api/useCommand";
 import { Icon } from "../../components/icons";
 import { Card, ErrorMessage, Field, IconButton, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
+import { CompanyTabs, workHome } from "../../layout/CompanyTabs";
 import { formatMoment } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
 import { SectionSearch } from "../search/SearchPage";
@@ -20,8 +21,6 @@ import { OwnerRequestCard } from "./OwnerRequestCard";
 import { VehicleDocumentsList, VehicleDocumentsSettings } from "./VehicleDocuments";
 import { DraftsPanel } from "../inspections/OfflineDrafts";
 import { useScope } from "../../offline/hooks";
-import { TripsView } from "../trips/TripsPage";
-import { ScheduleView } from "./SchedulePage";
 import { VehicleMoves } from "./VehicleMoves";
 import { VehicleDamagesCard, VehicleInspectionsCard } from "../inspections/Blocks";
 import {
@@ -75,9 +74,8 @@ type HistoryPart = "rentals" | "moves" | "finance" | "ownership" | "changes";
  * switches of the fleet; the schedule has no client vehicles.
  * The actions of the section stand in a column on the right. */
 type Relation = "own" | "managed" | "client";
-type View = "list" | "schedule" | "client" | "trips";
+type View = "list" | "client";
 // Any right of the kind opens the view, as the items of the menu did before.
-const TRIP_RIGHTS = ["view", "create", "edit", "assign", "take", "start", "finish", "cancel", "correct", "drive", "catalog", "price"].map((r) => `delivery.${r}`);
 const FLEET: ("own" | "managed")[] = ["own", "managed"];
 
 export function VehiclesPage() {
@@ -109,15 +107,7 @@ export function VehiclesPage() {
   const wanted = params.get("view");
   // Trips are a view of the garage, with their rights (decision of 11.11.2026). Inspections
   // have no list of their own: they are found in the vehicle, the rental or the service.
-  const mayTrips = TRIP_RIGHTS.some(can);
-  const VIEWS: View[] = ["list", "schedule", ...(mayTrips ? (["trips"] as View[]) : [])];
-  const view: View =
-    tab === "client"
-      ? "client"
-      : wanted === "schedule" || (wanted === "trips" && mayTrips)
-        ? (wanted as View)
-        : "list";
-  const extra = view === "trips";
+  const view: View = tab === "client" ? "client" : "list";
   const rel = params.get("rel") ?? (tab === "managed" || tab === "own" ? tab : "");
   const shown = new Set<Relation>(view === "client" ? ["client"] : rel === "own" || rel === "managed" ? [rel] : FLEET);
   const go = (changes: { view?: View; rel?: string; q?: string }) => {
@@ -126,9 +116,8 @@ export function VehiclesPage() {
       Object.fromEntries(
         Object.entries({
           tab: next.view === "client" ? "client" : "",
-          view: next.view === "list" || next.view === "client" ? "" : next.view,
           rel: next.view === "client" ? "" : next.rel,
-          q: next.view === "list" || next.view === "client" ? next.q : "",
+          q: next.q,
         }).filter(([, value]) => value),
       ),
     );
@@ -167,42 +156,27 @@ export function VehiclesPage() {
     view === "client"
       ? [
           [can("vehicle.create"), `/vehicles/new?relation=client`, t("vehicles.create_button")],
-          [can("service.create"), "/service/operations/new", t("vehicles.action_service")],
         ]
       : [
           [can("vehicle.create"), `/vehicles/new?relation=${newRelation}`, t("vehicles.create_button")],
-          [can("rental.issue"), "/rentals/new", t("vehicles.action_rental")],
-          [can("rental.book"), "/rentals/book", t("vehicles.action_booking")],
-          [can("service.create"), "/service/operations/new", t("vehicles.action_service")],
-          [can("delivery.create"), "/trips/new", t("vehicles.action_move")],
         ];
-  // Trips and inspections carry their own actions.
-  const allowed = extra ? [] : actions.filter(([may]) => may);
+  // A rental, a booking, a service operation and a move are created in their own sections and
+  // in the card of the vehicle, not from the list of the garage (decision of 14.11.2026).
+  const allowed = actions.filter(([may]) => may);
+  // The schedule and the trips moved to «Rental» (decision of 14.11.2026); old addresses lead there.
+  if (wanted === "schedule" || wanted === "trips") {
+    return <Navigate to={companyPath(company, `${workHome(company)}?tab=${wanted}`)} replace />;
+  }
   return (
     <div className="page full">
       <h1 className="sr-only">{t("nav.garage")}</h1>
+      <CompanyTabs current="garage" />
       <div className={allowed.length ? "split" : ""}>
         <div>
-          <div className="tabs left" role="tablist">
-            {VIEWS.map((key) => (
-              <button
-                key={key}
-                type="button"
-                role="tab"
-                aria-selected={(view === "client" ? "list" : view) === key}
-                className={(view === "client" ? "list" : view) === key ? "active" : ""}
-                onClick={() => go({ view: key })}
-              >
-                {t(`vehicles.view_${key}`)}
-              </button>
-            ))}
-          </div>
-          {view === "trips" ? <TripsView /> : null}
-          {extra ? null : (
           <div className="list-bar">
             {/* The list is either the fleet or the client vehicles; the two never mix. The
                 switches «own» / «managed» belong to the fleet only. */}
-            {view === "schedule" ? null : (
+            {(
               <div className="segmented" role="group" aria-label={t("vehicles.scope_title")}>
                 <button type="button" aria-pressed={view === "list"} onClick={() => go({ view: "list" })}>
                   {t("vehicles.scope_fleet")}
@@ -225,18 +199,15 @@ export function VehiclesPage() {
                     {t(`vehicles.tab_${key}`)}
                   </button>
                 ))}
-            {view === "schedule" ? null : <SectionSearch compact value={q} onSearch={(text) => go({ q: text })} />}
+            <SectionSearch compact value={q} onSearch={(text) => go({ q: text })} />
           </div>
-          )}
           {only ? (
             <p className="small muted">
               {t(`vehicles.only_${only}`)} ·{" "}
               <Link to={companyPath(company, "/vehicles")}>{t("vehicles.only_reset")}</Link>
             </p>
           ) : null}
-          {extra ? null : view === "schedule" ? (
-            <ScheduleView relations={shown} />
-          ) : (
+          {(
             <>
               {/* Inspections started on this device and not sent yet (§ 10.4.2–10.4.4): shown
                   only while there are any, so that none is lost. */}
@@ -547,13 +518,11 @@ export function VehiclePage() {
         {/* Back to where the card was opened from — the list, the schedule, a trip (decision of
             14.11.2026). The tabs of the card replace the address, so one step back leaves the
             card. Opened by a direct address, the card leads back to the list. */}
-        {route.key !== "default" ? (
-          <button type="button" className="link" onClick={() => navigate(-1)}>
-            ← {t("common.back")}
-          </button>
-        ) : (
-          <Link to={companyPath(company, "/vehicles")}>← {t("nav.garage")}</Link>
-        )}
+        <IconButton
+          icon="back"
+          label={route.key !== "default" ? t("common.back") : t("nav.garage")}
+          onClick={() => (route.key !== "default" ? navigate(-1) : navigate(companyPath(company, "/vehicles")))}
+        />
         <h1>{data.name}</h1>
         <span className="muted">{data.vehicle_id}</span>
         <span className="badge">{t(`vehicles.relation_${data.relation}`)}</span>

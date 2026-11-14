@@ -5,6 +5,7 @@ import { Icon } from "../../components/icons";
 import { Avatar } from "../../components/images";
 import { Card } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
+import { CompanyTabs } from "../../layout/CompanyTabs";
 import { useZoneLabel } from "../../components/TimeZoneSelect";
 import { LocationsEditor } from "../settings/LocationsPage";
 
@@ -34,6 +35,7 @@ export function CompanyPage() {
   ];
   return (
     <div className="page">
+      <CompanyTabs current="about" />
       {company.setup_completed_at === null && can("company.settings") ? (
         <div className="alert warn">
           {t("company.setup_not_completed")}{" "}

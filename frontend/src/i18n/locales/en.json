@@ -436,7 +436,10 @@
     "display_name": "Display name",
     "logo": "Logo",
     "timezone": "Time zone",
-    "main_currency": "Main currency"
+    "main_currency": "Main currency",
+    "tab_about": "About",
+    "tab_garage": "Garage",
+    "tab_contacts": "Contacts"
   },
   "contexts": {
     "module_later": "Work in this section comes with its module; its sections by location are already shown.",
@@ -1996,7 +1999,9 @@
     "wizard_some_locations": "Only some locations",
     "filter_all": "All",
     "action_service_now": "Create a service",
-    "filter_services": "Services"
+    "filter_services": "Services",
+    "tab_schedule": "Schedule",
+    "tab_trips": "Trips"
   },
   "rights": {
     "add": "Add rights",
@@ -3854,7 +3859,8 @@
     "open_job_hint": "The work stays done: its time and result do not change by the opening. Correct it and close it again; while it is open the service is not finished and the order is not closed.",
     "close_job": "Close",
     "job_editing": "Open for editing",
-    "blocker_service_job_editing": "A work is open for editing: close it to finish the service and close the order."
+    "blocker_service_job_editing": "A work is open for editing: close it to finish the service and close the order.",
+    "tab_work": "Service work"
   },
   "trips": {
     "new": "New trip",

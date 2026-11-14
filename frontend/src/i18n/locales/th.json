@@ -436,7 +436,10 @@
     "display_name": "ชื่อที่แสดง",
     "logo": "โลโก้",
     "timezone": "เขตเวลา",
-    "main_currency": "สกุลเงินหลัก"
+    "main_currency": "สกุลเงินหลัก",
+    "tab_about": "เกี่ยวกับบริษัท",
+    "tab_garage": "โรงรถ",
+    "tab_contacts": "รายชื่อติดต่อ"
   },
   "contexts": {
     "module_later": "Work in this section comes with its module; its sections by location are already shown.",
@@ -1996,7 +1999,9 @@
     "wizard_some_locations": "เฉพาะบางสถานที่",
     "filter_all": "ทั้งหมด",
     "action_service_now": "สร้างบริการ",
-    "filter_services": "บริการ"
+    "filter_services": "บริการ",
+    "tab_schedule": "ตารางเวลา",
+    "tab_trips": "การเดินทาง"
   },
   "rights": {
     "add": "Add rights",
@@ -3854,7 +3859,8 @@
     "open_job_hint": "งานยังคงเสร็จแล้ว แก้ไขแล้วปิดอีกครั้ง",
     "close_job": "ปิด",
     "job_editing": "เปิดเพื่อแก้ไข",
-    "blocker_service_job_editing": "งานเปิดเพื่อแก้ไขอยู่ ปิดงานก่อน"
+    "blocker_service_job_editing": "งานเปิดเพื่อแก้ไขอยู่ ปิดงานก่อน",
+    "tab_work": "งานบริการ"
   },
   "trips": {
     "new": "การเดินทางใหม่",

@@ -12,6 +12,7 @@ import { useCommand } from "../../api/useCommand";
 import { Icon } from "../../components/icons";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
+import { CompanyTabs } from "../../layout/CompanyTabs";
 import { EmployeesList } from "../settings/EmployeesPage";
 import { CounterpartiesList } from "./Counterparties";
 import { LinkedTasks } from "../tasks/TasksPage";
@@ -73,6 +74,7 @@ export function ClientsPage() {
   if (!tab) {
     return (
       <div className="page">
+        <CompanyTabs current="contacts" />
         <h1>{t("nav.clients")}</h1>
         <p className="muted">{t("clients.nothing_allowed")}</p>
       </div>
@@ -90,6 +92,7 @@ export function ClientsPage() {
   return (
     <div className="page full">
       <h1 className="sr-only">{t("nav.clients")}</h1>
+      <CompanyTabs current="contacts" />
       <div className={allowed.length ? "split" : ""}>
         <div>
       <div className="tabs left" role="tablist">

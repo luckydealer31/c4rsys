@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 
 import { useApi } from "../../api/queries";
 import type { MaintenanceRule, QueueJob, ServiceOperation } from "../../api/types";
@@ -10,6 +10,8 @@ import { Card, ErrorMessage, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { formatMoment } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
+import { mayTrips, TripsView } from "../trips/TripsPage";
+import { ScheduleTab } from "../vehicles/SchedulePage";
 import { dueText } from "./VehicleService";
 import {
   FINAL_STATES,
@@ -24,7 +26,46 @@ import {
 
 /** The «Service» section by service location: posts, the general zone and planned operations
  * (§ 16.3), the queue of free works for a mechanic (§ 23.2.4; decision С-7), all operations. */
+type ServiceTab = "work" | "schedule" | "trips";
+
+/** A company without rental has the schedule and the trips here (decision of 14.11.2026): with
+ * rental they are tabs of «Rental». */
 export function ServicePage() {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const can = useCan();
+  const [params, setParams] = useSearchParams();
+  const tabs: ServiceTab[] = company.context_types.includes("rental")
+    ? ["work"]
+    : ["work", "schedule", ...(mayTrips(can) ? (["trips"] as ServiceTab[]) : [])];
+  const tab = tabs.find((key) => key === params.get("tab")) ?? "work";
+  return (
+    <div className={tab === "work" ? "page" : "page full"}>
+      <h1>{t("nav.service")}</h1>
+      {tabs.length > 1 ? (
+        <div className="tabs left" role="tablist">
+          {tabs.map((key) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={tab === key}
+              className={tab === key ? "active" : ""}
+              onClick={() => setParams(key === "work" ? {} : { tab: key })}
+            >
+              {t(key === "work" ? "service.tab_work" : `vehicles.view_${key}`)}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {tab === "work" ? <ServiceWork /> : null}
+      {tab === "schedule" ? <ScheduleTab /> : null}
+      {tab === "trips" ? <TripsView /> : null}
+    </div>
+  );
+}
+
+function ServiceWork() {
   const { t } = useTranslation();
   const company = useCompany();
   const can = useCan();
@@ -33,8 +74,7 @@ export function ServicePage() {
   const operations = useServiceOperations(all ? "" : "active=1");
   const places = serviceLocations(locations.data?.locations);
   return (
-    <div className="page">
-      <h1>{t("nav.service")}</h1>
+    <>
       <div className="actions" style={{ marginBottom: 16, marginTop: 0 }}>
         {can("service.create") ? (
           <Link className="button" to={companyPath(company, "/service/operations/new")}>
@@ -60,7 +100,7 @@ export function ServicePage() {
         </label>
         <OperationTable items={operations.data?.operations ?? []} />
       </Card>
-    </div>
+    </>
   );
 }
 

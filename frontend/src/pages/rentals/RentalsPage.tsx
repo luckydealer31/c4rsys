@@ -13,6 +13,8 @@ import { useOrders } from "../orders/OrdersPage";
 import { useLocations } from "../settings/LocationsPage";
 import { rangesText, unitText, useTariffs } from "../tariffs/TariffsPage";
 import { serviceTerms } from "./Services";
+import { mayTrips, TripsView } from "../trips/TripsPage";
+import { ScheduleTab } from "../vehicles/SchedulePage";
 import { useRentals, useVehicles } from "../vehicles/VehiclesPage";
 
 // The list shows one kind at a time (customer's decision of 11.11.2026): rentals, bookings,
@@ -46,8 +48,7 @@ function KindTabs({ value, onChange, first }: { value: Kind; onChange: (kind: Ki
   );
 }
 
-type Tab = "rentals" | "services" | "catalog";
-const TABS: Tab[] = ["rentals", "services", "catalog"];
+type Tab = "schedule" | "rentals" | "trips" | "services" | "catalog";
 
 /** The rental section (customer's decision of 11.11.2026): bookings and rentals; the ordered
  * extra services, linked to rentals and standalone; the tariffs and the catalog of services,
@@ -57,7 +58,10 @@ export function RentalsPage() {
   const company = useCompany();
   const can = useCan();
   const [params, setParams] = useSearchParams();
-  const tab: Tab = TABS.find((key) => key === params.get("tab")) ?? "rentals";
+  // The schedule and the trips are tabs of the rental (customer's decision of 14.11.2026); the
+  // schedule is the first one.
+  const TABS: Tab[] = ["schedule", "rentals", ...(mayTrips(can) ? (["trips"] as Tab[]) : []), "services", "catalog"];
+  const tab: Tab = TABS.find((key) => key === params.get("tab")) ?? "schedule";
   const lines = useApi<{ lines: ServiceLine[] }>(
     ["service-lines", company.public_id],
     `/c/${company.public_id}/service-lines`,
@@ -65,8 +69,10 @@ export function RentalsPage() {
   );
   const booking: [boolean, string, string] = [can("rental.book"), "/rentals/book", t("vehicles.action_booking")];
   const actions: [boolean, string, string][] =
-    tab === "rentals"
+    tab === "rentals" || tab === "schedule"
       ? [[can("rental.issue"), "/rentals/new", t("vehicles.action_rental")], booking]
+      : tab === "trips"
+        ? []
       : tab === "services"
         ? [
             [can("order.create"), "/rentals/services/order?mode=now", t("rentals.action_service_now")],
@@ -90,12 +96,14 @@ export function RentalsPage() {
                 role="tab"
                 aria-selected={tab === key}
                 className={tab === key ? "active" : ""}
-                onClick={() => setParams(key === "rentals" ? {} : { tab: key })}
+                onClick={() => setParams(key === "schedule" ? {} : { tab: key })}
               >
                 {t(`rentals.tab_${key}`)}
               </button>
             ))}
           </div>
+          {tab === "schedule" ? <ScheduleTab /> : null}
+          {tab === "trips" ? <TripsView /> : null}
           {tab === "rentals" ? <RentalsList lines={lines.data?.lines ?? []} /> : null}
           {tab === "services" ? <OrderedServices lines={lines.data?.lines ?? []} loading={lines.isLoading} /> : null}
           {tab === "catalog" ? <Catalog /> : null}

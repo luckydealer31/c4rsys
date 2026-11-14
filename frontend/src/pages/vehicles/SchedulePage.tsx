@@ -5,6 +5,7 @@ import { Link, Navigate } from "react-router";
 import { useApi } from "../../api/queries";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCompany } from "../../layout/CompanyShell";
+import { workHome } from "../../layout/CompanyTabs";
 import { deviceTimeZone, formatMoment } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
 import { useVehicles } from "./VehiclesPage";
@@ -49,10 +50,36 @@ function addDays(value: Date, days: number): Date {
   return result;
 }
 
-/** The schedule is a view of the garage now (decision of 11.11.2026); the old address leads there. */
+/** The schedule is a tab of «Rental» — of «Service» without rental (decision of 14.11.2026). */
 export function SchedulePage() {
   const company = useCompany();
-  return <Navigate to={companyPath(company, "/vehicles?view=schedule")} replace />;
+  return <Navigate to={companyPath(company, `${workHome(company)}?tab=schedule`)} replace />;
+}
+
+/** The schedule as a tab of «Rental» or «Service»: own and managed vehicles, each switched on
+ * and off as in the garage; the last one that is on stays on. */
+export function ScheduleTab() {
+  const { t } = useTranslation();
+  const [shown, setShown] = useState<Set<string>>(new Set(["own", "managed"]));
+  const toggle = (key: string) => {
+    if (shown.has(key) && shown.size === 1) return;
+    const next = new Set(shown);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    setShown(next);
+  };
+  return (
+    <>
+      <div className="list-bar">
+        {["own", "managed"].map((key) => (
+          <button key={key} type="button" className="toggle-chip" aria-pressed={shown.has(key)} onClick={() => toggle(key)}>
+            {t(`vehicles.tab_${key}`)}
+          </button>
+        ))}
+      </div>
+      <ScheduleView relations={shown} />
+    </>
+  );
 }
 
 /** The schedule of vehicles (decisions Б3, В-4): a row per vehicle with its bookings, rentals,

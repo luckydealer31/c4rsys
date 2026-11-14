@@ -245,8 +245,14 @@ test("base example from registration to closing survives a restart", async ({ pa
   const cardUrl = page.url().split("?")[0];
   // «Back» returns to the list the card was opened from, also after looking through its tabs.
   await page.getByRole("tab", { name: t("vehicles.card_history") }).click();
-  await page.getByRole("button", { name: `← ${t("common.back")}` }).click();
+  await page.getByRole("button", { name: t("common.back"), exact: true }).click();
   await expect(page).toHaveURL(/\/vehicles$/);
+  // The garage is a tab of «Company»; the schedule and the trips are tabs of «Rental».
+  await expect(page.getByRole("tab", { name: t("company.tab_garage") })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("link", { name: t("nav.garage"), exact: true })).toHaveCount(0);
+  await page.goto(`${base}/vehicles?view=schedule`);
+  await expect(page).toHaveURL(/\/rentals\?tab=schedule$/);
+  await expect(page.getByRole("tab", { name: t("rentals.tab_schedule") })).toHaveAttribute("aria-selected", "true");
   await page.goto(cardUrl);
   await page.getByRole("tab", { name: t("vehicles.card_settings") }).click();
   await page.getByRole("button", { name: t("vehicles.document_add") }).click();

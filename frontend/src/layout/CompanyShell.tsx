@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createContext, useContext, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { NavLink, Outlet, useParams } from "react-router";
+import { NavLink, Outlet, useLocation, useParams } from "react-router";
 
 import { api, ApiError } from "../api/client";
 import type { Company, ContextType, User } from "../api/types";
@@ -54,16 +54,15 @@ export function companyMenu(
   // the directions and settings. Orders keep their place after finance (PROPOSAL).
   const items: [string, string, IconName, boolean][] = [
     ["dashboards", "/dashboards", "dashboards", true],
-    ["clients", "/clients", "people", true],
-    ["garage", "/vehicles", "garage", has("rental") || has("service")],
-    // Inspections and trips are views of the garage (customer's decision of 11.11.2026).
-    ["finance", "/finance", "finance", true],
+    // The garage and the contacts are tabs of «Company», the schedule and the trips are tabs of
+    // «Rental» (customer's decision of 14.11.2026): the menu holds the daily work only.
     // The registry of all orders is always in the menu (customer's decision of 11.11.2026; it
     // used to appear only after «Complete» of the setup wizard).
     ["orders", "/orders", "orders", true],
     ["rentals", "/rentals", "rentals", has("rental")],
     ["service", "/service", "service", has("service")],
     ["warehouse", "/warehouse", "warehouse", has("warehouse")],
+    ["finance", "/finance", "finance", true],
     // Decision Р-6: the registry for whoever may see or add documents.
     ["documents", "/documents", "documents", permissions.has("documents.view") || permissions.has("documents.upload")],
     // Decision З-3: work tasks for whoever has a right of § 23.9.
@@ -75,10 +74,13 @@ export function companyMenu(
 
 /** The company's logo leads straight to its card (decision of 24.10.2026). */
 function CompanyLink({ company }: { company: Company }) {
+  // The garage and the contacts are parts of «Company», so its item is lit there too.
+  const { pathname } = useLocation();
+  const inside = ["/company", "/vehicles", "/clients"].some((part) => pathname.startsWith(companyPath(company, part)));
   return (
     <NavLink
       to={companyPath(company, "/company")}
-      className="rail-item rail-company"
+      className={inside ? "rail-item rail-company active" : "rail-item rail-company"}
       aria-label={company.display_name}
       data-tip={company.display_name}
     >

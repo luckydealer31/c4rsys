@@ -9,6 +9,7 @@ import type { Delivery, DeliveryPoint, Location } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
+import { workHome } from "../../layout/CompanyTabs";
 import { deviceTimeZone, formatMoment, fromLocalInput, toLocalInput } from "../../time";
 import { useOrders } from "../orders/OrdersPage";
 import { useLocations } from "../settings/LocationsPage";
@@ -56,10 +57,16 @@ export function pointText(point: DeliveryPoint, locations: Location[] | undefine
 
 /** Trips: deliveries and internal moves; free ones to take and the driver's own (§ 15.2.4;
  * decision Д-10). */
-/** The list of trips moved into the garage (customer's decision of 11.11.2026). */
+/** The list of trips is a tab of «Rental» — of «Service» without rental (decision of 14.11.2026). */
 export function TripsPage() {
   const company = useCompany();
-  return <Navigate to={companyPath(company, "/vehicles?view=trips")} replace />;
+  return <Navigate to={companyPath(company, `${workHome(company)}?tab=trips`)} replace />;
+}
+
+const TRIP_RIGHTS = ["view", "create", "edit", "assign", "take", "start", "finish", "cancel", "correct", "drive", "catalog", "price"].map((r) => `delivery.${r}`);
+/** Whether the tab of trips is shown: with any right of trips. */
+export function mayTrips(can: (permission: string) => boolean): boolean {
+  return TRIP_RIGHTS.some(can);
 }
 
 export function TripsView() {
