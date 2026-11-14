@@ -4,7 +4,10 @@
 
 import { useTranslation } from "react-i18next";
 
+import carScheme from "../../assets/car-scheme.jpg";
+
 export type SchemeId =
+  | "car"
   | "sedan"
   | "hatchback"
   | "wagon"
@@ -19,6 +22,7 @@ export type SchemeId =
   | "scooter";
 
 export const SCHEMES: SchemeId[] = [
+  "car",
   "sedan",
   "hatchback",
   "wagon",
@@ -45,19 +49,11 @@ export function schemeFor(vehicleType: string, bodyType: string): SchemeId | nul
   if (vehicleType === "motorcycle") return "motorcycle";
   if (vehicleType === "moped") return "scooter";
   if (vehicleType !== "passenger_car") return null;
-  const byBody: Record<string, SchemeId> = {
-    sedan: "sedan",
-    hatchback: "hatchback",
-    wagon: "wagon",
-    suv: "suv",
-    crossover: "suv",
-    coupe: "coupe",
-    convertible: "convertible",
-    pickup: "pickup",
-    minivan: "van",
-    van: "van",
-  };
-  return byBody[bodyType] ?? "sedan";
+  // One conventional picture for a passenger car of any body (customer's decision of
+  // 14.11.2026); pictures by body will be drawn later. The outlines by body below stay for the
+  // damages already marked on them.
+  void bodyType;
+  return "car";
 }
 
 type Side = { body: Point[]; glass?: Point[]; wheels: [number, number] };
@@ -128,16 +124,27 @@ const BIKE_BOXES: Box[] = [
   { view: "left", x: 10, y: 10, w: 300, h: 160 },
   { view: "right", x: 330, y: 10, w: 300, h: 160 },
 ];
-const SIZE = { car: { w: 640, h: 260 }, bike: { w: 640, h: 180 } };
+// The picture of a passenger car given by the customer: the front above, the sides at the left
+// and at the right of the view from above, the rear below.
+const PICTURE_BOXES: Box[] = [
+  { view: "front", x: 120, y: 0, w: 143, h: 100 },
+  { view: "left", x: 10, y: 100, w: 110, h: 310 },
+  { view: "top", x: 124, y: 104, w: 135, h: 300 },
+  { view: "right", x: 263, y: 100, w: 110, h: 310 },
+  { view: "rear", x: 120, y: 410, w: 143, h: 112 },
+];
+const SIZE = { car: { w: 640, h: 260 }, bike: { w: 640, h: 180 }, picture: { w: 383, h: 522 } };
 
 const isBike = (id: SchemeId) => id === "motorcycle" || id === "scooter";
+const sizeOf = (id: SchemeId) => (id === "car" ? SIZE.picture : isBike(id) ? SIZE.bike : SIZE.car);
+const boxesOf = (id: SchemeId) => (id === "car" ? PICTURE_BOXES : isBike(id) ? BIKE_BOXES : CAR_BOXES);
 
 /** The view a relative point falls in. */
 export function viewAt(id: SchemeId, x: number, y: number): View | null {
-  const size = isBike(id) ? SIZE.bike : SIZE.car;
+  const size = sizeOf(id);
   const px = x * size.w;
   const py = y * size.h;
-  const box = (isBike(id) ? BIKE_BOXES : CAR_BOXES).find(
+  const box = boxesOf(id).find(
     (b) => px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h,
   );
   return box?.view ?? null;
@@ -244,8 +251,9 @@ export function VehicleScheme({
 }) {
   const { t } = useTranslation();
   const bike = isBike(id);
-  const size = bike ? SIZE.bike : SIZE.car;
-  const boxes = bike ? BIKE_BOXES : CAR_BOXES;
+  const picture = id === "car";
+  const size = sizeOf(id);
+  const boxes = boxesOf(id);
   const click = (event: React.MouseEvent<SVGSVGElement>) => {
     if (!onMark) return;
     const rect = event.currentTarget.getBoundingClientRect();
@@ -260,9 +268,22 @@ export function VehicleScheme({
       role="img"
       aria-label={t("inspections.scheme_label", { count: marks.length })}
       onClick={click}
-      style={{ width: "100%", height: "auto", cursor: onMark ? "crosshair" : "default" }}
+      style={{
+        width: "100%",
+        maxWidth: picture ? 460 : undefined,
+        display: "block",
+        margin: picture ? "0 auto" : undefined,
+        height: "auto",
+        cursor: onMark ? "crosshair" : "default",
+      }}
     >
-      {boxes.map((b) => (
+      {picture ? (
+        <>
+          {/* The picture explains its views itself: no captions over it. */}
+          <image href={carScheme} width={size.w} height={size.h} />
+        </>
+      ) : null}
+      {(picture ? [] : boxes).map((b) => (
         <g key={b.view} transform={`translate(${b.x},${b.y})`}>
           {b.view === "left" || b.view === "right" ? (
             bike ? (

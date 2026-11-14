@@ -783,12 +783,12 @@ function SavedContent({ inspection, vehicle }: { inspection: Inspection; vehicle
         </Card>
       ) : null}
       <Card title={t("inspections.damages")}>
-        {scheme && recorded.some((d) => d.zone_scheme) ? (
+        {scheme && recorded.some((d) => d.zone_scheme === scheme) ? (
           <VehicleScheme
             id={scheme as SchemeId}
             marks={recorded
               .map((d, index) => ({ d, index }))
-              .filter(({ d }) => d.zone_scheme && d.zone_x !== null)
+              .filter(({ d }) => d.zone_scheme === scheme && d.zone_x !== null)
               .map(({ d, index }) => ({ x: Number(d.zone_x), y: Number(d.zone_y), view: null, label: String(index + 1) }))}
           />
         ) : null}

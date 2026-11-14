@@ -52,7 +52,7 @@ export function VehicleDamagesCard({ vehicle }: { vehicle: Vehicle }) {
   const shown = all ? items : items.filter((d) => d.state === "actual");
   const scheme = schemeFor(vehicle.characteristics.vehicle_type, vehicle.characteristics.body_type);
   const marks = shown.flatMap((d, index) =>
-    d.zone_scheme && d.zone_x !== null && d.zone_y !== null
+    d.zone_scheme === scheme && d.zone_x !== null && d.zone_y !== null
       ? [{ x: Number(d.zone_x), y: Number(d.zone_y), view: null, label: String(index + 1) }]
       : [],
   );

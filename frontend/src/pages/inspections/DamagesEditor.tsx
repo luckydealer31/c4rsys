@@ -46,7 +46,7 @@ export function DamagesEditor({
   const remove = (index: number) => onChange(entries.filter((_, i) => i !== index));
   const marks: SchemeMark[] = entries
     .map((e, index) => ({ e, index }))
-    .filter(({ e }) => e.zone_scheme && e.zone_x !== null && e.zone_x !== undefined)
+    .filter(({ e }) => e.zone_scheme === scheme && e.zone_x !== null && e.zone_x !== undefined)
     .map(({ e, index }) => ({ x: Number(e.zone_x), y: Number(e.zone_y), view: null, label: String(index + 1) }));
 
   return (

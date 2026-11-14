@@ -48,6 +48,8 @@ State = Damage.State
 Event = DamageEvent.Kind
 # § 10.3.6 (decision В-8.2): the starting set of schemes.
 SCHEMES = (
+    # One conventional picture of a passenger car of any body (decision of 14.11.2026).
+    "car",
     "sedan",
     "hatchback",
     "wagon",
