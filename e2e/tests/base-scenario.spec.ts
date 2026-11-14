@@ -250,6 +250,19 @@ test("base example from registration to closing survives a restart", async ({ pa
   // The garage is a tab of «Company»; the schedule and the trips are tabs of «Rental».
   await expect(page.getByRole("tab", { name: t("company.tab_garage") })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByRole("link", { name: t("nav.garage"), exact: true })).toHaveCount(0);
+  // The menu (decision of 14.11.2026): home, finance, rental, settings; the orders are a tab of
+  // «Finance», the tasks a tab of «Home», the documents a tab of «Company».
+  await expect(page.getByRole("link", { name: t("nav.orders"), exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: t("nav.tasks"), exact: true })).toHaveCount(0);
+  await page.getByRole("tab", { name: t("nav.documents") }).click();
+  await expect(page).toHaveURL(/\/documents$/);
+  await page.goto(`${base}/finance`);
+  await page.getByRole("tab", { name: t("nav.orders") }).click();
+  await expect(page).toHaveURL(/\/orders$/);
+  await expect(page.getByRole("link", { name: t("nav.finance"), exact: true })).toHaveClass(/active/);
+  await page.goto(`${base}/dashboards`);
+  await page.getByRole("tab", { name: t("nav.tasks") }).click();
+  await expect(page).toHaveURL(/\/tasks$/);
   await page.goto(`${base}/vehicles?view=schedule`);
   await expect(page).toHaveURL(/\/rentals\?tab=schedule$/);
   await expect(page.getByRole("tab", { name: t("rentals.tab_schedule") })).toHaveAttribute("aria-selected", "true");

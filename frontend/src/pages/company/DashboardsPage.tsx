@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useCan } from "../../layout/CompanyShell";
+import { HomeTabs } from "../../layout/CompanyTabs";
 import { PersonalDashboards } from "../reports/Personal";
 import { ExportButton, ReportView } from "../reports/Report";
 import { WarehouseDashboard } from "../warehouse/Dashboard";
@@ -23,6 +24,7 @@ export function DashboardsPage() {
   const [tab, setTab] = useState<string>(visible[0] ?? "");
   return (
     <div className="page">
+      <HomeTabs current="dashboards" />
       <h1>{t("nav.dashboards")}</h1>
       <div className="actions no-print" style={{ marginTop: 0, marginBottom: 12 }}>
         {visible.map((key) => (

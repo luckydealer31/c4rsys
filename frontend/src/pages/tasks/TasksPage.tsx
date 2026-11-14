@@ -9,6 +9,7 @@ import type { WorkTask } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
+import { HomeTabs } from "../../layout/CompanyTabs";
 import { deviceTimeZone, formatMoment } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
 import { ChecklistCard, DependenciesCard, GroupsTagsAdmin, GroupTagsCard, SeriesCard, useGroups, useTags, WEEKDAYS } from "./Extensions";
@@ -122,6 +123,7 @@ export function TasksPage() {
     .join("&");
   return (
     <div className="page">
+      <HomeTabs current="tasks" />
       <h1>{t("nav.tasks")}</h1>
       <div className="actions" style={{ marginTop: 0, marginBottom: 12 }}>
         {visible.map(([key]) => (

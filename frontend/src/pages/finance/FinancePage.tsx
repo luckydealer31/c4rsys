@@ -9,6 +9,7 @@ import { useCommand } from "../../api/useCommand";
 import { Icon } from "../../components/icons";
 import { Card, ErrorMessage, Field, IconButton, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
+import { FinanceTabs } from "../../layout/CompanyTabs";
 import { currencies, formatMoment } from "../../time";
 import { clientName } from "../clients/ClientsPage";
 import { useOrders } from "../orders/OrdersPage";
@@ -67,20 +68,7 @@ export function FinancePage() {
       <h1 className="sr-only">{t("nav.finance")}</h1>
       <div className={allowed.length ? "split" : ""}>
         <div>
-      <div className="tabs left" role="tablist">
-        {TABS.map((key) => (
-          <button
-            key={key}
-            type="button"
-            role="tab"
-            aria-selected={tab === key}
-            className={tab === key ? "active" : ""}
-            onClick={() => setParams(key === "money" ? {} : { tab: key })}
-          >
-            {t(`money.tab_${key}`)}
-          </button>
-        ))}
-      </div>
+      <FinanceTabs current={tab} />
       {tab === "money" ? (
         <>
           {doing === "receive" && can("finance.payment.receive") ? <Receipt /> : null}

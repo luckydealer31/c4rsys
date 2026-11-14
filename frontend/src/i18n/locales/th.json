@@ -1542,7 +1542,8 @@
     "trips": "การเดินทาง",
     "documents": "เอกสาร",
     "tasks": "งาน",
-    "inspections": "การตรวจสภาพ"
+    "inspections": "การตรวจสภาพ",
+    "home": "หน้าหลัก"
   },
   "orders": {
     "amounts": "Amounts",

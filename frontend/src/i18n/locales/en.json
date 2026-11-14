@@ -1542,7 +1542,8 @@
     "trips": "Trips",
     "documents": "Documents",
     "tasks": "Tasks",
-    "inspections": "Inspections"
+    "inspections": "Inspections",
+    "home": "Home"
   },
   "orders": {
     "amounts": "Amounts",

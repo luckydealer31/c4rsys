@@ -1542,7 +1542,8 @@
     "trips": "Поездки",
     "documents": "Документы",
     "tasks": "Задачи",
-    "inspections": "Осмотры"
+    "inspections": "Осмотры",
+    "home": "Главная"
   },
   "orders": {
     "amounts": "Суммы",

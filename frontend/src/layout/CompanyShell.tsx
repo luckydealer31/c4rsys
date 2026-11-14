@@ -37,6 +37,12 @@ export function useCan(): (permission: string) => boolean {
   return (permission) => permissions.has(permission);
 }
 
+/** Whether the employee has some right of tasks (§ 23.9; decision З-3). */
+export function useMayTasks(): boolean {
+  const { permissions } = useActive();
+  return [...permissions].some((p) => p.startsWith("tasks."));
+}
+
 export function companyPath(company: Pick<Company, "public_id">, path = ""): string {
   return `/c/${company.public_id}${path}`;
 }
@@ -45,38 +51,34 @@ export function companyPath(company: Pick<Company, "public_id">, path = ""): str
  * finance, clients and counterparties and settings always; orders after «Complete» of the setup
  * wizard; rental, service and warehouse with such a context in some location; the garage with
  * a rental or a service context. The order of items is a PROPOSAL. */
-export function companyMenu(
-  company: Company,
-  permissions: Set<string> = new Set(),
-): [key: string, path: string, icon: IconName][] {
+export function companyMenu(company: Company): [key: string, path: string, icon: IconName][] {
   const has = (type: ContextType) => contextAvailable(type) && company.context_types.includes(type);
   // Order of the customer (24.10.2026): company, dashboards, contacts, garage, finance, then
   // the directions and settings. Orders keep their place after finance (PROPOSAL).
   const items: [string, string, IconName, boolean][] = [
-    ["dashboards", "/dashboards", "dashboards", true],
+    // «Home» holds the dashboards and the tasks; the orders are a tab of «Finance», the documents
+    // a tab of «Company». Order of the customer (14.11.2026): home, finance, rental, service,
+    // warehouse, settings.
+    ["home", "/dashboards", "dashboards", true],
+    ["finance", "/finance", "finance", true],
     // The garage and the contacts are tabs of «Company», the schedule and the trips are tabs of
     // «Rental» (customer's decision of 14.11.2026): the menu holds the daily work only.
-    // The registry of all orders is always in the menu (customer's decision of 11.11.2026; it
-    // used to appear only after «Complete» of the setup wizard).
-    ["orders", "/orders", "orders", true],
     ["rentals", "/rentals", "rentals", has("rental")],
     ["service", "/service", "service", has("service")],
     ["warehouse", "/warehouse", "warehouse", has("warehouse")],
-    ["finance", "/finance", "finance", true],
-    // Decision Р-6: the registry for whoever may see or add documents.
-    ["documents", "/documents", "documents", permissions.has("documents.view") || permissions.has("documents.upload")],
-    // Decision З-3: work tasks for whoever has a right of § 23.9.
-    ["tasks", "/tasks", "tasks", [...permissions].some((p) => p.startsWith("tasks."))],
     ["settings", "/settings", "settings", true],
   ];
   return items.filter(([, , , visible]) => visible).map(([key, path, icon]) => [key, path, icon]);
 }
 
+/** Pages that belong to a section of the menu though their address is their own. */
+const INSIDE: Record<string, string[]> = { home: ["/tasks"], finance: ["/orders"] };
+
 /** The company's logo leads straight to its card (decision of 24.10.2026). */
 function CompanyLink({ company }: { company: Company }) {
   // The garage and the contacts are parts of «Company», so its item is lit there too.
   const { pathname } = useLocation();
-  const inside = ["/company", "/vehicles", "/clients"].some((part) => pathname.startsWith(companyPath(company, part)));
+  const inside = ["/company", "/vehicles", "/clients", "/documents"].some((part) => pathname.startsWith(companyPath(company, part)));
   return (
     <NavLink
       to={companyPath(company, "/company")}
@@ -115,8 +117,14 @@ export function CompanyShell({ user }: { user: User }) {
   const sidebar = data ? (
     <>
       <CompanyLink company={data} />
-      {companyMenu(data, company.data?.permissions).map(([key, path, icon]) => (
-        <RailLink key={key} to={`/c/${cmp}${path}`} icon={icon} label={t(`nav.${key}`)} />
+      {companyMenu(data).map(([key, path, icon]) => (
+        <RailLink
+          key={key}
+          to={`/c/${cmp}${path}`}
+          icon={icon}
+          label={t(`nav.${key}`)}
+          also={(INSIDE[key] ?? []).map((part) => `/c/${cmp}${part}`)}
+        />
       ))}
     </>
   ) : (

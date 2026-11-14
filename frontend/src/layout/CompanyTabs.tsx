@@ -5,37 +5,78 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 
 import { contextAvailable } from "../contexts";
-import { companyPath, useCompany } from "./CompanyShell";
+import { companyPath, useCan, useCompany, useMayTasks } from "./CompanyShell";
 
-export type CompanyTab = "about" | "garage" | "contacts";
-
-const PATHS: Record<CompanyTab, string> = { about: "/company", garage: "/vehicles", contacts: "/clients" };
-
-export function CompanyTabs({ current }: { current: CompanyTab }) {
-  const { t } = useTranslation();
+function Strip({ label, tabs, current }: { label: string; tabs: [key: string, text: string, path: string][]; current: string }) {
   const company = useCompany();
   const navigate = useNavigate();
-  // The garage exists with a rental or a service context (decision of 24.10.2026).
-  const garage = (["rental", "service"] as const).some(
-    (type) => contextAvailable(type) && company.context_types.includes(type),
-  );
-  const tabs: CompanyTab[] = ["about", ...(garage ? (["garage"] as CompanyTab[]) : []), "contacts"];
+  if (tabs.length < 2) return null;
   return (
-    <div className="tabs left section-tabs" role="tablist" aria-label={t("nav.company")}>
-      {tabs.map((key) => (
+    <div className="tabs left section-tabs" role="tablist" aria-label={label}>
+      {tabs.map(([key, text, path]) => (
         <button
           key={key}
           type="button"
           role="tab"
           aria-selected={current === key}
           className={current === key ? "active" : ""}
-          onClick={() => navigate(companyPath(company, PATHS[key]))}
+          onClick={() => navigate(companyPath(company, path))}
         >
-          {t(`company.tab_${key}`)}
+          {text}
         </button>
       ))}
     </div>
   );
+}
+
+export type CompanyTab = "about" | "garage" | "contacts" | "documents";
+
+export function CompanyTabs({ current }: { current: CompanyTab }) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const can = useCan();
+  // The garage exists with a rental or a service context (decision of 24.10.2026).
+  const garage = (["rental", "service"] as const).some(
+    (type) => contextAvailable(type) && company.context_types.includes(type),
+  );
+  // Decision Р-6: the registry of documents for whoever may see or add them.
+  const documents = can("documents.view") || can("documents.upload");
+  const tabs: [string, string, string][] = [
+    ["about", t("company.tab_about"), "/company"],
+    ...(garage ? [["garage", t("company.tab_garage"), "/vehicles"] as [string, string, string]] : []),
+    ["contacts", t("company.tab_contacts"), "/clients"],
+    ...(documents ? [["documents", t("nav.documents"), "/documents"] as [string, string, string]] : []),
+  ];
+  return <Strip label={t("nav.company")} tabs={tabs} current={current} />;
+}
+
+/** «Home» (decision of 14.11.2026): what is going on and what is to be done — the dashboards
+ * and the tasks in one section. Tasks are shown with a right of § 23.9 (decision З-3). */
+export function HomeTabs({ current }: { current: "dashboards" | "tasks" }) {
+  const { t } = useTranslation();
+  const tasks = useMayTasks();
+  const tabs: [string, string, string][] = [
+    ["dashboards", t("nav.dashboards"), "/dashboards"],
+    ...(tasks ? [["tasks", t("nav.tasks"), "/tasks"] as [string, string, string]] : []),
+  ];
+  return <Strip label={t("nav.home")} tabs={tabs} current={current} />;
+}
+
+export type FinanceTab = "money" | "orders" | "settlements" | "accounts" | "articles";
+export const FINANCE_TABS: FinanceTab[] = ["money", "orders", "settlements", "accounts", "articles"];
+
+/** The registry of orders is a tab of «Finance» (decision of 14.11.2026); it keeps its address. */
+export function FinanceTabs({ current }: { current: FinanceTab }) {
+  const { t } = useTranslation();
+  const tabs = FINANCE_TABS.map(
+    (key) =>
+      [
+        key,
+        key === "orders" ? t("nav.orders") : t(`money.tab_${key}`),
+        key === "orders" ? "/orders" : key === "money" ? "/finance" : `/finance?tab=${key}`,
+      ] as [string, string, string],
+  );
+  return <Strip label={t("nav.finance")} tabs={tabs} current={current} />;
 }
 
 /** Where the schedule and the trips live: in «Rental», or in «Service» for a company without

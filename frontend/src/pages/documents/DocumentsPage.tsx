@@ -9,6 +9,7 @@ import type { CompanyDocument, DocumentKind } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
+import { CompanyTabs } from "../../layout/CompanyTabs";
 import { SigningBadge, SigningCard } from "./Signing";
 import { MakeDocument } from "./Templates";
 import { SectionSearch } from "../search/SearchPage";
@@ -46,6 +47,7 @@ export function DocumentsPage() {
   const query = [filter, q ? `q=${encodeURIComponent(q)}` : ""].filter(Boolean).join("&");
   return (
     <div className="page">
+      <CompanyTabs current="documents" />
       <h1>{t("nav.documents")}</h1>
       <div className="actions" style={{ marginBottom: 12, marginTop: 0 }}>
         <Link className="button secondary" to={companyPath(company, "/documents/templates")}>

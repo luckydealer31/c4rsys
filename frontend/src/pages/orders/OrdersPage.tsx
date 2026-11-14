@@ -12,6 +12,7 @@ import type { Client, JournalEntry, Order } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
+import { FinanceTabs } from "../../layout/CompanyTabs";
 import { formatMoment } from "../../time";
 import { clientName } from "../clients/ClientsPage";
 import { LinkedTasks } from "../tasks/TasksPage";
@@ -95,6 +96,7 @@ export function OrdersPage() {
 
   return (
     <div className="page">
+      <FinanceTabs current="orders" />
       <h1>{t("nav.orders")}</h1>
       {can("order.create") ? <NewOrder /> : null}
       <form

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, NavLink } from "react-router";
+import { Link, NavLink, useLocation } from "react-router";
 
 import type { User } from "../api/types";
 import { Icon, type IconName } from "../components/icons";
@@ -9,9 +9,12 @@ import { NotificationBell } from "../pages/notifications/NotificationsPage";
 import { UserMenu } from "./UserMenu";
 
 /** An item of the left menu: an icon with its name shown on hover (decisions of 24.10.2026). */
-export function RailLink({ to, icon, label }: { to: string; icon: IconName; label: string }) {
+export function RailLink({ to, icon, label, also = [] }: { to: string; icon: IconName; label: string; also?: string[] }) {
+  // `also`: addresses of pages that are tabs of this section.
+  const { pathname } = useLocation();
+  const inside = also.some((part) => pathname.startsWith(part));
   return (
-    <NavLink to={to} className="rail-item" aria-label={label} data-tip={label}>
+    <NavLink to={to} className={inside ? "rail-item active" : "rail-item"} aria-label={label} data-tip={label}>
       <Icon name={icon} size={22} />
     </NavLink>
   );
