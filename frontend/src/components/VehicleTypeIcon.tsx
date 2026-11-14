@@ -4,6 +4,14 @@
 import { useId } from "react";
 import { useTranslation } from "react-i18next";
 
+// The pictures the customer sent (15.11.2026), brought to one size; a kind without a picture
+// (a van, a truck) is drawn below.
+const PICTURES = Object.fromEntries(
+  Object.entries(import.meta.glob<string>("../assets/vehicle-icons/*.png", { eager: true, import: "default" })).map(
+    ([path, url]) => [path.slice(path.lastIndexOf("/") + 1, -4), url],
+  ),
+);
+
 type Shape = { body: string; windows?: string; wheels?: [number, number]; radius?: number; axle?: number };
 
 // 80 × 40, the vehicle looks to the right; the wheels stand at x = 20 and x = 60 unless said.
@@ -82,7 +90,7 @@ function shapeOf(type: string, body: string): string | null {
   return type === "passenger_car" ? "sedan" : null;
 }
 
-export function VehicleTypeIcon({ type, body, size = 56 }: { type: string; body: string; size?: number }) {
+export function VehicleTypeIcon({ type, body, size = 64 }: { type: string; body: string; size?: number }) {
   const { t } = useTranslation();
   const mask = useId();
   const key = shapeOf(type, body);
@@ -92,6 +100,10 @@ export function VehicleTypeIcon({ type, body, size = 56 }: { type: string; body:
   const label = [type ? t(`vehicles.type_${type}`) : "", body && body !== "other" ? t(`vehicles.body.${body}`) : ""]
     .filter(Boolean)
     .join(", ");
+  const picture = key ? PICTURES[key] : undefined;
+  if (picture) {
+    return <img className="vehicle-type-icon picture" src={picture} width={size} height={size / 2} alt={label} title={label} />;
+  }
   const radius = shape.radius ?? 6;
   const y = shape.axle ?? 35 - radius;
   const wheels = shape.wheels ?? [20, 60];
