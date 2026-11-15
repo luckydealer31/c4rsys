@@ -961,6 +961,7 @@ export type OtherDocument = {
   number: string;
   issued_on: string | null;
   expires_on: string | null;
+  issued_by?: string;
   note: string;
 };
 export type ExtendedCard = {
@@ -1044,6 +1045,16 @@ export type ClientHistory = {
     vehicles: string[];
   }[];
   vehicles: { id: string; name: string; sources: string[] }[];
+  interactions: {
+    type: string;
+    id: string;
+    state: string;
+    order_id: string;
+    order_number: number;
+    order_state: string;
+    at: string;
+    vehicles: string[];
+  }[];
   payments: {
     id: string;
     number: number;

@@ -145,12 +145,16 @@ def _others(value: Any, field: str = "other_documents") -> list[dict[str, Any]]:
     result = []
     for index, item in enumerate(value):
         where = f"{field}[{index}]"
-        raw = _object(item, where, ("title", "number", "issued_on", "expires_on", "note"))
+        raw = _object(
+            item, where, ("title", "number", "issued_on", "expires_on", "issued_by", "note")
+        )
         doc = {
             "title": _text(raw.get("title"), f"{where}.title", _DOC_TEXT),
             "number": _text(raw.get("number"), f"{where}.number", _DOC_TEXT),
             "issued_on": _date(raw.get("issued_on"), f"{where}.issued_on"),
             "expires_on": _date(raw.get("expires_on"), f"{where}.expires_on"),
+            # Who issued the document (customer's decision of 15.11.2026); not required.
+            "issued_by": _text(raw.get("issued_by"), f"{where}.issued_by", _DOC_TEXT),
             "note": _text(raw.get("note"), f"{where}.note", 500),
         }
         if not doc["title"]:

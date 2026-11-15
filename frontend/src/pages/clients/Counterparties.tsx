@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useParams, useSearchParams } from "react-router";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { ProfileLinkCard } from "./ProfileLinkCard";
 
 import { useApi } from "../../api/queries";
@@ -9,12 +9,11 @@ import type { ClientContact, Counterparty, Messenger } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, IconButton, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
-import { CardBadges, contactText, extraContacts, MessengerField } from "./ClientsPage";
-import { ContractorHistoryCard, ExtendedFieldsCard, MergeCard } from "./CardExtras";
+import { CardBadges, MessengerField } from "./ClientsPage";
+import { ContractorHistoryCard, MergeCard } from "./CardExtras";
+import { DocumentsCard, Facts, MainCard } from "./CardParts";
 import { LinkedDocuments } from "../documents/DocumentsPage";
 import { SupplierCard } from "../finance/Settlements";
-
-type Texts = { registration: string; address: string; category: string; external_id: string };
 
 type Draft = {
   kind: "person" | "company";
@@ -192,103 +191,60 @@ export function CounterpartyForm({ onCreated }: { onCreated?: (card: Counterpart
 
 const CARD_TABS = ["main", "finance", "history", "more"] as const;
 
-/** Card of a counterparty: data, contacts, archive and restore (§ 6.6.4–6.6.5). */
+/** Card of a counterparty (§ 6.6.4–6.6.5): the same as the card of a client (customer's
+ * decision of 15.11.2026) — text with a window of editing, and the same tabs. */
 export function CounterpartyPage() {
   const { t } = useTranslation();
   const { id = "" } = useParams();
   const company = useCompany();
   const can = useCan();
+  const navigate = useNavigate();
+  const route = useLocation();
   const queryClient = useQueryClient();
   const base = `/c/${company.public_id}/counterparties/${id}`;
   const card = useApi<{ counterparty: Counterparty }>(["counterparty", company.public_id, id], base);
-  const update = useCommand<Record<string, unknown>, unknown>(base, "PATCH");
   const archive = useCommand<{ expected_version: number }, unknown>(`${base}/archive`);
   const restore = useCommand<{ expected_version: number }, unknown>(`${base}/restore`);
-  const [form, setForm] = useState<(Draft & { texts?: Texts }) | null>(null);
-  // The same card as of a client (customer's decision of 15.11.2026): tabs, and the data are
-  // changed only after «Edit»; saving or cancelling closes the form again.
-  const [editing, setEditing] = useState(false);
   const [params, setParams] = useSearchParams();
-  if (card.isLoading) return <div className="page"><Loading /></div>;
+  if (card.isLoading) return <div className="page full"><Loading /></div>;
   const data = card.data?.counterparty;
-  if (!data) return <div className="page"><ErrorMessage error={null} /></div>;
+  if (!data) return <div className="page full"><ErrorMessage error={null} /></div>;
   const current = data;
-  const values: Draft = form ?? {
-    kind: data.kind,
-    first_name: data.first_name,
-    last_name: data.last_name,
-    middle_name: data.middle_name,
-    company_name: data.company_name,
-    phone: data.contacts.find((c) => c.kind === "phone")?.value ?? "",
-    phone_messenger: data.contacts.find((c) => c.kind === "phone")?.messenger ?? "",
-    email: data.contacts.find((c) => c.kind === "email")?.value ?? "",
-    comment: data.comment,
-  };
-  const texts = form?.texts ?? {
-    registration: data.registration,
-    address: data.address,
-    category: data.category,
-    external_id: data.external_id,
-  };
-  const allowed = can("counterparty.edit") && data.state === "active";
-  const editable = allowed && editing;
   const tab = CARD_TABS.find((x) => x === params.get("tab")) ?? "main";
   const money = can("finance.account.view") || can("finance.settlement.manage") || can("finance.payout");
   const mergedInto = data.merged_into;
 
   async function refresh() {
-    setForm(null);
     await queryClient.invalidateQueries({ queryKey: ["counterparty", company.public_id, id] });
     await queryClient.invalidateQueries({ queryKey: ["counterparties", company.public_id] });
   }
 
-  async function save(event: FormEvent) {
-    event.preventDefault();
-    const names =
-      current.kind === "person"
-        ? { first_name: values.first_name, last_name: values.last_name, middle_name: values.middle_name }
-        : { company_name: values.company_name };
-    const body = {
-      ...names,
-      ...texts,
-      comment: values.comment,
-      // Further phones and emails (from an import) are kept as they are.
-      contacts: [...contactsOf(values), ...extraContacts(current.contacts)],
-      expected_version: current.version,
-    };
-    if ((await update.run(body)) !== null) {
-      setEditing(false);
-      await refresh();
-    }
-  }
-
-  const field = (key: keyof Draft, label: string) => (
-    <Field label={label}>
-      <input
-        value={values[key]}
-        disabled={!editable}
-        onChange={(e) => setForm({ ...values, [key]: e.target.value, texts })}
-      />
-    </Field>
-  );
-  const text = (key: keyof typeof texts, label: string) => (
-    <Field label={label}>
-      <input
-        value={texts[key]}
-        disabled={!editable}
-        onChange={(e) => setForm({ ...values, texts: { ...texts, [key]: e.target.value } })}
-      />
-    </Field>
-  );
-
   return (
-    <div className="page">
-      <p>
-        <Link to={companyPath(company, "/clients?tab=counterparties")}>← {t("clients.tab_counterparties")}</Link>
-      </p>
-      <h1>
-        {data.name} <CardBadges card={data} />
-      </h1>
+    <div className="page full">
+      {/* The button «Back» stands before the tabs, outside their list. */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <IconButton
+          icon="back"
+          label={t("common.back")}
+          onClick={() =>
+            route.key === "default" ? navigate(companyPath(company, "/clients?tab=counterparties")) : navigate(-1)
+          }
+        />
+        <div className="tabs left" role="tablist" style={{ flex: 1 }}>
+          {CARD_TABS.map((key) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={tab === key}
+              className={tab === key ? "active" : ""}
+              onClick={() => setParams(key === "main" ? {} : { tab: key }, { replace: true })}
+            >
+              {t(`cards.tab_${key}`)}
+            </button>
+          ))}
+        </div>
+      </div>
       {mergedInto ? (
         <div className="alert warn">
           {t("cards.merged_banner")}{" "}
@@ -296,81 +252,10 @@ export function CounterpartyPage() {
         </div>
       ) : null}
       {data.provisional ? <div className="alert warn">{t("cards.provisional_banner")}</div> : null}
-      <div className="tabs left" role="tablist">
-        {CARD_TABS.map((key) => (
-          <button
-            key={key}
-            type="button"
-            role="tab"
-            aria-selected={tab === key}
-            className={tab === key ? "active" : ""}
-            onClick={() => setParams(key === "main" ? {} : { tab: key }, { replace: true })}
-          >
-            {t(`cards.tab_${key}`)}
-          </button>
-        ))}
-      </div>
       {tab === "main" ? (
         <>
-      <Card>
-        <form className="stack" onSubmit={save}>
-          <p className="small muted card-head" style={{ justifyContent: "space-between", alignItems: "center" }}>
-            {t(`clients.kind_${data.kind}`)}
-            {allowed && !editing ? <IconButton icon="edit" label={t("common.edit")} onClick={() => setEditing(true)} /> : null}
-          </p>
-          {data.kind === "person" ? (
-            <div className="row">
-              {field("first_name", t("profile.first_name"))}
-              {field("last_name", t("profile.last_name"))}
-              {field("middle_name", t("profile.middle_name"))}
-            </div>
-          ) : (
-            field("company_name", t("clients.company_name"))
-          )}
-          <div className="row">
-            {field("phone", t("clients.phone"))}
-            <MessengerField
-              value={values.phone_messenger}
-              disabled={!editable}
-              onChange={(messenger) => setForm({ ...values, phone_messenger: messenger, texts })}
-            />
-            {field("email", t("auth.email"))}
-          </div>
-          {extraContacts(data.contacts).map((c) => (
-            <p key={`${c.kind}-${c.value}`} className="small">
-              {contactText(t, c)}
-            </p>
-          ))}
-          {field("comment", t("warehouse.comment"))}
-          {text("registration", t("imports.registration"))}
-          <div className="row">
-            {text("address", t("imports.address"))}
-            {text("category", t("imports.category"))}
-            {text("external_id", t("imports.external_id"))}
-          </div>
-          <ErrorMessage error={update.error} />
-          {editable ? (
-            <div className="actions">
-              <button type="submit" disabled={!form || update.pending}>
-                {t("common.save")}
-              </button>
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => {
-                  setForm(null);
-                  setEditing(false);
-                }}
-              >
-                {t("common.cancel")}
-              </button>
-            </div>
-          ) : null}
-        </form>
-      </Card>
-      <ExtendedFieldsCard cardType="counterparty" card={data} onSaved={refresh} />
-      {/* § 18.1.1–18.1.2: documents of the relations with the counterparty. */}
-      <LinkedDocuments objectType="counterparty" objectId={data.id} />
+          <MainCard cardType="counterparty" card={data} badges={<CardBadges card={data} />} onSaved={refresh} />
+          <DocumentsCard cardType="counterparty" card={data} onSaved={refresh} />
         </>
       ) : null}
       {tab === "finance" ? (
@@ -393,45 +278,46 @@ export function CounterpartyPage() {
       ) : null}
       {tab === "more" ? (
         <>
-      <ProfileLinkCard
-        cardType="counterparty"
-        cardId={data.id}
-        cardKind={data.kind}
-        version={data.version}
-        onChanged={refresh}
-      />
-      <MergeCard cardType="counterparty" card={data} onChanged={refresh} />
-      {(data.state === "active" && can("counterparty.archive")) || (data.state === "archived" && can("counterparty.restore")) ? (
-        <Card>
-          <ErrorMessage error={archive.error ?? restore.error} />
-          <div className="actions">
-            {data.state === "active" && can("counterparty.archive") ? (
-              <button
-                type="button"
-                className="secondary"
-                disabled={archive.pending}
-                onClick={async () => {
-                  if ((await archive.run({ expected_version: current.version })) !== null) await refresh();
-                }}
-              >
-                {t("warehouse.archive")}
-              </button>
-            ) : null}
-            {data.state === "archived" && can("counterparty.restore") ? (
-              <button
-                type="button"
-                className="secondary"
-                disabled={restore.pending}
-                onClick={async () => {
-                  if ((await restore.run({ expected_version: current.version })) !== null) await refresh();
-                }}
-              >
-                {t("warehouse.restore")}
-              </button>
-            ) : null}
-          </div>
-        </Card>
-      ) : null}
+          {/* § 18.1.1–18.1.2: documents of the relations with the counterparty. */}
+          <LinkedDocuments objectType="counterparty" objectId={data.id} />
+          <ProfileLinkCard cardType="counterparty" cardId={data.id} cardKind={data.kind} version={data.version} onChanged={refresh} />
+          <MergeCard cardType="counterparty" card={data} onChanged={refresh} />
+          {data.external_id ? (
+            <Card title={t("cards.other_title")}>
+              <Facts rows={[[t("cards.field_external_id"), data.external_id]]} />
+              <p className="muted small">{t("cards.external_id_hint")}</p>
+            </Card>
+          ) : null}
+          {(data.state === "active" && can("counterparty.archive")) || (data.state === "archived" && can("counterparty.restore")) ? (
+            <Card>
+              <ErrorMessage error={archive.error ?? restore.error} />
+              <div className="actions">
+                {data.state === "active" ? (
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={archive.pending}
+                    onClick={async () => {
+                      if ((await archive.run({ expected_version: current.version })) !== null) await refresh();
+                    }}
+                  >
+                    {t("warehouse.archive")}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={restore.pending}
+                    onClick={async () => {
+                      if ((await restore.run({ expected_version: current.version })) !== null) await refresh();
+                    }}
+                  >
+                    {t("warehouse.restore")}
+                  </button>
+                )}
+              </div>
+            </Card>
+          ) : null}
         </>
       ) : null}
     </div>

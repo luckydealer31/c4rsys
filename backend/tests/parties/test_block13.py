@@ -298,7 +298,7 @@ def test_person_card_with_documents_and_addresses(owner: Client, s: Scenario) ->
         id_document={"type": "passport", "number": "75 1234567", "country": "ru"},
         driver_license={"number": "99 12 345678", "categories": ["b", "A", "B"]},
         driving_since="2010-06-01",
-        other_documents=[{"title": "Insurance", "number": "INS-1"}],
+        other_documents=[{"title": "Insurance", "number": "INS-1", "issued_by": "AXA"}],
         registration_address="Moscow",
         residence_address="Phuket",
     )
@@ -306,6 +306,7 @@ def test_person_card_with_documents_and_addresses(owner: Client, s: Scenario) ->
     assert created["driver_license"]["categories"] == ["B", "A"]
     assert created["driving_since"] == "2010-06-01"
     assert created["other_documents"][0]["title"] == "Insurance"
+    assert created["other_documents"][0]["issued_by"] == "AXA"
     assert created["residence_address"] == "Phuket"
 
     wrong = post(

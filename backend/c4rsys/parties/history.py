@@ -94,6 +94,34 @@ def client_history(actor: Actor, company_id: UUID, client_id: UUID) -> dict[str,
         }
 
     numbers = {o.id: o.number for o in visible}
+    # What the client did with the company, operation by operation (customer's decision of
+    # 15.11.2026): a rental, a booking, a service, a sale — not the orders as such. The vehicle
+    # of a rental or a service is named with it. Internal steps are left out.
+    operations_by_order = orders.operations_of_orders(company_id, order_ids)
+    vehicle_source = {"rental": "rental", "service_work": "service"}
+    of_kind: dict[tuple[UUID, str], set[UUID]] = {}
+    for provider in _order_vehicles:
+        for order_id, vehicle_id, source in provider(company_id, order_ids):
+            of_kind.setdefault((order_id, source), set()).add(vehicle_id)
+    interactions = [
+        {
+            "type": op.type,
+            "id": str(op.id),
+            "state": op.state,
+            "order_id": str(o.id),
+            "order_number": o.number,
+            "order_state": o.state,
+            "at": o.created_at.isoformat(),
+            "vehicles": sorted(
+                names[v]
+                for v in of_kind.get((o.id, vehicle_source.get(op.type, "")), set())
+                if v in names
+            ),
+        }
+        for o in visible
+        for op in operations_by_order.get(o.id, [])
+        if op.type not in ("move", "approval")
+    ]
     result: dict[str, Any] = {
         "cards": [str(i) for i in family],
         "orders": [
@@ -119,6 +147,7 @@ def client_history(actor: Actor, company_id: UUID, client_id: UUID) -> dict[str,
             {"id": str(v), "name": names.get(v, ""), "sources": sorted(sources[v])}
             for v in sorted(names, key=lambda x: names[x])
         ],
+        "interactions": interactions,
         "payments": [],
         # What the client was charged for, by the orders the employee may see (customer's
         # decision of 15.11.2026: the money of the client with links to the orders).

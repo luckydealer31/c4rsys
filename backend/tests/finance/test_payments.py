@@ -140,6 +140,10 @@ def test_card_of_the_client_shows_charges_and_payments_with_their_orders(
     assert history["charges"][0]["source_type"] == "rental_base"
     assert history["charges"][0]["amount"] == "2000.00"
     assert history["payments"][0]["orders"] == [{"id": order_id, "number": number}]
+    # The history of the client goes by operations: the rental with its vehicle.
+    (rented,) = history["interactions"]
+    assert (rented["type"], rented["id"], rented["state"]) == ("rental", rental["id"], "returned")
+    assert rented["order_number"] == number and len(rented["vehicles"]) == 1
 
 
 def test_e08_partial_payment_leaves_debt_and_warns_at_next_issue(

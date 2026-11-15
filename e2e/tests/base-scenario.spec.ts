@@ -333,23 +333,41 @@ test("base example from registration to closing survives a restart", async ({ pa
   await expect(card(page, t("vehicles.card_main"))).toContainText("Blue Book");
   await expect(card(page, t("vehicles.card_main"))).toContainText("123456");
 
-  // The card of the client opens closed: the data are changed after «Edit», saving closes them.
+  // The card of the client shows text; the data are changed in a window opened by the pencil.
   await page.goto(`${base}/clients`);
   await page.getByRole("link", { name: "Иван Петров" }).click();
-  const middle = page.getByLabel(t("profile.middle_name"), { exact: true });
-  await expect(middle).toBeDisabled();
+  await expect(page.getByRole("main").locator("input")).toHaveCount(0);
   await page.getByRole("button", { name: t("common.edit"), exact: true }).click();
-  await middle.fill("Сергеевич");
-  await page.getByRole("main").locator("form").first().getByRole("button", { name: t("common.save") }).click();
-  await expect(middle).toBeDisabled();
-  await expect(middle).toHaveValue("Сергеевич");
-  // Finance: what was charged and what was paid, with links to the order.
+  const editing = page.getByRole("dialog");
+  await editing.getByLabel(t("cards.field_residence_address")).fill("Пхукет, Раваи");
+  await editing.getByRole("button", { name: t("common.save") }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.locator("dl.facts").first()).toContainText("Пхукет, Раваи");
+  // Documents: the driving licence first, its categories from a list, the experience by a year.
+  await page.getByRole("button", { name: `${t("common.edit")}: ${t("cards.documents_title")}` }).click();
+  await editing.getByLabel(t("cards.series_number")).first().fill("99 12 345678");
+  await editing.getByLabel(t("cards.driving_since_year")).fill("2010");
+  await editing.getByRole("checkbox", { name: "B", exact: true }).check();
+  await editing.getByRole("button", { name: `+ ${t("cards.add_document")}` }).click();
+  await editing.getByLabel(`${t("cards.document_title")} 1`).fill("Страховка");
+  await editing.getByLabel(`${t("cards.issued_by")} 1`).fill("AXA");
+  await editing.getByRole("button", { name: t("common.save") }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  const documents = card(page, t("cards.documents_title"));
+  await expect(documents).toContainText("99 12 345678");
+  await expect(documents).toContainText("2010");
+  await expect(documents).toContainText("AXA");
+  // Finance: the debt, the overpayment and the deposit; what was charged and paid, with links.
   await page.getByRole("tab", { name: t("cards.tab_finance") }).click();
+  await expect(card(page, t("cards.money_now"))).toContainText(t("cards.money_deposit"));
   const money = card(page, t("cards.money_title"));
   await expect(money.getByRole("row").filter({ hasText: t("cards.money_charge") })).toHaveCount(1);
   await expect(money.getByRole("link", { name: /№/ })).toHaveCount(2);
+  // History: what the client did — the rental with its vehicle, not the order as such.
   await page.getByRole("tab", { name: t("cards.tab_history") }).click();
-  await expect(card(page, t("cards.history_orders")).getByRole("link", { name: /№/ })).toHaveCount(1);
+  const rented = page.getByRole("row").filter({ hasText: t("cards.kind_rental") });
+  await expect(rented).toHaveCount(1);
+  await expect(rented).toContainText("Toyota Yaris");
   await page.getByRole("tab", { name: t("cards.tab_more") }).click();
 });
 

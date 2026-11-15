@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useParams, useSearchParams } from "react-router";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 
 import { api } from "../../api/client";
 import { useApi } from "../../api/queries";
@@ -20,11 +20,10 @@ import { LinkedDocuments } from "../documents/DocumentsPage";
 import {
   ArchiveActions,
   ClientMoneyCard,
-  ClientOrdersCard,
-  ExtendedFieldsCard,
   MergeCard,
   RestrictionsCard,
 } from "./CardExtras";
+import { ClientBalanceCard, ClientInteractionsCard, DocumentsCard, Facts, MainCard, MESSENGERS } from "./CardParts";
 
 export function clientName(client: Pick<Client, "kind" | "first_name" | "last_name" | "company_name">) {
   return client.kind === "company" ? client.company_name : `${client.first_name} ${client.last_name}`.trim();
@@ -365,19 +364,6 @@ export function ClientForm({ onCreated }: { onCreated?: (client: Client) => void
 }
 
 /** Client card: data, contacts, settlement balance (§ 6.2.12, § 6.7.2). */
-const MESSENGERS: Messenger[] = [
-  "",
-  "whatsapp",
-  "telegram",
-  "line",
-  "wechat",
-  "viber",
-  "signal",
-  "kakaotalk",
-  "zalo",
-  "facebook_messenger",
-  "other",
-];
 
 /** The priority way of contact by a phone: a call or SMS by default, or one messenger from the
  * list of common ones (customer's decisions of 30.10.2026). */
@@ -419,96 +405,51 @@ export function extraContacts(contacts: ClientContact[]): ClientContact[] {
 
 const CLIENT_TABS = ["main", "finance", "history", "more"] as const;
 
+/** The card of a client (customer's decisions of 15.11.2026): it looks like «About the company»
+ * — the filled data as text, edited in a window by the pencil — with the tabs «Main», «Finance»,
+ * «History» and «More». */
 export function ClientPage() {
   const { t } = useTranslation();
   const { id = "" } = useParams();
   const company = useCompany();
-  const can = useCan();
+  const navigate = useNavigate();
+  const route = useLocation();
   const queryClient = useQueryClient();
   const card = useApi<{ client: Client }>(["client", company.public_id, id], `/c/${company.public_id}/clients/${id}`);
-  const balance = useApi<{
-    balance: Record<string, string>;
-    available: Record<string, string>;
-    unpaid: Record<string, string>;
-    deposit_held: Record<string, string>;
-  }>(
-    ["client-balance", company.public_id, id],
-    `/c/${company.public_id}/clients/${id}/balance`,
-  );
-  const update = useCommand<Record<string, unknown>, unknown>(`/c/${company.public_id}/clients/${id}`, "PATCH");
-  const [form, setForm] = useState<Record<string, string> | null>(null);
-  // The card opens closed (customer's decision of 15.11.2026): the data are changed only after
-  // «Edit», and saving or cancelling closes the form again.
-  const [editing, setEditing] = useState(false);
   const [params, setParams] = useSearchParams();
-  if (card.isLoading) return <div className="page"><Loading /></div>;
+  if (card.isLoading) return <div className="page full"><Loading /></div>;
   const data = card.data?.client;
-  if (!data) return <div className="page"><ErrorMessage error={null} /></div>;
-  const allowed = can("client.edit") && data.state !== "merged";
-  const editable = allowed && editing;
+  if (!data) return <div className="page full"><ErrorMessage error={null} /></div>;
   const tab = CLIENT_TABS.find((x) => x === params.get("tab")) ?? "main";
   async function reload() {
-    setForm(null);
     await queryClient.invalidateQueries({ queryKey: ["client", company.public_id, id] });
     await queryClient.invalidateQueries({ queryKey: ["clients", company.public_id] });
     await queryClient.invalidateQueries({ queryKey: ["client-history", company.public_id, id] });
   }
-  const values = form ?? {
-    first_name: data.first_name,
-    last_name: data.last_name,
-    middle_name: data.middle_name,
-    company_name: data.company_name,
-    phone: data.contacts.find((c) => c.kind === "phone")?.value ?? "",
-    phone_messenger: data.contacts.find((c) => c.kind === "phone")?.messenger ?? "",
-    email: data.contacts.find((c) => c.kind === "email")?.value ?? "",
-    address: data.address,
-    comment: data.comment,
-    external_id: data.external_id,
-  };
-
-  const current = data;
-  async function save(event: FormEvent) {
-    event.preventDefault();
-    const contacts: ClientContact[] = [];
-    if (values.phone?.trim()) {
-      contacts.push({ kind: "phone", value: values.phone, messenger: (values.phone_messenger ?? "") as Messenger });
-    }
-    if (values.email?.trim()) contacts.push({ kind: "email", value: values.email });
-    // Further phones and emails (from an import) are kept as they are.
-    contacts.push(...extraContacts(current.contacts));
-    const texts = { address: values.address, comment: values.comment, external_id: values.external_id };
-    const body: Record<string, unknown> =
-      current.kind === "person"
-        ? {
-            first_name: values.first_name,
-            last_name: values.last_name,
-            middle_name: values.middle_name,
-            contacts,
-            ...texts,
-          }
-        : { company_name: values.company_name, contacts, ...texts };
-    if ((await update.run({ ...body, expected_version: current.version })) !== null) {
-      setForm(null);
-      setEditing(false);
-      await queryClient.invalidateQueries({ queryKey: ["client", company.public_id, id] });
-    }
-  }
-
-  const field = (key: string, label: string) => (
-    <Field label={label}>
-      <input
-        value={values[key] ?? ""}
-        disabled={!editable}
-        onChange={(e) => setForm({ ...values, [key]: e.target.value })}
-      />
-    </Field>
-  );
-
   return (
-    <div className="page">
-      <h1>
-        {data.name || clientName(data)} <CardBadges card={data} />
-      </h1>
+    <div className="page full">
+      {/* The button «Back» stands before the tabs, outside their list. */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <IconButton
+          icon="back"
+          label={t("common.back")}
+          onClick={() => (route.key === "default" ? navigate(companyPath(company, "/clients")) : navigate(-1))}
+        />
+        <div className="tabs left" role="tablist" style={{ flex: 1 }}>
+          {CLIENT_TABS.map((key) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={tab === key}
+              className={tab === key ? "active" : ""}
+              onClick={() => setParams(key === "main" ? {} : { tab: key }, { replace: true })}
+            >
+              {t(`cards.tab_${key}`)}
+            </button>
+          ))}
+        </div>
+      </div>
       {data.merged_into ? (
         // § 6.5.2: the duplicate leads to the main card, where new operations go.
         <div className="alert warn">
@@ -518,145 +459,39 @@ export function ClientPage() {
       ) : null}
       {data.provisional ? <div className="alert warn">{t("cards.provisional_banner")}</div> : null}
       {data.blacklisted ? <div className="alert error">{t("cards.blacklisted_banner")}</div> : null}
-      <div className="tabs left" role="tablist">
-        {CLIENT_TABS.map((key) => (
-          <button
-            key={key}
-            type="button"
-            role="tab"
-            aria-selected={tab === key}
-            className={tab === key ? "active" : ""}
-            onClick={() => setParams(key === "main" ? {} : { tab: key }, { replace: true })}
-          >
-            {t(`cards.tab_${key}`)}
-          </button>
-        ))}
-      </div>
       {tab === "main" ? (
         <>
-      <Card>
-        <form className="stack" onSubmit={save}>
-          {allowed && !editing ? (
-            <p className="card-head" style={{ justifyContent: "flex-end", marginBottom: 0 }}>
-              <IconButton icon="edit" label={t("common.edit")} onClick={() => setEditing(true)} />
-            </p>
-          ) : null}
-          {data.kind === "person" ? (
-            <div className="row">
-              {field("first_name", t("profile.first_name"))}
-              {field("last_name", t("profile.last_name"))}
-              {field("middle_name", t("profile.middle_name"))}
-            </div>
-          ) : (
-            field("company_name", t("clients.company_name"))
-          )}
-          {data.birth_date ? (
-            <p className="small">
-              {t("clients.birth_date")}: {data.birth_date}
-            </p>
-          ) : null}
-          <div className="row">
-            {field("phone", t("clients.phone"))}
-            <MessengerField
-              value={(values.phone_messenger ?? "") as Messenger}
-              disabled={!editable}
-              onChange={(messenger) => setForm({ ...values, phone_messenger: messenger })}
-            />
-            {field("email", t("auth.email"))}
-          </div>
-          {extraContacts(data.contacts).map((c) => (
-            <p key={`${c.kind}-${c.value}`} className="small">
-              {contactText(t, c)}
-            </p>
-          ))}
-          {field("address", t("imports.address"))}
-          {field("comment", t("warehouse.comment"))}
-          {field("external_id", t("imports.external_id"))}
-          <ErrorMessage error={update.error} />
-          {editable ? (
-            <div className="actions">
-              <button type="submit" disabled={!form || update.pending}>
-                {t("common.save")}
-              </button>
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => {
-                  setForm(null);
-                  setEditing(false);
-                }}
-              >
-                {t("common.cancel")}
-              </button>
-            </div>
-          ) : null}
-        </form>
-      </Card>
-      <ExtendedFieldsCard cardType="client" card={data} onSaved={reload} />
-      <LinkedDocuments objectType="client" objectId={data.id} />
+          <MainCard cardType="client" card={data} badges={<CardBadges card={data} />} onSaved={reload} />
+          <DocumentsCard cardType="client" card={data} onSaved={reload} />
         </>
       ) : null}
       {tab === "finance" ? (
         <>
-      <Card title={t("clients.balance")}>
-        {Object.entries(balance.data?.balance ?? {}).length === 0 ? (
-          <p className="muted">0</p>
-        ) : (
-          Object.entries(balance.data?.balance ?? {}).map(([currency, value]) => (
-            <div key={currency}>
-              <p>
-                <strong>
-                  {Number(value) < 0
-                    ? t("clients.debt", { amount: -Number(value), currency })
-                    : t("clients.advance", { amount: Number(value), currency })}
-                </strong>
-              </p>
-              {/* § 17.2.13: balance = available funds − unpaid charges. */}
-              <p className="muted">
-                {t("clients.balance_parts", {
-                  available: balance.data?.available[currency] ?? "0",
-                  unpaid: balance.data?.unpaid[currency] ?? "0",
-                  currency,
-                })}
-              </p>
-            </div>
-          ))
-        )}
-        {/* § 6.7.2: the held deposit is shown apart and is not available funds. */}
-        {Object.entries(balance.data?.deposit_held ?? {}).map(([currency, value]) => (
-          <p key={`deposit-${currency}`}>{t("clients.deposit_held", { amount: value, currency })}</p>
-        ))}
-        {can("finance.account.view") || can("finance.offset") || can("finance.settlement.manage") ? (
-          <p>
-            <Link to={companyPath(company, "/finance?tab=settlements")}>{t("clients.open_settlement")}</Link>
-          </p>
-        ) : null}
-      </Card>
-      <ClientMoneyCard clientId={data.id} />
+          <ClientBalanceCard clientId={data.id} />
+          <ClientMoneyCard clientId={data.id} />
         </>
       ) : null}
-      {tab === "history" ? <ClientOrdersCard clientId={data.id} /> : null}
+      {tab === "history" ? <ClientInteractionsCard clientId={data.id} /> : null}
       {tab === "more" ? (
         <>
-      {data.state !== "merged" ? <RestrictionsCard clientId={data.id} onChanged={reload} /> : null}
-      <ProfileLinkCard
-        cardType="client"
-        cardId={data.id}
-        cardKind={data.kind}
-        version={data.version}
-        onChanged={async () => {
-          setForm(null);
-          await queryClient.invalidateQueries({ queryKey: ["client", company.public_id, id] });
-        }}
-      />
-      <ClientGroupsCard clientId={data.id} />
-      <MergeCard cardType="client" card={data} onChanged={reload} />
-      <LinkedTasks objectType="client" objectId={data.id} />
-      {data.state !== "merged" ? (
-        <Card>
-          <ArchiveActions card={data} onChanged={reload} />
-        </Card>
-      ) : null}
+          {/* Contracts, acts and other files of the client — not its personal documents. */}
+          <LinkedDocuments objectType="client" objectId={data.id} />
+          {data.state !== "merged" ? <RestrictionsCard clientId={data.id} onChanged={reload} /> : null}
+          <ProfileLinkCard cardType="client" cardId={data.id} cardKind={data.kind} version={data.version} onChanged={reload} />
+          <ClientGroupsCard clientId={data.id} />
+          <MergeCard cardType="client" card={data} onChanged={reload} />
+          <LinkedTasks objectType="client" objectId={data.id} />
+          {data.external_id ? (
+            <Card title={t("cards.other_title")}>
+              <Facts rows={[[t("cards.field_external_id"), data.external_id]]} />
+              <p className="muted small">{t("cards.external_id_hint")}</p>
+            </Card>
+          ) : null}
+          {data.state !== "merged" ? (
+            <Card>
+              <ArchiveActions card={data} onChanged={reload} />
+            </Card>
+          ) : null}
         </>
       ) : null}
     </div>
