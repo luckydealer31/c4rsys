@@ -185,6 +185,23 @@ def held_by_client(company_id: UUID, client_id: UUID) -> dict[str, Decimal]:
     return {c: v for c, v in result.items() if v != 0}
 
 
+def held_rentals_of_client(company_id: UUID, client_id: UUID) -> list[tuple[UUID, Figures]]:
+    """The rentals whose deposit the company still holds, each with its figures — for the card
+    of the client: how much is held and when the hold ends (customer's decision of 15.11.2026)."""
+    rental_ids = (
+        DepositEntry.objects.filter(company_id=company_id, client_id=client_id)
+        .order_by("rental_id")
+        .values_list("rental_id", flat=True)
+        .distinct()
+    )
+    found = []
+    for rental_id in rental_ids:
+        data = figures(_rentals().get_rental(company_id, rental_id))
+        if data.held > 0:
+            found.append((rental_id, data))
+    return found
+
+
 def paid_for_order(company_id: UUID, order_id: UUID) -> dict[str, Decimal]:
     """Provider for orders: set-offs from deposits count as paid (§ 14.7.2)."""
     return paid_for_orders(company_id, [order_id])[order_id]

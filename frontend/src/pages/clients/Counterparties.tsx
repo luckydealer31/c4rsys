@@ -11,7 +11,7 @@ import { Card, ErrorMessage, Field, IconButton, Loading } from "../../components
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { CardBadges, MessengerField } from "./ClientsPage";
 import { ContractorHistoryCard, MergeCard } from "./CardExtras";
-import { DocumentsCard, Facts, MainCard } from "./CardParts";
+import { DocumentsCard, Facts, MainCard, SupplierHistoryCard } from "./CardParts";
 import { LinkedDocuments } from "../documents/DocumentsPage";
 import { SupplierCard } from "../finance/Settlements";
 
@@ -268,13 +268,15 @@ export function CounterpartyPage() {
         )
       ) : null}
       {tab === "history" ? (
-        data.kind === "company" ? (
-          <ContractorHistoryCard counterpartyId={data.id} />
-        ) : (
-          <Card>
-            <p className="muted">{t("cards.history_none")}</p>
-          </Card>
-        )
+        <>
+          {money ? <SupplierHistoryCard counterpartyId={data.id} /> : null}
+          {data.kind === "company" ? <ContractorHistoryCard counterpartyId={data.id} /> : null}
+          {!money && data.kind !== "company" ? (
+            <Card>
+              <p className="muted">{t("cards.history_none")}</p>
+            </Card>
+          ) : null}
+        </>
       ) : null}
       {tab === "more" ? (
         <>

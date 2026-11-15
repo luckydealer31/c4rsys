@@ -948,6 +948,7 @@ export type IdDocument = {
   country: string;
   issued_on: string | null;
   expires_on: string | null;
+  issued_by?: string;
 };
 export type DriverLicense = {
   number: string;

@@ -122,6 +122,9 @@ def test_issue_without_full_deposit_creates_a_conflict(owner: Client, s: Scenari
     balance = _balance(owner, s)
     assert balance["available"] == {"THB": "1000.00"}
     assert balance["deposit_held"] == {"THB": "2000.00"}
+    # The card of the client names the rental of the deposit; the hold has no end before the return.
+    (held,) = balance["deposits"]
+    assert (held["rental_id"], held["held"], held["release_at"]) == (rental["id"], "2000.00", None)
 
     waived = post(
         owner, f"/api/c/{s.cmp}/rentals/{rental['id']}/deposit/waive", {"reason": "Regular"}, key()

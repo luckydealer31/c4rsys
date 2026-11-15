@@ -455,6 +455,20 @@ def client_balance(request: HttpRequest, cmp: str, client_id: UUID) -> JsonRespo
             "unpaid": money(figures.unpaid),
             # Held apart from the balance and not available (§ 6.7.2).
             "deposit_held": money(deposits.held_by_client(context.company.id, client_id)),
+            # By rentals: how much is held and when the hold ends — empty until the rental is
+            # returned or when no term is set.
+            "deposits": [
+                {
+                    "rental_id": str(rental_id),
+                    "currency": data.currency,
+                    "held": money({data.currency: data.held})[data.currency],
+                    "hold_days": data.hold_days,
+                    "release_at": data.release_at.isoformat() if data.release_at else None,
+                }
+                for rental_id, data in deposits.held_rentals_of_client(
+                    context.company.id, client_id
+                )
+            ],
         }
     )
 

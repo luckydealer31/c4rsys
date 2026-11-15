@@ -96,13 +96,17 @@ def _object(value: Any, field: str, allowed: tuple[str, ...]) -> dict[str, Any]:
 def _id_document(value: Any, field: str = "id_document") -> dict[str, Any] | None:
     if _empty(value):
         return None
-    raw = _object(value, field, ("type", "number", "country", "issued_on", "expires_on"))
+    raw = _object(
+        value, field, ("type", "number", "country", "issued_on", "expires_on", "issued_by")
+    )
     doc = {
         "type": _text(raw.get("type"), f"{field}.type", 20),
         "number": _text(raw.get("number"), f"{field}.number", _DOC_TEXT),
         "country": _country(raw.get("country"), f"{field}.country"),
         "issued_on": _date(raw.get("issued_on"), f"{field}.issued_on"),
         "expires_on": _date(raw.get("expires_on"), f"{field}.expires_on"),
+        # Who issued it — in place of the code of the country in the form (15.11.2026).
+        "issued_by": _text(raw.get("issued_by"), f"{field}.issued_by", _DOC_TEXT),
     }
     if doc["type"] not in ID_DOCUMENT_TYPES:
         raise errors.validation_error(f"{field}.type", code="VALUE_UNKNOWN")

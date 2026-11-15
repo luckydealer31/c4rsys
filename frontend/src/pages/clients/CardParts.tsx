@@ -42,10 +42,14 @@ export const MESSENGERS: Messenger[] = [
   "other",
 ];
 
-/** The categories of the international driving permit (PROPOSAL): they are marked in a list. */
-export const LICENSE_CATEGORIES = ["AM", "A1", "A2", "A", "B1", "B", "C1", "C", "D1", "D", "BE", "C1E", "CE", "D1E", "DE"];
-
 type Row = [label: string, value: ReactNode];
+
+/** The name in the head of a card (customer's decision of 15.11.2026): first name, patronymic,
+ * last name; a patronymic that is not filled is not shown. */
+export function fullName(card: Pick<AnyCard, "kind" | "first_name" | "middle_name" | "last_name" | "name">): string {
+  if (card.kind !== "person") return card.name;
+  return [card.first_name, card.middle_name, card.last_name].filter((x) => x.trim()).join(" ") || card.name;
+}
 
 /** Label — value, the filled ones only. */
 export function Facts({ rows }: { rows: Row[] }) {
@@ -174,7 +178,7 @@ export function MainCard({
     <div style={{ maxWidth: 760 }}>
       <Card>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <h1 style={{ margin: 0 }}>{card.name}</h1>
+          <h1 style={{ margin: 0 }}>{fullName(card)}</h1>
           {editable ? <IconButton icon="edit" label={t("common.edit")} onClick={() => setEditing(true)} /> : null}
           {badges}
         </div>
@@ -184,7 +188,7 @@ export function MainCard({
         <Facts rows={rows} />
       </Card>
       {editing ? (
-        <Modal wide title={card.name} onClose={() => setEditing(false)}>
+        <Modal wide title={fullName(card)} onClose={() => setEditing(false)}>
           <MainForm
             cardType={cardType}
             card={card}
@@ -308,9 +312,48 @@ const COMPANY_TEXTS = [
   "bank_details",
 ] as const;
 
-const NO_DOCUMENT: IdDocument = { type: "passport", number: "", country: "", issued_on: null, expires_on: null };
+/** A document of a person in the form: its kind is chosen from a list; «other» asks for a name. */
+type DocumentRow = {
+  type: IdDocument["type"];
+  title: string;
+  number: string;
+  issued_on: string | null;
+  expires_on: string | null;
+  issued_by: string;
+};
+const DOCUMENT_TYPES = ["passport", "national_id", "other"] as const;
+const NO_ROW: DocumentRow = { type: "passport", title: "", number: "", issued_on: null, expires_on: null, issued_by: "" };
+
+/** The documents of the card as one list. The card keeps one passport or ID as its identity
+ * document and the rest as «other documents» named by their kind; here they are one list. */
+function documentRows(card: AnyCard, t: (key: string) => string): DocumentRow[] {
+  const rows: DocumentRow[] = [];
+  const id = card.id_document;
+  if (id) {
+    rows.push({
+      type: id.type,
+      title: id.type === "other" ? t("cards.document_other") : "",
+      number: id.number,
+      issued_on: id.issued_on,
+      expires_on: id.expires_on,
+      issued_by: id.issued_by ?? "",
+    });
+  }
+  for (const d of card.other_documents) {
+    const type = DOCUMENT_TYPES.find((x) => x !== "other" && t(`cards.document_${x}`) === d.title) ?? "other";
+    rows.push({
+      type,
+      title: type === "other" ? d.title : "",
+      number: d.number,
+      issued_on: d.issued_on,
+      expires_on: d.expires_on,
+      issued_by: d.issued_by ?? "",
+    });
+  }
+  return rows;
+}
+
 const NO_LICENSE: DriverLicense = { number: "", country: "", issued_on: null, expires_on: null, categories: [] };
-const NO_OTHER: OtherDocument = { title: "", number: "", issued_on: null, expires_on: null, issued_by: "", note: "" };
 
 /** § 6.2.12–6.2.13: the documents of a person — the driving licence, the passport or ID, other
  * documents; for a company — its requisites. None is required. */
@@ -321,7 +364,6 @@ export function DocumentsCard({ cardType, card, onSaved }: { cardType: CardType;
   const person = card.kind === "person";
   const title = t(person ? "cards.documents_title" : "cards.requisites_title");
   const license = card.driver_license;
-  const doc = card.id_document;
   const rows: Row[] = person
     ? [
         [
@@ -337,13 +379,9 @@ export function DocumentsCard({ cardType, card, onSaved }: { cardType: CardType;
             : "",
         ],
         [t("cards.driving_since"), card.driving_since ? card.driving_since.slice(0, 4) : ""],
-        [
-          doc ? t(`cards.document_${doc.type}`) : t("cards.id_document"),
-          doc ? [doc.number, doc.country, dates(doc.issued_on, doc.expires_on, t)].filter(Boolean).join(" · ") : "",
-        ],
-        ...card.other_documents.map(
+        ...documentRows(card, t).map(
           (d): Row => [
-            d.title,
+            d.type === "other" ? d.title : t(`cards.document_${d.type}`),
             [d.number, dates(d.issued_on, d.expires_on, t), d.issued_by ? `${t("cards.issued_by")}: ${d.issued_by}` : ""]
               .filter(Boolean)
               .join(" · ") || "—",
@@ -380,28 +418,55 @@ function DocumentsForm({ cardType, card, onDone }: { cardType: CardType; card: A
   const update = useCommand<Record<string, unknown>, unknown>(`/c/${company.public_id}/${path(cardType)}/${card.id}`, "PATCH");
   const person = card.kind === "person";
   const [texts, setTexts] = useState<Record<string, string>>(Object.fromEntries(COMPANY_TEXTS.map((n) => [n, card[n] ?? ""])));
-  const [doc, setDoc] = useState<IdDocument>(card.id_document ?? NO_DOCUMENT);
   const [license, setLicense] = useState<DriverLicense>(card.driver_license ?? NO_LICENSE);
+  // The categories are typed by hand: they differ from country to country.
+  const [categories, setCategories] = useState((card.driver_license?.categories ?? []).join(", "));
   // The experience is asked as a year: few remember the day they got the licence.
   const [since, setSince] = useState(card.driving_since ? card.driving_since.slice(0, 4) : "");
-  const [others, setOthers] = useState<OtherDocument[]>(card.other_documents.map((d) => ({ ...NO_OTHER, ...d })));
-  // Categories written before the list (for example from an import) stay available.
-  const categories = [...LICENSE_CATEGORIES, ...license.categories.filter((c) => !LICENSE_CATEGORIES.includes(c))];
+  const [rows, setRows] = useState<DocumentRow[]>(documentRows(card, t));
   const thisYear = new Date().getFullYear();
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     const body: Record<string, unknown> = { expected_version: card.version };
     if (person) {
-      body.driver_license = license.number.trim() ? license : null;
-      body.id_document = doc.number.trim() ? doc : null;
+      body.driver_license = license.number.trim()
+        ? { ...license, categories: categories.split(/[,\s]+/).filter(Boolean) }
+        : null;
+      // The first passport or ID with a number is the identity document of the card; the rest
+      // are kept as other documents under the name of their kind.
+      const identity = rows.find((d) => d.type !== "other" && d.number.trim());
+      const before = card.id_document;
+      body.id_document = identity
+        ? {
+            type: identity.type,
+            number: identity.number,
+            country: before && before.number === identity.number ? before.country : "",
+            issued_on: identity.issued_on,
+            expires_on: identity.expires_on,
+            issued_by: identity.issued_by,
+          }
+        : null;
+      const notes = new Map(card.other_documents.map((d) => [`${d.title}|${d.number}`, d.note]));
+      const others: OtherDocument[] = rows
+        .filter((d) => d !== identity)
+        .map((d) => ({ ...d, title: d.type === "other" ? d.title : t(`cards.document_${d.type}`) }))
+        .filter((d) => d.title.trim())
+        .map((d) => ({
+          title: d.title,
+          number: d.number,
+          issued_on: d.issued_on,
+          expires_on: d.expires_on,
+          issued_by: d.issued_by,
+          note: notes.get(`${d.title}|${d.number}`) ?? "",
+        }));
       // The day of the year the card already has is kept when the year is the same.
       body.driving_since = since
         ? card.driving_since?.startsWith(since)
           ? card.driving_since
           : `${since}-01-01`
         : null;
-      body.other_documents = others.filter((d) => d.title.trim());
+      body.other_documents = others;
     } else {
       Object.assign(body, texts);
     }
@@ -412,8 +477,8 @@ function DocumentsForm({ cardType, card, onDone }: { cardType: CardType; card: A
       <input type="date" value={value ?? ""} onChange={(e) => onChange(e.target.value || null)} />
     </FloatField>
   );
-  const other = (index: number, change: Partial<OtherDocument>) =>
-    setOthers(others.map((x, i) => (i === index ? { ...x, ...change } : x)));
+  const row = (index: number, change: Partial<DocumentRow>) =>
+    setRows(rows.map((x, i) => (i === index ? { ...x, ...change } : x)));
 
   return (
     <form className="stack" onSubmit={submit}>
@@ -437,75 +502,44 @@ function DocumentsForm({ cardType, card, onDone }: { cardType: CardType; card: A
             {date(t("cards.issued_on"), license.issued_on, (v) => setLicense({ ...license, issued_on: v }))}
             {date(t("cards.expires_on"), license.expires_on, (v) => setLicense({ ...license, expires_on: v }))}
           </div>
-          <fieldset className="plain">
-            <legend className="muted small">{t("cards.categories")}</legend>
-            <div className="chips">
-              {categories.map((code) => (
-                <label key={code} className="chip">
-                  <input
-                    type="checkbox"
-                    checked={license.categories.includes(code)}
-                    onChange={(e) =>
-                      setLicense({
-                        ...license,
-                        categories: e.target.checked
-                          ? categories.filter((c) => c === code || license.categories.includes(c))
-                          : license.categories.filter((c) => c !== code),
-                      })
-                    }
-                  />
-                  {code}
-                </label>
-              ))}
-            </div>
-          </fieldset>
-
-          <h3>{t("cards.id_document")}</h3>
-          <div className="form-grid">
-            <FloatField label={t("cards.document_type")}>
-              <select value={doc.type} onChange={(e) => setDoc({ ...doc, type: e.target.value as IdDocument["type"] })}>
-                {(["passport", "national_id", "other"] as const).map((v) => (
-                  <option key={v} value={v}>
-                    {t(`cards.document_${v}`)}
-                  </option>
-                ))}
-              </select>
-            </FloatField>
-            <FloatField label={t("cards.series_number")}>
-              <input value={doc.number} onChange={(e) => setDoc({ ...doc, number: e.target.value })} />
-            </FloatField>
-            {date(t("cards.issued_on"), doc.issued_on, (v) => setDoc({ ...doc, issued_on: v }))}
-            {date(t("cards.expires_on"), doc.expires_on, (v) => setDoc({ ...doc, expires_on: v }))}
-            <FloatField label={t("cards.field_country")}>
-              <input value={doc.country} maxLength={2} onChange={(e) => setDoc({ ...doc, country: e.target.value })} />
-            </FloatField>
-          </div>
+          <FloatField label={t("cards.categories")}>
+            <input value={categories} onChange={(e) => setCategories(e.target.value)} />
+          </FloatField>
 
           <h3>{t("cards.other_documents")}</h3>
-          {others.map((d, index) => (
-            <div key={index} className="stack" style={{ gap: 8 }}>
-              <div className="form-grid">
+          {rows.map((d, index) => (
+            <div key={index} className="form-grid">
+              <FloatField label={`${t("cards.document_type")} ${index + 1}`}>
+                <select value={d.type} onChange={(e) => row(index, { type: e.target.value as DocumentRow["type"] })}>
+                  {DOCUMENT_TYPES.map((v) => (
+                    <option key={v} value={v}>
+                      {t(`cards.document_${v}`)}
+                    </option>
+                  ))}
+                </select>
+              </FloatField>
+              {d.type === "other" ? (
                 <FloatField label={`${t("cards.document_title")} ${index + 1}`}>
-                  <input value={d.title} onChange={(e) => other(index, { title: e.target.value })} />
+                  <input value={d.title} onChange={(e) => row(index, { title: e.target.value })} />
                 </FloatField>
-                <FloatField label={`${t("cards.series_number")} ${index + 1}`}>
-                  <input value={d.number} onChange={(e) => other(index, { number: e.target.value })} />
-                </FloatField>
-                {date(`${t("cards.valid_from_label")} ${index + 1}`, d.issued_on, (v) => other(index, { issued_on: v }))}
-                {date(`${t("cards.expires_on")} ${index + 1}`, d.expires_on, (v) => other(index, { expires_on: v }))}
-                <FloatField label={`${t("cards.issued_by")} ${index + 1}`}>
-                  <input value={d.issued_by ?? ""} onChange={(e) => other(index, { issued_by: e.target.value })} />
-                </FloatField>
-                <div style={{ display: "flex", alignItems: "center" }}>
-                  <button type="button" className="link" onClick={() => setOthers(others.filter((_, i) => i !== index))}>
-                    {t("cards.remove_document")}
-                  </button>
-                </div>
+              ) : null}
+              <FloatField label={`${t("cards.series_number")} ${index + 1}`}>
+                <input value={d.number} onChange={(e) => row(index, { number: e.target.value })} />
+              </FloatField>
+              {date(`${t("cards.issued_on")} ${index + 1}`, d.issued_on, (v) => row(index, { issued_on: v }))}
+              {date(`${t("cards.expires_on")} ${index + 1}`, d.expires_on, (v) => row(index, { expires_on: v }))}
+              <FloatField label={`${t("cards.issued_by")} ${index + 1}`}>
+                <input value={d.issued_by} onChange={(e) => row(index, { issued_by: e.target.value })} />
+              </FloatField>
+              <div style={{ display: "flex", alignItems: "center" }}>
+                <button type="button" className="link" onClick={() => setRows(rows.filter((_, i) => i !== index))}>
+                  {t("cards.remove_document")}
+                </button>
               </div>
             </div>
           ))}
           <div>
-            <button type="button" className="link" onClick={() => setOthers([...others, NO_OTHER])}>
+            <button type="button" className="link" onClick={() => setRows([...rows, NO_ROW])}>
               + {t("cards.add_document")}
             </button>
           </div>
@@ -547,19 +581,22 @@ type Balance = {
   available: Record<string, string>;
   unpaid: Record<string, string>;
   deposit_held: Record<string, string>;
+  deposits?: { rental_id: string; currency: string; held: string; hold_days: number | null; release_at: string | null }[];
 };
 
-/** What stands between the client and the company now: a debt or an overpayment, and — apart —
- * the deposit the company holds (§ 6.7.2, § 17.2.13). */
+/** What stands between the client and the company now (customer's decision of 15.11.2026): the
+ * balance in one line — a debt or an overpayment — and, apart, the deposit the company holds,
+ * with the time left until the hold ends once the rental is over (§ 6.7.2, § 17.2.13). */
 export function ClientBalanceCard({ clientId }: { clientId: string }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const company = useCompany();
   const balance = useApi<Balance>(["client-balance", company.public_id, clientId], `/c/${company.public_id}/clients/${clientId}/balance`);
   const data = balance.data;
   const money = (value: string | number, currency: string) => `${Math.abs(Number(value)).toFixed(2)} ${currency}`;
-  const debts = Object.entries(data?.balance ?? {}).filter(([, v]) => Number(v) < 0);
-  const overpaid = Object.entries(data?.balance ?? {}).filter(([, v]) => Number(v) > 0);
-  const deposits = Object.entries(data?.deposit_held ?? {}).filter(([, v]) => Number(v) > 0);
+  const sums = Object.entries(data?.balance ?? {}).filter(([, v]) => Number(v) !== 0);
+  const deposits = (data?.deposits ?? []).filter((d) => Number(d.held) > 0);
+  const zone = company.timezone || deviceTimeZone();
+  const left = (until: string) => Math.ceil((new Date(until).getTime() - Date.now()) / 86_400_000);
   return (
     <div style={{ maxWidth: 760 }}>
       <Card>
@@ -568,30 +605,95 @@ export function ClientBalanceCard({ clientId }: { clientId: string }) {
         {data ? (
           <dl className="facts">
             <div>
-              <dt>{t("cards.money_debt")}</dt>
+              <dt>{t("cards.money_balance")}</dt>
               <dd>
-                {debts.length ? (
-                  <strong className="error-text">{debts.map(([c, v]) => money(v, c)).join(", ")}</strong>
-                ) : (
-                  t("cards.money_no")
-                )}
+                {sums.length === 0
+                  ? "0"
+                  : sums.map(([currency, value]) => (
+                      <div key={currency}>
+                        <strong className={Number(value) < 0 ? "error-text" : undefined}>
+                          {t(Number(value) < 0 ? "cards.money_debt_of" : "cards.money_overpaid_of", { amount: money(value, currency) })}
+                        </strong>
+                      </div>
+                    ))}
               </dd>
             </div>
             <div>
-              <dt>{t("cards.money_overpaid")}</dt>
-              <dd>{overpaid.length ? <strong>{overpaid.map(([c, v]) => money(v, c)).join(", ")}</strong> : t("cards.money_no")}</dd>
-            </div>
-            <div>
               <dt>{t("cards.money_deposit")}</dt>
-              <dd>{deposits.length ? <strong>{deposits.map(([c, v]) => money(v, c)).join(", ")}</strong> : t("cards.money_no")}</dd>
+              <dd>
+                {deposits.length === 0
+                  ? "0"
+                  : deposits.map((d) => (
+                      <div key={d.rental_id}>
+                        <Link to={companyPath(company, `/rentals/${d.rental_id}`)}>
+                          <strong>{money(d.held, d.currency)}</strong>
+                        </Link>
+                        {d.release_at ? (
+                          <span className="muted">
+                            {" · "}
+                            {left(d.release_at) > 0
+                              ? t("cards.money_hold_left", {
+                                  count: left(d.release_at),
+                                  until: formatMoment(d.release_at, zone, i18n.language),
+                                })
+                              : t("cards.money_hold_over")}
+                          </span>
+                        ) : null}
+                      </div>
+                    ))}
+              </dd>
             </div>
           </dl>
         ) : null}
-        <p className="muted small" style={{ marginTop: 12, marginBottom: 0 }}>
-          {t("cards.money_now_hint")}
-        </p>
       </Card>
     </div>
+  );
+}
+
+/** What came from the counterparty and what went back (customer's decision of 15.11.2026): the
+ * receipts of goods and the returns, by the settlements with it. Shown with the rights of the
+ * finance section. */
+export function SupplierHistoryCard({ counterpartyId }: { counterpartyId: string }) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const data = useApi<{
+    receipts: { id: string; number: number; currency: string; amount: string }[];
+    returns: { id: string; number: number; receipt_id: string; currency: string; amount: string }[];
+  }>(["supplier-settlement", company.public_id, counterpartyId], `/c/${company.public_id}/counterparties/${counterpartyId}/settlement`);
+  if (data.isLoading) return <Loading />;
+  const info = data.data;
+  if (!info) return null;
+  const rows = [
+    ...info.receipts.map((r) => ({ key: `r-${r.id}`, kind: "receipt", number: r.number, to: r.id, amount: `${r.amount} ${r.currency}` })),
+    ...info.returns.map((r) => ({ key: `b-${r.id}`, kind: "return", number: r.number, to: r.receipt_id, amount: `${r.amount} ${r.currency}` })),
+  ];
+  return (
+    <Card title={t("cards.supplier_history")}>
+      {rows.length === 0 ? (
+        <p className="muted">{t("cards.history_none")}</p>
+      ) : (
+        <table className="table">
+          <thead>
+            <tr>
+              <th>{t("cards.history_what")}</th>
+              <th className="num">{t("cards.money_amount")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.key}>
+                <td>
+                  <Link to={companyPath(company, `/warehouse/receipts/${row.to}`)}>
+                    {t(`cards.kind_${row.kind}`)} № {row.number}
+                  </Link>
+                </td>
+                <td className="num">{row.amount}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </Card>
   );
 }
 

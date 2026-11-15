@@ -340,23 +340,31 @@ test("base example from registration to closing survives a restart", async ({ pa
   await page.getByRole("button", { name: t("common.edit"), exact: true }).click();
   const editing = page.getByRole("dialog");
   await editing.getByLabel(t("cards.field_residence_address")).fill("Пхукет, Раваи");
+  await editing.getByLabel(t("profile.middle_name"), { exact: true }).fill("Сергеевич");
   await editing.getByRole("button", { name: t("common.save") }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.locator("dl.facts").first()).toContainText("Пхукет, Раваи");
+  // The head names the person as «first name, patronymic, last name».
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Иван Сергеевич Петров");
   // Documents: the driving licence first, its categories from a list, the experience by a year.
   await page.getByRole("button", { name: `${t("common.edit")}: ${t("cards.documents_title")}` }).click();
   await editing.getByLabel(t("cards.series_number")).first().fill("99 12 345678");
   await editing.getByLabel(t("cards.driving_since_year")).fill("2010");
-  await editing.getByRole("checkbox", { name: "B", exact: true }).check();
+  await editing.getByLabel(t("cards.categories")).fill("B");
+  // A further document: its kind from a list; «other» asks for a name.
   await editing.getByRole("button", { name: `+ ${t("cards.add_document")}` }).click();
-  await editing.getByLabel(`${t("cards.document_title")} 1`).fill("Страховка");
-  await editing.getByLabel(`${t("cards.issued_by")} 1`).fill("AXA");
+  await editing.getByLabel(`${t("cards.series_number")} 1`).fill("75 1234567");
+  await editing.getByRole("button", { name: `+ ${t("cards.add_document")}` }).click();
+  await editing.getByLabel(`${t("cards.document_type")} 2`).selectOption("other");
+  await editing.getByLabel(`${t("cards.document_title")} 2`).fill("Страховка");
+  await editing.getByLabel(`${t("cards.issued_by")} 2`).fill("AXA");
   await editing.getByRole("button", { name: t("common.save") }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   const documents = card(page, t("cards.documents_title"));
   await expect(documents).toContainText("99 12 345678");
   await expect(documents).toContainText("2010");
   await expect(documents).toContainText("AXA");
+  await expect(documents).toContainText("75 1234567");
   // Finance: the debt, the overpayment and the deposit; what was charged and paid, with links.
   await page.getByRole("tab", { name: t("cards.tab_finance") }).click();
   await expect(card(page, t("cards.money_now"))).toContainText(t("cards.money_deposit"));
