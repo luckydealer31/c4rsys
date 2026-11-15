@@ -1,11 +1,11 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useLocation, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 
 import { api, ApiError } from "../../api/client";
 import { useApi } from "../../api/queries";
-import type { BookingConflict, Client, Rental } from "../../api/types";
+import type { BookingConflict, Calculation, Client, Rental } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, IconButton, Modal } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
@@ -14,7 +14,7 @@ import { ClientForm, clientName } from "../clients/ClientsPage";
 import { useLocations } from "../settings/LocationsPage";
 import { unitShort } from "../tariffs/TariffsPage";
 import { useVehicles } from "../vehicles/VehiclesPage";
-import { ClientFinder } from "./IssuePage";
+import { CalculationView, ClientFinder, IssuePage } from "./IssuePage";
 import {
   EMPTY_PLACE,
   GrantException,
@@ -120,17 +120,29 @@ function conflictLabel(c: BookingConflict, t: ReturnType<typeof useTranslation>[
 
 /** New booking (§ 14.1): a concrete vehicle (filtered by body type) and the planned period; the
  * client, tariff, location, contact and comment may come later (§ 14.1.8–14.1.9). */
-export function BookingPage() {
+/** The address of a new rental: with a booking it is the issue of that booking, without one —
+ * the creation of a rental, which is issued later from its card (decision of 15.11.2026). */
+export function NewRentalPage() {
+  const [params] = useSearchParams();
+  return params.get("booking") ? <IssuePage /> : <BookingPage mode="rental" />;
+}
+
+/** A new booking, or — in the mode «rental» — a new rental waiting for its issue: the same
+ * holding of the vehicle, with a client and a tariff required and the cost counted at once. */
+export function BookingPage({ mode = "booking" }: { mode?: "booking" | "rental" }) {
   const { t } = useTranslation();
+  const direct = mode === "rental";
+  const [params] = useSearchParams();
   const company = useCompany();
   const navigate = useNavigate();
   const route = useLocation();
   const queryClient = useQueryClient();
   const vehicles = useVehicles();
   const locations = useLocations();
-  const [vehicleId, setVehicleId] = useState("");
+  const [vehicleId, setVehicleId] = useState(() => (direct ? (params.get("vehicle") ?? "") : ""));
   const [tariffId, setTariffId] = useState("");
   const [locationId, setLocationId] = useState("");
+  const [returnId, setReturnId] = useState("");
   const [chosen, setChosen] = useState<Client | null>(null);
   const location = (locations.data?.locations ?? []).find((l) => l.id === locationId);
   const zone = location?.timezone ?? company.timezone ?? "UTC";
@@ -151,6 +163,35 @@ export function BookingPage() {
   const endAt = end ? fromLocalInput(end, zone) : null;
   const count = usePeriodCount();
   const availability = useAvailability(vehicleId, startAt, endAt);
+  // The preliminary cost of a rental is counted by itself once the vehicle, the tariff, the
+  // start and the end are given; without one of them there is no calculation.
+  const [quote, setQuote] = useState<{ calculation: Calculation } | null>(null);
+  useEffect(() => {
+    setQuote(null);
+    if (!direct || !vehicleId || !tariffId || !startAt || !endAt) return;
+    let stale = false;
+    const timer = window.setTimeout(() => {
+      api<{ calculation: Calculation }>(`/c/${company.public_id}/rentals/quote`, {
+        method: "POST",
+        body: {
+          vehicle_card_id: vehicleId,
+          tariff_id: tariffId,
+          client_id: chosen?.id,
+          issue_location_id: locationId,
+          actual_start: startAt,
+          planned_end: endAt,
+        },
+      })
+        .then((answer) => {
+          if (!stale) setQuote(answer);
+        })
+        .catch(() => undefined);
+    }, 400);
+    return () => {
+      stale = true;
+      window.clearTimeout(timer);
+    };
+  }, [direct, company.public_id, vehicleId, tariffId, startAt, endAt, chosen?.id, locationId]);
 
   async function recount(by: "units" | "end", next: { tariffId?: string; start?: string; end?: string; units?: string }) {
     const answer = await count(by, { vehicleId, locationId, zone, tariffId, start, end, units, ...next });
@@ -171,6 +212,8 @@ export function BookingPage() {
       ...(locationId ? placeBody(place) : {}),
       contact: !chosen && noClient ? contact : "",
       comment,
+      ...(returnId ? { planned_return_location_id: returnId } : {}),
+      ...(direct ? { direct: true } : {}),
     });
     if (result) {
       await queryClient.invalidateQueries({ queryKey: ["rentals", company.public_id] });
@@ -199,7 +242,7 @@ export function BookingPage() {
           label={t("common.back")}
           onClick={() => (route.key === "default" ? navigate(companyPath(company, "/rentals")) : navigate(-1))}
         />
-        <h1 style={{ margin: 0 }}>{t("bookings.new")}</h1>
+        <h1 style={{ margin: 0 }}>{t(direct ? "vehicles.action_rental" : "bookings.new")}</h1>
       </div>
       <form onSubmit={submit}>
         {/* One block, short fields (decision of 15.11.2026): vehicle and its tariff; the period
@@ -326,13 +369,30 @@ export function BookingPage() {
                 onPick={setChosen}
                 onCreate={() => setNewClient(true)}
                 aside={
-                  <button type="button" className="secondary" onClick={() => setNoClient(true)}>
-                    {t("bookings.no_client")}
-                  </button>
+                  // A rental is not created without a client; a booking may be.
+                  direct ? undefined : (
+                    <button type="button" className="secondary" onClick={() => setNoClient(true)}>
+                      {t("bookings.no_client")}
+                    </button>
+                  )
                 }
               />
             )}
             <PlaceFields lead={locationField} leadOnly={!locationId} value={place} onChange={setPlace} />
+            {direct ? (
+              <div className="row compact">
+                <Field label={t("rentals.planned_return_location")}>
+                  <select value={returnId} onChange={(e) => setReturnId(e.target.value)}>
+                    <option value="">—</option>
+                    {(locations.data?.locations ?? []).map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+            ) : null}
             <div className="row">
               <div style={{ maxWidth: 720 }}>
                 <Field label={t("bookings.comment")}>
@@ -342,10 +402,19 @@ export function BookingPage() {
             </div>
           </div>
         </Card>
+        {/* The cost stands in a block of its own. */}
+        {quote ? (
+          <Card title={t("rentals.calculation")}>
+            <CalculationView calculation={quote.calculation} />
+          </Card>
+        ) : null}
         <ErrorMessage error={create.error} />
         <div className="actions">
-          <button type="submit" disabled={create.pending || !vehicleId || !start || !end}>
-            {t("bookings.create")}
+          <button
+            type="submit"
+            disabled={create.pending || !vehicleId || !start || !end || (direct && (!chosen || !tariffId))}
+          >
+            {t(direct ? "vehicles.action_rental" : "bookings.create")}
           </button>
         </div>
       </form>
@@ -421,8 +490,12 @@ export function BookingCard({ rental, onDone }: { rental: Rental; onDone: (next?
         </div>
       ) : null}
       <dl className="facts">
-        <dt>{t("bookings.number_label")}</dt>
-        <dd>{booking.number}</dd>
+        {booking.direct ? null : (
+          <>
+            <dt>{t("bookings.number_label")}</dt>
+            <dd>{booking.number}</dd>
+          </>
+        )}
         <dt>{t("bookings.planned_start")}</dt>
         <dd>{when(booking.planned_start)}</dd>
         <dt>{t("rentals.planned_end")}</dt>
@@ -472,12 +545,12 @@ export function BookingCard({ rental, onDone }: { rental: Rental; onDone: (next?
         <div className="actions">
           {can("rental.issue") ? (
             <Link className="button" to={companyPath(company, `/rentals/new?booking=${rental.id}`)}>
-              {t("bookings.issue")}
+              {t(booking.direct ? "rentals.issue" : "bookings.issue")}
             </Link>
           ) : null}
           {panels.map((p) => (
             <button key={p} type="button" className="secondary" onClick={() => setPanel(panel === p ? "" : p)}>
-              {t(`bookings.action_${p}`)}
+              {t(booking.direct && p === "cancel" ? "rentals.cancel_awaiting" : `bookings.action_${p}`)}
             </button>
           ))}
         </div>

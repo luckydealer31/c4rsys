@@ -241,3 +241,21 @@ def test_booking_needs_its_right(owner: Client, s: Scenario) -> None:
 
     assert _book(manager, s).status_code == 201
     assert _book(driver, s, 5, 6).status_code == 403
+
+
+def test_rental_created_ahead_of_its_issue(owner: Client, s: Scenario) -> None:
+    # Decision of 15.11.2026: a rental is created first and issued later from its card; it
+    # holds the vehicle as a booking does, and needs a client and a tariff.
+    assert _book(owner, s, direct=True).json()["error"]["code"] == "CLIENT_REQUIRED"
+    assert _book(owner, s, direct=True, client_id=s.client).json()["error"]["code"] == (
+        "TARIFF_REQUIRED"
+    )
+
+    response = _book(owner, s, direct=True, client_id=s.client, tariff_id=s.tariff)
+
+    assert response.status_code == 201, response.content
+    rental = response.json()["rental"]
+    assert rental["state"] == "booked"
+    assert rental["booking"]["direct"] is True
+    assert _book(owner, s).json()["error"]["code"] == "VEHICLE_NOT_AVAILABLE"
+    assert _book(owner, s, 5, 6).json()["rental"]["booking"]["direct"] is False

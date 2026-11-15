@@ -40,15 +40,15 @@ test("an employee without the right to issue is refused by the server", async ({
   await expect(staff.getByRole("heading", { level: 1 })).toBeVisible();
   await expect(staff.getByRole("link", { name: t("vehicles.action_rental"), exact: true })).toHaveCount(0);
 
-  // The issue screen opened by its address: the server refuses, nothing is issued.
+  // The screen of a new rental opened by its address: the server refuses, nothing is created.
   await staff.goto(`${s.base}/rentals/new`);
   await choose(staff.getByRole("combobox", { name: t("rentals.vehicle"), exact: true }), "Toyota Yaris");
   await choose(staff.getByRole("combobox", { name: t("rentals.tariff"), exact: true }), "Сутки");
   await staff.getByLabel(t("rentals.find_client")).fill("Иван Петров");
   await staff.getByRole("button", { name: /Иван Петров ·/ }).click();
-  await staff.getByLabel(t("rentals.odometer", { unit: "km" })).fill("10000");
-  await staff.getByLabel(t("rentals.fuel")).fill("8");
-  await staff.getByRole("button", { name: t("rentals.confirm_issue") }).click();
+  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  await staff.getByLabel(t("rentals.planned_end")).fill(`${tomorrow}T23:00`);
+  await staff.getByRole("button", { name: t("vehicles.action_rental"), exact: true }).click();
   await expect(staff.getByText(t("errors.permission_denied"))).toBeVisible();
   await expect(staff).toHaveURL(/\/rentals\/new$/);
 

@@ -1113,6 +1113,8 @@ export type IssueException = {
 /** A booking (§ 14.1): own number; a rental in state «booked» until the issue. */
 export type Booking = {
   number: number;
+  /** Created as a rental waiting for its issue, not as a booking (decision of 15.11.2026). */
+  direct: boolean;
   planned_start: string;
   contact: string;
   comment: string;

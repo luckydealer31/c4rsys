@@ -47,8 +47,7 @@ import { NewTripPage, TripPage, TripsPage } from "./pages/trips/TripsPage";
 import { NewAccountPage } from "./pages/finance/NewAccountPage";
 import { FinancePage } from "./pages/finance/FinancePage";
 import { OrderPage, OrdersPage } from "./pages/orders/OrdersPage";
-import { BookingPage } from "./pages/rentals/Booking";
-import { IssuePage } from "./pages/rentals/IssuePage";
+import { BookingPage, NewRentalPage } from "./pages/rentals/Booking";
 import { RentalPage } from "./pages/rentals/RentalPage";
 import { RentalsPage } from "./pages/rentals/RentalsPage";
 import { ExtraServicePage, ExtraServicesPage, NewServiceOrderPage, ServiceLinePage } from "./pages/rentals/Services";
@@ -186,7 +185,7 @@ function MainApp({ cabinet }: { cabinet: boolean }) {
         <Route path="company/locations/:id" element={<LocationPage />} />
         <Route path="setup" element={<SetupPage />} />
         <Route path="rentals" element={<RentalsPage />} />
-        <Route path="rentals/new" element={<IssuePage />} />
+        <Route path="rentals/new" element={<NewRentalPage />} />
         <Route path="rentals/book" element={<BookingPage />} />
         <Route path="rentals/:id" element={<RentalPage />} />
         <Route path="orders" element={<OrdersPage />} />

@@ -483,6 +483,8 @@ def _booking_payload(rental: Rental) -> dict[str, Any]:
     return {
         "booking": {
             "number": rental.booking_number,
+            # Created as a rental waiting for its issue, not as a booking.
+            "direct": rental.direct,
             "planned_start": _utc(rental.planned_start),
             "contact": rental.booking_contact,
             "comment": rental.booking_comment,

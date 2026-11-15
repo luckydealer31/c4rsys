@@ -270,6 +270,9 @@ class Rental(models.Model):
     # Booking (§ 14.1): own number inside the company (customer's decision of 26.10.2026), the
     # planned start and the period it holds.
     booking_number = models.PositiveIntegerField(null=True, blank=True)
+    # A rental created ahead of its issue as a rental, not as a booking (decision of 15.11.2026):
+    # the same holding of the vehicle until the issue, shown as a rental waiting for the issue.
+    direct = models.BooleanField(default=False)
     # § 14.8.1 (block 16): a new booking made instead of an already cancelled one refers to it;
     # the cancelled booking is not restored.
     previous_booking = models.ForeignKey(

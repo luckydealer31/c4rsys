@@ -174,6 +174,26 @@ function IssueForm({
     }
   }
 
+  // The calculation is made by itself once the vehicle, the tariff, the start and the end are
+  // given (decision of 15.11.2026); without one of them there is none.
+  const locationKey = location?.id ?? "";
+  const clientKey = chosen?.id ?? "";
+  useEffect(() => {
+    if (!vehicleId || !tariffId || !start || !plannedEnd) {
+      setQuote(null);
+      return;
+    }
+    const timer = window.setTimeout(() => void calculate(), 400);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vehicleId, tariffId, start, plannedEnd, clientKey, locationKey]);
+  // The units of a period that came with a booking are counted once its tariff is known.
+  const tariffKey = tariff?.id ?? "";
+  useEffect(() => {
+    if (tariffKey && plannedEnd && !units) void recount("end", {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tariffKey]);
+
   async function submit(event: FormEvent) {
     event.preventDefault();
     const body: Record<string, unknown> = {
@@ -213,7 +233,9 @@ function IssueForm({
           onClick={() => (route.key === "default" ? navigate(companyPath(company, "/rentals")) : navigate(-1))}
         />
         <h1 style={{ margin: 0 }}>
-          {booking?.booking ? t("bookings.issue_title", { number: booking.booking.number }) : t("rentals.issue")}
+          {booking?.booking && !booking.booking.direct
+            ? t("bookings.issue_title", { number: booking.booking.number })
+            : t("rentals.issue")}
         </h1>
       </div>
       <form onSubmit={submit}>
@@ -372,16 +394,6 @@ function IssueForm({
           </div>
         </Card>
         <Card title={t("rentals.preliminary")}>
-          <div className="actions" style={{ marginTop: 0 }}>
-            <button
-              type="button"
-              className="secondary"
-              disabled={!vehicleId || !tariffId || !plannedEnd}
-              onClick={() => void calculate()}
-            >
-              {t("rentals.calculate")}
-            </button>
-          </div>
           {!plannedEnd ? <p className="muted small">{t("rentals.preliminary_hint")}</p> : null}
           <ErrorMessage error={quoteError} />
           {quote ? <CalculationView calculation={quote.calculation} /> : null}
@@ -563,14 +575,18 @@ export function ClientFinder({
   );
 }
 
-/** Breakdown: minutes → days → rate → amount (STAGE1_SCREENS, § 13.2). */
+/** The cost by the tariff (decision of 15.11.2026): units × rate = amount, in the units of the
+ * tariff — no minutes for a daily one. The current and the actual cost are named; the cost
+ * before the issue has no word before it. */
 export function CalculationView({ calculation }: { calculation: Calculation }) {
   const { t } = useTranslation();
+  const rate = calculation.rate ? ` × ${Number(calculation.rate)} ${calculation.currency}` : "";
   return (
     <p>
-      {t(`rentals.calc_${calculation.kind}`)}: {calculation.billable_minutes} {t("rentals.minutes")}
-      {calculation.free_minutes ? ` (${t("charges.free_minutes", { value: calculation.free_minutes })})` : ""} →{" "}
-      {calculation.units} {unitShort(calculation.unit, t)} → {calculation.rate ? Number(calculation.rate) : "—"} →{" "}
+      {calculation.kind === "preliminary" ? "" : `${t(`rentals.calc_${calculation.kind}`)}: `}
+      {calculation.units} {unitShort(calculation.unit, t)}
+      {rate}
+      {calculation.free_minutes ? ` (${t("charges.free_minutes", { value: calculation.free_minutes })})` : ""} ={" "}
       <strong>
         {calculation.base_amount} {calculation.currency}
       </strong>

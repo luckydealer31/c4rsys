@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router";
 
-import type { Client, ExtraService, ServiceLine } from "../../api/types";
+import type { Booking, Client, ExtraService, ServiceLine } from "../../api/types";
 import { useApi } from "../../api/queries";
 import { Icon } from "../../components/icons";
 import { Card, Loading } from "../../components/ui";
@@ -261,7 +261,14 @@ function RentalsList({ lines }: { lines: ServiceLine[] }) {
   const pending = all.filter((r) => r.issue_exception?.state === "pending");
   const [kind, setKind] = useState<Kind>("all");
   const states = KINDS[kind];
-  const shown = (waiting ? pending : all).filter((r) => states === null || states.includes(r.state));
+  // A rental created ahead of its issue is a rental, not a booking (decision of 15.11.2026).
+  const awaiting = (r: { state: string; booking?: Booking | null }) => r.state === "booked" && Boolean(r.booking?.direct);
+  const shown = (waiting ? pending : all).filter(
+    (r) =>
+      states === null ||
+      (kind === "rentals" && awaiting(r)) ||
+      (states.includes(r.state) && !(kind === "bookings" && awaiting(r))),
+  );
   const orders = useOrders();
   const amounts = new Map(
     (orders.data?.orders ?? []).map((o) => [
@@ -316,7 +323,9 @@ function RentalsList({ lines }: { lines: ServiceLine[] }) {
                     <Link to={companyPath(company, `/rentals/${rental.id}`)}>
                       {vehicleName.get(rental.vehicle_card_id) ?? "—"}
                     </Link>
-                    {booking ? <div className="muted small">{t("bookings.number", { number: booking.number })}</div> : null}
+                    {booking && !booking.direct ? (
+                      <div className="muted small">{t("bookings.number", { number: booking.number })}</div>
+                    ) : null}
                   </td>
                   <td>
                     {rental.client_id ? (clientNames.get(rental.client_id) ?? "—") : null}
@@ -332,7 +341,7 @@ function RentalsList({ lines }: { lines: ServiceLine[] }) {
                   </td>
                   <td>{amounts.get(rental.order_id) || "—"}</td>
                   <td>
-                    {t(`rentals.state_${rental.state}`)}
+                    {t(awaiting(rental) ? "rentals.state_awaiting" : `rentals.state_${rental.state}`)}
                     {services.get(rental.id) ? (
                       <span className="badge"> {t("rentals.services_badge", { count: services.get(rental.id) })}</span>
                     ) : null}

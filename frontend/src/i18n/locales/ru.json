@@ -1908,8 +1908,6 @@
     "block_settlement": "Расчёты",
     "calc_actual": "Фактическая стоимость",
     "calc_current": "Текущая стоимость",
-    "calc_preliminary": "Предварительно",
-    "calculate": "Рассчитать",
     "calculation": "Расчёт",
     "change_client": "Сменить",
     "check_conducted": "проведён",
@@ -1961,8 +1959,8 @@
     "place_other": "Другое место",
     "planned_end": "Плановое окончание",
     "planned_return_location": "Плановая локация возврата",
-    "preliminary": "Предварительный расчёт",
-    "preliminary_hint": "Укажите плановое окончание, чтобы увидеть предварительный расчёт.",
+    "preliminary": "Расчёт",
+    "preliminary_hint": "Укажите плановое окончание, чтобы увидеть расчёт.",
     "readings_later": "Можно внести позже",
     "rental": "Аренда",
     "return_location": "Локация возврата",
@@ -2005,7 +2003,10 @@
     "action_service_now": "Создать услугу",
     "filter_services": "Услуги",
     "tab_schedule": "Расписание",
-    "tab_trips": "Поездки"
+    "tab_trips": "Поездки",
+    "state_awaiting": "Ожидает выдачи",
+    "awaiting_title": "Аренда создана, Т/С не выдано",
+    "cancel_awaiting": "Отменить аренду"
   },
   "rights": {
     "add": "Добавить права",

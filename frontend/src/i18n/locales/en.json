@@ -1908,8 +1908,6 @@
     "block_settlement": "Settlement",
     "calc_actual": "Actual cost",
     "calc_current": "Current cost",
-    "calc_preliminary": "Preliminary",
-    "calculate": "Calculate",
     "calculation": "Calculation",
     "change_client": "Change",
     "check_conducted": "conducted",
@@ -1961,8 +1959,8 @@
     "place_other": "Other place",
     "planned_end": "Planned end",
     "planned_return_location": "Planned return location",
-    "preliminary": "Preliminary calculation",
-    "preliminary_hint": "Set the planned end to see the preliminary calculation.",
+    "preliminary": "Calculation",
+    "preliminary_hint": "Give the planned end to see the calculation.",
     "readings_later": "May be entered later",
     "rental": "Rental",
     "return_location": "Return location",
@@ -2005,7 +2003,10 @@
     "action_service_now": "Create a service",
     "filter_services": "Services",
     "tab_schedule": "Schedule",
-    "tab_trips": "Trips"
+    "tab_trips": "Trips",
+    "state_awaiting": "Awaiting issue",
+    "awaiting_title": "Rental created, vehicle not issued",
+    "cancel_awaiting": "Cancel the rental"
   },
   "rights": {
     "add": "Add rights",

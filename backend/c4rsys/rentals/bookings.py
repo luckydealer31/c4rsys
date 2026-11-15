@@ -187,6 +187,7 @@ def _auto_cancel_at(rule: dict[str, Any], planned_start: datetime) -> datetime |
 def snapshot(rental: Rental) -> dict[str, Any]:
     return {
         "booking_number": rental.booking_number,
+        "direct": rental.direct,
         "vehicle_card": str(rental.vehicle_card_id),
         "client": str(rental.client_id) if rental.client_id else None,
         "tariff": str(rental.tariff_id) if rental.tariff_id else None,
@@ -219,6 +220,8 @@ class BookingData:
     contact: str = ""
     comment: str = ""
     previous_booking_id: UUID | None = None
+    # A rental waiting for its issue, not a booking: the client and the tariff are required.
+    direct: bool = False
 
 
 def _previous(company_id: UUID, data: BookingData) -> Rental | None:
@@ -264,6 +267,10 @@ def _place(company_id: UUID, data: BookingData) -> tuple[Any, str, places.Place 
 def create(ctx: CommandContext, company_id: UUID, data: BookingData) -> Rental:
     if data.planned_end <= data.planned_start:
         raise errors.validation_error("planned_end", code="PERIOD_INVALID")
+    if data.direct and data.client_id is None:
+        raise errors.business_rule("CLIENT_REQUIRED", field="client_id")
+    if data.direct and data.tariff_id is None:
+        raise errors.business_rule("TARIFF_REQUIRED", field="tariff_id")
     card = fleet.lock_card(company_id, data.vehicle_card_id)
     fleet.require_open_for_new(card)
     _require_free(card.id, data.planned_start, data.planned_end)
@@ -307,6 +314,7 @@ def create(ctx: CommandContext, company_id: UUID, data: BookingData) -> Rental:
                 booking_period=(data.planned_start, data.planned_end),
                 planned_return_location_id=data.planned_return_location_id,
                 booking_number=next_number(company_id, "booking"),
+                direct=data.direct,
                 previous_booking=previous,
                 booking_contact=data.contact,
                 booking_comment=data.comment,

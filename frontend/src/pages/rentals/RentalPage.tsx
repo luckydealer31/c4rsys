@@ -89,7 +89,8 @@ export function RentalPage() {
   return (
     <div className="page">
       <h1>
-        {vehicle?.name ?? t("rentals.rental")} · {t(`rentals.state_${current.state}`)}
+        {vehicle?.name ?? t("rentals.rental")} ·{" "}
+        {t(current.state === "booked" && current.booking?.direct ? "rentals.state_awaiting" : `rentals.state_${current.state}`)}
       </h1>
       <Warnings warnings={issued?.warnings ?? []} />
       {current.overdue ? <div className="alert warn">{t("rentals.overdue")}</div> : null}
@@ -135,7 +136,9 @@ export function RentalPage() {
       ) : null}
 
       {current.booking ? (
-        <Card title={t("bookings.title", { number: current.booking.number })}>
+        <Card
+          title={current.booking.direct ? t("rentals.awaiting_title") : t("bookings.title", { number: current.booking.number })}
+        >
           <BookingCard rental={current} onDone={refresh} />
         </Card>
       ) : null}

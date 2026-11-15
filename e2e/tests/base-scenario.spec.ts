@@ -192,12 +192,21 @@ test("base example from registration to closing survives a restart", async ({ pa
   await page.getByRole("dialog").locator("form").getByRole("button", { name: t("common.cancel") }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
 
-  // Issue: 3 days ago at 10:00, odometer 10 000, fuel 8.
+  // A rental from 3 days ago 10:00 to 1 day ago 10:00; issued with odometer 10 000, fuel 8.
   await page.goto(`${base}/rentals/new`);
   await choose(page.getByRole("combobox", { name: t("rentals.vehicle"), exact: true }), "Toyota Yaris");
   await choose(page.getByRole("combobox", { name: t("rentals.tariff"), exact: true }), "Сутки");
   await page.getByLabel(t("rentals.find_client")).fill("Иван Петров");
   await page.getByRole("button", { name: /Иван Петров ·/ }).click();
+  // The rental is created first: the period, the cost counted by itself, no issue yet.
+  await page.getByLabel(t("bookings.planned_start")).fill(issueAt);
+  await page.getByLabel(t("rentals.planned_end")).fill(returnAt);
+  await expect(card(page, t("rentals.calculation"))).toContainText(`2 ${t("rentals.days")} × 1000 THB = 2000.00 THB`);
+  await page.getByRole("button", { name: t("vehicles.action_rental"), exact: true }).click();
+  await expect(page).toHaveURL(/\/rentals\/[0-9a-f-]+$/);
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(t("rentals.state_awaiting"));
+  // The issue is confirmed from the created rental, with the readings of the handover.
+  await page.getByRole("link", { name: t("rentals.issue"), exact: true }).click();
   await page.getByLabel(t("rentals.actual_start")).fill(issueAt);
   await page.getByLabel(t("rentals.odometer", { unit: "km" })).fill("10000");
   await page.getByLabel(t("rentals.fuel")).fill("8");
@@ -213,7 +222,7 @@ test("base example from registration to closing survives a restart", async ({ pa
   await back.getByRole("button", { name: t("rentals.accept_return") }).click();
   await expect(page.getByRole("heading", { level: 1 })).toContainText(t("rentals.state_returned"));
   await expect(card(page, t("rentals.calculation"))).toContainText(
-    `${t("rentals.calc_actual")}: 2880 ${t("rentals.minutes")} → 2 ${t("rentals.days")} → 1000 → 2000.00 THB`,
+    `${t("rentals.calc_actual")}: 2 ${t("rentals.days")} × 1000 THB = 2000.00 THB`,
   );
   await expect(page.getByText(t("rentals.fuel_same"))).toBeVisible();
   await page.getByRole("button", { name: t("rentals.complete_formalization") }).click();

@@ -69,7 +69,11 @@ def booking_create(request: HttpRequest, cmp: str) -> JsonResponse:
     context, actor = _actor(request, cmp)
     data = parse_json(request)
     location_id = _optional_uuid(data, "issue_location_id")
-    _require(actor, BOOK, location_id)
+    # A rental created ahead of its issue asks for the right of the issue, a booking for its own.
+    direct = data.get("direct", False)
+    if not isinstance(direct, bool):
+        raise errors.validation_error("direct")
+    _require(actor, "rental.issue" if direct else BOOK, location_id)
     start = _moment(data, "planned_start", required=True)
     end = _moment(data, "planned_end", required=True)
     if start is None or end is None:
@@ -86,6 +90,7 @@ def booking_create(request: HttpRequest, cmp: str) -> JsonResponse:
         contact=get_str(data, "contact", max_length=200, required=False),
         comment=get_str(data, "comment", max_length=1000, required=False),
         previous_booking_id=_optional_uuid(data, "previous_booking_id"),
+        direct=direct,
     )
 
     def handler(ctx: CommandContext) -> CommandResult:
