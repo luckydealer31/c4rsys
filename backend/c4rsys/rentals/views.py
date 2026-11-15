@@ -906,6 +906,57 @@ def rental_quote(request: HttpRequest, cmp: str) -> JsonResponse:
     )
 
 
+@require_POST
+def rental_period(request: HttpRequest, cmp: str) -> JsonResponse:
+    """The period of a rental in units of the tariff, both ways (decision of 15.11.2026): the
+    number of units between a start and an end, or the end of `units` units from the start. A
+    read: nothing is posted."""
+    context, actor = _actor(request, cmp)
+    resolver = access.RightsResolver()
+    if not any(
+        resolver.has_permission(actor, p) for p in ("rental.issue", "rental.book", "rental.view")
+    ):
+        raise errors.permission_denied("rental.book")
+    data = parse_json(request)
+    card = fleet.get_card(context.company.id, _uuid(data, "vehicle_card_id"))
+    tariff = (
+        tariffs.tariffs_for_vehicle(card)
+        .filter(pk=_uuid(data, "tariff_id", "TARIFF_REQUIRED"))
+        .first()
+    )
+    terms = tariffs.vehicle_terms(tariff, card) if tariff else None
+    if tariff is None or terms is None:
+        raise errors.business_rule("TARIFF_NOT_AVAILABLE", field="tariff_id")
+    tariff = Tariff.objects.select_related("currency").get(pk=tariff.pk)
+    snapshot = tariffs.rental_snapshot(tariff, terms)
+    location_id = _optional_uuid(data, "issue_location_id") or card.accounting_location_id
+    zone = issue_policies.zone_of(context.company.id, location_id)
+    priced = pricing.terms_from_snapshot(snapshot, zone)
+    start = _moment(data, "start", required=True)
+    given_end = _moment(data, "end", required=False)
+    if start is None:
+        raise errors.validation_error("start", code="FIELD_REQUIRED")
+    try:
+        if data.get("units") not in (None, ""):
+            try:
+                units = int(data["units"])
+            except (TypeError, ValueError) as exc:
+                raise errors.validation_error("units") from exc
+            if units < 1 or units > 10000:
+                raise errors.validation_error("units")
+            end = pricing.advance(priced, start, units)
+        elif given_end is None:
+            raise errors.validation_error("end", code="FIELD_REQUIRED")
+        elif given_end < start:
+            raise errors.validation_error("end", code="PERIOD_INVALID")
+        else:
+            end = given_end
+            units = pricing.calculate(priced, start, end).units
+    except pricing.PricingError as exc:
+        raise errors.business_rule(str(exc), field="tariff_id") from exc
+    return JsonResponse({"unit": priced.unit, "units": units, "end": end.isoformat()})
+
+
 @require_http_methods(["GET"])
 def vehicle_tariffs(request: HttpRequest, cmp: str, card_id: UUID) -> JsonResponse:
     """Tariffs to choose from when issuing this vehicle (§ 13.1.2)."""
@@ -919,6 +970,7 @@ def vehicle_tariffs(request: HttpRequest, cmp: str, card_id: UUID) -> JsonRespon
             "id": str(t.id),
             "name": t.name,
             "currency": t.currency_id,
+            "unit": t.unit,
             # The prices of this vehicle in the ranges of the tariff.
             "ranges": tariffs.vehicle_ranges_payload(t, card),
         }

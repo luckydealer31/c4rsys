@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useNavigate, useSearchParams } from "react-router";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 
 import { api, ApiError } from "../../api/client";
 import { useApi } from "../../api/queries";
@@ -15,7 +15,7 @@ import type {
   Warning,
 } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
+import { Card, ErrorMessage, Field, IconButton, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { fromLocalInput, toLocalInput } from "../../time";
 import { ClientForm, clientName } from "../clients/ClientsPage";
@@ -102,6 +102,7 @@ function IssueForm({
   const company = useCompany();
   const can = useCan();
   const navigate = useNavigate();
+  const route = useLocation();
   const client = useQueryClient();
   const vehicles = useVehicles();
   const locations = useLocations();
@@ -194,7 +195,16 @@ function IssueForm({
 
   return (
     <div className="page">
-      <h1>{booking?.booking ? t("bookings.issue_title", { number: booking.booking.number }) : t("rentals.issue")}</h1>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <IconButton
+          icon="back"
+          label={t("common.back")}
+          onClick={() => (route.key === "default" ? navigate(companyPath(company, "/rentals")) : navigate(-1))}
+        />
+        <h1 style={{ margin: 0 }}>
+          {booking?.booking ? t("bookings.issue_title", { number: booking.booking.number }) : t("rentals.issue")}
+        </h1>
+      </div>
       <form onSubmit={submit}>
         <Card title={t("rentals.vehicle_and_client")}>
           <div className="row">

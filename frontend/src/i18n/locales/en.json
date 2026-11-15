@@ -3421,13 +3421,10 @@
     "number": "booking No. {{number}}",
     "number_label": "Booking number",
     "vehicle_and_period": "Vehicle and period",
-    "any_body": "Any",
     "planned_start": "Planned start",
     "check": "Check availability",
     "free": "The vehicle is free for this period.",
     "busy": "The vehicle is taken in this period:",
-    "details": "Client and details",
-    "details_later": "Everything here may be filled in later: without a client the booking is saved with «client not specified».",
     "contact": "Contact",
     "comment": "Comment",
     "client_missing": "Client not specified: the vehicle is held, the client must be chosen before the issue.",
@@ -3473,7 +3470,11 @@
     "deliveries_warning": "The vehicle has trips in this period; the booking is kept, check the timing:",
     "restriction_conflict": "Conflict: the vehicle is restricted {{start}} — {{end}}; the issue is blocked while it lasts.",
     "previous": "Made instead of booking № {{number}}",
-    "rebook": "New booking instead of this one"
+    "rebook": "New booking instead of this one",
+    "units": "Quantity, {{unit}}",
+    "client_later": "The client may be left empty: the booking is saved with the mark “client not specified”.",
+    "contact_hint": "If the client is not in the base, write a name and a phone.",
+    "issue_and_comment": "Issue and comment"
   },
   "issue_rules": {
     "page_hint": "Rules of the issue and auto-cancel of bookings: for the whole company, and a location may have its own.",

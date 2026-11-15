@@ -26,6 +26,13 @@ test("a booking is issued by its own screen", async ({ page }) => {
   await page.getByRole("button", { name: t("bookings.check") }).click();
   await expect(page.getByText(t("bookings.free"))).toBeVisible();
   await choose(page.getByRole("combobox", { name: t("rentals.tariff"), exact: true }), "Сутки");
+  // The period in units of the tariff: one day by the dates; three units move the end.
+  const units = page.getByLabel(t("bookings.units", { unit: t("tariffs.short_day") }));
+  await expect(units).toHaveValue("1");
+  await units.fill("3");
+  await expect(page.getByLabel(t("rentals.planned_end"))).toHaveValue(bangkok(4, "10:00"));
+  await page.getByLabel(t("rentals.planned_end")).fill(bangkok(2, "10:00"));
+  await expect(units).toHaveValue("1");
   await page.getByRole("combobox", { name: t("rentals.issue_location"), exact: true }).selectOption({ label: "Пхукет" });
   await page.getByLabel(t("rentals.find_client")).fill("Иван Петров");
   await page.getByRole("button", { name: t("rentals.search") }).click();

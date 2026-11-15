@@ -1,17 +1,18 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 
 import { api, ApiError } from "../../api/client";
 import { useApi } from "../../api/queries";
 import type { BookingConflict, Client, Rental } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { Card, ErrorMessage, Field } from "../../components/ui";
+import { Card, ErrorMessage, Field, IconButton } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { formatMoment, fromLocalInput, toLocalInput } from "../../time";
 import { clientName } from "../clients/ClientsPage";
 import { useLocations } from "../settings/LocationsPage";
+import { unitShort } from "../tariffs/TariffsPage";
 import { useVehicles } from "../vehicles/VehiclesPage";
 import { ClientFinder } from "./IssuePage";
 import {
@@ -24,7 +25,7 @@ import {
   type PlaceValue,
 } from "./IssueRules";
 
-type VehicleTariff = { id: string; name: string; currency: string };
+type VehicleTariff = { id: string; name: string; currency: string; unit: string };
 type RentalResponse = { rental: Rental };
 
 export function useVehicleTariffs(vehicleId: string) {
@@ -107,10 +108,10 @@ export function BookingPage() {
   const { t } = useTranslation();
   const company = useCompany();
   const navigate = useNavigate();
+  const route = useLocation();
   const queryClient = useQueryClient();
   const vehicles = useVehicles();
   const locations = useLocations();
-  const [body, setBody] = useState("");
   const [vehicleId, setVehicleId] = useState("");
   const [tariffId, setTariffId] = useState("");
   const [locationId, setLocationId] = useState("");
@@ -120,15 +121,43 @@ export function BookingPage() {
   // The planned start opens on the current day and time (decision of 15.11.2026).
   const [start, setStart] = useState(() => toLocalInput(new Date(), company.timezone ?? "UTC"));
   const [end, setEnd] = useState("");
+  const [units, setUnits] = useState("");
   const [contact, setContact] = useState("");
   const [comment, setComment] = useState("");
   const [place, setPlace] = useState<PlaceValue>(EMPTY_PLACE);
   const tariffs = useVehicleTariffs(vehicleId);
   const create =useCommand<Record<string, unknown>, RentalResponse>(`/c/${company.public_id}/bookings`);
   const rentable = (vehicles.data?.vehicles ?? []).filter((v) => v.contexts.includes("rental"));
-  const bodies = [...new Set(rentable.map((v) => v.characteristics.body_type).filter(Boolean))].sort();
+  const tariff = (tariffs.data?.tariffs ?? []).find((item) => item.id === tariffId);
   const startAt = start ? fromLocalInput(start, zone) : null;
   const endAt = end ? fromLocalInput(end, zone) : null;
+  const asked = useRef(0);
+
+  /** The period in units of the tariff, both ways (decision of 15.11.2026): a number of units
+   * gives the end, an end gives the number of units. Counted by the server, as the price is. */
+  async function recount(by: "units" | "end", next: { tariffId?: string; start?: string; end?: string; units?: string }) {
+    const values = { tariffId, start, end, units, ...next };
+    const given = by === "units" ? values.units : values.end;
+    if (!vehicleId || !values.tariffId || !values.start || !given) return;
+    const turn = ++asked.current;
+    try {
+      const answer = await api<{ units: number; end: string }>(`/c/${company.public_id}/rentals/period`, {
+        method: "POST",
+        body: {
+          vehicle_card_id: vehicleId,
+          tariff_id: values.tariffId,
+          issue_location_id: locationId,
+          start: fromLocalInput(values.start, zone),
+          ...(by === "units" ? { units: Number(values.units) } : { end: fromLocalInput(values.end, zone) }),
+        },
+      });
+      if (turn !== asked.current) return;
+      if (by === "units") setEnd(toLocalInput(new Date(answer.end), zone));
+      else setUnits(answer.units ? String(answer.units) : "");
+    } catch {
+      // The period stays as it was entered; the server names the mistake on saving.
+    }
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -140,7 +169,7 @@ export function BookingPage() {
       tariff_id: tariffId,
       issue_location_id: locationId,
       ...(locationId ? placeBody(place) : {}),
-      contact,
+      contact: chosen ? "" : contact,
       comment,
     });
     if (result) {
@@ -151,62 +180,119 @@ export function BookingPage() {
 
   return (
     <div className="page">
-      <h1>{t("bookings.new")}</h1>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <IconButton
+          icon="back"
+          label={t("common.back")}
+          onClick={() => (route.key === "default" ? navigate(companyPath(company, "/rentals")) : navigate(-1))}
+        />
+        <h1 style={{ margin: 0 }}>{t("bookings.new")}</h1>
+      </div>
       <form onSubmit={submit}>
+        {/* The order of the form (decision of 15.11.2026): vehicle, its tariff, the period, the
+            client, the place of the issue, the comment. */}
         <Card title={t("bookings.vehicle_and_period")}>
           <div className="row">
-            <Field label={t("vehicles.body_type")}>
-              <select value={body} onChange={(e) => setBody(e.target.value)}>
-                <option value="">{t("bookings.any_body")}</option>
-                {bodies.map((b) => (
-                  <option key={b} value={b}>
-                    {t(`vehicles.body.${b}`, { defaultValue: b })}
-                  </option>
-                ))}
-              </select>
-            </Field>
             <Field label={t("rentals.vehicle")}>
               <select
                 value={vehicleId}
                 onChange={(e) => {
                   setVehicleId(e.target.value);
                   setTariffId("");
+                  setUnits("");
                 }}
               >
                 <option value="">—</option>
-                {rentable
-                  .filter((v) => !body || v.characteristics.body_type === body)
-                  .map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.name} · {v.vehicle_id}
-                    </option>
-                  ))}
-              </select>
-            </Field>
-          </div>
-          <div className="row">
-            <Field label={t("bookings.planned_start")} hint={zone}>
-              <input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} />
-            </Field>
-            <Field label={t("rentals.planned_end")} hint={zone}>
-              <input type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} />
-            </Field>
-          </div>
-          <Availability vehicleId={vehicleId} start={startAt} end={endAt} />
-        </Card>
-        <Card title={t("bookings.details")}>
-          <p className="muted small">{t("bookings.details_later")}</p>
-          <div className="row">
-            <Field label={t("rentals.tariff")}>
-              <select value={tariffId} onChange={(e) => setTariffId(e.target.value)}>
-                <option value="">—</option>
-                {(tariffs.data?.tariffs ?? []).map((tariff) => (
-                  <option key={tariff.id} value={tariff.id}>
-                    {tariff.name} · {tariff.currency}
+                {rentable.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.name} · {v.vehicle_id}
                   </option>
                 ))}
               </select>
             </Field>
+            <Field label={t("rentals.tariff")}>
+              <select
+                value={tariffId}
+                disabled={!vehicleId}
+                onChange={(e) => {
+                  setTariffId(e.target.value);
+                  void recount(units ? "units" : "end", { tariffId: e.target.value });
+                }}
+              >
+                <option value="">—</option>
+                {(tariffs.data?.tariffs ?? []).map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name} · {item.currency}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+          {vehicleId && tariffs.data && tariffs.data.tariffs.length === 0 ? (
+            <div className="alert warn">
+              {t("rentals.no_tariff_for_vehicle")}{" "}
+              <Link to={companyPath(company, "/rentals/tariffs")}>{t("settings.tariffs")}</Link>
+            </div>
+          ) : null}
+          <div className="row">
+            <Field label={t("bookings.planned_start")} hint={zone}>
+              <input
+                type="datetime-local"
+                value={start}
+                onChange={(e) => {
+                  setStart(e.target.value);
+                  void recount(units ? "units" : "end", { start: e.target.value });
+                }}
+              />
+            </Field>
+            {tariff ? (
+              <Field label={t("bookings.units", { unit: unitShort(tariff.unit, t) })}>
+                <input
+                  value={units}
+                  inputMode="numeric"
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, "");
+                    setUnits(value);
+                    void recount("units", { units: value });
+                  }}
+                />
+              </Field>
+            ) : null}
+            <Field label={t("rentals.planned_end")} hint={zone}>
+              <input
+                type="datetime-local"
+                value={end}
+                onChange={(e) => {
+                  setEnd(e.target.value);
+                  void recount("end", { end: e.target.value });
+                }}
+              />
+            </Field>
+          </div>
+          <Availability vehicleId={vehicleId} start={startAt} end={endAt} />
+        </Card>
+        <Card title={t("rentals.client")}>
+          <p className="muted small">{t("bookings.client_later")}</p>
+          {chosen ? (
+            <p>
+              <strong>{clientName(chosen)}</strong>{" "}
+              <button type="button" className="secondary" onClick={() => setChosen(null)}>
+                {t("rentals.change_client")}
+              </button>
+            </p>
+          ) : (
+            <>
+              <ClientFinder onPick={setChosen} />
+              <div className="row">
+                <Field label={t("bookings.contact")} hint={t("bookings.contact_hint")}>
+                  <input value={contact} onChange={(e) => setContact(e.target.value)} />
+                </Field>
+              </div>
+            </>
+          )}
+        </Card>
+        <Card title={t("bookings.issue_and_comment")}>
+          <div className="row">
             <Field label={t("rentals.issue_location")}>
               <select value={locationId} onChange={(e) => setLocationId(e.target.value)}>
                 <option value="">—</option>
@@ -220,24 +306,10 @@ export function BookingPage() {
           </div>
           {locationId ? <PlaceFields value={place} onChange={setPlace} /> : null}
           <div className="row">
-            <Field label={t("bookings.contact")}>
-              <input value={contact} onChange={(e) => setContact(e.target.value)} />
-            </Field>
             <Field label={t("bookings.comment")}>
               <input value={comment} onChange={(e) => setComment(e.target.value)} />
             </Field>
           </div>
-          <h3>{t("rentals.client")}</h3>
-          {chosen ? (
-            <p>
-              <strong>{clientName(chosen)}</strong>{" "}
-              <button type="button" className="secondary" onClick={() => setChosen(null)}>
-                {t("rentals.change_client")}
-              </button>
-            </p>
-          ) : (
-            <ClientFinder onPick={setChosen} />
-          )}
         </Card>
         <ErrorMessage error={create.error} />
         <div className="actions">

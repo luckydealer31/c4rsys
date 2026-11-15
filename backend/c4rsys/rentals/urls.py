@@ -72,6 +72,7 @@ urlpatterns = [
     ),
     path("c/<str:cmp>/rentals/issue", views.rental_issue),
     path("c/<str:cmp>/rentals/quote", views.rental_quote),
+    path("c/<str:cmp>/rentals/period", views.rental_period),
     path("c/<str:cmp>/vehicles/<uuid:card_id>/tariffs", views.vehicle_tariffs),
     path("c/<str:cmp>/rentals/<uuid:rental_id>", views.rental_detail),
     path("c/<str:cmp>/rentals/<uuid:rental_id>/return", views.rental_return),

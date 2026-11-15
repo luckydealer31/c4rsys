@@ -3,7 +3,7 @@ acceptance criteria 2, 4, 5, 6)."""
 
 import threading
 from collections.abc import Iterator
-from datetime import timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any
@@ -425,3 +425,17 @@ def test_preliminary_calculation_before_issue(owner: Client, s: Scenario) -> Non
     assert not Rental.objects.exists()
     tariffs = owner.get(f"/api/c/{s.cmp}/vehicles/{s.vehicle}/tariffs").json()["tariffs"]
     assert [t["id"] for t in tariffs] == [s.tariff]
+
+
+def test_period_in_tariff_units_both_ways(owner: Client, s: Scenario) -> None:
+    # Decision of 15.11.2026: the end is counted from a number of units, the units from an end.
+    body = {"vehicle_card_id": s.vehicle, "tariff_id": s.tariff, "start": ISSUE_AT.isoformat()}
+
+    by_units = post(owner, f"/api/c/{s.cmp}/rentals/period", {**body, "units": 3}).json()
+    end = (ISSUE_AT + timedelta(days=2, minutes=1)).isoformat()
+    by_end = post(owner, f"/api/c/{s.cmp}/rentals/period", {**body, "end": end}).json()
+
+    assert by_units["unit"] == "day"
+    assert datetime.fromisoformat(by_units["end"]) == ISSUE_AT + timedelta(days=3)
+    assert by_end["units"] == 3
+    assert post(owner, f"/api/c/{s.cmp}/rentals/period", {**body, "units": 0}).status_code == 400
