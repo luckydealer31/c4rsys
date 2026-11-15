@@ -45,7 +45,6 @@ test("an employee without the right to issue is refused by the server", async ({
   await choose(staff.getByRole("combobox", { name: t("rentals.vehicle"), exact: true }), "Toyota Yaris");
   await choose(staff.getByRole("combobox", { name: t("rentals.tariff"), exact: true }), "Сутки");
   await staff.getByLabel(t("rentals.find_client")).fill("Иван Петров");
-  await staff.getByRole("button", { name: t("rentals.search") }).click();
   await staff.getByRole("button", { name: /Иван Петров ·/ }).click();
   await staff.getByLabel(t("rentals.odometer", { unit: "km" })).fill("10000");
   await staff.getByLabel(t("rentals.fuel")).fill("8");

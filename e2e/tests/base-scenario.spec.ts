@@ -197,7 +197,6 @@ test("base example from registration to closing survives a restart", async ({ pa
   await choose(page.getByRole("combobox", { name: t("rentals.vehicle"), exact: true }), "Toyota Yaris");
   await choose(page.getByRole("combobox", { name: t("rentals.tariff"), exact: true }), "Сутки");
   await page.getByLabel(t("rentals.find_client")).fill("Иван Петров");
-  await page.getByRole("button", { name: t("rentals.search") }).click();
   await page.getByRole("button", { name: /Иван Петров ·/ }).click();
   await page.getByLabel(t("rentals.actual_start")).fill(issueAt);
   await page.getByLabel(t("rentals.odometer", { unit: "km" })).fill("10000");

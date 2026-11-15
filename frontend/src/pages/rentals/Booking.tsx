@@ -7,10 +7,10 @@ import { api, ApiError } from "../../api/client";
 import { useApi } from "../../api/queries";
 import type { BookingConflict, Client, Rental } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { Card, ErrorMessage, Field, IconButton } from "../../components/ui";
+import { Card, ErrorMessage, Field, IconButton, Modal } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { formatMoment, fromLocalInput, toLocalInput } from "../../time";
-import { clientName } from "../clients/ClientsPage";
+import { ClientForm, clientName } from "../clients/ClientsPage";
 import { useLocations } from "../settings/LocationsPage";
 import { unitShort } from "../tariffs/TariffsPage";
 import { useVehicles } from "../vehicles/VehiclesPage";
@@ -122,6 +122,7 @@ export function BookingPage() {
   const [start, setStart] = useState(() => toLocalInput(new Date(), company.timezone ?? "UTC"));
   const [end, setEnd] = useState("");
   const [units, setUnits] = useState("");
+  const [newClient, setNewClient] = useState(false);
   const [contact, setContact] = useState("");
   const [comment, setComment] = useState("");
   const [place, setPlace] = useState<PlaceValue>(EMPTY_PLACE);
@@ -282,7 +283,7 @@ export function BookingPage() {
             </p>
           ) : (
             <>
-              <ClientFinder onPick={setChosen} />
+              <ClientFinder onPick={setChosen} onCreate={() => setNewClient(true)} />
               <div className="row">
                 <Field label={t("bookings.contact")} hint={t("bookings.contact_hint")}>
                   <input value={contact} onChange={(e) => setContact(e.target.value)} />
@@ -318,6 +319,17 @@ export function BookingPage() {
           </button>
         </div>
       </form>
+      {/* Outside the form of the booking: a form of its own. */}
+      {newClient ? (
+        <Modal wide title={t("clients.create_title")} onClose={() => setNewClient(false)}>
+          <ClientForm
+            onCreated={(created) => {
+              setChosen(created);
+              setNewClient(false);
+            }}
+          />
+        </Modal>
+      ) : null}
     </div>
   );
 }

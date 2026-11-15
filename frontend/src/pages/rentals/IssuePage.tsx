@@ -256,7 +256,7 @@ function IssueForm({
               </button>
             </p>
           ) : (
-            <ClientFinder onPick={setChosen} />
+            <ClientFinder onPick={setChosen} onCreate={() => setNewClient(true)} />
           )}
           {!chosen && can("client.create") ? (
             <div className="actions">
@@ -371,14 +371,17 @@ function IssueForm({
   );
 }
 
-/** Finding the client being served (client.find, § 6.2.2) by phone, email or name. */
-export function ClientFinder({ onPick }: { onPick: (client: Client) => void }) {
+/** Finding the client being served (client.find, § 6.2.2) by phone, email or name: one field,
+ * the found clients drop down under it as a list (decision of 15.11.2026). With `onCreate` the
+ * list ends with «Create a client». */
+export function ClientFinder({ onPick, onCreate }: { onPick: (client: Client) => void; onCreate?: () => void }) {
   const { t } = useTranslation();
   const company = useCompany();
   const can = useCan();
   const [text, setText] = useState("");
   const [found, setFound] = useState<{ client: Client; matched: string[] }[] | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
+  const [open, setOpen] = useState(false);
 
   /** A phone or an email is matched exactly (§ 6.1.11). A name: with the right to the list of
    * clients — by a part of it, in any order of the words (§ 2.8.3); without that right — only
@@ -423,34 +426,69 @@ export function ClientFinder({ onPick }: { onPick: (client: Client) => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text]);
 
+  const creating = onCreate && can("client.create") ? onCreate : null;
+  const shown = open && text.trim().length >= 2 && found !== null;
+
   return (
     <div className="stack">
       <div className="row">
-        <Field label={t("rentals.find_client")} hint={t("rentals.find_client_hint")}>
-          <input
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                void search();
-              }
-            }}
-          />
-        </Field>
-      </div>
-      <div className="actions" style={{ marginTop: 0 }}>
-        <button type="button" className="secondary" disabled={!text.trim()} onClick={() => void search()}>
-          {t("rentals.search")}
-        </button>
+        <div className="suggest">
+          <Field label={t("rentals.find_client")} hint={t("rentals.find_client_hint")}>
+            <input
+              value={text}
+              autoComplete="off"
+              role="combobox"
+              aria-expanded={shown}
+              aria-controls="client-suggest"
+              onFocus={() => setOpen(true)}
+              onBlur={() => setOpen(false)}
+              onChange={(e) => {
+                setText(e.target.value);
+                setOpen(true);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  setOpen(true);
+                  void search();
+                }
+                if (e.key === "Escape") setOpen(false);
+              }}
+            />
+          </Field>
+          {shown ? (
+            // The press must not take the focus from the field: the list would close before the click.
+            <div id="client-suggest" className="suggest-list" onMouseDown={(e) => e.preventDefault()}>
+              {found.map(({ client }) => (
+                <button
+                  key={client.id}
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    onPick(client);
+                  }}
+                >
+                  {clientName(client)} · {client.contacts.map((c) => c.value).join(", ")}
+                </button>
+              ))}
+              {found.length === 0 ? <div className="muted small suggest-empty">{t("rentals.client_not_found")}</div> : null}
+              {creating ? (
+                <button
+                  type="button"
+                  className="suggest-create"
+                  onClick={() => {
+                    setOpen(false);
+                    creating();
+                  }}
+                >
+                  + {t("clients.create")}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
       </div>
       <ErrorMessage error={error} />
-      {found?.length === 0 ? <p className="muted small">{t("rentals.client_not_found")}</p> : null}
-      {(found ?? []).map(({ client }) => (
-        <button key={client.id} type="button" className="secondary" onClick={() => onPick(client)}>
-          {clientName(client)} · {client.contacts.map((c) => c.value).join(", ")}
-        </button>
-      ))}
     </div>
   );
 }

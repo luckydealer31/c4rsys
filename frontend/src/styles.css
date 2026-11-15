@@ -493,3 +493,46 @@ th.num, td.num { text-align: right; white-space: nowrap; }
 }
 :root[data-theme="dark"] .vehicle-type-icon.picture { filter: invert(1); mix-blend-mode: screen; }
 td.vehicle-cell { display: flex; align-items: center; gap: 12px; }
+
+/* A field with found records dropping down under it (the client in a booking, an issue). */
+.suggest {
+  position: relative;
+  flex: 1;
+  min-width: 240px;
+}
+.suggest-list {
+  position: absolute;
+  z-index: 30;
+  left: 0;
+  right: 0;
+  top: 100%;
+  margin-top: 4px;
+  max-height: 280px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 18%);
+}
+.suggest-list button {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--text);
+  text-align: left;
+  font-weight: 400;
+}
+.suggest-list button:hover,
+.suggest-list button:focus-visible {
+  background: var(--bg);
+}
+.suggest-list .suggest-create {
+  border-top: 1px solid var(--border);
+  color: var(--accent);
+}
+.suggest-empty {
+  padding: 10px 12px;
+}

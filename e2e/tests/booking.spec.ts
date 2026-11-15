@@ -34,8 +34,8 @@ test("a booking is issued by its own screen", async ({ page }) => {
   await page.getByLabel(t("rentals.planned_end")).fill(bangkok(2, "10:00"));
   await expect(units).toHaveValue("1");
   await page.getByRole("combobox", { name: t("rentals.issue_location"), exact: true }).selectOption({ label: "Пхукет" });
-  await page.getByLabel(t("rentals.find_client")).fill("Иван Петров");
-  await page.getByRole("button", { name: t("rentals.search") }).click();
+  await page.getByRole("combobox", { name: t("rentals.find_client") }).fill("Иван");
+  await expect(page.getByRole("button", { name: /Иван Петров ·/ })).toBeVisible();
   await page.getByRole("button", { name: /Иван Петров ·/ }).click();
   await page.getByRole("button", { name: t("bookings.create") }).click();
 
