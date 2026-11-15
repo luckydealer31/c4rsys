@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useApi } from "../../api/queries";
@@ -43,7 +43,20 @@ export function placeText(rental: Rental): string {
   return parts.filter(Boolean).join(" · ");
 }
 
-export function PlaceFields({ value, onChange }: { value: PlaceValue; onChange: (next: PlaceValue) => void }) {
+export function PlaceFields({
+  value,
+  onChange,
+  lead,
+  leadOnly = false,
+}: {
+  value: PlaceValue;
+  onChange: (next: PlaceValue) => void;
+  /** A field standing in the same line before the place: the location of the issue. With it
+   * the line is of short fields (decision of 15.11.2026). */
+  lead?: ReactNode;
+  /** Only the leading field: the place is asked once the location is chosen. */
+  leadOnly?: boolean;
+}) {
   const { t } = useTranslation();
   const [locating, setLocating] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -71,20 +84,23 @@ export function PlaceFields({ value, onChange }: { value: PlaceValue; onChange: 
 
   return (
     <>
-      <div className="row">
-        <Field label={t("rentals.place")}>
-          <select value={value.kind} onChange={(e) => set({ kind: e.target.value as PlaceValue["kind"] })}>
-            <option value="location">{t("rentals.place_location")}</option>
-            <option value="other">{t("rentals.place_other")}</option>
-          </select>
-        </Field>
-        {value.kind === "other" ? (
+      <div className={lead ? "row compact" : "row"}>
+        {lead}
+        {leadOnly ? null : (
+          <Field label={t("rentals.place")}>
+            <select value={value.kind} onChange={(e) => set({ kind: e.target.value as PlaceValue["kind"] })}>
+              <option value="location">{t("rentals.place_location")}</option>
+              <option value="other">{t("rentals.place_other")}</option>
+            </select>
+          </Field>
+        )}
+        {!leadOnly && value.kind === "other" ? (
           <Field label={t("issue_rules.address")}>
             <input value={value.address} onChange={(e) => set({ address: e.target.value })} />
           </Field>
         ) : null}
       </div>
-      {value.kind === "other" ? (
+      {!leadOnly && value.kind === "other" ? (
         <>
           <div className="row">
             <Field label={t("issue_rules.lat")}>

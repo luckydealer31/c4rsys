@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useRef, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation, useNavigate } from "react-router";
 
@@ -24,6 +24,7 @@ import {
   placeText,
   type PlaceValue,
 } from "./IssueRules";
+import { usePeriodCount } from "./period";
 
 type VehicleTariff = { id: string; name: string; currency: string; unit: string };
 type RentalResponse = { rental: Rental };
@@ -37,21 +38,12 @@ export function useVehicleTariffs(vehicleId: string) {
   );
 }
 
+type AvailabilityAnswer = { free: boolean; conflicts: BookingConflict[] };
+
 /** Operations of the vehicle overlapping the period, before the booking is saved (§ 14.6). */
-function Availability({
-  vehicleId,
-  start,
-  end,
-  exclude,
-}: {
-  vehicleId: string;
-  start: string | null;
-  end: string | null;
-  exclude?: string;
-}) {
-  const { t } = useTranslation();
+function useAvailability(vehicleId: string, start: string | null, end: string | null, exclude?: string) {
   const company = useCompany();
-  const [result, setResult] = useState<{ free: boolean; conflicts: BookingConflict[] } | null>(null);
+  const [result, setResult] = useState<AvailabilityAnswer | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
 
   async function check() {
@@ -66,13 +58,25 @@ function Availability({
     }
   }
 
+  return { ready: Boolean(vehicleId && start && end), check, result, error };
+}
+
+type AvailabilityState = ReturnType<typeof useAvailability>;
+
+function AvailabilityButton({ state }: { state: AvailabilityState }) {
+  const { t } = useTranslation();
+  return (
+    <button type="button" className="secondary" disabled={!state.ready} onClick={() => void state.check()}>
+      {t("bookings.check")}
+    </button>
+  );
+}
+
+function AvailabilityAnswerView({ state: { result, error } }: { state: AvailabilityState }) {
+  const { t } = useTranslation();
+  const company = useCompany();
   return (
     <>
-      <div className="actions" style={{ marginTop: 0 }}>
-        <button type="button" className="secondary" disabled={!vehicleId || !start || !end} onClick={() => void check()}>
-          {t("bookings.check")}
-        </button>
-      </div>
       <ErrorMessage error={error} />
       {result?.free ? <div className="alert">{t("bookings.free")}</div> : null}
       {result && result.conflicts.length ? (
@@ -85,6 +89,18 @@ function Availability({
           ))}
         </div>
       ) : null}
+    </>
+  );
+}
+
+function Availability(props: { vehicleId: string; start: string | null; end: string | null; exclude?: string }) {
+  const state = useAvailability(props.vehicleId, props.start, props.end, props.exclude);
+  return (
+    <>
+      <div className="actions" style={{ marginTop: 0 }}>
+        <AvailabilityButton state={state} />
+      </div>
+      <AvailabilityAnswerView state={state} />
     </>
   );
 }
@@ -123,6 +139,7 @@ export function BookingPage() {
   const [end, setEnd] = useState("");
   const [units, setUnits] = useState("");
   const [newClient, setNewClient] = useState(false);
+  const [noClient, setNoClient] = useState(false);
   const [contact, setContact] = useState("");
   const [comment, setComment] = useState("");
   const [place, setPlace] = useState<PlaceValue>(EMPTY_PLACE);
@@ -132,32 +149,14 @@ export function BookingPage() {
   const tariff = (tariffs.data?.tariffs ?? []).find((item) => item.id === tariffId);
   const startAt = start ? fromLocalInput(start, zone) : null;
   const endAt = end ? fromLocalInput(end, zone) : null;
-  const asked = useRef(0);
+  const count = usePeriodCount();
+  const availability = useAvailability(vehicleId, startAt, endAt);
 
-  /** The period in units of the tariff, both ways (decision of 15.11.2026): a number of units
-   * gives the end, an end gives the number of units. Counted by the server, as the price is. */
   async function recount(by: "units" | "end", next: { tariffId?: string; start?: string; end?: string; units?: string }) {
-    const values = { tariffId, start, end, units, ...next };
-    const given = by === "units" ? values.units : values.end;
-    if (!vehicleId || !values.tariffId || !values.start || !given) return;
-    const turn = ++asked.current;
-    try {
-      const answer = await api<{ units: number; end: string }>(`/c/${company.public_id}/rentals/period`, {
-        method: "POST",
-        body: {
-          vehicle_card_id: vehicleId,
-          tariff_id: values.tariffId,
-          issue_location_id: locationId,
-          start: fromLocalInput(values.start, zone),
-          ...(by === "units" ? { units: Number(values.units) } : { end: fromLocalInput(values.end, zone) }),
-        },
-      });
-      if (turn !== asked.current) return;
-      if (by === "units") setEnd(toLocalInput(new Date(answer.end), zone));
-      else setUnits(answer.units ? String(answer.units) : "");
-    } catch {
-      // The period stays as it was entered; the server names the mistake on saving.
-    }
+    const answer = await count(by, { vehicleId, locationId, zone, tariffId, start, end, units, ...next });
+    if (!answer) return;
+    if (by === "units") setEnd(toLocalInput(new Date(answer.end), zone));
+    else setUnits(answer.units ? String(answer.units) : "");
   }
 
   async function submit(event: FormEvent) {
@@ -170,7 +169,7 @@ export function BookingPage() {
       tariff_id: tariffId,
       issue_location_id: locationId,
       ...(locationId ? placeBody(place) : {}),
-      contact: chosen ? "" : contact,
+      contact: !chosen && noClient ? contact : "",
       comment,
     });
     if (result) {
@@ -178,6 +177,19 @@ export function BookingPage() {
       navigate(companyPath(company, `/rentals/${result.rental.id}`));
     }
   }
+
+  const locationField = (
+    <Field label={t("rentals.issue_location")}>
+      <select value={locationId} onChange={(e) => setLocationId(e.target.value)}>
+        <option value="">—</option>
+        {(locations.data?.locations ?? []).map((l) => (
+          <option key={l.id} value={l.id}>
+            {l.name}
+          </option>
+        ))}
+      </select>
+    </Field>
+  );
 
   return (
     <div className="page">
@@ -190,126 +202,144 @@ export function BookingPage() {
         <h1 style={{ margin: 0 }}>{t("bookings.new")}</h1>
       </div>
       <form onSubmit={submit}>
-        {/* The order of the form (decision of 15.11.2026): vehicle, its tariff, the period, the
-            client, the place of the issue, the comment. */}
-        <Card title={t("bookings.vehicle_and_period")}>
-          <div className="row">
-            <Field label={t("rentals.vehicle")}>
-              <select
-                value={vehicleId}
-                onChange={(e) => {
-                  setVehicleId(e.target.value);
-                  setTariffId("");
-                  setUnits("");
-                }}
-              >
-                <option value="">—</option>
-                {rentable.map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.name} · {v.vehicle_id}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label={t("rentals.tariff")}>
-              <select
-                value={tariffId}
-                disabled={!vehicleId}
-                onChange={(e) => {
-                  setTariffId(e.target.value);
-                  void recount(units ? "units" : "end", { tariffId: e.target.value });
-                }}
-              >
-                <option value="">—</option>
-                {(tariffs.data?.tariffs ?? []).map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name} · {item.currency}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </div>
-          {vehicleId && tariffs.data && tariffs.data.tariffs.length === 0 ? (
-            <div className="alert warn">
-              {t("rentals.no_tariff_for_vehicle")}{" "}
-              <Link to={companyPath(company, "/rentals/tariffs")}>{t("settings.tariffs")}</Link>
-            </div>
-          ) : null}
-          <div className="row">
-            <Field label={t("bookings.planned_start")} hint={zone}>
-              <input
-                type="datetime-local"
-                value={start}
-                onChange={(e) => {
-                  setStart(e.target.value);
-                  void recount(units ? "units" : "end", { start: e.target.value });
-                }}
-              />
-            </Field>
-            {tariff ? (
-              <Field label={t("bookings.units", { unit: unitShort(tariff.unit, t) })}>
-                <input
-                  value={units}
-                  inputMode="numeric"
+        {/* One block, short fields (decision of 15.11.2026): vehicle and its tariff; the period
+            with the check of the availability in the same line; the client; the place of the
+            issue; the comment. */}
+        <Card>
+          <div className="stack">
+            <div className="row compact">
+              <div className="w-wide">
+                <Field label={t("rentals.vehicle")}>
+                  <select
+                    value={vehicleId}
+                    onChange={(e) => {
+                      setVehicleId(e.target.value);
+                      setTariffId("");
+                      setUnits("");
+                    }}
+                  >
+                    <option value="">—</option>
+                    {rentable.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.name} · {v.vehicle_id}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+              <Field label={t("rentals.tariff")}>
+                <select
+                  value={tariffId}
+                  disabled={!vehicleId}
                   onChange={(e) => {
-                    const value = e.target.value.replace(/\D/g, "");
-                    setUnits(value);
-                    void recount("units", { units: value });
+                    setTariffId(e.target.value);
+                    void recount(units ? "units" : "end", { tariffId: e.target.value });
+                  }}
+                >
+                  <option value="">—</option>
+                  {(tariffs.data?.tariffs ?? []).map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name} · {item.currency}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+            {vehicleId && tariffs.data && tariffs.data.tariffs.length === 0 ? (
+              <div className="alert warn">
+                {t("rentals.no_tariff_for_vehicle")}{" "}
+                <Link to={companyPath(company, "/rentals/tariffs")}>{t("settings.tariffs")}</Link>
+              </div>
+            ) : null}
+            <div className="row compact">
+              <Field label={t("bookings.planned_start")} hint={zone}>
+                <input
+                  type="datetime-local"
+                  value={start}
+                  onChange={(e) => {
+                    setStart(e.target.value);
+                    void recount(units ? "units" : "end", { start: e.target.value });
                   }}
                 />
               </Field>
-            ) : null}
-            <Field label={t("rentals.planned_end")} hint={zone}>
-              <input
-                type="datetime-local"
-                value={end}
-                onChange={(e) => {
-                  setEnd(e.target.value);
-                  void recount("end", { end: e.target.value });
-                }}
+              {tariff ? (
+                <div className="w-short">
+                  <Field label={t("bookings.units", { unit: unitShort(tariff.unit, t) })}>
+                    <input
+                      value={units}
+                      inputMode="numeric"
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/\D/g, "");
+                        setUnits(value);
+                        void recount("units", { units: value });
+                      }}
+                    />
+                  </Field>
+                </div>
+              ) : null}
+              <Field label={t("rentals.planned_end")}>
+                <input
+                  type="datetime-local"
+                  value={end}
+                  onChange={(e) => {
+                    setEnd(e.target.value);
+                    void recount("end", { end: e.target.value });
+                  }}
+                />
+              </Field>
+              <div className="beside-field">
+                <AvailabilityButton state={availability} />
+              </div>
+            </div>
+            <AvailabilityAnswerView state={availability} />
+            {chosen ? (
+              <div className="row compact">
+                <div className="w-wide">
+                  <div className="field">
+                    <span>{t("rentals.client")}</span>
+                    <strong style={{ display: "block" }}>{clientName(chosen)}</strong>
+                    <small className="muted">{chosen.contacts.map((c) => c.value).join(", ")}</small>
+                  </div>
+                </div>
+                <div className="beside-field">
+                  <button type="button" className="secondary" onClick={() => setChosen(null)}>
+                    {t("rentals.change_client")}
+                  </button>
+                </div>
+              </div>
+            ) : noClient ? (
+              // Without a client the contact is written by hand; with a client it is in the card.
+              <div className="row compact">
+                <div className="w-wide">
+                  <Field label={t("bookings.no_client_contact")} hint={t("bookings.contact_hint")}>
+                    <input value={contact} onChange={(e) => setContact(e.target.value)} />
+                  </Field>
+                </div>
+                <div className="beside-field">
+                  <button type="button" className="secondary" onClick={() => setNoClient(false)}>
+                    {t("bookings.pick_client")}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <ClientFinder
+                onPick={setChosen}
+                onCreate={() => setNewClient(true)}
+                aside={
+                  <button type="button" className="secondary" onClick={() => setNoClient(true)}>
+                    {t("bookings.no_client")}
+                  </button>
+                }
               />
-            </Field>
-          </div>
-          <Availability vehicleId={vehicleId} start={startAt} end={endAt} />
-        </Card>
-        <Card title={t("rentals.client")}>
-          <p className="muted small">{t("bookings.client_later")}</p>
-          {chosen ? (
-            <p>
-              <strong>{clientName(chosen)}</strong>{" "}
-              <button type="button" className="secondary" onClick={() => setChosen(null)}>
-                {t("rentals.change_client")}
-              </button>
-            </p>
-          ) : (
-            <>
-              <ClientFinder onPick={setChosen} onCreate={() => setNewClient(true)} />
-              <div className="row">
-                <Field label={t("bookings.contact")} hint={t("bookings.contact_hint")}>
-                  <input value={contact} onChange={(e) => setContact(e.target.value)} />
+            )}
+            <PlaceFields lead={locationField} leadOnly={!locationId} value={place} onChange={setPlace} />
+            <div className="row">
+              <div style={{ maxWidth: 720 }}>
+                <Field label={t("bookings.comment")}>
+                  <input value={comment} onChange={(e) => setComment(e.target.value)} />
                 </Field>
               </div>
-            </>
-          )}
-        </Card>
-        <Card title={t("bookings.issue_and_comment")}>
-          <div className="row">
-            <Field label={t("rentals.issue_location")}>
-              <select value={locationId} onChange={(e) => setLocationId(e.target.value)}>
-                <option value="">—</option>
-                {(locations.data?.locations ?? []).map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </div>
-          {locationId ? <PlaceFields value={place} onChange={setPlace} /> : null}
-          <div className="row">
-            <Field label={t("bookings.comment")}>
-              <input value={comment} onChange={(e) => setComment(e.target.value)} />
-            </Field>
+            </div>
           </div>
         </Card>
         <ErrorMessage error={create.error} />

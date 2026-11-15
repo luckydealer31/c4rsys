@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 
@@ -15,7 +15,7 @@ import type {
   Warning,
 } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { Card, ErrorMessage, Field, IconButton, Loading } from "../../components/ui";
+import { Card, ErrorMessage, Field, IconButton, Loading, Modal } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { fromLocalInput, toLocalInput } from "../../time";
 import { ClientForm, clientName } from "../clients/ClientsPage";
@@ -31,8 +31,9 @@ import {
   type ExceptionValue,
   type PlaceValue,
 } from "./IssueRules";
+import { usePeriodCount } from "./period";
 
-type VehicleTariff = { id: string; name: string; currency: string; ranges: TariffRange[] };
+type VehicleTariff = { id: string; name: string; currency: string; unit: string; ranges: TariffRange[] };
 
 const UNMET_WARNING: Record<IssueRequirement["code"], string> = {
   payment: "PAYMENT_INCOMPLETE",
@@ -127,6 +128,16 @@ function IssueForm({
   const [plannedEnd, setPlannedEnd] = useState(() =>
     booking?.planned_end ? toLocalInput(new Date(booking.planned_end), zone) : "",
   );
+  const [units, setUnits] = useState("");
+  const tariff = (tariffs.data?.tariffs ?? []).find((item) => item.id === tariffId);
+  const count = usePeriodCount();
+  async function recount(by: "units" | "end", next: { tariffId?: string; start?: string; end?: string; units?: string }) {
+    const values = { tariffId, start, end: plannedEnd, units, ...next };
+    const answer = await count(by, { vehicleId, locationId: location?.id ?? "", zone, ...values });
+    if (!answer) return;
+    if (by === "units") setPlannedEnd(toLocalInput(new Date(answer.end), zone));
+    else setUnits(answer.units ? String(answer.units) : "");
+  }
   const [plannedReturn, setPlannedReturn] = useState(booking?.planned_return_location_id ?? "");
   const [odometer, setOdometer] = useState("");
   const [fuel, setFuel] = useState("");
@@ -206,123 +217,159 @@ function IssueForm({
         </h1>
       </div>
       <form onSubmit={submit}>
-        <Card title={t("rentals.vehicle_and_client")}>
-          <div className="row">
-            <Field label={t("rentals.vehicle")}>
-              <select
-                value={vehicleId}
-                disabled={Boolean(booking)}
-                onChange={(e) => {
-                  setVehicleId(e.target.value);
-                  setTariffId("");
-                  setLocationId("");
-                }}
-              >
-                <option value="">—</option>
-                {(vehicles.data?.vehicles ?? [])
-                  .filter((v) => v.id === vehicleId || (v.rental_readiness.ready && !busy.has(v.id)))
-                  .map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.name} · {v.vehicle_id}
+        {/* One block of short fields, as the booking is (decision of 15.11.2026): vehicle and
+            its tariff; the period; the client — a rental is not issued without one; the place
+            of the issue; the readings. */}
+        <Card>
+          <div className="stack">
+            <div className="row compact">
+              <div className="w-wide">
+                <Field label={t("rentals.vehicle")}>
+                  <select
+                    value={vehicleId}
+                    disabled={Boolean(booking)}
+                    onChange={(e) => {
+                      setVehicleId(e.target.value);
+                      setTariffId("");
+                      setUnits("");
+                      setLocationId("");
+                    }}
+                  >
+                    <option value="">—</option>
+                    {(vehicles.data?.vehicles ?? [])
+                      .filter((v) => v.id === vehicleId || (v.rental_readiness.ready && !busy.has(v.id)))
+                      .map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.name} · {v.vehicle_id}
+                        </option>
+                      ))}
+                  </select>
+                </Field>
+              </div>
+              <Field label={t("rentals.tariff")}>
+                <select
+                  value={tariffId}
+                  onChange={(e) => {
+                    setTariffId(e.target.value);
+                    void recount(units ? "units" : "end", { tariffId: e.target.value });
+                  }}
+                >
+                  <option value="">—</option>
+                  {(tariffs.data?.tariffs ?? []).map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name} · {item.currency}
                     </option>
                   ))}
-              </select>
-            </Field>
-            <Field label={t("rentals.tariff")}>
-              <select value={tariffId} onChange={(e) => setTariffId(e.target.value)}>
-                <option value="">—</option>
-                {(tariffs.data?.tariffs ?? []).map((tariff) => (
-                  <option key={tariff.id} value={tariff.id}>
-                    {tariff.name} · {tariff.currency}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </div>
-          {/* A rental tariff is chosen among those assigned to the vehicle (§ 13.1.2): say so
-              and lead there when there is none (decision of 24.10.2026). */}
-          {vehicleId && tariffs.data && tariffs.data.tariffs.length === 0 ? (
-            <div className="alert warn">
-              {t("rentals.no_tariff_for_vehicle")}{" "}
-              <Link to={companyPath(company, "/rentals/tariffs")}>{t("settings.tariffs")}</Link>
+                </select>
+              </Field>
             </div>
-          ) : null}
-          <h3 style={{ marginTop: 16 }}>{t("rentals.client")}</h3>
-          {chosen ? (
-            <p>
-              <strong>{clientName(chosen)}</strong> · {chosen.contacts.map((c) => c.value).join(", ")}{" "}
-              <button type="button" className="secondary" onClick={() => setChosen(null)}>
-                {t("rentals.change_client")}
-              </button>
+            {/* A rental tariff is chosen among those assigned to the vehicle (§ 13.1.2): say so
+                and lead there when there is none (decision of 24.10.2026). */}
+            {vehicleId && tariffs.data && tariffs.data.tariffs.length === 0 ? (
+              <div className="alert warn">
+                {t("rentals.no_tariff_for_vehicle")}{" "}
+                <Link to={companyPath(company, "/rentals/tariffs")}>{t("settings.tariffs")}</Link>
+              </div>
+            ) : null}
+            <div className="row compact">
+              <Field label={t("rentals.actual_start")} hint={zone}>
+                <input
+                  type="datetime-local"
+                  value={start}
+                  onChange={(e) => {
+                    setStart(e.target.value);
+                    void recount(units ? "units" : "end", { start: e.target.value });
+                  }}
+                />
+              </Field>
+              {tariff ? (
+                <div className="w-short">
+                  <Field label={t("bookings.units", { unit: unitShort(tariff.unit, t) })}>
+                    <input
+                      value={units}
+                      inputMode="numeric"
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/\D/g, "");
+                        setUnits(value);
+                        void recount("units", { units: value });
+                      }}
+                    />
+                  </Field>
+                </div>
+              ) : null}
+              <Field label={t("rentals.planned_end")}>
+                <input
+                  type="datetime-local"
+                  value={plannedEnd}
+                  onChange={(e) => {
+                    setPlannedEnd(e.target.value);
+                    void recount("end", { end: e.target.value });
+                  }}
+                />
+              </Field>
+            </div>
+            {chosen ? (
+              <div className="row compact">
+                <div className="w-wide">
+                  <div className="field">
+                    <span>{t("rentals.client")}</span>
+                    <strong style={{ display: "block" }}>{clientName(chosen)}</strong>
+                    <small className="muted">{chosen.contacts.map((c) => c.value).join(", ")}</small>
+                  </div>
+                </div>
+                <div className="beside-field">
+                  <button type="button" className="secondary" onClick={() => setChosen(null)}>
+                    {t("rentals.change_client")}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <ClientFinder onPick={setChosen} onCreate={() => setNewClient(true)} />
+            )}
+            <PlaceFields
+              lead={
+                <Field label={t("rentals.issue_location")} hint={t("rentals.issue_location_hint")}>
+                  <select value={location?.id ?? ""} onChange={(e) => setLocationId(e.target.value)}>
+                    <option value="">—</option>
+                    {(locations.data?.locations ?? []).map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              }
+              value={place}
+              onChange={setPlace}
+            />
+            <div className="row compact">
+              <Field label={t("rentals.odometer", { unit: vehicle?.odometer_unit ?? "km" })}>
+                <input value={odometer} inputMode="decimal" onChange={(e) => setOdometer(e.target.value)} />
+              </Field>
+              <Field label={t("rentals.fuel")} hint={t("rentals.fuel_hint")}>
+                <input value={fuel} inputMode="decimal" onChange={(e) => setFuel(e.target.value)} />
+              </Field>
+              <Field label={t("rentals.planned_return_location")}>
+                <select value={plannedReturn} onChange={(e) => setPlannedReturn(e.target.value)}>
+                  <option value="">—</option>
+                  {(locations.data?.locations ?? []).map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+            {can("inspection.conduct") ? (
+              <label className="small">
+                <input type="checkbox" checked={conducted} onChange={() => setConducted(!conducted)} />{" "}
+                {t("rentals.inspection_conducted")}
+              </label>
+            ) : null}
+            <p className="muted small">
+              {t(quote?.inspection_required ? "issue_rules.inspection_required_hint" : "rentals.inspection_policy")}
             </p>
-          ) : (
-            <ClientFinder onPick={setChosen} onCreate={() => setNewClient(true)} />
-          )}
-          {!chosen && can("client.create") ? (
-            <div className="actions">
-              <button type="button" className="secondary" onClick={() => setNewClient(!newClient)}>
-                {t("rentals.new_client")}
-              </button>
-            </div>
-          ) : null}
-        </Card>
-        {!chosen && newClient ? (
-          <ClientForm
-            onCreated={(created) => {
-              setChosen(created);
-              setNewClient(false);
-            }}
-          />
-        ) : null}
-        <Card title={t("rentals.issue_details")}>
-          <div className="row">
-            <Field label={t("rentals.issue_location")} hint={t("rentals.issue_location_hint")}>
-              <select value={location?.id ?? ""} onChange={(e) => setLocationId(e.target.value)}>
-                <option value="">—</option>
-                {(locations.data?.locations ?? []).map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
           </div>
-          <PlaceFields value={place} onChange={setPlace} />
-          <div className="row">
-            <Field label={t("rentals.actual_start")} hint={zone}>
-              <input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} />
-            </Field>
-            <Field label={t("rentals.odometer", { unit: vehicle?.odometer_unit ?? "km" })}>
-              <input value={odometer} inputMode="decimal" onChange={(e) => setOdometer(e.target.value)} />
-            </Field>
-            <Field label={t("rentals.fuel")} hint={t("rentals.fuel_hint")}>
-              <input value={fuel} inputMode="decimal" onChange={(e) => setFuel(e.target.value)} />
-            </Field>
-          </div>
-          <div className="row">
-            <Field label={t("rentals.planned_end")}>
-              <input type="datetime-local" value={plannedEnd} onChange={(e) => setPlannedEnd(e.target.value)} />
-            </Field>
-            <Field label={t("rentals.planned_return_location")}>
-              <select value={plannedReturn} onChange={(e) => setPlannedReturn(e.target.value)}>
-                <option value="">—</option>
-                {(locations.data?.locations ?? []).map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </div>
-          {can("inspection.conduct") ? (
-            <label className="small">
-              <input type="checkbox" checked={conducted} onChange={() => setConducted(!conducted)} />{" "}
-              {t("rentals.inspection_conducted")}
-            </label>
-          ) : null}
-          <p className="muted small">
-            {t(quote?.inspection_required ? "issue_rules.inspection_required_hint" : "rentals.inspection_policy")}
-          </p>
         </Card>
         <Card title={t("rentals.preliminary")}>
           <div className="actions" style={{ marginTop: 0 }}>
@@ -367,14 +414,34 @@ function IssueForm({
           </button>
         </div>
       </form>
+      {/* Outside the form of the issue: a form of its own, in a window. */}
+      {!chosen && newClient ? (
+        <Modal wide title={t("clients.create_title")} onClose={() => setNewClient(false)}>
+          <ClientForm
+            onCreated={(created) => {
+              setChosen(created);
+              setNewClient(false);
+            }}
+          />
+        </Modal>
+      ) : null}
     </div>
   );
 }
 
 /** Finding the client being served (client.find, § 6.2.2) by phone, email or name: one field,
  * the found clients drop down under it as a list (decision of 15.11.2026). With `onCreate` the
- * list ends with «Create a client». */
-export function ClientFinder({ onPick, onCreate }: { onPick: (client: Client) => void; onCreate?: () => void }) {
+ * list ends with «+ New client». */
+export function ClientFinder({
+  onPick,
+  onCreate,
+  aside,
+}: {
+  onPick: (client: Client) => void;
+  onCreate?: () => void;
+  /** A button standing right of the field: «Without a client» in a booking. */
+  aside?: ReactNode;
+}) {
   const { t } = useTranslation();
   const company = useCompany();
   const can = useCan();
@@ -427,12 +494,14 @@ export function ClientFinder({ onPick, onCreate }: { onPick: (client: Client) =>
   }, [text]);
 
   const creating = onCreate && can("client.create") ? onCreate : null;
-  const shown = open && text.trim().length >= 2 && found !== null;
+  const matches = text.trim().length >= 2 ? found : null;
+  // With «Create a client» the list opens at once, before anything is typed.
+  const shown = open && (matches !== null || creating !== null);
 
   return (
     <div className="stack">
-      <div className="row">
-        <div className="suggest">
+      <div className="row compact">
+        <div className="suggest w-wide">
           <Field label={t("rentals.find_client")} hint={t("rentals.find_client_hint")}>
             <input
               value={text}
@@ -459,7 +528,7 @@ export function ClientFinder({ onPick, onCreate }: { onPick: (client: Client) =>
           {shown ? (
             // The press must not take the focus from the field: the list would close before the click.
             <div id="client-suggest" className="suggest-list" onMouseDown={(e) => e.preventDefault()}>
-              {found.map(({ client }) => (
+              {(matches ?? []).map(({ client }) => (
                 <button
                   key={client.id}
                   type="button"
@@ -471,7 +540,7 @@ export function ClientFinder({ onPick, onCreate }: { onPick: (client: Client) =>
                   {clientName(client)} · {client.contacts.map((c) => c.value).join(", ")}
                 </button>
               ))}
-              {found.length === 0 ? <div className="muted small suggest-empty">{t("rentals.client_not_found")}</div> : null}
+              {matches?.length === 0 ? <div className="muted small suggest-empty">{t("rentals.client_not_found")}</div> : null}
               {creating ? (
                 <button
                   type="button"
@@ -481,12 +550,13 @@ export function ClientFinder({ onPick, onCreate }: { onPick: (client: Client) =>
                     creating();
                   }}
                 >
-                  + {t("clients.create")}
+                  + {t("rentals.new_client")}
                 </button>
               ) : null}
             </div>
           ) : null}
         </div>
+        {aside ? <div className="beside-field">{aside}</div> : null}
       </div>
       <ErrorMessage error={error} />
     </div>

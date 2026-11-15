@@ -497,8 +497,6 @@ td.vehicle-cell { display: flex; align-items: center; gap: 12px; }
 /* A field with found records dropping down under it (the client in a booking, an issue). */
 .suggest {
   position: relative;
-  flex: 1;
-  min-width: 240px;
 }
 .suggest-list {
   position: absolute;
@@ -536,3 +534,10 @@ td.vehicle-cell { display: flex; align-items: center; gap: 12px; }
 .suggest-empty {
   padding: 10px 12px;
 }
+
+/* A line of short fields: they keep their width and do not stretch over the page. */
+.row.compact > * { flex: 0 1 220px; }
+.row.compact > .w-wide { flex-basis: 380px; }
+.row.compact > .w-short { flex-basis: 120px; }
+/* A button in a line of fields stands level with their boxes, under the line of the captions. */
+.row.compact > .beside-field { flex: 0 0 auto; margin-top: 23px; }
