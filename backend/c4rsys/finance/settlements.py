@@ -100,6 +100,29 @@ def movements_of_client(company_id: UUID, client_id: UUID) -> QuerySet[MoneyMove
     )
 
 
+def orders_of_movements(company_id: UUID, movement_ids: list[UUID]) -> dict[UUID, list[UUID]]:
+    """The orders the receipts are assigned to now (for the money of a client in its card)."""
+    found: dict[UUID, list[UUID]] = {}
+    rows = PaymentAllocation.objects.filter(
+        company_id=company_id,
+        money_movement_id__in=movement_ids,
+        state=PaymentAllocation.State.ACTIVE,
+    ).order_by("created_at")
+    for movement_id, order_id in rows.values_list("money_movement_id", "order_id"):
+        if order_id not in found.setdefault(movement_id, []):
+            found[movement_id].append(order_id)
+    return found
+
+
+def charges_of_orders(company_id: UUID, order_ids: list[UUID], limit: int) -> list[ChargeEntry]:
+    """The accruals of the orders, the newest first (what the client was charged for)."""
+    return list(
+        ChargeEntry.objects.filter(company_id=company_id, order_id__in=order_ids).order_by(
+            "-created_at"
+        )[:limit]
+    )
+
+
 def _client_money(company_id: UUID, client_id: UUID) -> Amounts:
     """Money received from and paid back to the client, in the currency of their funds."""
     query = (

@@ -7,7 +7,7 @@ import type { Company, JournalEntry, PartyCard } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Avatar, ImagePicker } from "../../components/images";
 import { TimeZoneSelect } from "../../components/TimeZoneSelect";
-import { Card, ErrorMessage, Field, FloatField, Loading } from "../../components/ui";
+import { Card, ErrorMessage, Field, FloatField, IconButton, Loading } from "../../components/ui";
 import { useCan, useCompany } from "../../layout/CompanyShell";
 import { CompanyTabs } from "../../layout/CompanyTabs";
 import { currencies, deviceTimeZone, formatMoment } from "../../time";
@@ -245,7 +245,23 @@ export function CompanyProfileForm({
     `/c/${company.public_id}`,
     "PATCH",
   );
-  const editable = can("company.settings");
+  // The settings open closed (customer's decision of 15.11.2026): nothing can be changed by a
+  // stray key until «Edit»; saving or cancelling closes the form again. The setup wizard, where
+  // the form is filled for the first time, stays open.
+  const [editing, setEditing] = useState(!withRequisites);
+  const allowed = can("company.settings");
+  const editable = allowed && editing;
+  const initial = () => ({
+    display_name: company.display_name,
+    logo: company.logo,
+    timezone: company.timezone ?? deviceTimeZone(),
+    main_currency: company.main_currency ?? "",
+  });
+  function cancel() {
+    setForm(initial());
+    setExtra(requisitesOf(company));
+    setEditing(false);
+  }
   const text = (key: RequisiteField) => (
     <FloatField label={t(`company.${key}`)}>
       <input value={extra[key]} disabled={!editable} onChange={(e) => setExtra({ ...extra, [key]: e.target.value })} />
@@ -282,6 +298,7 @@ export function CompanyProfileForm({
     if ((await save.run(changes)) !== null) {
       await client.invalidateQueries({ queryKey: ["company", company.public_id] });
       setSaved(true);
+      if (withRequisites) setEditing(false);
       onSaved?.();
     }
   }
@@ -289,7 +306,19 @@ export function CompanyProfileForm({
   return (
     <Card>
       <form className="stack" onSubmit={submit}>
-        <p className="muted small">{company.public_id}</p>
+        <p className="muted small card-head" style={{ justifyContent: "space-between", alignItems: "center" }}>
+          {company.public_id}
+          {allowed && !editing ? (
+            <IconButton
+              icon="edit"
+              label={t("common.edit")}
+              onClick={() => {
+                setSaved(false);
+                setEditing(true);
+              }}
+            />
+          ) : null}
+        </p>
         <Field label={t("companies.logo")}>
           <ImagePicker
             purpose="company_logo"
@@ -447,6 +476,11 @@ export function CompanyProfileForm({
             <button type="submit" disabled={save.pending}>
               {t("common.save")}
             </button>
+            {withRequisites ? (
+              <button type="button" className="secondary" onClick={cancel}>
+                {t("common.cancel")}
+              </button>
+            ) : null}
           </div>
         ) : null}
       </form>

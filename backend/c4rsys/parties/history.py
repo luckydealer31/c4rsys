@@ -93,6 +93,7 @@ def client_history(actor: Actor, company_id: UUID, client_id: UUID) -> dict[str,
             for currency, m in sorted(orders.amounts_of(order).items())
         }
 
+    numbers = {o.id: o.number for o in visible}
     result: dict[str, Any] = {
         "cards": [str(i) for i in family],
         "orders": [
@@ -119,13 +120,31 @@ def client_history(actor: Actor, company_id: UUID, client_id: UUID) -> dict[str,
             for v in sorted(names, key=lambda x: names[x])
         ],
         "payments": [],
+        # What the client was charged for, by the orders the employee may see (customer's
+        # decision of 15.11.2026: the money of the client with links to the orders).
+        "charges": [
+            {
+                "id": str(c.id),
+                "order_id": str(c.order_id),
+                "order_number": numbers[c.order_id],
+                "source_type": c.source_type,
+                "amount": money(c.currency_id, c.amount),
+                "currency": c.currency_id,
+                "created_at": c.created_at.isoformat(),
+            }
+            for c in settlements.charges_of_orders(company_id, order_ids, HISTORY_LIMIT * 3)
+        ],
     }
     if _has(actor, "client.find") or _has(actor, "client.list"):
         payments = []
         for member in family:
-            for m in settlements.movements_of_client(company_id, member).order_by("-created_at")[
-                :HISTORY_LIMIT
-            ]:
+            rows = list(
+                settlements.movements_of_client(company_id, member).order_by("-created_at")[
+                    :HISTORY_LIMIT
+                ]
+            )
+            linked = settlements.orders_of_movements(company_id, [m.id for m in rows])
+            for m in rows:
                 payments.append(
                     {
                         "id": str(m.id),
@@ -137,6 +156,12 @@ def client_history(actor: Actor, company_id: UUID, client_id: UUID) -> dict[str,
                         "currency": m.currency_id,
                         "client_id": str(member),
                         "created_at": m.created_at.isoformat(),
+                        # The orders the money went to — those the employee may see.
+                        "orders": [
+                            {"id": str(i), "number": numbers[i]}
+                            for i in linked.get(m.id, [])
+                            if i in numbers
+                        ],
                     }
                 )
         result["payments"] = sorted(payments, key=lambda p: p["created_at"], reverse=True)

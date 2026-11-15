@@ -88,6 +88,9 @@ test("base example from registration to closing survives a restart", async ({ pa
   await page.goto(`${base}/settings/company`);
   await expect(page).toHaveURL(/\/company\/settings$/);
   await expect(page.getByRole("tab", { name: t("company.tab_settings") })).toHaveAttribute("aria-selected", "true");
+  // The settings open closed: nothing changes until «Edit», and saving closes them again.
+  await expect(page.getByLabel(t("companies.main_currency"))).toBeDisabled();
+  await page.getByRole("main").locator("form").getByRole("button", { name: t("common.edit"), exact: true }).click();
   await page.getByLabel(t("companies.main_currency")).selectOption("THB");
   // Several phones of the company, each with whose it is; a new row appears by itself.
   await page.getByLabel(`${t("company.phone")} 1`).fill("+66 80 000 0001");
@@ -99,6 +102,7 @@ test("base example from registration to closing survives a restart", async ({ pa
   await page.getByLabel(`${t("company.phone_label")} 2`).fill("Бухгалтер");
   await page.getByRole("main").locator("form").getByRole("button", { name: t("common.save") }).click();
   await expect(page.getByText(t("common.saved"))).toBeVisible();
+  await expect(page.getByLabel(t("companies.main_currency"))).toBeDisabled();
 
   await page.goto(`${base}/company`);
   await expect(page.locator("dl.facts")).toContainText("Директор");
@@ -328,6 +332,25 @@ test("base example from registration to closing survives a restart", async ({ pa
   await page.goto(cardUrl);
   await expect(card(page, t("vehicles.card_main"))).toContainText("Blue Book");
   await expect(card(page, t("vehicles.card_main"))).toContainText("123456");
+
+  // The card of the client opens closed: the data are changed after «Edit», saving closes them.
+  await page.goto(`${base}/clients`);
+  await page.getByRole("link", { name: "Иван Петров" }).click();
+  const middle = page.getByLabel(t("profile.middle_name"), { exact: true });
+  await expect(middle).toBeDisabled();
+  await page.getByRole("button", { name: t("common.edit"), exact: true }).click();
+  await middle.fill("Сергеевич");
+  await page.getByRole("main").locator("form").first().getByRole("button", { name: t("common.save") }).click();
+  await expect(middle).toBeDisabled();
+  await expect(middle).toHaveValue("Сергеевич");
+  // Finance: what was charged and what was paid, with links to the order.
+  await page.getByRole("tab", { name: t("cards.tab_finance") }).click();
+  const money = card(page, t("cards.money_title"));
+  await expect(money.getByRole("row").filter({ hasText: t("cards.money_charge") })).toHaveCount(1);
+  await expect(money.getByRole("link", { name: /№/ })).toHaveCount(2);
+  await page.getByRole("tab", { name: t("cards.tab_orders") }).click();
+  await expect(card(page, t("cards.history_orders")).getByRole("link", { name: /№/ })).toHaveCount(1);
+  await page.getByRole("tab", { name: t("cards.tab_more") }).click();
 });
 
 /** A PDF of one page with a coloured rectangle, with a correct table of objects. */

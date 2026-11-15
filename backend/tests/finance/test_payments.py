@@ -125,6 +125,23 @@ def test_base_example_payment_2000_debt_zero(owner: Client, s: Scenario, desk: s
     assert AuditEvent.objects.filter(action="payment.received").count() == 1
 
 
+def test_card_of_the_client_shows_charges_and_payments_with_their_orders(
+    owner: Client, s: Scenario, desk: str
+) -> None:
+    """Customer's decision of 15.11.2026: the money of the client in its card — what was
+    charged and what was paid, each with a link to its order."""
+    rental = _issue_and_return(owner, s)
+    order_id = rental["order_id"]
+    _pay(owner, s, desk, "2000", [{"order_id": order_id, "amount": "2000"}])
+    history = owner.get(f"/api/c/{s.cmp}/clients/{s.client}/history").json()
+    number = _order(owner, s, order_id)["number"]
+    assert [c["order_id"] for c in history["charges"]] == [order_id]
+    assert history["charges"][0]["order_number"] == number
+    assert history["charges"][0]["source_type"] == "rental_base"
+    assert history["charges"][0]["amount"] == "2000.00"
+    assert history["payments"][0]["orders"] == [{"id": order_id, "number": number}]
+
+
 def test_e08_partial_payment_leaves_debt_and_warns_at_next_issue(
     owner: Client, s: Scenario, desk: str
 ) -> None:

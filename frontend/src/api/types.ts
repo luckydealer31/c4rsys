@@ -1054,6 +1054,16 @@ export type ClientHistory = {
     currency: string;
     client_id: string;
     created_at: string;
+    orders: { id: string; number: number }[];
+  }[];
+  charges: {
+    id: string;
+    order_id: string;
+    order_number: number;
+    source_type: string;
+    amount: string;
+    currency: string;
+    created_at: string;
   }[];
 };
 

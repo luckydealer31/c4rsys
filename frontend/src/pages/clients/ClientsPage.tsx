@@ -10,7 +10,7 @@ import { ClientGroupsCard } from "../orders/Discounts";
 import type { Client, ClientContact, Messenger } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Icon } from "../../components/icons";
-import { Card, ErrorMessage, Field, Loading, Modal } from "../../components/ui";
+import { Card, ErrorMessage, Field, IconButton, Loading, Modal } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { CompanyTabs } from "../../layout/CompanyTabs";
 import { EmployeesList, InviteForm } from "../settings/EmployeesPage";
@@ -19,7 +19,8 @@ import { LinkedTasks } from "../tasks/TasksPage";
 import { LinkedDocuments } from "../documents/DocumentsPage";
 import {
   ArchiveActions,
-  ClientHistoryCard,
+  ClientMoneyCard,
+  ClientOrdersCard,
   ExtendedFieldsCard,
   MergeCard,
   RestrictionsCard,
@@ -416,6 +417,8 @@ export function extraContacts(contacts: ClientContact[]): ClientContact[] {
   return contacts.filter((c) => c !== firstPhone && c !== firstEmail);
 }
 
+const CLIENT_TABS = ["main", "finance", "orders", "more"] as const;
+
 export function ClientPage() {
   const { t } = useTranslation();
   const { id = "" } = useParams();
@@ -434,10 +437,16 @@ export function ClientPage() {
   );
   const update = useCommand<Record<string, unknown>, unknown>(`/c/${company.public_id}/clients/${id}`, "PATCH");
   const [form, setForm] = useState<Record<string, string> | null>(null);
+  // The card opens closed (customer's decision of 15.11.2026): the data are changed only after
+  // «Edit», and saving or cancelling closes the form again.
+  const [editing, setEditing] = useState(false);
+  const [params, setParams] = useSearchParams();
   if (card.isLoading) return <div className="page"><Loading /></div>;
   const data = card.data?.client;
   if (!data) return <div className="page"><ErrorMessage error={null} /></div>;
-  const editable = can("client.edit") && data.state !== "merged";
+  const allowed = can("client.edit") && data.state !== "merged";
+  const editable = allowed && editing;
+  const tab = CLIENT_TABS.find((x) => x === params.get("tab")) ?? "main";
   async function reload() {
     setForm(null);
     await queryClient.invalidateQueries({ queryKey: ["client", company.public_id, id] });
@@ -480,6 +489,7 @@ export function ClientPage() {
         : { company_name: values.company_name, contacts, ...texts };
     if ((await update.run({ ...body, expected_version: current.version })) !== null) {
       setForm(null);
+      setEditing(false);
       await queryClient.invalidateQueries({ queryKey: ["client", company.public_id, id] });
     }
   }
@@ -508,42 +518,29 @@ export function ClientPage() {
       ) : null}
       {data.provisional ? <div className="alert warn">{t("cards.provisional_banner")}</div> : null}
       {data.blacklisted ? <div className="alert error">{t("cards.blacklisted_banner")}</div> : null}
-      <Card title={t("clients.balance")}>
-        {Object.entries(balance.data?.balance ?? {}).length === 0 ? (
-          <p className="muted">0</p>
-        ) : (
-          Object.entries(balance.data?.balance ?? {}).map(([currency, value]) => (
-            <div key={currency}>
-              <p>
-                <strong>
-                  {Number(value) < 0
-                    ? t("clients.debt", { amount: -Number(value), currency })
-                    : t("clients.advance", { amount: Number(value), currency })}
-                </strong>
-              </p>
-              {/* § 17.2.13: balance = available funds − unpaid charges. */}
-              <p className="muted">
-                {t("clients.balance_parts", {
-                  available: balance.data?.available[currency] ?? "0",
-                  unpaid: balance.data?.unpaid[currency] ?? "0",
-                  currency,
-                })}
-              </p>
-            </div>
-          ))
-        )}
-        {/* § 6.7.2: the held deposit is shown apart and is not available funds. */}
-        {Object.entries(balance.data?.deposit_held ?? {}).map(([currency, value]) => (
-          <p key={`deposit-${currency}`}>{t("clients.deposit_held", { amount: value, currency })}</p>
+      <div className="tabs left" role="tablist">
+        {CLIENT_TABS.map((key) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={tab === key}
+            className={tab === key ? "active" : ""}
+            onClick={() => setParams(key === "main" ? {} : { tab: key }, { replace: true })}
+          >
+            {t(`cards.tab_${key}`)}
+          </button>
         ))}
-        {can("finance.account.view") || can("finance.offset") || can("finance.settlement.manage") ? (
-          <p>
-            <Link to={companyPath(company, "/finance?tab=settlements")}>{t("clients.open_settlement")}</Link>
-          </p>
-        ) : null}
-      </Card>
+      </div>
+      {tab === "main" ? (
+        <>
       <Card>
         <form className="stack" onSubmit={save}>
+          {allowed && !editing ? (
+            <p className="card-head" style={{ justifyContent: "flex-end", marginBottom: 0 }}>
+              <IconButton icon="edit" label={t("common.edit")} onClick={() => setEditing(true)} />
+            </p>
+          ) : null}
           {data.kind === "person" ? (
             <div className="row">
               {field("first_name", t("profile.first_name"))}
@@ -581,15 +578,67 @@ export function ClientPage() {
               <button type="submit" disabled={!form || update.pending}>
                 {t("common.save")}
               </button>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => {
+                  setForm(null);
+                  setEditing(false);
+                }}
+              >
+                {t("common.cancel")}
+              </button>
             </div>
           ) : null}
         </form>
-        {data.state !== "merged" ? <ArchiveActions card={data} onChanged={reload} /> : null}
       </Card>
       <ExtendedFieldsCard cardType="client" card={data} onSaved={reload} />
+      <LinkedDocuments objectType="client" objectId={data.id} />
+        </>
+      ) : null}
+      {tab === "finance" ? (
+        <>
+      <Card title={t("clients.balance")}>
+        {Object.entries(balance.data?.balance ?? {}).length === 0 ? (
+          <p className="muted">0</p>
+        ) : (
+          Object.entries(balance.data?.balance ?? {}).map(([currency, value]) => (
+            <div key={currency}>
+              <p>
+                <strong>
+                  {Number(value) < 0
+                    ? t("clients.debt", { amount: -Number(value), currency })
+                    : t("clients.advance", { amount: Number(value), currency })}
+                </strong>
+              </p>
+              {/* § 17.2.13: balance = available funds − unpaid charges. */}
+              <p className="muted">
+                {t("clients.balance_parts", {
+                  available: balance.data?.available[currency] ?? "0",
+                  unpaid: balance.data?.unpaid[currency] ?? "0",
+                  currency,
+                })}
+              </p>
+            </div>
+          ))
+        )}
+        {/* § 6.7.2: the held deposit is shown apart and is not available funds. */}
+        {Object.entries(balance.data?.deposit_held ?? {}).map(([currency, value]) => (
+          <p key={`deposit-${currency}`}>{t("clients.deposit_held", { amount: value, currency })}</p>
+        ))}
+        {can("finance.account.view") || can("finance.offset") || can("finance.settlement.manage") ? (
+          <p>
+            <Link to={companyPath(company, "/finance?tab=settlements")}>{t("clients.open_settlement")}</Link>
+          </p>
+        ) : null}
+      </Card>
+      <ClientMoneyCard clientId={data.id} />
+        </>
+      ) : null}
+      {tab === "orders" ? <ClientOrdersCard clientId={data.id} /> : null}
+      {tab === "more" ? (
+        <>
       {data.state !== "merged" ? <RestrictionsCard clientId={data.id} onChanged={reload} /> : null}
-      <ClientHistoryCard clientId={data.id} />
-      <MergeCard cardType="client" card={data} onChanged={reload} />
       <ProfileLinkCard
         cardType="client"
         cardId={data.id}
@@ -601,8 +650,15 @@ export function ClientPage() {
         }}
       />
       <ClientGroupsCard clientId={data.id} />
-      <LinkedDocuments objectType="client" objectId={data.id} />
+      <MergeCard cardType="client" card={data} onChanged={reload} />
       <LinkedTasks objectType="client" objectId={data.id} />
+      {data.state !== "merged" ? (
+        <Card>
+          <ArchiveActions card={data} onChanged={reload} />
+        </Card>
+      ) : null}
+        </>
+      ) : null}
     </div>
   );
 }

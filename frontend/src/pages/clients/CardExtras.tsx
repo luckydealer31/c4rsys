@@ -18,7 +18,7 @@ import type {
   SplitRecord,
 } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
+import { Card, ErrorMessage, Field, IconButton, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { deviceTimeZone, formatMoment } from "../../time";
 
@@ -63,7 +63,10 @@ export function ExtendedFieldsCard({
   const can = useCan();
   const path = cardType === "client" ? "clients" : "counterparties";
   const update = useCommand<Record<string, unknown>, unknown>(`/c/${company.public_id}/${path}/${card.id}`, "PATCH");
-  const editable = can(`${cardType}.edit`) && card.state !== "merged";
+  // Closed until «Edit» (customer's decision of 15.11.2026); saving or cancelling closes it again.
+  const [editing, setEditing] = useState(false);
+  const allowed = can(`${cardType}.edit`) && card.state !== "merged";
+  const editable = allowed && editing;
   const [texts, setTexts] = useState<Record<string, string> | null>(null);
   const [doc, setDoc] = useState<IdDocument | null>(null);
   const [license, setLicense] = useState<(DriverLicense & { text: string }) | null>(null);
@@ -97,8 +100,17 @@ export function ExtendedFieldsCard({
       setLicense(null);
       setSince(null);
       setOthers(null);
+      setEditing(false);
       await onSaved();
     }
+  }
+  function cancel() {
+    setTexts(null);
+    setDoc(null);
+    setLicense(null);
+    setSince(null);
+    setOthers(null);
+    setEditing(false);
   }
 
   const text = (name: string) => (
@@ -128,7 +140,12 @@ export function ExtendedFieldsCard({
   return (
     <Card title={t("cards.extended_title")}>
       <form className="stack" onSubmit={save}>
-        <p className="muted small">{t("cards.extended_hint")}</p>
+        <p className="muted small card-head" style={{ justifyContent: "space-between", alignItems: "center" }}>
+          {t("cards.extended_hint")}
+          {allowed && !editing ? (
+            <IconButton icon="edit" label={`${t("common.edit")}: ${t("cards.extended_title")}`} onClick={() => setEditing(true)} />
+          ) : null}
+        </p>
         {card.kind === "person" ? (
           <>
             <h3>{t("cards.id_document")}</h3>
@@ -226,6 +243,9 @@ export function ExtendedFieldsCard({
           <div className="actions">
             <button type="submit" disabled={!changed || update.pending}>
               {t("common.save")}
+            </button>
+            <button type="button" className="secondary" onClick={cancel}>
+              {t("common.cancel")}
             </button>
           </div>
         ) : null}
@@ -326,47 +346,71 @@ export function RestrictionsCard({ clientId, onChanged }: { clientId: string; on
   );
 }
 
-/** § 6.1.14, § 8.1.2: orders, payments and vehicles of the client and of the merged cards. */
-export function ClientHistoryCard({ clientId }: { clientId: string }) {
-  const { t } = useTranslation();
+function useClientHistory(clientId: string) {
   const company = useCompany();
-  const when = useWhen();
-  const history = useApi<ClientHistory>(
+  return useApi<ClientHistory>(
     ["client-history", company.public_id, clientId],
     `/c/${company.public_id}/clients/${clientId}/history`,
   );
+}
+
+/** § 6.1.14, § 8.1.2: the orders and the vehicles of the client and of the merged cards — the
+ * tab «Orders» of the card (customer's decision of 15.11.2026). */
+export function ClientOrdersCard({ clientId }: { clientId: string }) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const when = useWhen();
+  const history = useClientHistory(clientId);
   if (history.isLoading) return <Loading />;
   const data = history.data;
   if (!data) return null;
   return (
-    <Card title={t("cards.history_title")}>
-      {data.cards.length > 1 ? <p className="muted small">{t("cards.history_merged", { count: data.cards.length - 1 })}</p> : null}
-      <h3>{t("cards.history_orders")}</h3>
-      {data.orders.length === 0 ? <p className="muted">{t("cards.history_none")}</p> : null}
-      <table className="table">
-        <tbody>
-          {data.orders.map((o) => (
-            <tr key={o.id}>
-              <td>
-                <Link to={companyPath(company, `/orders/${o.id}`)}>№ {o.number}</Link>
-              </td>
-              <td>{t(`orders.state_${o.state}`, { defaultValue: o.state })}</td>
-              <td className="small">{when(o.created_at)}</td>
-              <td className="small">
-                {o.operations.map((op) => t(`cards.operation_${op.type}`, { defaultValue: op.type })).join(", ")}
-              </td>
-              <td className="small">
-                {Object.entries(o.amounts)
-                  .map(([currency, m]) => `${m.charged} / ${m.paid} ${currency}`)
-                  .join("; ")}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <>
+      <Card title={t("cards.history_orders")}>
+        {data.cards.length > 1 ? <p className="muted small">{t("cards.history_merged", { count: data.cards.length - 1 })}</p> : null}
+        {data.orders.length === 0 ? (
+          <p className="muted">{t("cards.history_none")}</p>
+        ) : (
+          <table className="table">
+            <thead>
+              <tr>
+                <th>{t("cards.orders_number")}</th>
+                <th>{t("cards.orders_state")}</th>
+                <th>{t("cards.orders_created")}</th>
+                <th>{t("cards.orders_what")}</th>
+                <th className="num">{t("cards.orders_charged")}</th>
+                <th className="num">{t("cards.orders_paid")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.orders.map((o) => (
+                <tr key={o.id}>
+                  <td>
+                    <Link to={companyPath(company, `/orders/${o.id}`)}>№ {o.number}</Link>
+                  </td>
+                  <td>{t(`orders.state_${o.state}`, { defaultValue: o.state })}</td>
+                  <td className="small">{when(o.created_at)}</td>
+                  <td className="small">
+                    {[...new Set(o.operations.map((op) => t(`cards.operation_${op.type}`, { defaultValue: op.type })))].join(", ")}
+                  </td>
+                  <td className="num">
+                    {Object.entries(o.amounts)
+                      .map(([currency, m]) => `${m.charged} ${currency}`)
+                      .join("; ")}
+                  </td>
+                  <td className="num">
+                    {Object.entries(o.amounts)
+                      .map(([currency, m]) => `${m.paid} ${currency}`)
+                      .join("; ")}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Card>
       {data.vehicles.length ? (
-        <>
-          <h3>{t("cards.history_vehicles")}</h3>
+        <Card title={t("cards.history_vehicles")}>
           <ul>
             {data.vehicles.map((v) => (
               <li key={v.id}>
@@ -375,28 +419,86 @@ export function ClientHistoryCard({ clientId }: { clientId: string }) {
               </li>
             ))}
           </ul>
-        </>
+        </Card>
       ) : null}
-      {data.payments.length ? (
+    </>
+  );
+}
+
+/** The money of the client in one list by date (customer's decision of 15.11.2026): what was
+ * charged and what was paid or paid back, each with a link to its order. */
+export function ClientMoneyCard({ clientId }: { clientId: string }) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const when = useWhen();
+  const history = useClientHistory(clientId);
+  if (history.isLoading) return <Loading />;
+  const data = history.data;
+  if (!data) return null;
+  const order = (o: { id: string; number: number }) => (
+    <Link key={o.id} to={companyPath(company, `/orders/${o.id}`)}>
+      {t("cards.money_order", { number: o.number })}
+    </Link>
+  );
+  const rows = [
+    ...data.charges.map((c) => ({
+      key: `c-${c.id}`,
+      at: c.created_at,
+      kind: t("cards.money_charge"),
+      what: (
         <>
-          <h3>{t("cards.history_payments")}</h3>
-          <table className="table">
-            <tbody>
-              {data.payments.map((p) => (
-                <tr key={p.id}>
-                  <td>№ {p.number}</td>
-                  <td>{t(`cards.payment_${p.kind}`, { defaultValue: p.kind })}</td>
-                  <td>
-                    {p.direction === "out" ? "−" : ""}
-                    {p.amount} {p.currency}
-                  </td>
-                  <td className="small">{when(p.created_at)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {t(`cabinet.source_${c.source_type}`, { defaultValue: c.source_type })} · {order({ id: c.order_id, number: c.order_number })}
         </>
-      ) : null}
+      ),
+      // A charge takes from the client's balance; a recalculation downwards gives back.
+      plus: Number(c.amount) < 0,
+      amount: `${Math.abs(Number(c.amount)).toFixed(2)} ${c.currency}`,
+    })),
+    ...data.payments.map((p) => ({
+      key: `p-${p.id}`,
+      at: p.created_at,
+      kind: t(`cards.payment_${p.kind}`, { defaultValue: p.kind }),
+      what: (
+        <>
+          № {p.number}
+          {p.orders.map((o) => (
+            <span key={o.id}> · {order(o)}</span>
+          ))}
+        </>
+      ),
+      plus: p.direction === "in",
+      amount: `${p.amount} ${p.currency}`,
+    })),
+  ].sort((x, y) => y.at.localeCompare(x.at));
+  return (
+    <Card title={t("cards.money_title")}>
+      {rows.length === 0 ? (
+        <p className="muted">{t("cards.history_none")}</p>
+      ) : (
+        <table className="finance-moves">
+          <thead>
+            <tr>
+              <th>{t("cards.money_when")}</th>
+              <th>{t("cards.money_kind")}</th>
+              <th>{t("cards.money_what")}</th>
+              <th className="num">{t("cards.money_amount")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.key}>
+                <td className="small">{when(row.at)}</td>
+                <td>{row.kind}</td>
+                <td>{row.what}</td>
+                <td className={row.plus ? "num" : "num error-text"}>
+                  {row.plus ? "+" : "−"}
+                  {row.amount}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </Card>
   );
 }
