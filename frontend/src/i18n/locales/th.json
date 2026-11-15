@@ -1325,7 +1325,8 @@
     "vehicle_document_archived": "เอกสารอยู่ในคลังเก็บและแก้ไขไม่ได้",
     "vehicle_documents_need_management": "ส่งสำเนาเอกสารได้เฉพาะบริษัทที่คุณยืนยันการจัดการแล้ว",
     "vehicle_documents_no_recipient": "ไม่มีผู้รับสำเนาเอกสาร: เจ้าของยังไม่ได้รับการยืนยันในระบบ",
-    "phone_incomplete": "กรุณาระบุหมายเลขคู่กับคำอธิบาย"
+    "phone_incomplete": "กรุณาระบุหมายเลขคู่กับคำอธิบาย",
+    "issue_inspection_not_done": "โปรดตรวจสภาพตอนส่งมอบก่อน"
   },
   "history": {
     "action": "Action",
@@ -1649,9 +1650,7 @@
     "when": "Date and time",
     "without_order": "Without an order",
     "order_currency": "คำสั่งเป็น {{currency}} ค้างชำระ {{amount}} {{currency}}",
-    "settles": "ชำระคำสั่ง ≈ {{amount}} {{currency}}",
-    "deposit_part": "ในนั้นเป็นมัดจำ {{currency}}",
-    "deposit_hint": "ขาด {{missing}} {{currency}} มัดจำไม่ใช่การชำระและไม่ใช่เงินของลูกค้า"
+    "settles": "ชำระคำสั่ง ≈ {{amount}} {{currency}}"
   },
   "permissions": {
     "client_create": "Create clients",
@@ -2006,7 +2005,14 @@
     "tab_trips": "การเดินทาง",
     "state_awaiting": "รอส่งมอบ",
     "awaiting_title": "สร้างการเช่าแล้ว ยังไม่ส่งมอบรถ",
-    "cancel_awaiting": "ยกเลิกการเช่า"
+    "cancel_awaiting": "ยกเลิกการเช่า",
+    "without_inspection": "ไม่ตรวจสภาพ",
+    "without_inspection_hint": "หากไม่ติ๊ก ระบบจะสร้างการตรวจสภาพตอนส่งมอบพร้อมกับการเช่า เปิดและดำเนินการภายหลังได้",
+    "inspection_waiting": "ยังไม่ได้ตรวจสภาพตอนส่งมอบ: ส่งมอบรถได้หลังตรวจสภาพ",
+    "open_inspection": "เปิดการตรวจสภาพ",
+    "readings_from_inspection": "ค่าจากการตรวจสภาพ: เลขไมล์ {{odometer}} {{unit}}, น้ำมัน {{fuel}}",
+    "inspection_planned": "วางแผนไว้",
+    "inspection_in_progress": "กำลังดำเนินการ"
   },
   "rights": {
     "add": "Add rights",
@@ -3411,7 +3417,10 @@
     "reason": "เหตุผล (บังคับ)",
     "refund_preview": "จ่าย ≈ {{amount}} {{currency}}",
     "vehicle_with_client": "รถยังอยู่กับลูกค้า — คืนเงินอยู่ดี",
-    "kind_correction": "แก้ไขพร้อมรายการรับ"
+    "kind_correction": "แก้ไขพร้อมรายการรับ",
+    "pay": "รับเงินมัดจำ",
+    "pay_amount": "จำนวนเงินมัดจำ, {{currency}}",
+    "pay_hint": "เงินนี้รับเป็นเงินมัดจำของการเช่านี้เท่านั้น ไม่ใช่การชำระเงินและไม่ใช่เงินของลูกค้า"
   },
   "bookings": {
     "new": "จองรถ",
@@ -5212,7 +5221,6 @@
     "policy_in_issue": "ในนโยบายการส่งมอบ",
     "policy_rental_hint": "เลขไมล์และน้ำมันเมื่อส่งมอบและรับคืนจำเป็นเสมอ การตรวจสภาพกำหนดใน",
     "of_rental": "การตรวจสภาพของการเช่า",
-    "start_issue": "ตรวจเมื่อส่งมอบ",
     "start_return": "ตรวจเมื่อรับคืน",
     "start_intermediate": "ตรวจระหว่างทาง",
     "start_intake": "ตรวจเมื่อรับเข้า",

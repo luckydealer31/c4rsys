@@ -38,8 +38,10 @@ class IssueRequest:
     place_kind: str
     place_note: str
     actual_start: datetime
-    odometer: Decimal
-    fuel: Decimal
+    # Not asked when the rental has its inspection at the issue conducted: the readings are
+    # taken from it (decision of 16.11.2026). Without such an inspection both are required.
+    odometer: Decimal | None
+    fuel: Decimal | None
     inspection_conducted: bool
     planned_end: datetime | None = None
     order_id: UUID | None = None
@@ -303,6 +305,9 @@ def _issue_booking(
         raise errors.business_rule("BOOKING_NOT_ACTIVE")
     if booking.vehicle_card_id != card.id:
         raise errors.business_rule("BOOKING_VEHICLE_MISMATCH", field="vehicle_card_id")
+    # An inspection created with the rental and not conducted yet: the issue waits for it.
+    if inspections.issue_of_rental(booking.id)[1]:
+        raise errors.business_rule("ISSUE_INSPECTION_NOT_DONE")
     from c4rsys.orders import approvals
 
     approvals.ensure_startable(card.company_id, "rental", booking.id)
@@ -362,7 +367,15 @@ def _after_issue(
     rental: Rental,
     assessment: issue_policies.Assessment,
 ) -> Inspection:
-    """The issue inspection with odometer and fuel and the odometer reading (§ 14.4.3)."""
+    """The issue inspection with odometer and fuel and the odometer reading (§ 14.4.3). When
+    the inspection at the issue is already conducted, it is that record and its readings."""
+    conducted, _waiting = inspections.issue_of_rental(rental.id)
+    if conducted is not None:
+        return conducted
+    if request.odometer is None:
+        raise errors.business_rule("ODOMETER_REQUIRED", field="odometer")
+    if request.fuel is None:
+        raise errors.business_rule("FUEL_REQUIRED", field="fuel")
     inspection = inspections.create_saved(
         ctx,
         card,

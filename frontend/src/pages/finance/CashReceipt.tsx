@@ -5,8 +5,8 @@ import { useTranslation } from "react-i18next";
 import { useApi } from "../../api/queries";
 import type { DepositInfo, Order, Payment } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { Card, ErrorMessage, Field } from "../../components/ui";
-import { useCompany } from "../../layout/CompanyShell";
+import { Card, ErrorMessage, Field, Modal } from "../../components/ui";
+import { useCan, useCompany } from "../../layout/CompanyShell";
 import { useCashAccounts } from "./FinancePage";
 import { RateField, effectiveRate, useRateSuggestion } from "./Rates";
 
@@ -33,7 +33,6 @@ export function CashReceipt({
 }) {
   const { t } = useTranslation();
   const company = useCompany();
-  const queryClient = useQueryClient();
   const accounts = useCashAccounts();
   const usable = (accounts.data?.cash_accounts ?? []).filter((a) => a.state === "active");
   const orderCurrencies = order ? Object.keys(order.amounts) : [];
@@ -53,22 +52,12 @@ export function CashReceipt({
   const [note, setNote] = useState("");
   const [done, setDone] = useState<Payment | null>(null);
   const receive = useCommand<Record<string, unknown>, { payment: Payment }>(`/c/${company.public_id}/payments/cash`);
-  // § 14.7.3: the deposit part of the receipt is named explicitly, apart from the payment.
+  // The deposit is not a part of a payment (decision of 15.11.2026): it is received by an
+  // action of its own, «Receive the deposit», so a payment is never split by hand.
   const rentalId = order?.operations.find((o) => o.type === "rental")?.id;
-  const deposit = useApi<{ deposit: DepositInfo }>(
-    ["rental-deposit", company.public_id, rentalId ?? ""],
-    `/c/${company.public_id}/rentals/${rentalId ?? ""}/deposit`,
-    Boolean(rentalId),
-  ).data?.deposit;
-  const missing = deposit && Number(deposit.missing) > 0 && !deposit.waived ? deposit.missing : "";
-  const [depositPart, setDepositPart] = useState<string | null>(null);
-  const depositValue = depositPart ?? (account && deposit && account.currency === deposit.currency ? missing : "");
-  const due = (Number(remainder) > 0 ? Number(remainder) : 0) + (Number(depositValue) || 0);
+  const due = Number(remainder) > 0 ? Number(remainder) : 0;
   const amountValue = amount ?? (due > 0 ? due.toFixed(2) : "");
-  // Without a set remainder the order gets what is left after the deposit part.
-  const rest = amount !== null ? Math.max(Number(amount) - (Number(depositValue) || 0), 0) : 0;
-  const allocationValue =
-    allocation ?? (Number(remainder) > 0 ? remainder : rest > 0 ? rest.toFixed(2) : "");
+  const allocationValue = allocation ?? (Number(remainder) > 0 ? remainder : amount !== null ? amount : "");
   const settles = exchange && rate && allocationValue ? (Number(allocationValue) * Number(rate)).toFixed(2) : "";
 
   async function submit(event: FormEvent) {
@@ -83,19 +72,13 @@ export function CashReceipt({
         order && allocationValue
           ? [{ order_id: order.id, amount: allocationValue, rate: exchange && manualRate ? manualRate : null }]
           : [],
-      deposits:
-        rentalId && depositValue
-          ? [{ rental_id: rentalId, amount: depositValue, rate: exchange && manualRate ? manualRate : null }]
-          : [],
+      deposits: [],
       note,
     });
     if (result) {
       setDone(result.payment);
       setAmount(null);
       setAllocation(null);
-      setDepositPart(null);
-      await queryClient.invalidateQueries({ queryKey: ["rental-deposit", company.public_id] });
-      await queryClient.invalidateQueries({ queryKey: ["rental", company.public_id] });
       setManualRate("");
       setNote("");
       await onDone();
@@ -122,14 +105,6 @@ export function CashReceipt({
           {order ? (
             <Field label={t("payments.allocation", { number: order.number })} hint={t("payments.allocation_hint")}>
               <input value={allocationValue} inputMode="decimal" onChange={(e) => setAllocation(e.target.value)} />
-            </Field>
-          ) : null}
-          {rentalId && deposit && (Number(deposit.required) > 0 || depositPart) ? (
-            <Field
-              label={t("payments.deposit_part", { currency: account?.currency ?? "" })}
-              hint={t("payments.deposit_hint", { missing: deposit.missing, currency: deposit.currency })}
-            >
-              <input value={depositValue} inputMode="decimal" onChange={(e) => setDepositPart(e.target.value)} />
             </Field>
           ) : null}
         </div>
@@ -162,6 +137,135 @@ export function CashReceipt({
           </button>
         </div>
       </form>
+      {rentalId ? <DepositButton rentalId={rentalId} clientId={clientId} onDone={onDone} /> : null}
     </Card>
+  );
+}
+
+/** «Receive the deposit» of a rental (decision of 15.11.2026): shown while a part of the
+ * deposit is missing; opens a window where the money is received as the deposit only. */
+export function DepositButton({
+  rentalId,
+  clientId,
+  onDone,
+}: {
+  rentalId: string;
+  clientId: string;
+  onDone: () => Promise<void>;
+}) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const can = useCan();
+  const [open, setOpen] = useState(false);
+  const deposit = useApi<{ deposit: DepositInfo }>(
+    ["rental-deposit", company.public_id, rentalId],
+    `/c/${company.public_id}/rentals/${rentalId}/deposit`,
+  ).data?.deposit;
+  if (!deposit || !(Number(deposit.missing) > 0) || deposit.waived || !can("finance.payment.receive")) return null;
+  return (
+    <div className="stack" style={{ marginTop: 16 }}>
+      <p className="alert warn">{t("deposit.conflict", { amount: deposit.missing, currency: deposit.currency })}</p>
+      <div className="actions" style={{ marginTop: 0 }}>
+        <button type="button" className="secondary" onClick={() => setOpen(true)}>
+          {t("deposit.pay")}
+        </button>
+      </div>
+      {open ? (
+        <Modal title={t("deposit.pay")} onClose={() => setOpen(false)}>
+          <DepositReceipt
+            rentalId={rentalId}
+            clientId={clientId}
+            deposit={deposit}
+            onDone={async () => {
+              setOpen(false);
+              await onDone();
+            }}
+          />
+        </Modal>
+      ) : null}
+    </div>
+  );
+}
+
+function DepositReceipt({
+  rentalId,
+  clientId,
+  deposit,
+  onDone,
+}: {
+  rentalId: string;
+  clientId: string;
+  deposit: DepositInfo;
+  onDone: () => Promise<void>;
+}) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const queryClient = useQueryClient();
+  const usable = (useCashAccounts().data?.cash_accounts ?? []).filter((a) => a.state === "active");
+  const [accountId, setAccountId] = useState("");
+  const account = usable.find((a) => a.id === accountId) ?? usable.find((a) => a.currency === deposit.currency) ?? usable[0];
+  const exchange = Boolean(account && account.currency !== deposit.currency);
+  const [manualRate, setManualRate] = useState("");
+  const suggestion = useRateSuggestion(exchange ? account?.currency : undefined, deposit.currency);
+  const rate = exchange ? effectiveRate(suggestion.data, manualRate) : null;
+  const [amount, setAmount] = useState<string | null>(null);
+  const amountValue = amount ?? (exchange ? "" : deposit.missing);
+  const [note, setNote] = useState("");
+  const receive = useCommand<Record<string, unknown>, { payment: Payment }>(`/c/${company.public_id}/payments/cash`);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!account) return;
+    const result = await receive.run({
+      cash_account_id: account.id,
+      client_id: clientId,
+      amount: amountValue,
+      currency: account.currency,
+      allocations: [],
+      // The whole receipt is the deposit of this rental.
+      deposits: [{ rental_id: rentalId, amount: amountValue, rate: exchange && manualRate ? manualRate : null }],
+      note,
+    });
+    if (result) {
+      await queryClient.invalidateQueries({ queryKey: ["rental-deposit", company.public_id] });
+      await queryClient.invalidateQueries({ queryKey: ["rental", company.public_id] });
+      await queryClient.invalidateQueries({ queryKey: ["payments", company.public_id] });
+      await onDone();
+    }
+  }
+
+  return (
+    <form onSubmit={submit}>
+      {usable.length === 0 ? <p className="muted">{t("payments.no_accounts")}</p> : null}
+      <p className="muted small">{t("deposit.pay_hint")}</p>
+      <div className="row">
+        <Field label={t("payments.account")}>
+          <select value={account?.id ?? ""} onChange={(e) => setAccountId(e.target.value)}>
+            {usable.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name} · {a.currency}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label={t("deposit.pay_amount", { currency: account?.currency ?? "" })}>
+          <input value={amountValue} inputMode="decimal" onChange={(e) => setAmount(e.target.value)} />
+        </Field>
+      </div>
+      {exchange && account ? (
+        <RateField from={account.currency} to={deposit.currency} manual={manualRate} onManual={setManualRate} />
+      ) : null}
+      <div className="row">
+        <Field label={t("payments.note")}>
+          <input value={note} onChange={(e) => setNote(e.target.value)} />
+        </Field>
+      </div>
+      <ErrorMessage error={receive.error} />
+      <div className="actions">
+        <button type="submit" disabled={receive.pending || !account || !amountValue || (exchange && !rate)}>
+          {t("deposit.pay")}
+        </button>
+      </div>
+    </form>
   );
 }

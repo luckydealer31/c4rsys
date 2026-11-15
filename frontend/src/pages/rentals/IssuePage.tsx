@@ -128,6 +128,11 @@ function IssueForm({
   const [plannedEnd, setPlannedEnd] = useState(() =>
     booking?.planned_end ? toLocalInput(new Date(booking.planned_end), zone) : "",
   );
+  // The inspection at the issue made for this rental before the issue, if any.
+  const ahead = Boolean(booking?.booking?.direct);
+  const made = booking?.inspections.issue ?? null;
+  const waiting = made && made.state !== "saved" ? made : null;
+  const inspected = made && made.state === "saved" && made.odometer !== null && made.fuel !== null ? made : null;
   const [units, setUnits] = useState("");
   const tariff = (tariffs.data?.tariffs ?? []).find((item) => item.id === tariffId);
   const count = usePeriodCount();
@@ -203,8 +208,8 @@ function IssueForm({
       issue_location_id: location?.id ?? "",
       ...placeBody(place),
       actual_start: fromLocalInput(start, zone),
-      odometer,
-      fuel,
+      // With the inspection of the rental conducted its readings are taken by the server.
+      ...(inspected ? {} : { odometer, fuel }),
       inspection_conducted: conducted,
     };
     if (plannedEnd) body.planned_end = fromLocalInput(plannedEnd, zone);
@@ -364,13 +369,36 @@ function IssueForm({
               value={place}
               onChange={setPlace}
             />
+            {/* The odometer and the fuel (decision of 16.11.2026): given in the inspection created
+                with the rental — the issue waits for it and takes them from it; given here only
+                when the rental was created without an inspection. */}
+            {waiting ? (
+              <div className="alert warn">
+                {t("rentals.inspection_waiting")}{" "}
+                <Link to={companyPath(company, `/inspections/${waiting.id}`)}>{t("rentals.open_inspection")}</Link>
+              </div>
+            ) : null}
+            {inspected ? (
+              <p>
+                {t("rentals.readings_from_inspection", {
+                  odometer: inspected.odometer,
+                  unit: vehicle?.odometer_unit ?? "km",
+                  fuel: inspected.fuel,
+                })}{" "}
+                <Link to={companyPath(company, `/inspections/${inspected.id}`)}>{t("rentals.open_inspection")}</Link>
+              </p>
+            ) : null}
             <div className="row compact">
-              <Field label={t("rentals.odometer", { unit: vehicle?.odometer_unit ?? "km" })}>
-                <input value={odometer} inputMode="decimal" onChange={(e) => setOdometer(e.target.value)} />
-              </Field>
-              <Field label={t("rentals.fuel")} hint={t("rentals.fuel_hint")}>
-                <input value={fuel} inputMode="decimal" onChange={(e) => setFuel(e.target.value)} />
-              </Field>
+              {inspected || waiting ? null : (
+                <>
+                  <Field label={t("rentals.odometer", { unit: vehicle?.odometer_unit ?? "km" })}>
+                    <input value={odometer} inputMode="decimal" onChange={(e) => setOdometer(e.target.value)} />
+                  </Field>
+                  <Field label={t("rentals.fuel")} hint={t("rentals.fuel_hint")}>
+                    <input value={fuel} inputMode="decimal" onChange={(e) => setFuel(e.target.value)} />
+                  </Field>
+                </>
+              )}
               <Field label={t("rentals.planned_return_location")}>
                 <select value={plannedReturn} onChange={(e) => setPlannedReturn(e.target.value)}>
                   <option value="">—</option>
@@ -382,15 +410,19 @@ function IssueForm({
                 </select>
               </Field>
             </div>
-            {can("inspection.conduct") ? (
+            {/* A rental created ahead of its issue has its inspection or none («without an
+                inspection»): no mark here. The mark stays for the issue of a booking. */}
+            {can("inspection.conduct") && !ahead ? (
               <label className="small">
                 <input type="checkbox" checked={conducted} onChange={() => setConducted(!conducted)} />{" "}
                 {t("rentals.inspection_conducted")}
               </label>
             ) : null}
-            <p className="muted small">
-              {t(quote?.inspection_required ? "issue_rules.inspection_required_hint" : "rentals.inspection_policy")}
-            </p>
+            {ahead ? null : (
+              <p className="muted small">
+                {t(quote?.inspection_required ? "issue_rules.inspection_required_hint" : "rentals.inspection_policy")}
+              </p>
+            )}
           </div>
         </Card>
         <Card title={t("rentals.preliminary")}>
@@ -421,7 +453,7 @@ function IssueForm({
         />
         {refused ? null : <ErrorMessage error={issue.error} />}
         <div className="actions">
-          <button type="submit" disabled={issue.pending || !vehicleId}>
+          <button type="submit" disabled={issue.pending || !vehicleId || Boolean(waiting)}>
             {t("rentals.confirm_issue")}
           </button>
         </div>

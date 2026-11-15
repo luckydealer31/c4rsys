@@ -554,8 +554,14 @@ def rental_issue(request: HttpRequest, cmp: str) -> JsonResponse:
         place_lat=place.lat,
         place_lng=place.lng,
         actual_start=actual_start,
-        odometer=_reading(data, "odometer", "ODOMETER_REQUIRED", 1),
-        fuel=_reading(data, "fuel", "FUEL_REQUIRED", 2),
+        # The readings may be left out when they are in the conducted inspection of the rental;
+        # the issue itself asks for them when there is none.
+        odometer=_reading(data, "odometer", "ODOMETER_REQUIRED", 1)
+        if data.get("odometer") not in (None, "")
+        else None,
+        fuel=_reading(data, "fuel", "FUEL_REQUIRED", 2)
+        if data.get("fuel") not in (None, "")
+        else None,
         inspection_conducted=conducted,
         planned_end=_moment(data, "planned_end", required=False),
         order_id=order_id,

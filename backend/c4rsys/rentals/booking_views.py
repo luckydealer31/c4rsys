@@ -74,6 +74,9 @@ def booking_create(request: HttpRequest, cmp: str) -> JsonResponse:
     if not isinstance(direct, bool):
         raise errors.validation_error("direct")
     _require(actor, "rental.issue" if direct else BOOK, location_id)
+    without_inspection = data.get("without_inspection", False)
+    if not isinstance(without_inspection, bool):
+        raise errors.validation_error("without_inspection")
     start = _moment(data, "planned_start", required=True)
     end = _moment(data, "planned_end", required=True)
     if start is None or end is None:
@@ -91,6 +94,7 @@ def booking_create(request: HttpRequest, cmp: str) -> JsonResponse:
         comment=get_str(data, "comment", max_length=1000, required=False),
         previous_booking_id=_optional_uuid(data, "previous_booking_id"),
         direct=direct,
+        without_inspection=without_inspection,
     )
 
     def handler(ctx: CommandContext) -> CommandResult:

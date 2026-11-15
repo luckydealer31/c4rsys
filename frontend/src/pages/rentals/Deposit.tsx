@@ -1,3 +1,4 @@
+import { DepositButton } from "../finance/CashReceipt";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -82,6 +83,9 @@ export function DepositCard({ rental, onDone }: { rental: Rental; onDone: () => 
             ))}
           </tbody>
         </table>
+      ) : null}
+      {rental.client_id && rental.state !== "cancelled" ? (
+        <DepositButton rentalId={rental.id} clientId={rental.client_id} onDone={onDone} />
       ) : null}
       {actions.length ? (
         <div className="actions" style={{ marginTop: 0 }}>

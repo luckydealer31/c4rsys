@@ -186,6 +186,9 @@ export function RentalPage() {
         </>
       ) : null}
 
+      {/* Before the issue: the inspection created with the rental is opened and conducted here. */}
+      {current.state === "booked" ? <RentalInspectionsCard rental={current} /> : null}
+
       <Card title={t("deposit.title")}>
         <DepositCard rental={current} onDone={() => refresh()} />
       </Card>

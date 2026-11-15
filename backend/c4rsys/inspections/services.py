@@ -196,6 +196,24 @@ def of_rental(rental_id: UUID) -> list[Inspection]:
     )
 
 
+def issue_of_rental(rental_id: UUID) -> tuple[Inspection | None, bool]:
+    """The inspection at the issue made by its own form (decision of 16.11.2026): the saved one
+    with the odometer and the fuel, whose readings the issue takes; and whether one is still
+    waiting to be conducted — the issue waits for it."""
+    found = [
+        i
+        for i in of_rental(rental_id)
+        if i.kind == Kind.ISSUE and i.origin == Inspection.Origin.FORM
+    ]
+    waiting = any(i.state in (State.PLANNED, *FILLING) for i in found)
+    ready = [
+        i
+        for i in found
+        if i.state == State.SAVED and i.odometer_value is not None and i.fuel_value is not None
+    ]
+    return (ready[-1] if ready else None), waiting
+
+
 def readings_of_rental(rental_id: UUID, kind: str) -> Inspection | None:
     """The saved readings of the kind; else the record still to be completed (a draft)."""
     found = [i for i in of_rental(rental_id) if i.kind == kind]

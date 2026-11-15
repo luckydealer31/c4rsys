@@ -222,6 +222,9 @@ class BookingData:
     previous_booking_id: UUID | None = None
     # A rental waiting for its issue, not a booking: the client and the tariff are required.
     direct: bool = False
+    # Said before the rental is created (decision of 15.11.2026): without it a rental created
+    # ahead of its issue gets a planned inspection at the issue, to be conducted later.
+    without_inspection: bool = False
 
 
 def _previous(company_id: UUID, data: BookingData) -> Rental | None:
@@ -336,7 +339,42 @@ def create(ctx: CommandContext, company_id: UUID, data: BookingData) -> Rental:
     from c4rsys.orders import approvals
 
     approvals.on_added(ctx, order.id, "rental", rental.id, rental.vehicle_card.name)
+    if data.direct and not data.without_inspection:
+        _plan_inspection(ctx, rental)
     return rental
+
+
+def _plan_inspection(ctx: CommandContext, rental: Rental) -> None:
+    """The inspection at the issue of a rental created ahead of it: planned for the planned
+    start, in the location of the issue (else where the vehicle is accounted); it is opened and
+    conducted later."""
+    from c4rsys.inspections import services as inspections
+    from c4rsys.inspections.models import Inspection
+
+    inspections.create(
+        ctx,
+        rental.company_id,
+        inspections.NewInspection(
+            vehicle_card_id=rental.vehicle_card_id,
+            kind=Inspection.Kind.ISSUE,
+            application=Inspection.Application.RENTAL,
+            rental_id=rental.id,
+            content=inspections.Content(
+                place=inspections.Place(location_id=rental.issue_location_id)
+            ),
+            planned_at=rental.planned_start,
+        ),
+    )
+
+
+def _cancel_planned_inspections(ctx: CommandContext, rental: Rental, reason: str) -> None:
+    """A cancelled rental leaves no inspection waiting to be conducted."""
+    from c4rsys.inspections import services as inspections
+    from c4rsys.inspections.models import Inspection
+
+    planned = Inspection.objects.filter(rental_id=rental.id, state=Inspection.State.PLANNED)
+    for inspection in planned:
+        inspections.cancel(ctx, inspection, reason or "rental cancelled")
 
 
 def _locked_booking(
@@ -529,6 +567,7 @@ def cancel(
             after={"state": rental.state, "reason": reason, "automatic": automatic},
         )
         billing.charge_base(ctx, rental, "booking_cancelled")
+        _cancel_planned_inspections(ctx, rental, reason)
     return rental
 
 

@@ -1325,7 +1325,8 @@
     "vehicle_document_archived": "The document is archived and is not changed.",
     "vehicle_documents_need_management": "Copies of documents are passed only to a company whose management you confirmed.",
     "vehicle_documents_no_recipient": "There is nobody to pass copies of documents to: the owner is not confirmed in the system.",
-    "phone_incomplete": "Give the number next to its caption."
+    "phone_incomplete": "Give the number next to its caption.",
+    "issue_inspection_not_done": "Conduct the inspection at the issue first."
   },
   "history": {
     "action": "Action",
@@ -1649,9 +1650,7 @@
     "when": "Date and time",
     "without_order": "Without an order",
     "order_currency": "The order is in {{currency}}; left to pay {{amount}} {{currency}}.",
-    "settles": "Settles ≈ {{amount}} {{currency}} of the order.",
-    "deposit_part": "Of it — deposit, {{currency}}",
-    "deposit_hint": "Missing {{missing}} {{currency}}. The deposit is not a payment and is not the client's funds."
+    "settles": "Settles ≈ {{amount}} {{currency}} of the order."
   },
   "permissions": {
     "client_create": "Create clients",
@@ -2006,7 +2005,14 @@
     "tab_trips": "Trips",
     "state_awaiting": "Awaiting issue",
     "awaiting_title": "Rental created, vehicle not issued",
-    "cancel_awaiting": "Cancel the rental"
+    "cancel_awaiting": "Cancel the rental",
+    "without_inspection": "Without an inspection",
+    "without_inspection_hint": "Unless ticked, an inspection at the issue is created with the rental; it can be opened and conducted later.",
+    "inspection_waiting": "The inspection at the issue is not conducted yet: the vehicle is issued after it.",
+    "open_inspection": "Open the inspection",
+    "readings_from_inspection": "Readings from the inspection: odometer {{odometer}} {{unit}}, fuel {{fuel}}.",
+    "inspection_planned": "planned",
+    "inspection_in_progress": "in progress"
   },
   "rights": {
     "add": "Add rights",
@@ -3411,7 +3417,10 @@
     "reason": "Reason (required)",
     "refund_preview": "Payout ≈ {{amount}} {{currency}}",
     "vehicle_with_client": "The vehicle is still with the client — refund anyway",
-    "kind_correction": "Corrected with its receipt"
+    "kind_correction": "Corrected with its receipt",
+    "pay": "Receive the deposit",
+    "pay_amount": "Deposit amount, {{currency}}",
+    "pay_hint": "The money is received only as the deposit of this rental: it is neither a payment nor the client’s funds."
   },
   "bookings": {
     "new": "Book a vehicle",
@@ -5212,7 +5221,6 @@
     "policy_in_issue": "in the issue policy",
     "policy_rental_hint": "Odometer and fuel at the issue and return of a rental are always required; whether their check is required is set in",
     "of_rental": "Inspections of the rental",
-    "start_issue": "Inspection at the issue",
     "start_return": "Inspection at the return",
     "start_intermediate": "Intermediate inspection",
     "start_intake": "Inspection at the acceptance",

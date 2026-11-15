@@ -259,3 +259,100 @@ def test_rental_created_ahead_of_its_issue(owner: Client, s: Scenario) -> None:
     assert rental["booking"]["direct"] is True
     assert _book(owner, s).json()["error"]["code"] == "VEHICLE_NOT_AVAILABLE"
     assert _book(owner, s, 5, 6).json()["rental"]["booking"]["direct"] is False
+
+
+def test_rental_created_with_a_planned_inspection_unless_told_otherwise(
+    owner: Client, s: Scenario
+) -> None:
+    # Decision of 15.11.2026: «without an inspection» is said before the rental is created;
+    # otherwise an inspection at the issue is created with it, to be conducted later.
+    from c4rsys.inspections.models import Inspection
+
+    made = _book(owner, s, direct=True, client_id=s.client, tariff_id=s.tariff).json()["rental"]
+
+    inspection = Inspection.objects.get(rental_id=made["id"])
+    assert (inspection.kind, inspection.state) == ("issue", "planned")
+    assert inspection.planned_at == Rental.objects.get(pk=made["id"]).planned_start
+
+    bare = _book(
+        owner, s, 5, 6, direct=True, client_id=s.client, tariff_id=s.tariff, without_inspection=True
+    ).json()["rental"]
+    assert not Inspection.objects.filter(rental_id=bare["id"]).exists()
+    # A booking has no inspection of its own.
+    booked = _book(owner, s, 8, 9).json()["rental"]
+    assert not Inspection.objects.filter(rental_id=booked["id"]).exists()
+
+    # Cancelling the rental cancels the inspection that was waiting.
+    cancelled = post(
+        owner,
+        f"/api/c/{s.cmp}/bookings/{made['id']}/cancel",
+        {"reason": "client changed plans", "expected_version": made["version"]},
+        key(),
+    )
+    assert cancelled.status_code == 200, cancelled.content
+    inspection.refresh_from_db()
+    assert inspection.state == "cancelled"
+
+
+def test_issue_takes_the_readings_of_the_conducted_inspection(owner: Client, s: Scenario) -> None:
+    # Decision of 16.11.2026: the odometer and the fuel are given in the inspection created
+    # with the rental; the issue waits for it and asks for no readings of its own. A rental
+    # created without an inspection gives them at the issue.
+    from c4rsys.inspections.models import Inspection
+    from tests.inspections.helpers import act, change, ok
+
+    made = _book(owner, s, -0.1, 2, direct=True, client_id=s.client, tariff_id=s.tariff).json()[
+        "rental"
+    ]
+    body = issue_body(
+        s,
+        actual_start=(timezone.now() - timedelta(minutes=1)).isoformat(),
+        odometer=None,
+        fuel=None,
+    )
+    url = f"/api/c/{s.cmp}/rentals/issue"
+
+    waits = post(owner, url, {**body, "booking_id": made["id"]}, key())
+    assert waits.json()["error"]["code"] == "ISSUE_INSPECTION_NOT_DONE"
+
+    planned = Inspection.objects.get(rental_id=made["id"])
+    item = {"id": str(planned.id), "version": planned.version}
+    item = ok(act(owner, s, item, "start"))
+    changed = change(owner, s, item, odometer="10000", fuel="8")
+    assert changed.status_code == 200, changed.content
+    ok(act(owner, s, changed.json()["inspection"], "complete", conducted=True))
+
+    issued = post(owner, url, {**body, "booking_id": made["id"]}, key())
+    assert issued.status_code == 201, issued.content
+    assert issued.json()["inspection_id"] == str(planned.id)
+    assert Inspection.objects.filter(rental_id=made["id"]).count() == 1
+
+
+def test_issue_without_an_inspection_asks_for_the_readings(owner: Client, s: Scenario) -> None:
+    # Decision of 16.11.2026: a rental created «without an inspection» gives the odometer and
+    # the fuel at the issue.
+    bare = _book(
+        owner,
+        s,
+        -0.1,
+        2,
+        direct=True,
+        client_id=s.client,
+        tariff_id=s.tariff,
+        without_inspection=True,
+    ).json()["rental"]
+    start = (timezone.now() - timedelta(minutes=1)).isoformat()
+    url = f"/api/c/{s.cmp}/rentals/issue"
+
+    asked = post(
+        owner,
+        url,
+        {**issue_body(s, actual_start=start, odometer=None, fuel=None), "booking_id": bare["id"]},
+        key(),
+    )
+    assert asked.json()["error"]["code"] == "ODOMETER_REQUIRED"
+
+    issued = post(
+        owner, url, {**issue_body(s, actual_start=start), "booking_id": bare["id"]}, key()
+    )
+    assert issued.status_code == 201, issued.content

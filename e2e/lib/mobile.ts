@@ -25,10 +25,11 @@ export async function issueRental(page: Page, s: Company): Promise<string> {
   return (issued.rental as { id: string }).id;
 }
 
-/** The inspection at issue started from the rental card; its id. */
+/** The inspection at issue added by hand in the section of inspections (the rental card has no
+ * button for it: decision of 16.11.2026); its id. */
 export async function startIssueInspection(page: Page, s: Company, rental: string): Promise<string> {
-  await page.goto(`${s.base}/rentals/${rental}`);
-  await page.getByRole("link", { name: t("inspections.start_issue") }).click();
+  const query = new URLSearchParams({ vehicle: s.vehicle, rental, application: "rental", kind: "issue" });
+  await page.goto(`${s.base}/inspections/new?${query.toString()}`);
   await expect(page).toHaveURL(/\/inspections\/new\?/);
   await page.getByRole("button", { name: t("inspections.create") }).click();
   await expect(page).toHaveURL(/\/inspections\/[0-9a-f-]+$/);

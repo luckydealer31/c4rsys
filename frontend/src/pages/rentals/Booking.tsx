@@ -152,6 +152,7 @@ export function BookingPage({ mode = "booking" }: { mode?: "booking" | "rental" 
   const [units, setUnits] = useState("");
   const [newClient, setNewClient] = useState(false);
   const [noClient, setNoClient] = useState(false);
+  const [withoutInspection, setWithoutInspection] = useState(false);
   const [contact, setContact] = useState("");
   const [comment, setComment] = useState("");
   const [place, setPlace] = useState<PlaceValue>(EMPTY_PLACE);
@@ -213,7 +214,7 @@ export function BookingPage({ mode = "booking" }: { mode?: "booking" | "rental" 
       contact: !chosen && noClient ? contact : "",
       comment,
       ...(returnId ? { planned_return_location_id: returnId } : {}),
-      ...(direct ? { direct: true } : {}),
+      ...(direct ? { direct: true, without_inspection: withoutInspection } : {}),
     });
     if (result) {
       await queryClient.invalidateQueries({ queryKey: ["rentals", company.public_id] });
@@ -400,6 +401,23 @@ export function BookingPage({ mode = "booking" }: { mode?: "booking" | "rental" 
                 </Field>
               </div>
             </div>
+            {direct ? (
+              // «Without an inspection» is said before the rental is created (decision of
+              // 15.11.2026): otherwise an inspection is created with it, to be conducted later.
+              <div>
+                <label className="small">
+                  <input
+                    type="checkbox"
+                    checked={withoutInspection}
+                    onChange={() => setWithoutInspection(!withoutInspection)}
+                  />{" "}
+                  {t("rentals.without_inspection")}
+                </label>
+                <p className="muted small" style={{ margin: "4px 0 0" }}>
+                  {t("rentals.without_inspection_hint")}
+                </p>
+              </div>
+            ) : null}
           </div>
         </Card>
         {/* The cost stands in a block of its own. */}

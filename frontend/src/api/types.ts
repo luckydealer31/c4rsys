@@ -1209,7 +1209,7 @@ export type ManualCharge = {
 
 export type InspectionView = {
   id: string;
-  state: "draft" | "saved" | "invalid";
+  state: "draft" | "planned" | "in_progress" | "saved" | "invalid";
   check_status: string;
   odometer: string | null;
   fuel: string | null;

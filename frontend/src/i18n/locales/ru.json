@@ -1325,7 +1325,8 @@
     "vehicle_document_archived": "Документ в архиве и не меняется.",
     "vehicle_documents_need_management": "Копии документов передаются только компании, управление которой вы подтвердили.",
     "vehicle_documents_no_recipient": "Передать копии документов некому: собственник не подтверждён в системе.",
-    "phone_incomplete": "Укажите номер рядом с подписью."
+    "phone_incomplete": "Укажите номер рядом с подписью.",
+    "issue_inspection_not_done": "Сначала проведите осмотр при выдаче."
   },
   "history": {
     "action": "Действие",
@@ -1649,9 +1650,7 @@
     "when": "Дата и время",
     "without_order": "Без заказа",
     "order_currency": "Заказ в {{currency}}; осталось оплатить {{amount}} {{currency}}.",
-    "settles": "Погасит ≈ {{amount}} {{currency}} по заказу.",
-    "deposit_part": "Из них в залог, {{currency}}",
-    "deposit_hint": "Недостаёт {{missing}} {{currency}}. Залог — не оплата и не средства клиента."
+    "settles": "Погасит ≈ {{amount}} {{currency}} по заказу."
   },
   "permissions": {
     "client_create": "Создавать клиентов",
@@ -2006,7 +2005,14 @@
     "tab_trips": "Поездки",
     "state_awaiting": "Ожидает выдачи",
     "awaiting_title": "Аренда создана, Т/С не выдано",
-    "cancel_awaiting": "Отменить аренду"
+    "cancel_awaiting": "Отменить аренду",
+    "without_inspection": "Без осмотра",
+    "without_inspection_hint": "Без отметки вместе с арендой создаётся осмотр при выдаче — его можно открыть и провести позже.",
+    "inspection_waiting": "Осмотр при выдаче ещё не проведён: выдать Т/С можно после него.",
+    "open_inspection": "Открыть осмотр",
+    "readings_from_inspection": "Показания из осмотра: одометр {{odometer}} {{unit}}, топливо {{fuel}}.",
+    "inspection_planned": "запланирован",
+    "inspection_in_progress": "проводится"
   },
   "rights": {
     "add": "Добавить права",
@@ -3411,7 +3417,10 @@
     "reason": "Причина (обязательно)",
     "refund_preview": "Выплата ≈ {{amount}} {{currency}}",
     "vehicle_with_client": "ТС ещё у клиента — вернуть всё равно",
-    "kind_correction": "Исправлено вместе с поступлением"
+    "kind_correction": "Исправлено вместе с поступлением",
+    "pay": "Внести залог",
+    "pay_amount": "Сумма залога, {{currency}}",
+    "pay_hint": "Деньги принимаются только как залог этой аренды: это не оплата и не средства клиента."
   },
   "bookings": {
     "new": "Забронировать",
@@ -5212,7 +5221,6 @@
     "policy_in_issue": "в политике выдачи",
     "policy_rental_hint": "Пробег и топливо при выдаче и возврате аренды обязательны всегда; обязательность их проверки задаётся в разделе",
     "of_rental": "Осмотры аренды",
-    "start_issue": "Осмотр при выдаче",
     "start_return": "Осмотр при возврате",
     "start_intermediate": "Промежуточный осмотр",
     "start_intake": "Осмотр при приёме",

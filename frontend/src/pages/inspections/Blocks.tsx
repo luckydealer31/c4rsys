@@ -105,11 +105,9 @@ export function RentalInspectionsCard({ rental }: { rental: Rental }) {
       <InspectionList items={items} />
       {open && can("inspection.create") ? (
         <div className="actions">
-          {rental.state === "booked" || rental.state === "active" ? (
-            <Link className="button secondary" to={start("issue")}>
-              {t("inspections.start_issue")}
-            </Link>
-          ) : null}
+          {/* No button for the inspection at the issue (decision of 16.11.2026): it is created
+              with the rental, or — for a rental «without an inspection» — added in the section
+              of inspections. */}
           {rental.state === "active" || rental.state === "returned" ? (
             <>
               <Link className="button secondary" to={start("return")}>
