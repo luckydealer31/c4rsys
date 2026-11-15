@@ -442,7 +442,8 @@
     "phone_label": "Whose number",
     "identifier_add": "Add an identifier",
     "phone_add": "Add a phone",
-    "tab_settings": "Settings"
+    "tab_settings": "Settings",
+    "extra_phones": "Further phones"
   },
   "contexts": {
     "module_later": "Work in this section comes with its module; its sections by location are already shown.",
@@ -6076,7 +6077,6 @@
     "operation_service_work": "service",
     "tab_main": "Main",
     "tab_finance": "Finance",
-    "tab_orders": "Orders",
     "tab_more": "More",
     "money_title": "Charges and payments",
     "money_when": "When",
@@ -6090,7 +6090,10 @@
     "orders_created": "Created",
     "orders_what": "In the order",
     "orders_charged": "Charged",
-    "orders_paid": "Paid"
+    "orders_paid": "Paid",
+    "tab_history": "History",
+    "money_hidden": "No right to see the settlements.",
+    "money_supplier": "Settlements with the counterparty"
   },
   "data_requests": {
     "title": "Fresh data from the profile",

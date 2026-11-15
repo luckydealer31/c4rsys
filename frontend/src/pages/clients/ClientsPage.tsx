@@ -417,7 +417,7 @@ export function extraContacts(contacts: ClientContact[]): ClientContact[] {
   return contacts.filter((c) => c !== firstPhone && c !== firstEmail);
 }
 
-const CLIENT_TABS = ["main", "finance", "orders", "more"] as const;
+const CLIENT_TABS = ["main", "finance", "history", "more"] as const;
 
 export function ClientPage() {
   const { t } = useTranslation();
@@ -635,7 +635,7 @@ export function ClientPage() {
       <ClientMoneyCard clientId={data.id} />
         </>
       ) : null}
-      {tab === "orders" ? <ClientOrdersCard clientId={data.id} /> : null}
+      {tab === "history" ? <ClientOrdersCard clientId={data.id} /> : null}
       {tab === "more" ? (
         <>
       {data.state !== "merged" ? <RestrictionsCard clientId={data.id} onChanged={reload} /> : null}

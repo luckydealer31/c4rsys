@@ -442,7 +442,8 @@
     "phone_label": "หมายเลขของใคร",
     "identifier_add": "เพิ่มหมายเลขประจำตัว",
     "phone_add": "เพิ่มหมายเลขโทรศัพท์",
-    "tab_settings": "การตั้งค่า"
+    "tab_settings": "การตั้งค่า",
+    "extra_phones": "เบอร์โทรเพิ่มเติม"
   },
   "contexts": {
     "module_later": "Work in this section comes with its module; its sections by location are already shown.",
@@ -6076,7 +6077,6 @@
     "operation_service_work": "บริการซ่อม",
     "tab_main": "ข้อมูลหลัก",
     "tab_finance": "การเงิน",
-    "tab_orders": "คำสั่งซื้อ",
     "tab_more": "เพิ่มเติม",
     "money_title": "ยอดเรียกเก็บและการชำระเงิน",
     "money_when": "เมื่อ",
@@ -6090,7 +6090,10 @@
     "orders_created": "สร้างเมื่อ",
     "orders_what": "รายการในคำสั่งซื้อ",
     "orders_charged": "เรียกเก็บ",
-    "orders_paid": "ชำระแล้ว"
+    "orders_paid": "ชำระแล้ว",
+    "tab_history": "ประวัติ",
+    "money_hidden": "ไม่มีสิทธิ์ดูการชำระบัญชี",
+    "money_supplier": "การชำระบัญชีกับคู่ค้า"
   },
   "data_requests": {
     "title": "ข้อมูลล่าสุดจากโปรไฟล์",

@@ -442,7 +442,8 @@
     "phone_label": "Чей номер",
     "identifier_add": "Добавить идентификатор",
     "phone_add": "Добавить телефон",
-    "tab_settings": "Настройки"
+    "tab_settings": "Настройки",
+    "extra_phones": "Дополнительные телефоны"
   },
   "contexts": {
     "module_later": "Работа в этом разделе появится вместе с его модулем; разделы по локациям уже видны.",
@@ -6076,7 +6077,6 @@
     "operation_service_work": "обслуживание",
     "tab_main": "Основное",
     "tab_finance": "Финансы",
-    "tab_orders": "Заказы",
     "tab_more": "Дополнительно",
     "money_title": "Начисления и оплаты",
     "money_when": "Когда",
@@ -6090,7 +6090,10 @@
     "orders_created": "Создан",
     "orders_what": "Что в заказе",
     "orders_charged": "Начислено",
-    "orders_paid": "Оплачено"
+    "orders_paid": "Оплачено",
+    "tab_history": "История",
+    "money_hidden": "Нет права смотреть расчёты.",
+    "money_supplier": "Расчёты с контрагентом"
   },
   "data_requests": {
     "title": "Актуальные сведения профиля",

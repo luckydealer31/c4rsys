@@ -348,7 +348,7 @@ test("base example from registration to closing survives a restart", async ({ pa
   const money = card(page, t("cards.money_title"));
   await expect(money.getByRole("row").filter({ hasText: t("cards.money_charge") })).toHaveCount(1);
   await expect(money.getByRole("link", { name: /№/ })).toHaveCount(2);
-  await page.getByRole("tab", { name: t("cards.tab_orders") }).click();
+  await page.getByRole("tab", { name: t("cards.tab_history") }).click();
   await expect(card(page, t("cards.history_orders")).getByRole("link", { name: /№/ })).toHaveCount(1);
   await page.getByRole("tab", { name: t("cards.tab_more") }).click();
 });

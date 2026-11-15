@@ -163,6 +163,11 @@ function ProfileHistoryCard() {
   const value = (v: unknown, field: string) => {
     if (field === "public_fields" && Array.isArray(v))
       return v.length ? v.map((x) => t(`company.${String(x)}`)).join(", ") : "—";
+    // Further phones: «number (whose)», not the stored structure.
+    if (field === "extra_phones" && Array.isArray(v))
+      return v.length
+        ? (v as { number?: string; label?: string }[]).map((x) => (x.label ? `${x.number} (${x.label})` : x.number)).join(", ")
+        : "—";
     return v === null || v === "" ? "—" : typeof v === "string" ? v : JSON.stringify(v);
   };
   return (

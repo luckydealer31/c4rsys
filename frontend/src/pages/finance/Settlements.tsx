@@ -568,7 +568,7 @@ function RefundForm({ clientId, info }: { clientId: string; info: ClientSettleme
 
 // --- Supplier ----------------------------------------------------------------------------------
 
-function SupplierCard({ counterpartyId, name, onClose }: { counterpartyId: string; name: string; onClose: () => void }) {
+export function SupplierCard({ counterpartyId, name, onClose }: { counterpartyId: string; name: string; onClose?: () => void }) {
   const { t, i18n } = useTranslation();
   const can = useCan();
   const company = useCompany();
@@ -580,11 +580,13 @@ function SupplierCard({ counterpartyId, name, onClose }: { counterpartyId: strin
   const zone = company.timezone ?? "UTC";
   return (
     <Card title={name}>
-      <div className="actions" style={{ marginTop: 0 }}>
-        <button type="button" className="secondary" onClick={onClose}>
-          {t("money.close")}
-        </button>
-      </div>
+      {onClose ? (
+        <div className="actions" style={{ marginTop: 0 }}>
+          <button type="button" className="secondary" onClick={onClose}>
+            {t("money.close")}
+          </button>
+        </div>
+      ) : null}
       {data.isLoading ? <Loading /> : null}
       {info ? (
         <>
