@@ -4755,7 +4755,8 @@
     "revoke": "Correcting a mistake: revoke the access to the shown history",
     "revoke_reason": "Reason of the correction",
     "access_revoked": "The access to the history was revoked: {{reason}}. What was downloaded is not returned.",
-    "start": "Link with a profile"
+    "start": "Link with a profile",
+    "profile_id": "C4Rsys ID: {{id}}"
   },
   "owner_requests": {
     "title": "Confirmation by the owner",

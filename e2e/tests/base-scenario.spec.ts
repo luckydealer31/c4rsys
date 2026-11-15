@@ -346,8 +346,8 @@ test("base example from registration to closing survives a restart", async ({ pa
   await expect(page.locator("dl.facts").first()).toContainText("Пхукет, Раваи");
   // The head names the person as «first name, patronymic, last name».
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Иван Сергеевич Петров");
-  // The link with the profile stands on the main tab; the request starts by a button.
-  await expect(card(page, t("links.title")).getByRole("button", { name: t("links.start") })).toBeVisible();
+  // The link with the profile is made on the tab «More», not here.
+  await expect(card(page, t("links.title"))).toHaveCount(0);
   // Documents: the driving licence first, its categories from a list, the experience by a year.
   await page.getByRole("button", { name: `${t("common.edit")}: ${t("cards.documents_title")}` }).click();
   await editing.getByLabel(t("cards.series_number")).first().fill("99 12 345678");
@@ -379,6 +379,7 @@ test("base example from registration to closing survives a restart", async ({ pa
   await expect(rented).toHaveCount(1);
   await expect(rented).toContainText("Toyota Yaris");
   await page.getByRole("tab", { name: t("cards.tab_more") }).click();
+  await expect(card(page, t("links.title")).getByRole("button", { name: t("links.start") })).toBeVisible();
 });
 
 /** A PDF of one page with a coloured rectangle, with a correct table of objects. */

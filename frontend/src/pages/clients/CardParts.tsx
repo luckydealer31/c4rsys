@@ -19,6 +19,7 @@ import type {
   IdDocument,
   Messenger,
   OtherDocument,
+  ProfileLink,
 } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, FloatField, IconButton, Loading, Modal } from "../../components/ui";
@@ -148,9 +149,17 @@ export function MainCard({
   onSaved: () => Promise<void>;
 }) {
   const { t } = useTranslation();
+  const company = useCompany();
   const editable = useEditable(cardType, card);
   const [editing, setEditing] = useState(false);
   const person = card.kind === "person";
+  // The ID of the linked profile stands under the name; the link itself is made and broken on
+  // the tab "More" (decision of 15.11.2026). The key is shared with ProfileLinkCard.
+  const links = useApi<{ links: ProfileLink[] }>(
+    ["profile-links", company.public_id, cardType, card.id],
+    `/c/${company.public_id}/profile-links?card_type=${cardType}&card_id=${card.id}`,
+  );
+  const linked = links.data?.links[0]?.state === "accepted" ? links.data.links[0].linked_profile : null;
   const phone = card.contacts.find((c) => c.kind === "phone");
   const email = card.contacts.find((c) => c.kind === "email");
   const rows: Row[] = [
@@ -183,6 +192,7 @@ export function MainCard({
           {badges}
         </div>
         <div className="muted" style={{ marginBottom: 16 }}>
+          {linked ? <div>{t("links.profile_id", { id: linked.public_id })}</div> : null}
           {t(`clients.kind_${card.kind}`)}
         </div>
         <Facts rows={rows} />

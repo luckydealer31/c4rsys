@@ -274,10 +274,6 @@ export function CounterpartyPage() {
       {tab === "main" ? (
         <>
           <MainCard cardType="counterparty" card={data} badges={<CardBadges card={data} />} onSaved={refresh} />
-          {/* The link with the profile stands on the main tab (decision of 15.11.2026). */}
-          <div style={{ maxWidth: 760 }}>
-            <ProfileLinkCard cardType="counterparty" cardId={data.id} cardKind={data.kind} version={data.version} onChanged={refresh} />
-          </div>
           <DocumentsCard cardType="counterparty" card={data} onSaved={refresh} />
         </>
       ) : null}
@@ -303,6 +299,10 @@ export function CounterpartyPage() {
       ) : null}
       {tab === "more" ? (
         <>
+          {/* The link with the profile is made and broken here (decision of 15.11.2026). */}
+          <div style={{ maxWidth: 760 }}>
+            <ProfileLinkCard cardType="counterparty" cardId={data.id} cardKind={data.kind} version={data.version} onChanged={refresh} />
+          </div>
           {/* § 18.1.1–18.1.2: documents of the relations with the counterparty. */}
           <LinkedDocuments objectType="counterparty" objectId={data.id} />
           <MergeCard cardType="counterparty" card={data} onChanged={refresh} />

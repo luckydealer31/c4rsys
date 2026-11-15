@@ -461,10 +461,6 @@ export function ClientPage() {
       {tab === "main" ? (
         <>
           <MainCard cardType="client" card={data} badges={<CardBadges card={data} />} onSaved={reload} />
-          {/* The link with the profile stands on the main tab (decision of 15.11.2026). */}
-          <div style={{ maxWidth: 760 }}>
-            <ProfileLinkCard cardType="client" cardId={data.id} cardKind={data.kind} version={data.version} onChanged={reload} />
-          </div>
           <DocumentsCard cardType="client" card={data} onSaved={reload} />
         </>
       ) : null}
@@ -477,6 +473,10 @@ export function ClientPage() {
       {tab === "history" ? <ClientInteractionsCard clientId={data.id} /> : null}
       {tab === "more" ? (
         <>
+          {/* The link with the profile is made and broken here (decision of 15.11.2026). */}
+          <div style={{ maxWidth: 760 }}>
+            <ProfileLinkCard cardType="client" cardId={data.id} cardKind={data.kind} version={data.version} onChanged={reload} />
+          </div>
           {/* Contracts, acts and other files of the client — not its personal documents. */}
           <LinkedDocuments objectType="client" objectId={data.id} />
           {data.state !== "merged" ? <RestrictionsCard clientId={data.id} onChanged={reload} /> : null}
