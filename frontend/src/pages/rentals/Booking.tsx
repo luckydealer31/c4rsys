@@ -117,7 +117,8 @@ export function BookingPage() {
   const [chosen, setChosen] = useState<Client | null>(null);
   const location = (locations.data?.locations ?? []).find((l) => l.id === locationId);
   const zone = location?.timezone ?? company.timezone ?? "UTC";
-  const [start, setStart] = useState("");
+  // The planned start opens on the current day and time (decision of 15.11.2026).
+  const [start, setStart] = useState(() => toLocalInput(new Date(), company.timezone ?? "UTC"));
   const [end, setEnd] = useState("");
   const [contact, setContact] = useState("");
   const [comment, setComment] = useState("");

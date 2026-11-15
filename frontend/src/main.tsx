@@ -24,6 +24,20 @@ if (import.meta.env.PROD && "serviceWorker" in navigator) {
   });
 }
 
+// A click anywhere in a field of a date or a time opens the calendar of the browser, not only
+// the small icon at its edge (decision of 15.11.2026).
+document.addEventListener("click", (event) => {
+  const field = event.target;
+  if (!(field instanceof HTMLInputElement)) return;
+  if (!["date", "datetime-local", "time", "month"].includes(field.type)) return;
+  if (field.disabled || field.readOnly) return;
+  try {
+    field.showPicker();
+  } catch {
+    // An old browser or a call out of a gesture: the field stays an ordinary one.
+  }
+});
+
 createRoot(root).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>

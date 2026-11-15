@@ -8,7 +8,7 @@ import type { Client, Order, RentalProposal } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
-import { formatMoment, fromLocalInput } from "../../time";
+import { formatMoment, fromLocalInput, toLocalInput } from "../../time";
 import { clientName } from "../clients/ClientsPage";
 import { useVehicleTariffs } from "../rentals/Booking";
 import { ClientFinder } from "../rentals/IssuePage";
@@ -208,7 +208,8 @@ export function RentalProposals({ order, onDone }: { order: Order; onDone: Done 
   const [vehicleId, setVehicleId] = useState("");
   const [tariffId, setTariffId] = useState("");
   const [locationId, setLocationId] = useState("");
-  const [start, setStart] = useState("");
+  // The planned start opens on the current day and time (decision of 15.11.2026).
+  const [start, setStart] = useState(() => toLocalInput(new Date(), company.timezone ?? "UTC"));
   const [end, setEnd] = useState("");
   const tariffs = useVehicleTariffs(vehicleId);
   const add = useCommand<Record<string, unknown>, { proposal: RentalProposal }>(url);
