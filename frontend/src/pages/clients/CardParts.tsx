@@ -273,12 +273,10 @@ function MainForm({ cardType, card, onDone }: { cardType: CardType; card: AnyCar
             {text("residence_address", t("cards.field_residence_address"))}
           </>
         ) : null}
-        {cardType === "counterparty" ? (
-          <>
-            {text("category", t("cards.field_category"))}
-            {text("registration", t("cards.field_registration"))}
-          </>
-        ) : null}
+        {cardType === "counterparty" ? text("category", t("cards.field_category")) : null}
+        {/* The free «registration data» repeat the requisites (decision of 15.11.2026): the
+            field is offered only while it is filled, for example from an import. */}
+        {"registration" in card && card.registration ? text("registration", t("cards.field_registration")) : null}
         {/* The single address of the old form is offered only while it is filled. */}
         {card.address ? text("address", t("cards.field_address")) : null}
       </div>

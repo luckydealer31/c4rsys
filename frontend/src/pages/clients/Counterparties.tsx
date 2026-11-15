@@ -280,9 +280,9 @@ export function CounterpartyPage() {
       ) : null}
       {tab === "more" ? (
         <>
+          <ProfileLinkCard cardType="counterparty" cardId={data.id} cardKind={data.kind} version={data.version} onChanged={refresh} />
           {/* § 18.1.1–18.1.2: documents of the relations with the counterparty. */}
           <LinkedDocuments objectType="counterparty" objectId={data.id} />
-          <ProfileLinkCard cardType="counterparty" cardId={data.id} cardKind={data.kind} version={data.version} onChanged={refresh} />
           <MergeCard cardType="counterparty" card={data} onChanged={refresh} />
           {data.external_id ? (
             <Card title={t("cards.other_title")}>

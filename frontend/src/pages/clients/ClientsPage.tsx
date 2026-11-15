@@ -15,7 +15,6 @@ import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { CompanyTabs } from "../../layout/CompanyTabs";
 import { EmployeesList, InviteForm } from "../settings/EmployeesPage";
 import { CounterpartiesList } from "./Counterparties";
-import { LinkedTasks } from "../tasks/TasksPage";
 import { LinkedDocuments } from "../documents/DocumentsPage";
 import {
   ArchiveActions,
@@ -474,13 +473,13 @@ export function ClientPage() {
       {tab === "history" ? <ClientInteractionsCard clientId={data.id} /> : null}
       {tab === "more" ? (
         <>
+          {/* The link with the profile comes first (decision of 15.11.2026). */}
+          <ProfileLinkCard cardType="client" cardId={data.id} cardKind={data.kind} version={data.version} onChanged={reload} />
           {/* Contracts, acts and other files of the client — not its personal documents. */}
           <LinkedDocuments objectType="client" objectId={data.id} />
           {data.state !== "merged" ? <RestrictionsCard clientId={data.id} onChanged={reload} /> : null}
-          <ProfileLinkCard cardType="client" cardId={data.id} cardKind={data.kind} version={data.version} onChanged={reload} />
           <ClientGroupsCard clientId={data.id} />
           <MergeCard cardType="client" card={data} onChanged={reload} />
-          <LinkedTasks objectType="client" objectId={data.id} />
           {data.external_id ? (
             <Card title={t("cards.other_title")}>
               <Facts rows={[[t("cards.field_external_id"), data.external_id]]} />

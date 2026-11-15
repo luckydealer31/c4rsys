@@ -358,7 +358,7 @@
     "balance_parts": "Available {{available}} {{currency}} · unpaid {{unpaid}} {{currency}}",
     "open_settlement": "Settlements of clients",
     "deposit_held": "Deposit held: {{amount}} {{currency}} (not available)",
-    "messenger": "Priority contact by phone",
+    "messenger": "Preferred contact",
     "messenger_none": "Call / SMS",
     "messenger_whatsapp": "WhatsApp",
     "messenger_telegram": "Telegram",

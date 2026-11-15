@@ -40,12 +40,16 @@ export function RestrictionsCard({ clientId, onChanged }: { clientId: string; on
   const lift = useCommand<{ id: string; reason: string }, unknown>((b) => `${base}/client-restrictions/${b.id}/lift`);
   const [reason, setReason] = useState("");
   const [liftReason, setLiftReason] = useState("");
+  // The button comes first (customer's decision of 15.11.2026): the field of the reason appears
+  // only after it is pressed.
+  const [asking, setAsking] = useState(false);
   const items = marks.data?.restrictions ?? [];
   const active = items.find((m) => !m.lifted_at);
 
   async function refresh() {
     setReason("");
     setLiftReason("");
+    setAsking(false);
     await queryClient.invalidateQueries({ queryKey: key });
     await onChanged();
   }
@@ -61,10 +65,17 @@ export function RestrictionsCard({ clientId, onChanged }: { clientId: string; on
       ) : (
         <p>{t("cards.not_blacklisted")}</p>
       )}
-      {!active && can("client.blacklist.add") ? (
-        <div className="row">
+      {!active && can("client.blacklist.add") && !asking ? (
+        <div className="actions">
+          <button type="button" className="secondary" onClick={() => setAsking(true)}>
+            {t("cards.blacklist_add")}
+          </button>
+        </div>
+      ) : null}
+      {!active && can("client.blacklist.add") && asking ? (
+        <div className="stack">
           <Field label={t("cards.reason")}>
-            <input value={reason} onChange={(e) => setReason(e.target.value)} />
+            <input autoFocus value={reason} onChange={(e) => setReason(e.target.value)} />
           </Field>
           <div className="actions">
             <button
@@ -74,26 +85,38 @@ export function RestrictionsCard({ clientId, onChanged }: { clientId: string; on
                 if ((await add.run({ reason })) !== null) await refresh();
               }}
             >
-              {t("cards.blacklist_add")}
+              {t("common.save")}
+            </button>
+            <button type="button" className="secondary" onClick={() => setAsking(false)}>
+              {t("common.cancel")}
             </button>
           </div>
         </div>
       ) : null}
-      {active && can("client.blacklist.remove") ? (
-        <div className="row">
+      {active && can("client.blacklist.remove") && !asking ? (
+        <div className="actions">
+          <button type="button" className="secondary" onClick={() => setAsking(true)}>
+            {t("cards.blacklist_remove")}
+          </button>
+        </div>
+      ) : null}
+      {active && can("client.blacklist.remove") && asking ? (
+        <div className="stack">
           <Field label={t("cards.lift_reason")}>
-            <input value={liftReason} onChange={(e) => setLiftReason(e.target.value)} />
+            <input autoFocus value={liftReason} onChange={(e) => setLiftReason(e.target.value)} />
           </Field>
           <div className="actions">
             <button
               type="button"
-              className="secondary"
               disabled={!liftReason.trim() || lift.pending}
               onClick={async () => {
                 if ((await lift.run({ id: active.id, reason: liftReason })) !== null) await refresh();
               }}
             >
-              {t("cards.blacklist_remove")}
+              {t("common.save")}
+            </button>
+            <button type="button" className="secondary" onClick={() => setAsking(false)}>
+              {t("common.cancel")}
             </button>
           </div>
         </div>

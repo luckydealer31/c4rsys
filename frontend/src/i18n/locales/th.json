@@ -358,7 +358,7 @@
     "balance_parts": "ใช้ได้ {{available}} {{currency}} · ค้างชำระ {{unpaid}} {{currency}}",
     "open_settlement": "การชำระของลูกค้า",
     "deposit_held": "มัดจำที่ถือ: {{amount}} {{currency}} (ใช้ไม่ได้)",
-    "messenger": "ช่องทางติดต่อหลักทางโทรศัพท์",
+    "messenger": "ช่องทางติดต่อหลัก",
     "messenger_none": "โทร / SMS",
     "messenger_whatsapp": "WhatsApp",
     "messenger_telegram": "Telegram",

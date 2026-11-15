@@ -358,7 +358,7 @@
     "balance_parts": "Доступно {{available}} {{currency}} · не оплачено {{unpaid}} {{currency}}",
     "open_settlement": "Расчёты с клиентами",
     "deposit_held": "Удерживаемый залог: {{amount}} {{currency}} (не доступен)",
-    "messenger": "Приоритетная связь по телефону",
+    "messenger": "Приоритетная связь",
     "messenger_none": "Звонок / SMS",
     "messenger_whatsapp": "WhatsApp",
     "messenger_telegram": "Telegram",
