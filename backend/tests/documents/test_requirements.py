@@ -56,6 +56,8 @@ def _book(client: Client, s: Scenario, vehicle: str) -> dict[str, Any]:
             "client_id": s.client,
             "tariff_id": s.tariff,
             "issue_location_id": s.location,
+            "direct": True,
+            "without_inspection": True,
         },
         key(),
     )

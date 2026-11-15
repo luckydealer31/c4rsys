@@ -94,9 +94,18 @@ def test_details_added_later_and_issue_by_the_booking(owner: Client, s: Scenario
     assert Order.objects.get(pk=rental["order_id"]).client_id is not None
 
     body = issue_body(s, actual_start=(timezone.now() - timedelta(minutes=1)).isoformat())
-    issued = post(
-        owner, f"/api/c/{s.cmp}/rentals/issue", {**body, "booking_id": rental["id"]}, key()
+    url = f"/api/c/{s.cmp}/rentals/issue"
+    # There is no issue by a booking (decision of 16.11.2026): it becomes a rental first.
+    direct = post(owner, url, {**body, "booking_id": rental["id"]}, key())
+    assert direct.json()["error"]["code"] == "BOOKING_NOT_RENTAL"
+    turned = post(
+        owner,
+        f"/api/c/{s.cmp}/bookings/{rental['id']}/to-rental",
+        {"expected_version": rental["version"], "without_inspection": True},
+        key(),
     )
+    assert turned.status_code == 200, turned.content
+    issued = post(owner, url, {**body, "booking_id": rental["id"]}, key())
 
     assert issued.status_code == 201, issued.content
     active = issued.json()["rental"]
@@ -356,3 +365,58 @@ def test_issue_without_an_inspection_asks_for_the_readings(owner: Client, s: Sce
         owner, url, {**issue_body(s, actual_start=start), "booking_id": bare["id"]}, key()
     )
     assert issued.status_code == 201, issued.content
+
+
+def test_own_booking_charge_is_not_a_debt_at_the_issue(owner: Client, s: Scenario) -> None:
+    # Fix of 16.11.2026: the cost of the booking is charged into its order at once; at the
+    # issue it was shown as a debt of the client and counted against the payment.
+    rental = _book(owner, s, 1, 3, client_id=s.client, tariff_id=s.tariff).json()["rental"]
+    body = {
+        "vehicle_card_id": s.vehicle,
+        "tariff_id": s.tariff,
+        "client_id": s.client,
+        "booking_id": rental["id"],
+        "actual_start": _at(1).isoformat(),
+        "planned_end": _at(3).isoformat(),
+    }
+
+    quote = post(owner, f"/api/c/{s.cmp}/rentals/quote", body).json()
+
+    codes = {w["code"]: w.get("amounts") for w in quote["warnings"]}
+    assert "CLIENT_HAS_DEBT" not in codes
+    assert codes["PAYMENT_INCOMPLETE"] == {"THB": quote["calculation"]["base_amount"]}
+
+
+def test_booking_turned_into_a_rental_waiting_for_its_issue(owner: Client, s: Scenario) -> None:
+    # Decision of 16.11.2026: from a booking the rental is made first, with its inspection at
+    # the issue; the issue follows the inspection.
+    from c4rsys.inspections.models import Inspection
+
+    rental = _book(owner, s, 1, 3).json()["rental"]
+    url = f"/api/c/{s.cmp}/bookings/{rental['id']}/to-rental"
+    body = {"expected_version": rental["version"]}
+
+    assert post(owner, url, body, key()).json()["error"]["code"] == "CLIENT_REQUIRED"
+
+    done = post(owner, url, {**body, "client_id": s.client, "tariff_id": s.tariff}, key())
+
+    assert done.status_code == 200, done.content
+    made = done.json()["rental"]
+    assert (made["state"], made["booking"]["direct"], made["client_id"]) == (
+        "booked",
+        True,
+        s.client,
+    )
+    planned = Inspection.objects.get(rental_id=made["id"])
+    assert (planned.kind, planned.state) == ("issue", "planned")
+
+    # «Without an inspection» is said at that moment: no inspection is created.
+    other = _book(owner, s, 5, 6, client_id=s.client, tariff_id=s.tariff).json()["rental"]
+    bare = post(
+        owner,
+        f"/api/c/{s.cmp}/bookings/{other['id']}/to-rental",
+        {"expected_version": other["version"], "without_inspection": True},
+        key(),
+    )
+    assert bare.status_code == 200, bare.content
+    assert not Inspection.objects.filter(rental_id=other["id"]).exists()

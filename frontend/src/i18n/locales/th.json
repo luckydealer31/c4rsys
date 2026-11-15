@@ -252,7 +252,8 @@
     "vehicle_document_changed": "แก้ไขเอกสารของยานพาหนะ",
     "vehicle_document_archived": "ย้ายเอกสารของยานพาหนะไปคลังเก็บ",
     "vehicle_document_received": "ได้รับสำเนาเอกสารของยานพาหนะ",
-    "vehicle_document_passed_to_owner": "ส่งสำเนาเอกสารของยานพาหนะให้เจ้าของแล้ว"
+    "vehicle_document_passed_to_owner": "ส่งสำเนาเอกสารของยานพาหนะให้เจ้าของแล้ว",
+    "rental_booking_to_rental": "เปลี่ยนการจองเป็นการเช่าแล้ว"
   },
   "finance_articles": {
     "archive": "เก็บเข้าคลัง",
@@ -1326,7 +1327,8 @@
     "vehicle_documents_need_management": "ส่งสำเนาเอกสารได้เฉพาะบริษัทที่คุณยืนยันการจัดการแล้ว",
     "vehicle_documents_no_recipient": "ไม่มีผู้รับสำเนาเอกสาร: เจ้าของยังไม่ได้รับการยืนยันในระบบ",
     "phone_incomplete": "กรุณาระบุหมายเลขคู่กับคำอธิบาย",
-    "issue_inspection_not_done": "โปรดตรวจสภาพตอนส่งมอบก่อน"
+    "issue_inspection_not_done": "โปรดตรวจสภาพตอนส่งมอบก่อน",
+    "booking_not_rental": "ต้องเปลี่ยนการจองเป็นการเช่าก่อน แล้วจึงส่งมอบจากการเช่า"
   },
   "history": {
     "action": "Action",
@@ -3451,8 +3453,6 @@
     "deposit_reason": "เหตุผล",
     "cancelled_at": "ยกเลิกแล้ว",
     "reason_no_show": "อัตโนมัติเมื่อไม่มา",
-    "issue": "ส่งมอบตามการจอง",
-    "issue_title": "ส่งมอบตามการจองเลขที่ {{number}}",
     "action_edit": "แก้ไข",
     "action_vehicle": "เปลี่ยนรถ",
     "action_auto": "ยกเลิกอัตโนมัติ",
@@ -3482,7 +3482,9 @@
     "contact_hint": "หากไม่มีลูกค้าในฐานข้อมูล ให้จดชื่อและเบอร์โทร",
     "no_client": "ไม่ระบุลูกค้า",
     "no_client_contact": "ไม่ระบุลูกค้า — ข้อมูลติดต่อ",
-    "pick_client": "ระบุลูกค้า"
+    "pick_client": "ระบุลูกค้า",
+    "to_rental": "เปลี่ยนเป็นการเช่า",
+    "to_rental_title": "การจอง № {{number}}: เปลี่ยนเป็นการเช่า"
   },
   "issue_rules": {
     "page_hint": "กฎการส่งมอบและการยกเลิกการจองอัตโนมัติ: สำหรับทั้งบริษัท และแต่ละสถานที่ตั้งค่าเองได้",

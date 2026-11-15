@@ -246,6 +246,8 @@ def test_blacklist_forbids_new_orders_and_the_start_of_a_booking(
             "tariff_id": s.tariff,
             "issue_location_id": s.location,
             "place_kind": "location",
+            "direct": True,
+            "without_inspection": True,
         },
         key(),
     )

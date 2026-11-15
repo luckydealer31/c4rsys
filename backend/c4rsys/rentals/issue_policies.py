@@ -19,7 +19,8 @@ from django.utils import timezone
 
 from c4rsys.companies import locations
 from c4rsys.documents import requirements as document_requirements
-from c4rsys.finance import payments
+from c4rsys.finance import charges, payments
+from c4rsys.finance.models import ChargeEntry
 from c4rsys.orders import services as orders
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
@@ -27,6 +28,8 @@ from c4rsys.platform.models import Currency
 from c4rsys.platform.money import round_money
 from c4rsys.rentals import pricing
 from c4rsys.rentals.models import IssueException, IssuePolicy, Rental
+
+BASE = ChargeEntry.SourceType.RENTAL_BASE
 
 DEFAULTS = {
     "debt": IssuePolicy.Debt.WARN.value,
@@ -170,7 +173,7 @@ def assess(
     result = Assessment(policy_for(company_id, location_id))
     policy = result.policy
     if client_id is not None and policy["debt"] != IssuePolicy.Debt.ALLOW:
-        debt = payments.client_debt(company_id, client_id)
+        debt = _debt_apart_from(company_id, client_id, order_id)
         if debt:
             item = {"code": "debt", "amounts": _rounded(debt)}
             if policy["debt"] == IssuePolicy.Debt.DECIDE:
@@ -199,7 +202,12 @@ def assess(
         order = orders.get_order(company_id, order_id)
         money = orders.amounts_of(order).get(cost.currency)
         if money is not None:
-            available = money.paid - money.charged
+            # The charge of this very rental, made when it was booked or created, is not one
+            # of the «other» charges of the order: what is paid goes to it (fix of 16.11.2026).
+            own = Decimal(0)
+            if rental_id is not None and charges.charged_currency(BASE, rental_id) == cost.currency:
+                own = charges.current_charge(BASE, rental_id)
+            available = money.paid - (money.charged - own)
     missing = cost.base_amount - max(available, Decimal(0))
     if missing > 0:
         amounts = _rounded({cost.currency: missing})
@@ -207,6 +215,23 @@ def assess(
             result.unmet.append({"code": "payment", "amounts": amounts})
         result.warnings.append({"code": "PAYMENT_INCOMPLETE", "amounts": amounts})
     return result
+
+
+def _debt_apart_from(
+    company_id: UUID, client_id: UUID, order_id: UUID | None
+) -> dict[str, Decimal]:
+    """The debt of the client without the unpaid part of the order being issued (fix of
+    16.11.2026): a booking charges its cost into the order at once, and that is not an earlier
+    debt of the client — whether it is paid is the question of the payment check."""
+    debt = payments.client_debt(company_id, client_id)
+    if not debt or order_id is None:
+        return debt
+    order = orders.get_order(company_id, order_id)
+    for currency, money in orders.amounts_of(order).items():
+        unpaid = money.charged - money.paid
+        if unpaid > 0 and currency in debt:
+            debt[currency] -= unpaid
+    return {currency: amount for currency, amount in debt.items() if amount > 0}
 
 
 # --- Exceptions (§ 14.3.7) ------------------------------------------------------------------

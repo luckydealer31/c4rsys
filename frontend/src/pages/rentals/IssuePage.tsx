@@ -65,7 +65,15 @@ export function IssuePage() {
     `/c/${company.public_id}/rentals/${bookingId}`,
     Boolean(bookingId),
   );
-  const clientId = booking.data?.rental.client_id ?? "";
+  // A booking made without a client may have got one in its order since: the issue starts
+  // from that client instead of asking again (fix of 16.11.2026).
+  const orderId = booking.data && !booking.data.rental.client_id ? booking.data.rental.order_id : "";
+  const order = useApi<{ order: { client_id: string | null } }>(
+    ["order", company.public_id, orderId],
+    `/c/${company.public_id}/orders/${orderId}`,
+    Boolean(orderId),
+  );
+  const clientId = booking.data?.rental.client_id ?? order.data?.order.client_id ?? "";
   const bookedClient = useApi<{ client: Client }>(
     ["client", company.public_id, clientId],
     `/c/${company.public_id}/clients/${clientId}`,
@@ -74,7 +82,7 @@ export function IssuePage() {
   if (bookingId && !booking.data) {
     return <div className="page">{booking.error ? <ErrorMessage error={booking.error as ApiError} /> : <Loading />}</div>;
   }
-  if (clientId && bookedClient.isLoading) {
+  if ((orderId && order.isLoading) || (clientId && bookedClient.isLoading)) {
     return (
       <div className="page">
         <Loading />
@@ -133,20 +141,32 @@ function IssueForm({
   const made = booking?.inspections.issue ?? null;
   const waiting = made && made.state !== "saved" ? made : null;
   const inspected = made && made.state === "saved" && made.odometer !== null && made.fuel !== null ? made : null;
+  // An ordinary booking is never issued here (decision of 16.11.2026): it is turned into a
+  // rental — with its inspection at the issue, or «without an inspection» — and the issue is
+  // made from that rental.
+  const plain = Boolean(booking) && !ahead;
+  const [withoutInspection, setWithoutInspection] = useState(false);
+  const converting = plain;
+  const [plannedStart, setPlannedStart] = useState(() =>
+    booking?.booking ? toLocalInput(new Date(booking.booking.planned_start), zone) : "",
+  );
+  // The start shown: the planned one while the booking only becomes a rental, else the actual.
+  const from = converting ? plannedStart : start;
+  const toRental = useCommand<Record<string, unknown>, { rental: Rental }>(
+    `/c/${company.public_id}/bookings/${booking?.id ?? ""}/to-rental`,
+  );
   const [units, setUnits] = useState("");
   const tariff = (tariffs.data?.tariffs ?? []).find((item) => item.id === tariffId);
   const count = usePeriodCount();
   async function recount(by: "units" | "end", next: { tariffId?: string; start?: string; end?: string; units?: string }) {
-    const values = { tariffId, start, end: plannedEnd, units, ...next };
+    const values = { tariffId, start: from, end: plannedEnd, units, ...next };
     const answer = await count(by, { vehicleId, locationId: location?.id ?? "", zone, ...values });
     if (!answer) return;
     if (by === "units") setPlannedEnd(toLocalInput(new Date(answer.end), zone));
     else setUnits(answer.units ? String(answer.units) : "");
   }
-  const [plannedReturn, setPlannedReturn] = useState(booking?.planned_return_location_id ?? "");
   const [odometer, setOdometer] = useState("");
   const [fuel, setFuel] = useState("");
-  const [conducted, setConducted] = useState(false);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [quoteError, setQuoteError] = useState<ApiError | null>(null);
   const issue = useCommand<Record<string, unknown>, { rental: Rental; warnings: Warning[] }>(
@@ -169,7 +189,7 @@ function IssueForm({
             client_id: chosen?.id,
             issue_location_id: location?.id,
             booking_id: booking?.id,
-            actual_start: fromLocalInput(start, zone),
+            actual_start: fromLocalInput(from, zone),
             planned_end: fromLocalInput(plannedEnd, zone),
           },
         }),
@@ -184,14 +204,14 @@ function IssueForm({
   const locationKey = location?.id ?? "";
   const clientKey = chosen?.id ?? "";
   useEffect(() => {
-    if (!vehicleId || !tariffId || !start || !plannedEnd) {
+    if (!vehicleId || !tariffId || !from || !plannedEnd) {
       setQuote(null);
       return;
     }
     const timer = window.setTimeout(() => void calculate(), 400);
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vehicleId, tariffId, start, plannedEnd, clientKey, locationKey]);
+  }, [vehicleId, tariffId, from, plannedEnd, clientKey, locationKey]);
   // The units of a period that came with a booking are counted once its tariff is known.
   const tariffKey = tariff?.id ?? "";
   useEffect(() => {
@@ -201,6 +221,24 @@ function IssueForm({
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (converting && booking) {
+      const made = await toRental.run({
+        expected_version: booking.version,
+        client_id: chosen?.id ?? "",
+        tariff_id: tariffId,
+        issue_location_id: location?.id ?? "",
+        ...(location ? placeBody(place) : {}),
+        ...(plannedStart ? { planned_start: fromLocalInput(plannedStart, zone) } : {}),
+        ...(plannedEnd ? { planned_end: fromLocalInput(plannedEnd, zone) } : {}),
+        without_inspection: withoutInspection,
+      });
+      if (made) {
+        await client.invalidateQueries({ queryKey: ["rentals", company.public_id] });
+        await client.invalidateQueries({ queryKey: ["rental", company.public_id] });
+        navigate(companyPath(company, `/rentals/${made.rental.id}`));
+      }
+      return;
+    }
     const body: Record<string, unknown> = {
       vehicle_card_id: vehicleId,
       client_id: chosen?.id ?? "",
@@ -210,10 +248,9 @@ function IssueForm({
       actual_start: fromLocalInput(start, zone),
       // With the inspection of the rental conducted its readings are taken by the server.
       ...(inspected ? {} : { odometer, fuel }),
-      inspection_conducted: conducted,
+      inspection_conducted: false,
     };
     if (plannedEnd) body.planned_end = fromLocalInput(plannedEnd, zone);
-    if (plannedReturn) body.planned_return_location_id = plannedReturn;
     if (booking) body.booking_id = booking.id;
     if (unmet.length && exception.mode) {
       body.exception_mode = exception.mode;
@@ -239,7 +276,7 @@ function IssueForm({
         />
         <h1 style={{ margin: 0 }}>
           {booking?.booking && !booking.booking.direct
-            ? t("bookings.issue_title", { number: booking.booking.number })
+            ? t("bookings.to_rental_title", { number: booking.booking.number })
             : t("rentals.issue")}
         </h1>
       </div>
@@ -299,12 +336,13 @@ function IssueForm({
               </div>
             ) : null}
             <div className="row compact">
-              <Field label={t("rentals.actual_start")} hint={zone}>
+              <Field label={t(converting ? "bookings.planned_start" : "rentals.actual_start")} hint={zone}>
                 <input
                   type="datetime-local"
-                  value={start}
+                  value={from}
                   onChange={(e) => {
-                    setStart(e.target.value);
+                    if (converting) setPlannedStart(e.target.value);
+                    else setStart(e.target.value);
                     void recount(units ? "units" : "end", { start: e.target.value });
                   }}
                 />
@@ -388,40 +426,30 @@ function IssueForm({
                 <Link to={companyPath(company, `/inspections/${inspected.id}`)}>{t("rentals.open_inspection")}</Link>
               </p>
             ) : null}
-            <div className="row compact">
-              {inspected || waiting ? null : (
-                <>
-                  <Field label={t("rentals.odometer", { unit: vehicle?.odometer_unit ?? "km" })}>
-                    <input value={odometer} inputMode="decimal" onChange={(e) => setOdometer(e.target.value)} />
-                  </Field>
-                  <Field label={t("rentals.fuel")} hint={t("rentals.fuel_hint")}>
-                    <input value={fuel} inputMode="decimal" onChange={(e) => setFuel(e.target.value)} />
-                  </Field>
-                </>
-              )}
-              <Field label={t("rentals.planned_return_location")}>
-                <select value={plannedReturn} onChange={(e) => setPlannedReturn(e.target.value)}>
-                  <option value="">—</option>
-                  {(locations.data?.locations ?? []).map((l) => (
-                    <option key={l.id} value={l.id}>
-                      {l.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            </div>
-            {/* A rental created ahead of its issue has its inspection or none («without an
-                inspection»): no mark here. The mark stays for the issue of a booking. */}
-            {can("inspection.conduct") && !ahead ? (
-              <label className="small">
-                <input type="checkbox" checked={conducted} onChange={() => setConducted(!conducted)} />{" "}
-                {t("rentals.inspection_conducted")}
-              </label>
+            {plain ? (
+              <div>
+                <label className="small">
+                  <input
+                    type="checkbox"
+                    checked={withoutInspection}
+                    onChange={() => setWithoutInspection(!withoutInspection)}
+                  />{" "}
+                  {t("rentals.without_inspection")}
+                </label>
+                <p className="muted small" style={{ margin: "4px 0 0" }}>
+                  {t("rentals.without_inspection_hint")}
+                </p>
+              </div>
             ) : null}
-            {ahead ? null : (
-              <p className="muted small">
-                {t(quote?.inspection_required ? "issue_rules.inspection_required_hint" : "rentals.inspection_policy")}
-              </p>
+            {converting || inspected || waiting ? null : (
+              <div className="row compact">
+                <Field label={t("rentals.odometer", { unit: vehicle?.odometer_unit ?? "km" })}>
+                  <input value={odometer} inputMode="decimal" onChange={(e) => setOdometer(e.target.value)} />
+                </Field>
+                <Field label={t("rentals.fuel")} hint={t("rentals.fuel_hint")}>
+                  <input value={fuel} inputMode="decimal" onChange={(e) => setFuel(e.target.value)} />
+                </Field>
+              </div>
             )}
           </div>
         </Card>
@@ -451,10 +479,10 @@ function IssueForm({
           value={exception}
           onChange={setException}
         />
-        {refused ? null : <ErrorMessage error={issue.error} />}
+        {refused ? null : <ErrorMessage error={issue.error ?? toRental.error} />}
         <div className="actions">
-          <button type="submit" disabled={issue.pending || !vehicleId || Boolean(waiting)}>
-            {t("rentals.confirm_issue")}
+          <button type="submit" disabled={issue.pending || toRental.pending || !vehicleId || Boolean(waiting)}>
+            {t(converting ? "bookings.to_rental" : "rentals.confirm_issue")}
           </button>
         </div>
       </form>

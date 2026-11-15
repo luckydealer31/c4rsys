@@ -252,7 +252,8 @@
     "vehicle_document_changed": "Изменён документ ТС",
     "vehicle_document_archived": "Документ ТС отправлен в архив",
     "vehicle_document_received": "Получена копия документа ТС",
-    "vehicle_document_passed_to_owner": "Копии документов ТС переданы собственнику"
+    "vehicle_document_passed_to_owner": "Копии документов ТС переданы собственнику",
+    "rental_booking_to_rental": "Бронь переведена в аренду"
   },
   "finance_articles": {
     "archive": "В архив",
@@ -1326,7 +1327,8 @@
     "vehicle_documents_need_management": "Копии документов передаются только компании, управление которой вы подтвердили.",
     "vehicle_documents_no_recipient": "Передать копии документов некому: собственник не подтверждён в системе.",
     "phone_incomplete": "Укажите номер рядом с подписью.",
-    "issue_inspection_not_done": "Сначала проведите осмотр при выдаче."
+    "issue_inspection_not_done": "Сначала проведите осмотр при выдаче.",
+    "booking_not_rental": "Бронь сначала переводится в аренду, выдача делается из аренды."
   },
   "history": {
     "action": "Действие",
@@ -3451,8 +3453,6 @@
     "deposit_reason": "Причина",
     "cancelled_at": "Отменена",
     "reason_no_show": "автоматически при неявке",
-    "issue": "Выдать по брони",
-    "issue_title": "Выдача по брони № {{number}}",
     "action_edit": "Изменить",
     "action_vehicle": "Заменить Т/С",
     "action_auto": "Автоотмена",
@@ -3482,7 +3482,9 @@
     "contact_hint": "Если клиента нет в базе — запишите имя и телефон.",
     "no_client": "Без клиента",
     "no_client_contact": "Без клиента — контакт",
-    "pick_client": "Указать клиента"
+    "pick_client": "Указать клиента",
+    "to_rental": "Перевести в аренду",
+    "to_rental_title": "Бронь № {{number}}: перевод в аренду"
   },
   "issue_rules": {
     "page_hint": "Правила выдачи и автоотмена броней: для всей компании, у локации может быть своя настройка.",

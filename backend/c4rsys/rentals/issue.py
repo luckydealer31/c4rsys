@@ -305,6 +305,10 @@ def _issue_booking(
         raise errors.business_rule("BOOKING_NOT_ACTIVE")
     if booking.vehicle_card_id != card.id:
         raise errors.business_rule("BOOKING_VEHICLE_MISMATCH", field="vehicle_card_id")
+    # There is no issue by a booking (decision of 16.11.2026): a booking is turned into a
+    # rental first, and the issue is made from the rental.
+    if not booking.direct:
+        raise errors.business_rule("BOOKING_NOT_RENTAL")
     # An inspection created with the rental and not conducted yet: the issue waits for it.
     if inspections.issue_of_rental(booking.id)[1]:
         raise errors.business_rule("ISSUE_INSPECTION_NOT_DONE")

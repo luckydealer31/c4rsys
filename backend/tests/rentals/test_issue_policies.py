@@ -193,6 +193,8 @@ def test_debt_decision_and_advance_permission_on_the_booking(owner: Client, s: S
             "client_id": s.client,
             "tariff_id": s.tariff,
             "issue_location_id": s.location,
+            "direct": True,
+            "without_inspection": True,
         },
         key(),
     ).json()["rental"]

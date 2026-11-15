@@ -563,7 +563,7 @@ export function BookingCard({ rental, onDone }: { rental: Rental; onDone: (next?
         <div className="actions">
           {can("rental.issue") ? (
             <Link className="button" to={companyPath(company, `/rentals/new?booking=${rental.id}`)}>
-              {t(booking.direct ? "rentals.issue" : "bookings.issue")}
+              {t(booking.direct ? "rentals.issue" : "bookings.to_rental")}
             </Link>
           ) : null}
           {panels.map((p) => (

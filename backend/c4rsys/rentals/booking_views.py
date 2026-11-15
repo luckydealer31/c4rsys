@@ -104,6 +104,46 @@ def booking_create(request: HttpRequest, cmp: str) -> JsonResponse:
     return run_and_respond(request, "rental.book", actor, _encode(new), handler)
 
 
+@require_POST
+def booking_to_rental(request: HttpRequest, cmp: str, rental_id: UUID) -> JsonResponse:
+    """A booking is turned into a rental waiting for its issue, with its inspection at the
+    issue; asks for the right of the issue."""
+    context, actor = _actor(request, cmp)
+    data = parse_json(request)
+    _require(actor, "rental.issue", _optional_uuid(data, "issue_location_id"))
+    changes = bookings.BookingChanges(
+        planned_start=_moment(data, "planned_start", required=False),
+        planned_end=_moment(data, "planned_end", required=False),
+        client_id=_optional_uuid(data, "client_id"),
+        tariff_id=_optional_uuid(data, "tariff_id"),
+        issue_location_id=_optional_uuid(data, "issue_location_id"),
+        place=_place_from(data) if "place_kind" in data else None,
+    )
+    expected_version = get_int(data, "expected_version")
+    without_inspection = data.get("without_inspection", False)
+    if not isinstance(without_inspection, bool):
+        raise errors.validation_error("without_inspection")
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        bookings.to_rental(
+            ctx,
+            context.company.id,
+            rental_id,
+            changes,
+            expected_version,
+            without_inspection=without_inspection,
+        )
+        return _result(context.company.id, rental_id)
+
+    payload = {
+        "rental_id": str(rental_id),
+        **_encode(changes),
+        "expected_version": expected_version,
+        "without_inspection": without_inspection,
+    }
+    return run_and_respond(request, "rental.booking_to_rental", actor, payload, handler)
+
+
 @require_http_methods(["PATCH"])
 def booking_update(request: HttpRequest, cmp: str, rental_id: UUID) -> JsonResponse:
     context, actor = _actor(request, cmp)

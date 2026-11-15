@@ -491,6 +491,34 @@ def update(
     return rental
 
 
+def to_rental(
+    ctx: CommandContext,
+    company_id: UUID,
+    rental_id: UUID,
+    changes: BookingChanges,
+    expected_version: int,
+    *,
+    without_inspection: bool = False,
+) -> Rental:
+    """A booking becomes a rental waiting for its issue (decision of 16.11.2026): with what is
+    changed at that moment, a client and a tariff required, and the inspection at the issue
+    created with it unless «without an inspection» is said. A booking is never issued by itself:
+    the issue is made from the rental."""
+    rental = update(ctx, company_id, rental_id, changes, expected_version)
+    if rental.direct:
+        raise errors.business_rule("BOOKING_NOT_ACTIVE")
+    if rental.client_id is None:
+        raise errors.business_rule("CLIENT_REQUIRED", field="client_id")
+    if rental.tariff_id is None:
+        raise errors.business_rule("TARIFF_REQUIRED", field="tariff_id")
+    before = snapshot(rental)
+    rental.direct = True
+    _save(ctx, rental, before, "rental.booking_to_rental")
+    if not without_inspection:
+        _plan_inspection(ctx, rental)
+    return rental
+
+
 def replace_vehicle(
     ctx: CommandContext,
     company_id: UUID,

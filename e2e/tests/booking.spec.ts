@@ -51,12 +51,23 @@ test("a booking is issued by its own screen", async ({ page }) => {
   const bookingUrl = page.url();
   await expect(page.getByRole("heading", { level: 1 })).toContainText(t("rentals.state_booked"));
 
-  // The issue by the booking starts from what the booking has: vehicle, tariff, client.
-  await page.getByRole("link", { name: t("bookings.issue") }).click();
+  // A booking is not issued by itself: it is turned into a rental, which starts from what the
+  // booking has — vehicle, tariff, client. No readings are asked at that moment.
+  await page.getByRole("link", { name: t("bookings.to_rental") }).click();
   await expect(page).toHaveURL(/\/rentals\/new\?booking=/);
-  await expect(page.getByRole("heading", { level: 1 })).toContainText(t("bookings.issue_title", { number: "" }).trim());
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(t("bookings.to_rental_title", { number: "" }).split(":")[0].trim());
   await expect(page.getByRole("combobox", { name: t("rentals.vehicle"), exact: true })).toBeDisabled();
   await expect(page.getByText("Иван Петров").first()).toBeVisible();
+  await expect(page.getByLabel(t("rentals.odometer", { unit: "km" }))).toHaveCount(0);
+  await expect(page.getByRole("button", { name: t("rentals.confirm_issue") })).toHaveCount(0);
+  // «Without an inspection» is said here; then the rental is issued with its readings.
+  await page.getByLabel(t("rentals.without_inspection")).check();
+  // The cost is counted by itself from the period of the booking.
+  await expect(page.locator("section.card", { hasText: t("rentals.preliminary") }).last()).toContainText("× 1000 THB = ");
+  await page.getByRole("button", { name: t("bookings.to_rental") }).click();
+  await expect(page).toHaveURL(bookingUrl);
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(t("rentals.state_awaiting"));
+  await page.getByRole("link", { name: t("rentals.issue"), exact: true }).click();
   await page.getByLabel(t("rentals.odometer", { unit: "km" })).fill("10000");
   await page.getByLabel(t("rentals.fuel")).fill("8");
   await page.getByRole("button", { name: t("rentals.confirm_issue") }).click();

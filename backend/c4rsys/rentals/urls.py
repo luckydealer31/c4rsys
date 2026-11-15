@@ -45,6 +45,7 @@ urlpatterns = [
     path("c/<str:cmp>/bookings/availability", bv.availability),
     path("c/<str:cmp>/bookings/<uuid:rental_id>", bv.booking_update),
     path("c/<str:cmp>/bookings/<uuid:rental_id>/vehicle", bv.booking_vehicle),
+    path("c/<str:cmp>/bookings/<uuid:rental_id>/to-rental", bv.booking_to_rental),
     path("c/<str:cmp>/bookings/<uuid:rental_id>/cancel", bv.booking_cancel),
     path("c/<str:cmp>/bookings/<uuid:rental_id>/auto-cancel", bv.booking_auto_cancel),
     path("c/<str:cmp>/bookings/<uuid:rental_id>/deposit", bv.booking_deposit),
