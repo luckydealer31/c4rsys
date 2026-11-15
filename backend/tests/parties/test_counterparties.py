@@ -75,3 +75,21 @@ def test_rights_are_separate(owner: Client, cmp: str) -> None:
     viewer, _ = hire(owner, cmp, "viewer@example.com", rights)
     assert viewer.get(f"/api/c/{cmp}/counterparties").status_code == 200
     assert create(viewer, cmp).status_code == 403
+
+
+def test_categories_are_a_directory_of_the_company_and_filter_the_list(
+    owner: Client, cmp: str
+) -> None:
+    """Customer's decision of 15.11.2026: a category is created by setting it in a card, is
+    chosen from the list of the company afterwards and filters the list of counterparties."""
+    create(owner, cmp, company_name="Parts Co", category="Parts")
+    create(owner, cmp, company_name="Wash Co", category="Washing")
+    create(owner, cmp, company_name="Other Parts", category="Parts")
+    create(owner, cmp, company_name="No Category")
+    listed = owner.get(f"/api/c/{cmp}/counterparties/categories").json()["categories"]
+    assert listed == ["Parts", "Washing"]
+    found = owner.get(f"/api/c/{cmp}/counterparties?category=Parts").json()["counterparties"]
+    assert sorted(c["name"] for c in found) == ["Other Parts", "Parts Co"]
+    # The directory belongs to the company: an employee without rights on counterparties is refused.
+    clerk, _ = hire(owner, cmp, "clerk@example.com", [])
+    assert clerk.get(f"/api/c/{cmp}/counterparties/categories").status_code == 403

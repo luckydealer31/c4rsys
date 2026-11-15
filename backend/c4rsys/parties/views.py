@@ -400,6 +400,16 @@ def _counterparty_payload(card: Counterparty) -> dict[str, Any]:
     }
 
 
+@require_http_methods(["GET"])
+def counterparty_categories(request: HttpRequest, cmp: str) -> JsonResponse:
+    """The categories of counterparties of the company, to choose from and to filter by."""
+    context, actor = _actor(request, cmp)
+    resolver_rights = ("counterparty.view", "counterparty.create", "counterparty.edit")
+    if not any(access.RightsResolver().has_permission(actor, p) for p in resolver_rights):
+        raise errors.permission_denied("counterparty.view")
+    return JsonResponse({"categories": counterparties.categories(context.company.id)})
+
+
 @require_http_methods(["GET", "POST"])
 def counterparty_list(request: HttpRequest, cmp: str) -> JsonResponse:
     context, actor = _actor(request, cmp)
@@ -409,7 +419,8 @@ def counterparty_list(request: HttpRequest, cmp: str) -> JsonResponse:
         if state not in ("", *Counterparty.State.values):
             raise errors.validation_error("state")
         text = request.GET.get("q", "")[:100]
-        found = counterparties.search(context.company.id, text, state)[:LIST_LIMIT]
+        category = request.GET.get("category", "")[:100]
+        found = counterparties.search(context.company.id, text, state, category)[:LIST_LIMIT]
         return JsonResponse({"counterparties": [_counterparty_payload(c) for c in found]})
 
     _require(actor, "counterparty.create")

@@ -4754,7 +4754,8 @@
     "field_actual_address": "Actual address",
     "revoke": "Correcting a mistake: revoke the access to the shown history",
     "revoke_reason": "Reason of the correction",
-    "access_revoked": "The access to the history was revoked: {{reason}}. What was downloaded is not returned."
+    "access_revoked": "The access to the history was revoked: {{reason}}. What was downloaded is not returned.",
+    "start": "Link with a profile"
   },
   "owner_requests": {
     "title": "Confirmation by the owner",
@@ -6134,7 +6135,11 @@
     "supplier_history": "Receipts and returns",
     "kind_receipt": "Receipt",
     "kind_return": "Return to the supplier",
-    "money_hold_left": "held until {{until}} — days left: {{count}}"
+    "money_hold_left": "held until {{until}} — days left: {{count}}",
+    "category_new": "New category",
+    "category_none": "No category",
+    "category_add": "+ New category…",
+    "category_all": "All categories"
   },
   "data_requests": {
     "title": "Fresh data from the profile",

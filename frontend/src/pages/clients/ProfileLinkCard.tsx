@@ -119,6 +119,8 @@ export function ProfileLinkCard({
     () => `${base}/${links.data?.links[0]?.id}/apply`,
   );
   const [target, setTarget] = useState("");
+  // The request is started by a button; the field appears after it (decision of 15.11.2026).
+  const [asking, setAsking] = useState(false);
   const [initiator, setInitiator] = useState("company");
   const editable = can(cardType === "client" ? "client.edit" : "counterparty.edit");
   // § 23.8.2 (block 14): sending an invitation or a request to link is a right of its own.
@@ -133,6 +135,7 @@ export function ProfileLinkCard({
     event.preventDefault();
     if ((await send.run({ card_type: cardType, card_id: cardId, target })) !== null) {
       setTarget("");
+      setAsking(false);
       await refresh();
     }
   }
@@ -262,7 +265,14 @@ export function ProfileLinkCard({
           ) : null}
         </div>
       ) : null}
-      {!open && requestable ? (
+      {!open && requestable && !asking ? (
+        <div className="actions">
+          <button type="button" className="secondary" onClick={() => setAsking(true)}>
+            {t("links.start")}
+          </button>
+        </div>
+      ) : null}
+      {!open && requestable && asking ? (
         <form className="stack" onSubmit={submit}>
           <Field label={t(cardKind === "company" ? "links.target_company" : "links.target_person")}>
             <input value={target} onChange={(e) => setTarget(e.target.value)} />
@@ -271,6 +281,9 @@ export function ProfileLinkCard({
           <div className="actions">
             <button type="submit" disabled={!target.trim() || send.pending}>
               {t("links.send")}
+            </button>
+            <button type="button" className="secondary" onClick={() => setAsking(false)}>
+              {t("common.cancel")}
             </button>
           </div>
         </form>

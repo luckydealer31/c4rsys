@@ -291,13 +291,29 @@ def names(company_id: UUID, ids: set[UUID]) -> dict[UUID, str]:
     }
 
 
+def categories(company_id: UUID) -> list[str]:
+    """The directory of the categories of counterparties of the company (customer's decision of
+    15.11.2026): the categories its cards carry, by the alphabet. A category appears when it is
+    set in a card and is chosen from this list afterwards (PROPOSAL: no table of its own)."""
+    found = (
+        of_company(company_id)
+        .exclude(state=Counterparty.State.MERGED)
+        .exclude(category="")
+        .values_list("category", flat=True)
+        .distinct()
+    )
+    return sorted(set(found), key=str.casefold)
+
+
 def search(
-    company_id: UUID, text: str, state: str = Counterparty.State.ACTIVE
+    company_id: UUID, text: str, state: str = Counterparty.State.ACTIVE, category: str = ""
 ) -> QuerySet[Counterparty]:
     """By a part of the name or a contact (§ 2.8.3)."""
     cards = of_company(company_id)
     # Merged cards are reached through their main card (§ 6.5.2).
     cards = cards.filter(state=state) if state else cards.exclude(state=Counterparty.State.MERGED)
+    if category:
+        cards = cards.filter(category=category)
     for word in text.split():
         cards = cards.filter(
             Q(first_name__icontains=word)

@@ -54,9 +54,16 @@ export function CounterpartiesList() {
   const can = useCan();
   const [query, setQuery] = useState("");
   const [archived, setArchived] = useState(false);
+  // The list is filtered by the categories of the directory of the company (15.11.2026).
+  const [category, setCategory] = useState("");
+  const categories = useApi<{ categories: string[] }>(
+    ["counterparty-categories", company.public_id],
+    `/c/${company.public_id}/counterparties/categories`,
+    can("counterparty.view"),
+  );
   const list = useApi<{ counterparties: Counterparty[] }>(
-    ["counterparties", company.public_id, query, archived],
-    `/c/${company.public_id}/counterparties?q=${encodeURIComponent(query)}&state=${archived ? "archived" : "active"}`,
+    ["counterparties", company.public_id, query, archived, category],
+    `/c/${company.public_id}/counterparties?q=${encodeURIComponent(query)}&state=${archived ? "archived" : "active"}&category=${encodeURIComponent(category)}`,
     can("counterparty.view"),
   );
   return (
@@ -72,6 +79,16 @@ export function CounterpartiesList() {
               placeholder={t("counterparties.search")}
               aria-label={t("counterparties.search")}
             />
+            {categories.data?.categories.length ? (
+              <select value={category} aria-label={t("cards.field_category")} onChange={(e) => setCategory(e.target.value)}>
+                <option value="">{t("cards.category_all")}</option>
+                {categories.data.categories.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            ) : null}
             <label>
               <input type="checkbox" checked={archived} onChange={(e) => setArchived(e.target.checked)} />{" "}
               {t("counterparties.show_archived")}
@@ -87,6 +104,7 @@ export function CounterpartiesList() {
                     <Link to={companyPath(company, `/clients/counterparties/${card.id}`)}>{card.name}</Link>
                   </td>
                   <td>{t(`clients.kind_${card.kind}`)}</td>
+                  <td>{card.category}</td>
                   <td className="small muted">{card.contacts.map((c) => c.value).join(", ")}</td>
                 </tr>
               ))}
@@ -217,6 +235,7 @@ export function CounterpartyPage() {
   async function refresh() {
     await queryClient.invalidateQueries({ queryKey: ["counterparty", company.public_id, id] });
     await queryClient.invalidateQueries({ queryKey: ["counterparties", company.public_id] });
+    await queryClient.invalidateQueries({ queryKey: ["counterparty-categories", company.public_id] });
   }
 
   return (
@@ -255,6 +274,10 @@ export function CounterpartyPage() {
       {tab === "main" ? (
         <>
           <MainCard cardType="counterparty" card={data} badges={<CardBadges card={data} />} onSaved={refresh} />
+          {/* The link with the profile stands on the main tab (decision of 15.11.2026). */}
+          <div style={{ maxWidth: 760 }}>
+            <ProfileLinkCard cardType="counterparty" cardId={data.id} cardKind={data.kind} version={data.version} onChanged={refresh} />
+          </div>
           <DocumentsCard cardType="counterparty" card={data} onSaved={refresh} />
         </>
       ) : null}
@@ -280,7 +303,6 @@ export function CounterpartyPage() {
       ) : null}
       {tab === "more" ? (
         <>
-          <ProfileLinkCard cardType="counterparty" cardId={data.id} cardKind={data.kind} version={data.version} onChanged={refresh} />
           {/* § 18.1.1–18.1.2: documents of the relations with the counterparty. */}
           <LinkedDocuments objectType="counterparty" objectId={data.id} />
           <MergeCard cardType="counterparty" card={data} onChanged={refresh} />

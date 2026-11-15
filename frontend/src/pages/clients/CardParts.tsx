@@ -273,7 +273,9 @@ function MainForm({ cardType, card, onDone }: { cardType: CardType; card: AnyCar
             {text("residence_address", t("cards.field_residence_address"))}
           </>
         ) : null}
-        {cardType === "counterparty" ? text("category", t("cards.field_category")) : null}
+        {cardType === "counterparty" ? (
+          <CategoryField value={draft.category} onChange={(category) => setDraft({ ...draft, category })} />
+        ) : null}
         {/* The free «registration data» repeat the requisites (decision of 15.11.2026): the
             field is offered only while it is filled, for example from an import. */}
         {"registration" in card && card.registration ? text("registration", t("cards.field_registration")) : null}
@@ -291,6 +293,48 @@ function MainForm({ cardType, card, onDone }: { cardType: CardType; card: AnyCar
         </button>
       </div>
     </form>
+  );
+}
+
+/** The category of a counterparty is chosen from the directory of the company (customer's
+ * decision of 15.11.2026); a missing one is created right here by its name. */
+function CategoryField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const list = useApi<{ categories: string[] }>(
+    ["counterparty-categories", company.public_id],
+    `/c/${company.public_id}/counterparties/categories`,
+  );
+  const known = list.data?.categories ?? [];
+  const [adding, setAdding] = useState(false);
+  const options = value && !known.includes(value) ? [...known, value] : known;
+  if (adding) {
+    return (
+      <FloatField label={t("cards.category_new")}>
+        <input autoFocus value={value} onChange={(e) => onChange(e.target.value)} />
+      </FloatField>
+    );
+  }
+  return (
+    <FloatField label={t("cards.field_category")}>
+      <select
+        value={value}
+        onChange={(e) => {
+          if (e.target.value === "\u0000new") {
+            onChange("");
+            setAdding(true);
+          } else onChange(e.target.value);
+        }}
+      >
+        <option value="">{t("cards.category_none")}</option>
+        {options.map((name) => (
+          <option key={name} value={name}>
+            {name}
+          </option>
+        ))}
+        <option value={"\u0000new"}>{t("cards.category_add")}</option>
+      </select>
+    </FloatField>
   );
 }
 
