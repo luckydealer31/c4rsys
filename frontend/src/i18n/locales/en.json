@@ -389,7 +389,9 @@
     "unconfigured_warning": "After this the location will be «not configured» and will take no new operations: {{locations}}. Existing bookings, rentals and orders go on.",
     "back": "Back",
     "close": "Close",
-    "create": "Create"
+    "create": "Create",
+    "add": "Add",
+    "confirm": "Confirm"
   },
   "companies": {
     "company_id": "Company ID",
@@ -3625,7 +3627,7 @@
     "period_end": "To",
     "start": "Service started",
     "complete": "Service completed",
-    "unlink": "Unlink from the rental",
+    "unlink": "Break the link with the rental",
     "unlink_hint": "The service then has its own period and its own start and completion in the same order.",
     "cancel": "Cancel service",
     "settings": "Settings",
@@ -3672,7 +3674,10 @@
     "return_location": "Return location",
     "handed_out_at": "handed out {{when}}",
     "returned_at": "returned {{when}}",
-    "auto_hint": "The service starts at the start of its period and completes at its end by itself."
+    "auto_hint": "The service starts at the start of its period and completes at its end by itself.",
+    "unlink_ask": "Break the link of the service with the rental?",
+    "unlink_confirm": "Break",
+    "cancel_reason_ask": "Give the reason of the cancellation"
   },
   "changes": {
     "extend_title": "Planned end",

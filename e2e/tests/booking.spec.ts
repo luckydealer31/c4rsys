@@ -64,6 +64,12 @@ test("a booking is issued by its own screen", async ({ page }) => {
   await expect(block).not.toContainText(t("rentals.actual_start"));
   await expect(page.getByRole("heading", { name: t("inspections.of_rental") })).toHaveCount(0);
   await expect(page.locator("section.card", { hasText: t("bookings.total") })).toContainText("1000.00 THB");
+  // A service is added by the button «Add», which opens the choice; no field stands open.
+  const services = page.locator("section.card", { has: page.getByRole("heading", { name: t("services.title"), exact: true }) });
+  await expect(services.getByLabel(t("services.service"))).toHaveCount(0);
+  await services.getByRole("button", { name: t("common.add"), exact: true }).click();
+  await services.getByRole("button", { name: t("common.cancel"), exact: true }).click();
+  await expect(services.getByRole("button", { name: t("common.add"), exact: true })).toBeVisible();
 
   // A booking is not issued by itself: it is turned into a rental, which starts from what the
   // booking has — vehicle, tariff, client. No readings are asked at that moment.

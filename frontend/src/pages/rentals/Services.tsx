@@ -17,7 +17,7 @@ import type {
   ServiceLine,
 } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { Card, ErrorMessage, Field, Loading, UnconfiguredConfirm } from "../../components/ui";
+import { Card, ErrorMessage, Field, IconButton, Info, Loading, UnconfiguredConfirm } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { currencies, formatMoment, fromLocalInput, toLocalInput, zoneShort } from "../../time";
 import { clientName } from "../clients/ClientsPage";
@@ -336,7 +336,7 @@ function useLineCommand(line: ServiceLine, action: string) {
 
 /** Settings of one line: quantity; the own period, start, completion and cancellation of a
  * standalone service (§ 13.4.11); unlinking (§ 13.4.9); free time of a time service (§ 13.4.6). */
-function LineSettings({ line, onDone }: LineProps) {
+function LineSettings({ line, onDone, terms = false }: LineProps & { terms?: boolean }) {
   const { t } = useTranslation();
   const company = useCompany();
   const can = useCan();
@@ -437,20 +437,20 @@ function LineSettings({ line, onDone }: LineProps) {
             {equipment ? t("services.accept_return") : t("services.complete")}
           </button>
         ) : null}
-        {linked && line.state !== "cancelled" ? (
+        {linked && line.state !== "cancelled" && !terms ? (
           <button type="button" className="secondary" disabled={unlinkCmd.pending} onClick={() => void run(unlinkCmd)}>
             {t("services.unlink")}
           </button>
         ) : null}
       </div>
-      {linked ? <p className="muted small">{t("services.unlink_hint")}</p> : null}
+      {linked && !terms ? <p className="muted small">{t("services.unlink_hint")}</p> : null}
       {!linked && !equipment && line.pricing === "time" && !closed ? (
         <p className="muted small">{t("services.auto_hint")}</p>
       ) : null}
       <ErrorMessage error={startCmd.error ?? completeCmd.error ?? unlinkCmd.error} />
       {/* A booked service is cancelled; a started or completed standalone one is annulled the
           same way (decision of 11.11.2026). Equipment that is out is returned first. */}
-      {line.state === "planned" || (!linked && line.state !== "cancelled" && !(equipment && line.state === "started")) ? (
+      {!terms && (line.state === "planned" || (!linked && line.state !== "cancelled" && !(equipment && line.state === "started"))) ? (
         <div className="row" style={{ alignItems: "flex-end" }}>
           <Field label={t("charges.cancel_reason")}>
             <input value={reason} onChange={(e) => setReason(e.target.value)} />
@@ -576,33 +576,132 @@ function LineView({ line, onDone, open, link }: LineProps & { open: boolean; lin
   );
 }
 
-/** Services of the rental card (§ 13.4.5): linked ones and those unlinked from it; an order line
- * opens this card on the settings of its service. */
+/** A service in the card of a rental or a booking (decision of 16.11.2026): one line with its
+ * amount and small marks — the pencil for its quantity or free time, the chain to break the
+ * link with the rental, the cross to cancel; each asks before it acts. */
+function RentalLine({ line, onDone, open }: LineProps & { open: boolean }) {
+  const { t } = useTranslation();
+  const can = useCan();
+  const [mode, setMode] = useState<"" | "terms" | "unlink" | "cancel">(open ? "terms" : "");
+  const [reason, setReason] = useState("");
+  const unlinkCmd = useLineCommand(line, "unlink");
+  const cancelCmd = useLineCommand(line, "cancel");
+  const editable = can("rental.issue") && !line.finished;
+  // What the pencil opens: the quantity, or the free time of a time service already started.
+  const hasTerms = line.pricing === "quantity" || (line.pricing === "time" && line.state !== "planned");
+  const flip = (next: typeof mode) => setMode(mode === next ? "" : next);
+
+  async function run(command: ReturnType<typeof useLineCommand>, body: Record<string, unknown> = {}) {
+    if (await command.run({ expected_version: line.version, ...body })) {
+      setMode("");
+      await onDone();
+    }
+  }
+
+  return (
+    <div id={`service-${line.id}`} className="stack service-line">
+      <div className="service-row">
+        <span>
+          <strong>{line.name}</strong> · {serviceTerms(line, t)}
+          {line.quantity ? ` · ${t("services.quantity_value", { value: line.quantity })}` : ""}
+          {line.equipment ? ` · ${unitLabel(line.equipment)}` : ""}
+          {line.state !== "planned" ? ` · ${t(`services.state_${line.state}`)}` : ""}
+        </span>
+        <strong>{lineAmount(line, t)}</strong>
+        {editable ? (
+          <span className="row-actions">
+            {hasTerms ? <IconButton icon="edit" label={t("common.edit")} onClick={() => flip("terms")} /> : null}
+            <IconButton icon="unlink" label={t("services.unlink")} onClick={() => flip("unlink")} />
+            {line.state === "planned" ? (
+              <IconButton icon="close" label={t("services.cancel")} onClick={() => flip("cancel")} />
+            ) : null}
+          </span>
+        ) : null}
+      </div>
+      {mode === "terms" ? <LineSettings key={line.version} line={line} onDone={onDone} terms /> : null}
+      {mode === "unlink" ? (
+        <div className="stack">
+          <p>
+            {t("services.unlink_ask")}
+            <Info text={t("services.unlink_hint")} />
+          </p>
+          <ErrorMessage error={unlinkCmd.error} />
+          <div className="actions" style={{ marginTop: 0 }}>
+            <button type="button" disabled={unlinkCmd.pending} onClick={() => void run(unlinkCmd)}>
+              {t("services.unlink_confirm")}
+            </button>
+            <button type="button" className="secondary" onClick={() => setMode("")}>
+              {t("common.cancel")}
+            </button>
+          </div>
+        </div>
+      ) : null}
+      {mode === "cancel" ? (
+        <div className="stack">
+          <Field label={t("services.cancel_reason_ask")}>
+            <input value={reason} onChange={(e) => setReason(e.target.value)} />
+          </Field>
+          <ErrorMessage error={cancelCmd.error} />
+          <div className="actions" style={{ marginTop: 0 }}>
+            <button type="button" className="danger" disabled={cancelCmd.pending || !reason.trim()} onClick={() => void run(cancelCmd, { reason })}>
+              {t("common.confirm")}
+            </button>
+            <button type="button" className="secondary" onClick={() => setMode("")}>
+              {t("common.cancel")}
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** Services of the rental card (§ 13.4.5): only the active ones linked with it (decision of
+ * 16.11.2026) — a cancelled or an unlinked service is seen in the order. A new one is added by
+ * the button «Add», which opens the choice. */
 export function RentalServices({ rental, onDone }: { rental: Rental; onDone: (next?: Rental) => Promise<void> }) {
   const { t } = useTranslation();
-  const company = useCompany();
   const can = useCan();
   const hash = useLocation().hash;
-  const lines = rental.services ?? [];
+  const [adding, setAdding] = useState(false);
+  const lines = (rental.services ?? []).filter((line) => line.rental_id === rental.id && line.state !== "cancelled");
   const open = ["booked", "active", "returned"].includes(rental.state) && !rental.formalization.completed_at;
   return (
     <div className="stack">
       {lines.length === 0 ? <p className="muted">{t("services.no_lines")}</p> : null}
       {lines.map((line) => (
-        <LineView
-          key={line.id}
-          line={line}
-          onDone={() => onDone()}
-          open={hash === `#service-${line.id}`}
-          link={line.rental_id ? undefined : companyPath(company, `/rentals/service-lines/${line.id}`)}
-        />
+        <RentalLine key={line.id} line={line} onDone={() => onDone()} open={hash === `#service-${line.id}`} />
       ))}
-      {open && can("rental.issue") ? <AddLinked rental={rental} onDone={onDone} /> : null}
+      {open && can("rental.issue") && !adding ? (
+        <div className="actions" style={{ marginTop: 0 }}>
+          <button type="button" className="secondary" onClick={() => setAdding(true)}>
+            {t("common.add")}
+          </button>
+        </div>
+      ) : null}
+      {open && can("rental.issue") && adding ? (
+        <AddLinked
+          rental={rental}
+          onClose={() => setAdding(false)}
+          onDone={async (next) => {
+            setAdding(false);
+            await onDone(next);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
 
-function AddLinked({ rental, onDone }: { rental: Rental; onDone: (next?: Rental) => Promise<void> }) {
+function AddLinked({
+  rental,
+  onDone,
+  onClose,
+}: {
+  rental: Rental;
+  onDone: (next?: Rental) => Promise<void>;
+  onClose: () => void;
+}) {
   const { t } = useTranslation();
   const company = useCompany();
   const choices = useApi<{ services: ServiceChoice[] }>(
@@ -625,32 +724,50 @@ function AddLinked({ rental, onDone }: { rental: Rental; onDone: (next?: Rental)
     }
   }
 
-  if (choices.data && choices.data.services.length === 0) return <p className="muted small">{t("services.none_applicable")}</p>;
+  if (choices.data && choices.data.services.length === 0) {
+    return (
+      <div className="stack">
+        <p className="muted small">{t("services.none_applicable")}</p>
+        <div className="actions" style={{ marginTop: 0 }}>
+          <button type="button" className="secondary" onClick={onClose}>
+            {t("common.cancel")}
+          </button>
+        </div>
+      </div>
+    );
+  }
   return (
     <form onSubmit={submit}>
-      <div className="row">
-        <Field label={t("services.service")}>
-          <select value={serviceId} onChange={(e) => setServiceId(e.target.value)}>
-            <option value="">—</option>
-            {(choices.data?.services ?? []).map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name} · {serviceTerms(s, t)}
-              </option>
-            ))}
-          </select>
-        </Field>
-        {chosen?.pricing === "quantity" ? (
-          <Field label={t("services.quantity")}>
-            <input value={quantity} inputMode="numeric" onChange={(e) => setQuantity(e.target.value.replace(/\D/g, ""))} />
+      <div className="row compact">
+        <div className="w-wide">
+          <Field label={t("services.service")}>
+            <select value={serviceId} onChange={(e) => setServiceId(e.target.value)}>
+              <option value="">—</option>
+              {(choices.data?.services ?? []).map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} · {serviceTerms(s, t)}
+                </option>
+              ))}
+            </select>
           </Field>
+        </div>
+        {chosen?.pricing === "quantity" ? (
+          <div className="w-short">
+            <Field label={t("services.quantity")}>
+              <input value={quantity} inputMode="numeric" onChange={(e) => setQuantity(e.target.value.replace(/\D/g, ""))} />
+            </Field>
+          </div>
         ) : null}
       </div>
-      <p className="muted small">{t("services.linked_hint")}</p>
       <ErrorMessage error={add.error} />
       <div className="actions">
         <button type="submit" disabled={add.pending || !serviceId}>
-          {t("services.add")}
+          {t("common.add")}
         </button>
+        <button type="button" className="secondary" onClick={onClose}>
+          {t("common.cancel")}
+        </button>
+        <Info text={t("services.linked_hint")} />
       </div>
     </form>
   );

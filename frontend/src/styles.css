@@ -571,3 +571,8 @@ td.vehicle-cell { display: flex; align-items: center; gap: 12px; }
 .total-lines dt { color: var(--muted); }
 .total-lines dd { margin: 0; }
 .total-lines .sum { font-weight: 600; border-top: 1px solid var(--border); padding-top: 6px; }
+
+/* A service in the card of a rental: name, amount and the small marks in one line. */
+.service-line { border-top: 1px solid var(--border); padding-top: 8px; }
+.service-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.service-row > span:first-child { flex: 1 1 220px; }

@@ -18,6 +18,10 @@ const PATHS: Record<string, ReactNode> = {
   trash: <path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" />,
   check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
   close: <path d="M6 6l12 12M18 6L6 18" />,
+  // A chain taken apart: to break the link of a service with its rental.
+  unlink: (
+    <path d="M18.8 12.3l1.7-1.7a5 5 0 0 0-7.1-7.1l-1.7 1.7M5.2 11.7l-1.7 1.7a5 5 0 0 0 7.1 7.1l1.7-1.7M8 2v3M2 8h3M16 19v3M19 16h3" />
+  ),
   companies: (
     <>
       <rect x="3" y="7" width="18" height="13" rx="2" />
