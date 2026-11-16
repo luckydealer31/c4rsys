@@ -204,6 +204,15 @@ def _rate(value: Any, field: str) -> Decimal | None:
     return _amount(value, field, rates.RATE_PLACES)
 
 
+def _wanted_currency(value: Any, field: str) -> str | None:
+    """The currency of the order's charges that a part of a payment settles; optional."""
+    if value in (None, ""):
+        return None
+    if not isinstance(value, str) or len(value.strip()) != 3:
+        raise errors.validation_error(field, code="CURRENCY_INVALID")
+    return value.strip().upper()
+
+
 def _uuid(value: Any, field: str) -> UUID:
     try:
         return UUID(str(value))
@@ -352,6 +361,7 @@ def payment_cash(request: HttpRequest, cmp: str) -> JsonResponse:
                 order_id=_uuid(item.get("order_id"), f"{where}.order_id"),
                 amount=_amount(item.get("amount"), f"{where}.amount", currency.minor_units),
                 rate=_rate(item.get("rate"), f"{where}.rate"),
+                currency=_wanted_currency(item.get("currency"), f"{where}.currency"),
             )
         )
     if len({a.order_id for a in allocations}) != len(allocations):

@@ -28,29 +28,42 @@ export function CashReceipt({
   order,
   onDone,
   bare = false,
+  prefer,
 }: {
   clientId: string;
   order: Order | null;
   onDone: () => Promise<void>;
   /** Inside a window that has the title: the form alone. */
   bare?: boolean;
+  /** The currency of the charges to settle first, when the order has several. */
+  prefer?: string;
 }) {
   const { t } = useTranslation();
   const company = useCompany();
   const accounts = useCashAccounts();
   const usable = (accounts.data?.cash_accounts ?? []).filter((a) => a.state === "active");
   const orderCurrencies = order ? Object.keys(order.amounts) : [];
-  const preferred = usable.find((a) => orderCurrencies.includes(a.currency)) ?? usable[0];
+  // Money is received on any account, in its currency, and settles the charges of the order by
+  // the rate (§ 17.1.4; decision of 16.11.2026). An order charged in several currencies is paid
+  // currency by currency: the one asked for, else the one with the most left to pay.
+  const [target, setTarget] = useState("");
+  const mostOwed = [...orderCurrencies].sort(
+    (a, b) => Number(order?.amounts[b]?.to_pay ?? 0) - Number(order?.amounts[a]?.to_pay ?? 0),
+  )[0];
+  const orderCurrency =
+    target || (prefer && orderCurrencies.includes(prefer) ? prefer : mostOwed) || undefined;
+  const preferred = usable.find((a) => a.currency === orderCurrency) ?? usable[0];
   const [accountId, setAccountId] = useState("");
   const account = usable.find((a) => a.id === (accountId || preferred?.id));
-  // An order charged in one currency may be paid in another: the receipt stays in the account's
-  // currency and settles the order by the rate (§ 17.1.4).
-  const orderCurrency = orderCurrencies.length === 1 ? orderCurrencies[0] : undefined;
   const exchange = Boolean(order && account && orderCurrency && orderCurrency !== account.currency);
   const [manualRate, setManualRate] = useState("");
   const suggestion = useRateSuggestion(exchange ? account?.currency : undefined, orderCurrency);
   const rate = exchange ? effectiveRate(suggestion.data, manualRate) : null;
-  const remainder = order && account && !exchange ? (order.amounts[account.currency]?.to_pay ?? "") : "";
+  const owed = order && orderCurrency ? (order.amounts[orderCurrency]?.to_pay ?? "") : "";
+  // What is left to pay is offered as the amount only in the currency of the account. In
+  // another currency nothing is offered (decision of 16.11.2026): what was received is typed
+  // in, the rate turns it into the currency of the order, and a part may stay to be paid later.
+  const remainder = order && account && !exchange && Number(owed) > 0 ? owed : "";
   const [amount, setAmount] = useState<string | null>(null);
   const [allocation, setAllocation] = useState<string | null>(null);
   const [note, setNote] = useState("");
@@ -74,7 +87,14 @@ export function CashReceipt({
       currency: account.currency,
       allocations:
         order && allocationValue
-          ? [{ order_id: order.id, amount: allocationValue, rate: exchange && manualRate ? manualRate : null }]
+          ? [
+              {
+                order_id: order.id,
+                amount: allocationValue,
+                rate: exchange && manualRate ? manualRate : null,
+                ...(orderCurrency ? { currency: orderCurrency } : {}),
+              },
+            ]
           : [],
       deposits: [],
       note,
@@ -107,6 +127,25 @@ export function CashReceipt({
           <Field label={t("payments.amount", { currency: account?.currency ?? "" })}>
             <input value={amountValue} inputMode="decimal" onChange={(e) => setAmount(e.target.value)} />
           </Field>
+          {order && orderCurrencies.length > 1 ? (
+            <Field label={t("payments.settle_currency")}>
+              <select
+                value={orderCurrency ?? ""}
+                onChange={(e) => {
+                  setTarget(e.target.value);
+                  setAmount(null);
+                  setAllocation(null);
+                  setManualRate("");
+                }}
+              >
+                {orderCurrencies.map((code) => (
+                  <option key={code} value={code}>
+                    {t("payments.settle_option", { currency: code, amount: order.amounts[code]?.to_pay ?? "0" })}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          ) : null}
           {order ? (
             <Field label={t("payments.allocation", { number: order.number })} hint={t("payments.allocation_hint")}>
               <input value={allocationValue} inputMode="decimal" onChange={(e) => setAllocation(e.target.value)} />
@@ -122,7 +161,17 @@ export function CashReceipt({
               })}
             </p>
             <RateField from={account.currency} to={orderCurrency} manual={manualRate} onManual={setManualRate} />
-            {settles ? <p>{t("payments.settles", { amount: settles, currency: orderCurrency })}</p> : null}
+            {settles ? (
+              <p>
+                {t("payments.settles", { amount: settles, currency: orderCurrency })}
+                {Number(owed) > 0
+                  ? ` ${t("payments.left_after", {
+                      amount: Math.max(Number(owed) - Number(settles), 0).toFixed(2),
+                      currency: orderCurrency,
+                    })}`
+                  : ""}
+              </p>
+            ) : null}
           </>
         ) : null}
         <div className="row">
@@ -158,10 +207,13 @@ export function PaymentButton({
   orderId,
   clientId,
   onDone,
+  prefer,
 }: {
   orderId: string;
   clientId: string | null;
   onDone: () => Promise<void>;
+  /** The currency of the calculation the button stands under. */
+  prefer?: string;
 }) {
   const { t } = useTranslation();
   const company = useCompany();
@@ -185,6 +237,7 @@ export function PaymentButton({
           {order.data ? (
             <CashReceipt
               bare
+              prefer={prefer}
               clientId={clientId}
               order={order.data.order}
               onDone={async () => {

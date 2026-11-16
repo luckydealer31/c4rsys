@@ -290,3 +290,74 @@ def test_order_paid_in_another_currency(owner: Client, s: Scenario, stored: Rate
     balance = owner.get(f"/api/c/{s.cmp}/clients/{s.client}/balance").json()["balance"]
     # 10 USD stay available; 175 THB are still owed.
     assert (balance["USD"], balance["THB"]) == ("10.00", "-175.00")
+
+
+def test_order_charged_in_two_currencies_is_paid_currency_by_currency(
+    owner: Client, s: Scenario, stored: RateFetch
+) -> None:
+    # Decision of 16.11.2026: money is received on any account, in its currency, and settles
+    # the charges of the order by the rate; an order charged in several currencies names which
+    # of them a payment goes to.
+    rental: dict[str, Any] = issue(owner, s).json()["rental"]
+    service = post(
+        owner,
+        f"/api/c/{s.cmp}/extra-services",
+        {
+            "name": "Phone",
+            "pricing": "once",
+            "price": "10",
+            "currency": "USD",
+            "locations": "all",
+            "vehicles": [],
+            "tariffs": [],
+        },
+        key(),
+    ).json()["service"]["id"]
+    added = post(
+        owner,
+        f"/api/c/{s.cmp}/rentals/{rental['id']}/services",
+        {"service_id": service, "expected_version": rental["version"]},
+        key(),
+    )
+    assert added.status_code in (200, 201), added.content
+    rental = added.json()["rental"]
+    post(
+        owner,
+        f"/api/c/{s.cmp}/rentals/{rental['id']}/return",
+        {
+            "actual_end": NOW.isoformat(),
+            "return_location_id": s.location,
+            "odometer": "10300",
+            "fuel": "8",
+            "expected_version": rental["version"],
+        },
+        key(),
+    )
+    order_url = f"/api/c/{s.cmp}/orders/{rental['order_id']}"
+    assert set(owner.get(order_url).json()["order"]["amounts"]) == {"THB", "USD"}
+    usd = _account(owner, s.cmp, "Bank USD", "USD")
+    body = {"cash_account_id": usd, "client_id": s.client, "amount": "50", "currency": "USD"}
+    part = {"order_id": rental["order_id"], "amount": "50"}
+
+    unnamed = post(owner, f"/api/c/{s.cmp}/payments/cash", {**body, "allocations": [part]}, key())
+    assert unnamed.json()["error"]["code"] == "ORDER_CURRENCIES_MIXED"
+    wrong = post(
+        owner,
+        f"/api/c/{s.cmp}/payments/cash",
+        {**body, "allocations": [{**part, "currency": "EUR"}]},
+        key(),
+    )
+    assert wrong.json()["error"]["code"] == "ORDER_CURRENCY_NOT_CHARGED"
+
+    paid = post(
+        owner,
+        f"/api/c/{s.cmp}/payments/cash",
+        {**body, "allocations": [{**part, "currency": "THB"}]},
+        key(),
+    )
+
+    assert paid.status_code == 201, paid.content
+    amounts = owner.get(order_url).json()["order"]["amounts"]
+    # 50 USD by 36.5 settle 1 825 THB of the rental; the service in USD is still owed.
+    assert amounts["THB"]["paid"] == "1825.00"
+    assert amounts["USD"]["paid"] == "0.00"

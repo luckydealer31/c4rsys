@@ -764,7 +764,7 @@
     "rate_unavailable": "ไม่มีอัตรา {{source}} → {{target}} การกรอกเองต้องมีสิทธิ์เปลี่ยนอัตรา",
     "transfer_same_account": "เลือกบัญชีอื่นเพื่อโอน",
     "rate_same_currency": "ไม่ต้องใช้อัตราในสกุลเงินเดียวกัน",
-    "order_currencies_mixed": "คำสั่งมีหลายสกุลเงิน",
+    "order_currencies_mixed": "คำสั่งซื้อมียอดหลายสกุลเงิน: โปรดระบุว่าชำระยอดสกุลเงินใด",
     "amount_too_small": "จำนวนเงินน้อยเกินไปสำหรับอัตรานี้",
     "entry_cancelled": "รายการถูกยกเลิกแล้ว",
     "entry_has_offsets": "ยกเลิกการหักกลบของหนี้นี้ก่อน",
@@ -1333,7 +1333,8 @@
     "phone_incomplete": "กรุณาระบุหมายเลขคู่กับคำอธิบาย",
     "issue_inspection_not_done": "โปรดตรวจสภาพตอนส่งมอบก่อน",
     "booking_not_rental": "ต้องเปลี่ยนการจองเป็นการเช่าก่อน แล้วจึงส่งมอบจากการเช่า",
-    "module_already_connected": "แอปนี้เปิดใช้งานอยู่แล้ว"
+    "module_already_connected": "แอปนี้เปิดใช้งานอยู่แล้ว",
+    "order_currency_not_charged": "คำสั่งซื้อไม่มียอดในสกุลเงินนี้"
   },
   "history": {
     "action": "Action",
@@ -1660,7 +1661,10 @@
     "order_currency": "คำสั่งเป็น {{currency}} ค้างชำระ {{amount}} {{currency}}",
     "settles": "ชำระคำสั่ง ≈ {{amount}} {{currency}}",
     "pay": "รับชำระเงิน",
-    "client_first": "โปรดระบุลูกค้าก่อน: ยังไม่มีผู้ชำระเงิน"
+    "client_first": "โปรดระบุลูกค้าก่อน: ยังไม่มีผู้ชำระเงิน",
+    "settle_currency": "ชำระยอดในสกุลเงิน",
+    "settle_option": "{{currency}} · ค้างชำระ {{amount}}",
+    "left_after": "คงเหลือที่ต้องชำระ {{amount}} {{currency}}"
   },
   "permissions": {
     "client_create": "Create clients",
@@ -3501,10 +3505,7 @@
     "action_transfer": "ย้ายไปยังคำสั่งซื้ออื่น",
     "total_rental": "ค่าเช่า",
     "total": "รวม",
-    "deposit_apart": "เงินมัดจำไม่รวมในยอดรวม: รับและคืนแยกต่างหาก",
-    "total_with_deposit": "รวมเงินมัดจำ",
-    "paid": "ชำระแล้ว",
-    "deposit_received": "รับเงินมัดจำแล้ว"
+    "paid": "ชำระแล้ว"
   },
   "issue_rules": {
     "page_hint": "กฎการส่งมอบและการยกเลิกการจองอัตโนมัติ: สำหรับทั้งบริษัท และแต่ละสถานที่ตั้งค่าเองได้",

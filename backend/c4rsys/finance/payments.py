@@ -30,6 +30,9 @@ class Allocation:
     order_id: UUID
     amount: Decimal  # part of the receipt, in the currency of the payment
     rate: Decimal | None = None  # manual rate to the order's currency; None — the suggested one
+    # Which charges of the order this part settles when they are in several currencies
+    # (decision of 16.11.2026); None — the only currency of the order.
+    currency: str | None = None
 
 
 @dataclass(frozen=True)
@@ -44,15 +47,26 @@ class CashReceipt:
     deposit_parts: tuple[deposits.Part, ...] = ()
 
 
-def _order_currency(company_id: UUID, order_id: UUID, payment_currency: str) -> str:
-    """The currency of the order's charges; an order without charges takes the payment's."""
+def _order_currency(
+    company_id: UUID, order_id: UUID, payment_currency: str, wanted: str | None = None
+) -> str:
+    """The currency of the order's charges that a payment settles; an order without charges
+    takes the payment's. An order charged in several currencies is paid currency by currency:
+    the payment names which one (decision of 16.11.2026)."""
     charged = set(charges.charged_for_order(company_id, order_id))
+    if not charged:
+        return payment_currency
+    if wanted is not None:
+        if wanted not in charged:
+            raise errors.business_rule(
+                "ORDER_CURRENCY_NOT_CHARGED", field="allocations", order_currencies=sorted(charged)
+            )
+        return wanted
     if len(charged) > 1:
-        # TODO(spec): an order charged in several currencies is not described.
         raise errors.business_rule(
             "ORDER_CURRENCIES_MIXED", order_id=str(order_id), order_currencies=sorted(charged)
         )
-    return charged.pop() if charged else payment_currency
+    return charged.pop()
 
 
 def receive(
@@ -92,7 +106,7 @@ def receive(
         order = orders.lock_open_order(company_id, allocation.order_id)
         if order.client_id != client.id:
             raise errors.business_rule("ORDER_CLIENT_MISMATCH", order_id=str(order.id))
-        currency = _order_currency(company_id, order.id, request.currency)
+        currency = _order_currency(company_id, order.id, request.currency, allocation.currency)
         applied = None
         if currency != request.currency:
             applied = rates.apply(

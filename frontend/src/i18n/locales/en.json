@@ -764,7 +764,7 @@
     "rate_unavailable": "There is no exchange rate for {{source}} → {{target}}; a manual rate needs the right to change it.",
     "transfer_same_account": "Choose another account to transfer to.",
     "rate_same_currency": "No rate is needed in one currency.",
-    "order_currencies_mixed": "The order is charged in several currencies.",
+    "order_currencies_mixed": "The order is charged in several currencies: say which of them the payment goes to.",
     "amount_too_small": "The amount is too small for this rate.",
     "entry_cancelled": "The entry is already cancelled.",
     "entry_has_offsets": "Cancel the set-offs of this debt first.",
@@ -1333,7 +1333,8 @@
     "phone_incomplete": "Give the number next to its caption.",
     "issue_inspection_not_done": "Conduct the inspection at the issue first.",
     "booking_not_rental": "A booking is turned into a rental first; the issue is made from the rental.",
-    "module_already_connected": "This application is already switched on."
+    "module_already_connected": "This application is already switched on.",
+    "order_currency_not_charged": "The order has no charges in this currency."
   },
   "history": {
     "action": "Action",
@@ -1660,7 +1661,10 @@
     "order_currency": "The order is in {{currency}}; left to pay {{amount}} {{currency}}.",
     "settles": "Settles ≈ {{amount}} {{currency}} of the order.",
     "pay": "Receive a payment",
-    "client_first": "Give the client first: there is nobody to receive money from."
+    "client_first": "Give the client first: there is nobody to receive money from.",
+    "settle_currency": "Settles the charges in",
+    "settle_option": "{{currency}} · to pay {{amount}}",
+    "left_after": "{{amount}} {{currency}} will be left to pay."
   },
   "permissions": {
     "client_create": "Create clients",
@@ -3501,10 +3505,7 @@
     "action_transfer": "Move to another order",
     "total_rental": "Rental",
     "total": "Total",
-    "deposit_apart": "The deposit is not a part of the total: it is received and paid back apart.",
-    "total_with_deposit": "Total with the deposit",
-    "paid": "Paid",
-    "deposit_received": "Deposit received"
+    "paid": "Paid"
   },
   "issue_rules": {
     "page_hint": "Rules of the issue and auto-cancel of bookings: for the whole company, and a location may have its own.",
