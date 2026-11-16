@@ -62,10 +62,10 @@ export function companyMenu(company: Company): [key: string, path: string, icon:
   // Order of the customer (24.10.2026): company, dashboards, contacts, garage, finance, then
   // the directions and settings. Orders keep their place after finance (PROPOSAL).
   const items: [string, string, IconName, boolean][] = [
-    // «Home» holds the dashboards and the tasks; the orders are a tab of «Finance», the documents
-    // a tab of «Company». Order of the customer (14.11.2026): home, finance, rental, service,
-    // warehouse, settings.
-    ["home", "/dashboards", "dashboards", true],
+    // «Productivity» (named so on 16.11.2026; «Home» before) holds the dashboards and the tasks;
+    // the orders are a tab of «Finance», the documents a tab of «Company». Order of the customer
+    // (14.11.2026): productivity, finance, rental, service, warehouse, settings.
+    ["productivity", "/dashboards", "productivity", true],
     ["finance", "/finance", "finance", true],
     // The garage and the contacts are tabs of «Company», the schedule and the trips are tabs of
     // «Rental» (customer's decision of 14.11.2026): the menu holds the daily work only.
@@ -78,7 +78,7 @@ export function companyMenu(company: Company): [key: string, path: string, icon:
 }
 
 /** Pages that belong to a section of the menu though their address is their own. */
-const INSIDE: Record<string, string[]> = { home: ["/tasks"], finance: ["/orders"] };
+const INSIDE: Record<string, string[]> = { productivity: ["/tasks"], finance: ["/orders"] };
 
 /** The company's logo leads straight to its card (decision of 24.10.2026). */
 function CompanyLink({ company }: { company: Company }) {

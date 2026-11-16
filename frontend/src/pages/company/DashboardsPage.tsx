@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Navigate } from "react-router";
 
 import { companyPath, useCan, useCompany, useMayTasks } from "../../layout/CompanyShell";
-import { HomeTabs } from "../../layout/CompanyTabs";
+import { ProductivityTabs } from "../../layout/CompanyTabs";
 import { PersonalDashboards } from "../reports/Personal";
 import { ExportButton, ReportView } from "../reports/Report";
 import { WarehouseDashboard } from "../warehouse/Dashboard";
@@ -29,7 +29,7 @@ export function DashboardsPage() {
   if (visible.length === 0 && tasks) return <Navigate to={companyPath(company, "/tasks")} replace />;
   return (
     <div className="page full">
-      <HomeTabs current="dashboards" />
+      <ProductivityTabs current="dashboards" />
       <h1>{t("nav.dashboards")}</h1>
       <div className="actions no-print" style={{ marginTop: 0, marginBottom: 12 }}>
         {visible.map((key) => (

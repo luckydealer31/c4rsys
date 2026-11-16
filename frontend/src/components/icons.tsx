@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import clipboardData from "./gentleface/clipboard-data.svg?raw";
 import { MotionIcon } from "./motion/MotionIcon";
 
 /** Line icons of the interface (24×24, stroke = current color). Drawn here to avoid a
@@ -175,11 +176,24 @@ const PATHS: Record<string, ReactNode> = {
   back: <path d="M19 12H5M11 6l-6 6 6 6" />,
 };
 
+/** Still icons of Gentleface (https://gentleface.com, MIT licensed), kept as downloaded: the
+ * 16 px drawing filled with the current colour. The customer chose the clipboard with a chart
+ * for the menu item "Productivity" (decision of 16.11.2026). */
+const DOWNLOADED: Record<string, string> = { productivity: clipboardData };
+
 export type IconName = keyof typeof PATHS;
 
 export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   // «Finance» is the animated wallet: it plays when the pointer comes to its menu item.
   if (name === "finance") return <MotionIcon name="wallet" size={size} />;
+  const downloaded = DOWNLOADED[name];
+  if (downloaded) {
+    const markup = downloaded.replace(
+      'width="16" height="16"',
+      `class="icon" width="${size}" height="${size}" aria-hidden="true"`,
+    );
+    return <span style={{ display: "inline-flex" }} dangerouslySetInnerHTML={{ __html: markup }} />;
+  }
   return (
     <svg
       className="icon"

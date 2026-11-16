@@ -55,9 +55,9 @@ export function CompanyTabs({ current }: { current: CompanyTab }) {
   return <Strip label={t("nav.company")} tabs={tabs} current={current} />;
 }
 
-/** «Home» (decision of 14.11.2026): what is going on and what is to be done — the dashboards
+/** «Productivity» (decisions of 14.11.2026 and 16.11.2026): what is going on and what is to be done — the dashboards
  * and the tasks in one section. Tasks are shown with a right of § 23.9 (decision З-3). */
-export function HomeTabs({ current }: { current: "dashboards" | "tasks" }) {
+export function ProductivityTabs({ current }: { current: "dashboards" | "tasks" }) {
   const { t } = useTranslation();
   const tasks = useMayTasks();
   const dashboards = useMayDashboards();
@@ -65,7 +65,7 @@ export function HomeTabs({ current }: { current: "dashboards" | "tasks" }) {
     ...(dashboards || !tasks ? [["dashboards", t("nav.dashboards"), "/dashboards"] as [string, string, string]] : []),
     ...(tasks ? [["tasks", t("nav.tasks"), "/tasks"] as [string, string, string]] : []),
   ];
-  return <Strip label={t("nav.home")} tabs={tabs} current={current} />;
+  return <Strip label={t("nav.productivity")} tabs={tabs} current={current} />;
 }
 
 export type FinanceTab = "money" | "orders" | "settlements" | "accounts" | "articles";
