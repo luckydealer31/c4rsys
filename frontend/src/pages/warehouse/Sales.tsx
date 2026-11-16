@@ -7,6 +7,7 @@ import { useApi } from "../../api/queries";
 import type { Client, ItemBrief, Order, Sources, Storage, Vehicle, WarehouseItem } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
+import { OrderLeft, OrderOffer, useOrderOffer } from "../orders/CancelWith";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { clientName } from "../clients/ClientsPage";
 import { useVehicles } from "../vehicles/VehiclesPage";
@@ -112,6 +113,10 @@ export function SaleGoods({ order, onChange }: { order: Order; onChange: () => P
   const cancel = useCommand<{ id: string; reason: string }, unknown>((b) => `${base}/${b.id}/cancel`);
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [reason, setReason] = useState("");
+  // The only position of its order: the order is offered to be cancelled with it (decision of
+  // 16–17.11.2026).
+  const offer = useOrderOffer(cancelling ? order.id : null, cancelling ? [cancelling] : []);
+  const [orderLeft, setOrderLeft] = useState(false);
   const open = order.state === "open" || order.state === "ready_to_close";
   const all = lines.data?.lines ?? [];
   if (!all.length && !(open && can("warehouse.sell") && order.client_id)) return null;
@@ -173,17 +178,33 @@ export function SaleGoods({ order, onChange }: { order: Order; onChange: () => P
           </tbody>
         </table>
       ) : null}
-      {cancelling ? (
+      {cancelling && orderLeft ? (
+        <OrderLeft
+          offer={offer}
+          onClose={() => {
+            setOrderLeft(false);
+            setCancelling(null);
+            setReason("");
+            void refresh(true);
+          }}
+        />
+      ) : null}
+      {cancelling && !orderLeft ? (
         <div className="line-card">
           <Field label={t("sales.cancel_reason")} hint={t("sales.cancel_hint")}>
             <input value={reason} onChange={(e) => setReason(e.target.value)} />
           </Field>
+          <OrderOffer offer={offer} />
           <div className="actions">
             <button
               type="button"
-              disabled={!reason.trim() || cancel.pending}
+              disabled={!reason.trim() || cancel.pending || offer.pending}
               onClick={async () => {
                 const result = await cancel.run({ id: cancelling, reason });
+                if (result !== null && offer.wanted && !(await offer.cancel(reason))) {
+                  setOrderLeft(true);
+                  return;
+                }
                 if (result !== null) {
                   setCancelling(null);
                   setReason("");

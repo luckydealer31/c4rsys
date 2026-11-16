@@ -731,8 +731,8 @@ def cancel_order(
     return order
 
 
-# A position that no longer counts: it was cancelled or annulled.
-GONE = ("cancelled", "annulled")
+# A position that no longer counts: it was cancelled or annulled; goods taken off the order.
+GONE = ("cancelled", "annulled", "removed")
 
 
 def is_empty(order: Order, own: set[UUID] | None = None) -> bool:

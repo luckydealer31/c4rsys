@@ -2017,7 +2017,6 @@
     "action_tariff": "Create a tariff",
     "action_catalog_service": "Create a service",
     "wizard_some_locations": "Only some locations",
-    "filter_all": "All",
     "action_service_now": "Create a service",
     "filter_services": "Services",
     "tab_schedule": "Schedule",
@@ -2037,7 +2036,8 @@
     "filter_all_locations": "All locations",
     "filter_from": "from",
     "filter_to": "to",
-    "none_found": "Nothing matches these conditions."
+    "none_found": "Nothing matches these conditions.",
+    "filter_services_both": "Services and bookings"
   },
   "rights": {
     "add": "Add rights",

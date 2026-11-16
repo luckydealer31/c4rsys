@@ -2017,7 +2017,6 @@
     "action_tariff": "สร้างอัตรา",
     "action_catalog_service": "สร้างบริการ",
     "wizard_some_locations": "เฉพาะบางสถานที่",
-    "filter_all": "ทั้งหมด",
     "action_service_now": "สร้างบริการ",
     "filter_services": "บริการ",
     "tab_schedule": "ตารางเวลา",
@@ -2037,7 +2036,8 @@
     "filter_all_locations": "ทุกสาขา",
     "filter_from": "ตั้งแต่",
     "filter_to": "ถึง",
-    "none_found": "ไม่พบรายการตามเงื่อนไขนี้"
+    "none_found": "ไม่พบรายการตามเงื่อนไขนี้",
+    "filter_services_both": "บริการและการจอง"
   },
   "rights": {
     "add": "Add rights",

@@ -2017,7 +2017,6 @@
     "action_tariff": "Создать тариф",
     "action_catalog_service": "Создать услугу",
     "wizard_some_locations": "Только в выбранных локациях",
-    "filter_all": "Все",
     "action_service_now": "Создать услугу",
     "filter_services": "Услуги",
     "tab_schedule": "Расписание",
@@ -2037,7 +2036,8 @@
     "filter_all_locations": "Все локации",
     "filter_from": "с",
     "filter_to": "по",
-    "none_found": "По этим условиям ничего нет."
+    "none_found": "По этим условиям ничего нет.",
+    "filter_services_both": "Услуги и брони"
   },
   "rights": {
     "add": "Добавить права",

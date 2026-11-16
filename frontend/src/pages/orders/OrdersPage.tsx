@@ -72,7 +72,7 @@ const isLine = (op: Order["operations"][number]) =>
 function isEmpty(order: Order) {
   return (
     ["preliminary", "open", "ready_to_close"].includes(order.state) &&
-    order.operations.every((op) => op.state === "cancelled" || op.state === "annulled")
+    order.operations.every((op) => ["cancelled", "annulled", "removed"].includes(op.state))
   );
 }
 

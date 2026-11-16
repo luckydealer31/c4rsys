@@ -17,34 +17,106 @@ import { mayTrips, TripsView } from "../trips/TripsPage";
 import { ScheduleTab } from "../vehicles/SchedulePage";
 import { useRentals, useVehicles } from "../vehicles/VehiclesPage";
 
-// The list shows one kind at a time (customer's decision of 11.11.2026): rentals, bookings,
-// cancelled, or all. «Cancelled» covers cancelled bookings and annulled rentals alike.
-type Kind = "rentals" | "bookings" | "cancelled" | "all";
-// The order of the buttons (decision of 14.11.2026): all, rentals, bookings, cancelled.
-const ALL_KINDS: Kind[] = ["all", "rentals", "bookings", "cancelled"];
-// The same for the ordered services: in progress or done, booked, cancelled, all.
-const SERVICE_KINDS: Record<Kind, string[] | null> = {
-  rentals: ["started", "completed"],
-  bookings: ["planned"],
-  cancelled: ["cancelled"],
-  all: null,
-};
+// The lists of the section — rentals with bookings, and the ordered services — are filtered the
+// same way (decisions of 16–17.11.2026): both kinds, the main one or the bookings alone; the
+// cancelled ones of either are switched on apart, off by itself; the location; the days of the
+// start; put by the number of the order, the newest first, turned over from the heading.
+type ListKind = "all" | "main" | "bookings";
 
-// The list of rentals and bookings (decision of 16.11.2026): what is listed and how it is put.
-type ListKind = "all" | "rentals" | "bookings";
-const LIST_KINDS: ListKind[] = ["all", "rentals", "bookings"];
+function useListFilters() {
+  const [kind, setKind] = useState<ListKind>("all");
+  const [cancelled, setCancelled] = useState(false);
+  const [locationId, setLocationId] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [desc, setDesc] = useState(true);
+  return { kind, setKind, cancelled, setCancelled, locationId, setLocationId, from, setFrom, to, setTo, desc, setDesc };
+}
+type ListFilters = ReturnType<typeof useListFilters>;
 
-function KindTabs({ value, onChange, first }: { value: Kind; onChange: (kind: Kind) => void; first: string }) {
-  const { t } = useTranslation();
+/** Whether a row passes: what it is, whether it is cancelled, where and on which day it starts. */
+function passes(f: ListFilters, row: { booking: boolean; cancelled: boolean; locationId: string | null; day: string }) {
   return (
-    <div className="segmented" role="group">
-      {ALL_KINDS.map((key) => (
-        <button key={key} type="button" aria-pressed={value === key} onClick={() => onChange(key)}>
-          {key === "rentals" ? first : t(`rentals.filter_${key}`)}
-        </button>
-      ))}
+    (f.kind === "all" || (f.kind === "bookings") === row.booking) &&
+    (f.cancelled || !row.cancelled) &&
+    (!f.locationId || row.locationId === f.locationId) &&
+    (!f.from || row.day >= f.from) &&
+    (!f.to || (row.day !== "" && row.day <= f.to))
+  );
+}
+
+/** The day of a moment in a time zone, as the fields of the dates give it. */
+function dayIn(moment: string | null, zone: string) {
+  return moment ? new Intl.DateTimeFormat("en-CA", { timeZone: zone }).format(new Date(moment)) : "";
+}
+
+/** By the number of the order; inside one order by the order of creation — the identifiers
+ * grow with time. */
+function byOrder<T extends { id: string; order_id: string }>(rows: T[], numbers: Map<string, number>, desc: boolean) {
+  return [...rows].sort((a, b) => {
+    const [x, y] = [numbers.get(a.order_id) ?? 0, numbers.get(b.order_id) ?? 0];
+    const order = x !== y ? x - y : a.id < b.id ? -1 : 1;
+    return desc ? -order : order;
+  });
+}
+
+function ListBar({ f, both, main }: { f: ListFilters; both: string; main: string }) {
+  const { t } = useTranslation();
+  const locations = useLocations().data?.locations ?? [];
+  const kinds: [ListKind, string][] = [
+    ["all", both],
+    ["main", main],
+    ["bookings", t("rentals.filter_bookings")],
+  ];
+  return (
+    <div className="list-bar">
+      <div className="segmented" role="group">
+        {kinds.map(([key, label]) => (
+          <button key={key} type="button" aria-pressed={f.kind === key} onClick={() => f.setKind(key)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      <Switch name={t("rentals.filter_cancelled")} checked={f.cancelled} onChange={f.setCancelled}>
+        {t("rentals.filter_cancelled")}
+      </Switch>
+      {locations.length > 1 ? (
+        <select value={f.locationId} aria-label={t("rentals.issue_location")} onChange={(e) => f.setLocationId(e.target.value)}>
+          <option value="">{t("rentals.filter_all_locations")}</option>
+          {locations.map((l) => (
+            <option key={l.id} value={l.id}>
+              {l.name}
+            </option>
+          ))}
+        </select>
+      ) : null}
+      <label className="inline-field">
+        {t("rentals.filter_from")}
+        <input type="date" value={f.from} max={f.to || undefined} onChange={(e) => f.setFrom(e.target.value)} />
+      </label>
+      <label className="inline-field">
+        {t("rentals.filter_to")}
+        <input type="date" value={f.to} min={f.from || undefined} onChange={(e) => f.setTo(e.target.value)} />
+      </label>
     </div>
   );
+}
+
+/** The heading of the number of the order: a click turns the list over. */
+function OrderHead({ f }: { f: ListFilters }) {
+  const { t } = useTranslation();
+  return (
+    <th aria-sort={f.desc ? "descending" : "ascending"}>
+      <button type="button" className="link" style={{ whiteSpace: "nowrap" }} onClick={() => f.setDesc(!f.desc)}>
+        {t("orders.order")} {f.desc ? "↓" : "↑"}
+      </button>
+    </th>
+  );
+}
+
+function OrderCell({ id, numbers }: { id: string; numbers: Map<string, number> }) {
+  const company = useCompany();
+  return <td>{numbers.has(id) ? <Link to={companyPath(company, `/orders/${id}`)}>№ {numbers.get(id)}</Link> : "—"}</td>;
 }
 
 type Tab = "schedule" | "rentals" | "trips" | "services" | "catalog";
@@ -130,22 +202,36 @@ function OrderedServices({ lines, loading }: { lines: ServiceLine[]; loading: bo
   const vehicles = useVehicles();
   const vehicleName = new Map((vehicles.data?.vehicles ?? []).map((v) => [v.id, v.name]));
   const rentalVehicle = new Map((rentals.data?.rentals ?? []).map((r) => [r.id, vehicleName.get(r.vehicle_card_id) ?? ""]));
-  const [kind, setKind] = useState<Kind>("all");
-  const states = SERVICE_KINDS[kind];
+  // Filtered as the rentals are (decision of 17.11.2026). A service not started yet is a
+  // booking, and stays one when it is cancelled before its start.
+  const f = useListFilters();
+  const orders = useOrders();
+  const orderNumber = new Map((orders.data?.orders ?? []).map((o) => [o.id, o.number]));
   const all = lines;
-  lines = all.filter((line) => states === null || states.includes(line.state));
+  lines = byOrder(
+    all.filter((line) =>
+      passes(f, {
+        booking: line.state === "planned" || (line.state === "cancelled" && !line.actual_start),
+        cancelled: line.state === "cancelled",
+        locationId: line.location_id,
+        day: dayIn(line.actual_start ?? line.period?.start ?? null, line.time_zone),
+      }),
+    ),
+    orderNumber,
+    f.desc,
+  );
   return (
     <Card>
-      <div className="list-bar">
-        <KindTabs value={kind} onChange={setKind} first={t("rentals.filter_services")} />
-      </div>
+      <ListBar f={f} both={t("rentals.filter_services_both")} main={t("rentals.filter_services")} />
       {loading ? <Loading /> : null}
-      {!loading && lines.length === 0 ? <p className="muted">{t("services.no_lines")}</p> : null}
+      {!loading && all.length === 0 ? <p className="muted">{t("services.no_lines")}</p> : null}
+      {all.length > 0 && lines.length === 0 ? <p className="muted">{t("rentals.none_found")}</p> : null}
       {lines.length ? (
         <div className="table-scroll">
           <table>
             <thead>
               <tr>
+                <OrderHead f={f} />
                 <th>{t("rentals.service_name")}</th>
                 <th>{t("rentals.start")}</th>
                 <th>{t("rentals.amount")}</th>
@@ -156,6 +242,7 @@ function OrderedServices({ lines, loading }: { lines: ServiceLine[]; loading: bo
             <tbody>
               {lines.map((line) => (
                 <tr key={line.id}>
+                  <OrderCell id={line.order_id} numbers={orderNumber} />
                   <td>
                     <Link
                       to={companyPath(
@@ -259,14 +346,7 @@ function RentalsList({ lines }: { lines: ServiceLine[] }) {
   const pending = all.filter((r) => r.issue_exception?.state === "pending");
   // What is listed (decision of 16.11.2026): rentals and bookings, rentals alone or bookings
   // alone; the cancelled ones of either are switched on apart, off by itself.
-  const [kind, setKind] = useState<ListKind>("all");
-  const [cancelled, setCancelled] = useState(false);
-  const [locationId, setLocationId] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-  // Put by the number of the order, the newest first; a click on the heading turns it over
-  // (decision of 17.11.2026: no list of sortings, no «Reset»).
-  const [desc, setDesc] = useState(true);
+  const f = useListFilters();
   // A rental created ahead of its issue is a rental, not a booking (decision of 15.11.2026).
   const awaiting = (r: { state: string; booking?: Booking | null }) => r.state === "booked" && Boolean(r.booking?.direct);
   // A booking stays a booking when it is cancelled; the same for a rental.
@@ -274,28 +354,20 @@ function RentalsList({ lines }: { lines: ServiceLine[] }) {
     r.state === "proposed" || (["booked", "cancelled"].includes(r.state) && Boolean(r.booking) && !r.booking?.direct);
   const startOf = (r: (typeof all)[number]) => r.actual_start ?? r.booking?.planned_start ?? null;
   const zoneOf = (r: (typeof all)[number]) => zones.get(r.issue_location_id ?? "") ?? company.timezone ?? "UTC";
-  // The day of the start where the vehicle is issued, as the fields of the dates give it.
-  const dayOf = (r: (typeof all)[number]) => {
-    const start = startOf(r);
-    return start ? new Intl.DateTimeFormat("en-CA", { timeZone: zoneOf(r) }).format(new Date(start)) : "";
-  };
   const orders = useOrders();
   const orderNumber = new Map((orders.data?.orders ?? []).map((o) => [o.id, o.number]));
-  const shown = (waiting ? pending : all)
-    .filter(
-      (r) =>
-        (kind === "all" || (kind === "bookings") === isBooking(r)) &&
-        (cancelled || !["cancelled", "annulled"].includes(r.state)) &&
-        (!locationId || r.issue_location_id === locationId) &&
-        (!from || dayOf(r) >= from) &&
-        (!to || (dayOf(r) !== "" && dayOf(r) <= to)),
-    )
-    .sort((a, b) => {
-      const [x, y] = [orderNumber.get(a.order_id) ?? 0, orderNumber.get(b.order_id) ?? 0];
-      // In one order — by the order of creation: the identifiers grow with time.
-      const order = x !== y ? x - y : a.id < b.id ? -1 : 1;
-      return desc ? -order : order;
-    });
+  const shown = byOrder(
+    (waiting ? pending : all).filter((r) =>
+      passes(f, {
+        booking: isBooking(r),
+        cancelled: ["cancelled", "annulled"].includes(r.state),
+        locationId: r.issue_location_id,
+        day: dayIn(startOf(r), zoneOf(r)),
+      }),
+    ),
+    orderNumber,
+    f.desc,
+  );
   const amounts = new Map(
     (orders.data?.orders ?? []).map((o) => [
       o.id,
@@ -311,36 +383,7 @@ function RentalsList({ lines }: { lines: ServiceLine[] }) {
   return (
     <>
       <Card>
-        <div className="list-bar">
-          <div className="segmented" role="group">
-            {LIST_KINDS.map((key) => (
-              <button key={key} type="button" aria-pressed={kind === key} onClick={() => setKind(key)}>
-                {t(key === "all" ? "rentals.filter_both" : `rentals.filter_${key}`)}
-              </button>
-            ))}
-          </div>
-          <Switch name={t("rentals.filter_cancelled")} checked={cancelled} onChange={setCancelled}>
-            {t("rentals.filter_cancelled")}
-          </Switch>
-          {(locations.data?.locations.length ?? 0) > 1 ? (
-            <select value={locationId} aria-label={t("rentals.issue_location")} onChange={(e) => setLocationId(e.target.value)}>
-              <option value="">{t("rentals.filter_all_locations")}</option>
-              {(locations.data?.locations ?? []).map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.name}
-                </option>
-              ))}
-            </select>
-          ) : null}
-          <label className="inline-field">
-            {t("rentals.filter_from")}
-            <input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} />
-          </label>
-          <label className="inline-field">
-            {t("rentals.filter_to")}
-            <input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} />
-          </label>
-        </div>
+        <ListBar f={f} both={t("rentals.filter_both")} main={t("rentals.filter_rentals")} />
         {pending.length || waiting ? (
           <label className="small">
             <input type="checkbox" checked={waiting} onChange={() => setWaiting(!waiting)} />{" "}
@@ -354,11 +397,7 @@ function RentalsList({ lines }: { lines: ServiceLine[] }) {
         <table>
           <thead>
             <tr>
-              <th aria-sort={desc ? "descending" : "ascending"}>
-                <button type="button" className="link" style={{ whiteSpace: "nowrap" }} onClick={() => setDesc(!desc)}>
-                  {t("orders.order")} {desc ? "↓" : "↑"}
-                </button>
-              </th>
+              <OrderHead f={f} />
               <th>{t("rentals.vehicle")}</th>
               <th>{t("rentals.client")}</th>
               <th>{t("rentals.start")}</th>
@@ -378,13 +417,7 @@ function RentalsList({ lines }: { lines: ServiceLine[] }) {
               const end = rental.actual_end ?? (rental.state === "booked" ? rental.planned_end : null);
               return (
                 <tr key={rental.id}>
-                  <td>
-                    {orderNumber.has(rental.order_id) ? (
-                      <Link to={companyPath(company, `/orders/${rental.order_id}`)}>№ {orderNumber.get(rental.order_id)}</Link>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
+                  <OrderCell id={rental.order_id} numbers={orderNumber} />
                   <td>
                     <Link to={companyPath(company, `/rentals/${rental.id}`)}>
                       {vehicleName.get(rental.vehicle_card_id) ?? "—"}

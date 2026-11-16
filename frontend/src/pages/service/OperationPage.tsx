@@ -8,6 +8,7 @@ import { useApi } from "../../api/queries";
 import type { ServiceJob, ServiceMaterial, ServiceOperation } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
+import { OrderLeft, OrderOffer, useOrderOffer } from "../orders/CancelWith";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { formatMoment, fromLocalInput, toLocalInput } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
@@ -346,10 +347,26 @@ function End({ op }: { op: ServiceOperation }) {
   const [reason, setReason] = useState("");
   const started = op.state === "in_progress";
   const end = useCommand<Record<string, unknown>, Result>(opCommand(company.public_id, op, started ? "terminate" : "cancel"));
+  // The only position of its order: the order is offered to be cancelled with it (decision of
+  // 16–17.11.2026). A started operation is terminated, not cancelled: what was done stays.
+  const offer = useOrderOffer(started ? null : op.order_id, [op.id]);
+  const [orderLeft, setOrderLeft] = useState(false);
   async function submit(event: FormEvent) {
     event.preventDefault();
     const result = await end.run({ reason, expected_version: op.version });
-    if (result) await refresh();
+    if (!result) return;
+    if (offer.wanted && !(await offer.cancel(reason))) {
+      setOrderLeft(true);
+      return;
+    }
+    await refresh();
+  }
+  if (orderLeft) {
+    return (
+      <Card title={t("service.cancel_title")}>
+        <OrderLeft offer={offer} onClose={() => void refresh()} />
+      </Card>
+    );
   }
   return (
     <Card title={started ? t("service.terminate_title") : t("service.cancel_title")}>
@@ -359,11 +376,12 @@ function End({ op }: { op: ServiceOperation }) {
           <input value={reason} onChange={(e) => setReason(e.target.value)} />
         </Field>
         <div className="actions">
-          <button type="submit" className="danger" disabled={end.pending || !reason.trim()}>
+          <button type="submit" className="danger" disabled={end.pending || offer.pending || !reason.trim()}>
             {started ? t("service.terminate") : t("service.cancel")}
           </button>
         </div>
       </form>
+      <OrderOffer offer={offer} />
       <ErrorMessage error={end.error} />
     </Card>
   );

@@ -5,13 +5,13 @@ import { useTranslation } from "react-i18next";
 import { api, ApiError } from "../../api/client";
 import { useApi } from "../../api/queries";
 import type { Order } from "../../api/types";
-import { Info, Switch } from "../../components/ui";
+import { ErrorMessage, Info, Switch } from "../../components/ui";
 import { useCan, useCompany } from "../../layout/CompanyShell";
 
 type OrderResponse = { order: Order };
 
 /** A position no longer counted: it is cancelled already. */
-const GONE = ["cancelled", "annulled"];
+const GONE = ["cancelled", "annulled", "removed"];
 
 /** When the only position of an order is cancelled, the order is offered to be cancelled with
  * it, so that an empty order does not stay forgotten (customer's decision of 16.11.2026).
@@ -62,6 +62,22 @@ export function useOrderOffer(orderId: string | null | undefined, own: string[])
   }
 
   return { offered: alone, wanted: alone && wanted, setWanted, cancel, pending, error, number: order?.number };
+}
+
+/** Said when the position is cancelled and the order is not: it stays open. */
+export function OrderLeft({ offer, onClose }: { offer: ReturnType<typeof useOrderOffer>; onClose: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <div className="stack">
+      <p className="alert warn">{t("orders.cancel_with_failed", { number: offer.number })}</p>
+      <ErrorMessage error={offer.error} />
+      <div className="actions">
+        <button type="button" className="secondary" onClick={onClose}>
+          {t("common.close")}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 /** The switch of the offer: on by itself. */

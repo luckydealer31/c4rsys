@@ -8,6 +8,7 @@ import { useApi } from "../../api/queries";
 import type { Delivery, DeliveryPoint, Location } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
+import { OrderLeft, OrderOffer, useOrderOffer } from "../orders/CancelWith";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { workHome } from "../../layout/CompanyTabs";
 import { deviceTimeZone, formatMoment, fromLocalInput, toLocalInput, zoneShort } from "../../time";
@@ -434,6 +435,25 @@ function PlannedActions({ d, own, zone }: { d: Delivery; own: boolean; zone: str
   const run = (command: typeof assign, body: Record<string, unknown>) =>
     void command.run({ expected_version: d.version, ...body }).then((r) => (r ? refresh() : undefined));
   const clientOrders = (orders.data?.orders ?? []).filter((o) => !o.is_internal && o.client_id && (o.state === "open" || o.state === "ready_to_close"));
+  // The only position of its order: the order is offered to be cancelled with it (decision of
+  // 16–17.11.2026).
+  const offer = useOrderOffer(d.order_id, [d.id]);
+  const [orderLeft, setOrderLeft] = useState(false);
+  async function cancelTrip() {
+    if (!(await cancel.run({ expected_version: d.version, reason }))) return;
+    if (offer.wanted && !(await offer.cancel(reason))) {
+      setOrderLeft(true);
+      return;
+    }
+    await refresh();
+  }
+  if (orderLeft) {
+    return (
+      <Card title={t("trips.cancel")}>
+        <OrderLeft offer={offer} onClose={() => void refresh()} />
+      </Card>
+    );
+  }
   return (
     <>
       {can("delivery.assign") ? (
@@ -510,11 +530,12 @@ function PlannedActions({ d, own, zone }: { d: Delivery; own: boolean; zone: str
               <input value={reason} onChange={(e) => setReason(e.target.value)} />
             </Field>
             <div className="actions">
-              <button type="button" className="danger" disabled={cancel.pending || !reason.trim()} onClick={() => run(cancel, { reason })}>
+              <button type="button" className="danger" disabled={cancel.pending || offer.pending || !reason.trim()} onClick={() => void cancelTrip()}>
                 {t("trips.cancel_button")}
               </button>
             </div>
           </div>
+          <OrderOffer offer={offer} />
           <ErrorMessage error={cancel.error} />
         </Card>
       ) : null}

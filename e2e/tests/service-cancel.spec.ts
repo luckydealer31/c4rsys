@@ -43,4 +43,18 @@ test("a completed service is cancelled in its order", async ({ page }) => {
   await page.getByRole("button", { name: t("services.cancel"), exact: true }).click();
   await expect(page.getByText(t("services.state_cancelled")).first()).toBeVisible();
   await expect(page.getByText(t("orders.state_cancelled")).first()).toBeVisible();
+
+  // The ordered services are filtered as the rentals are (decision of 17.11.2026): a cancelled
+  // one is not listed until «Cancelled» is switched on; it was started, so it is a service,
+  // not a booking.
+  await page.goto(`${s.base}/rentals?tab=services`);
+  const rows = page.locator("table tbody tr");
+  await expect(page.getByText(t("rentals.none_found"))).toBeVisible();
+  await page.getByRole("switch", { name: t("rentals.filter_cancelled") }).check();
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText("№ 1");
+  await page.getByRole("button", { name: t("rentals.filter_bookings"), exact: true }).click();
+  await expect(rows).toHaveCount(0);
+  await page.getByRole("button", { name: t("rentals.filter_services"), exact: true }).click();
+  await expect(rows).toHaveCount(1);
 });
