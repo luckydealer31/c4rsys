@@ -638,11 +638,12 @@ export function ClientFinder({
 /** The cost by the tariff (decision of 15.11.2026): units × rate = amount, in the units of the
  * tariff — no minutes for a daily one. The current and the actual cost are named; the cost
  * before the issue has no word before it. */
-export function CalculationView({ calculation }: { calculation: Calculation }) {
+export function CalculationView({ calculation, inline = false }: { calculation: Calculation; inline?: boolean }) {
   const { t } = useTranslation();
   const rate = calculation.rate ? ` × ${Number(calculation.rate)} ${calculation.currency}` : "";
+  const Line = inline ? "span" : "p";
   return (
-    <p>
+    <Line>
       {calculation.kind === "preliminary" ? "" : `${t(`rentals.calc_${calculation.kind}`)}: `}
       {calculation.units} {unitShort(calculation.unit, t)}
       {rate}
@@ -650,7 +651,7 @@ export function CalculationView({ calculation }: { calculation: Calculation }) {
       <strong>
         {calculation.base_amount} {calculation.currency}
       </strong>
-    </p>
+    </Line>
   );
 }
 

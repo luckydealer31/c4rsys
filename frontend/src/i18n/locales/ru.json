@@ -1981,7 +1981,6 @@
     "state_returned": "Возвращена",
     "summary": "Аренда",
     "tariff": "Тариф",
-    "time_zone": "Время показано в зоне {{zone}}.",
     "vehicle": "Т/С",
     "state_proposed": "Предложена",
     "missing_return_documents_missing": "Нет документов, обязательных при возврате",
@@ -3490,7 +3489,15 @@
     "no_client_contact": "Без клиента — контакт",
     "pick_client": "Указать клиента",
     "to_rental": "Перевести в аренду",
-    "to_rental_title": "Бронь № {{number}}: перевод в аренду"
+    "to_rental_title": "Бронь № {{number}}: перевод в аренду",
+    "block": "Бронь",
+    "issue_place": "Место выдачи",
+    "return_place": "Место возврата",
+    "order_number": "Заказ № {{number}}",
+    "action_transfer": "Перенести в другой заказ",
+    "total_rental": "Аренда",
+    "total": "Итого",
+    "deposit_apart": "Залог не входит в итог: он вносится и возвращается отдельно."
   },
   "issue_rules": {
     "page_hint": "Правила выдачи и автоотмена броней: для всей компании, у локации может быть своя настройка.",

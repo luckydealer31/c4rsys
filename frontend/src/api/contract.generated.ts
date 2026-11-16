@@ -381,6 +381,7 @@ export const rental: Rental = {
     "unit": "km"
   },
   "order_id": "00000000-0000-0000-0000-000000000000",
+  "order_number": 1,
   "overdue": false,
   "planned_end": null,
   "planned_return_location_id": null,
@@ -510,6 +511,7 @@ export const bookingRental: Rental = {
   "manual_charges": [],
   "mileage": null,
   "order_id": "00000000-0000-0000-0000-000000000000",
+  "order_number": 2,
   "overdue": false,
   "planned_end": "2026-01-01T00:00:00+00:00",
   "planned_return_location_id": null,

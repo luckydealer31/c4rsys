@@ -1981,7 +1981,6 @@
     "state_returned": "Returned",
     "summary": "Rental",
     "tariff": "Tariff",
-    "time_zone": "Times are shown in {{zone}}.",
     "vehicle": "Vehicle",
     "state_proposed": "Proposed",
     "missing_return_documents_missing": "No documents required at the return",
@@ -3490,7 +3489,15 @@
     "no_client_contact": "Without a client: contact",
     "pick_client": "Choose a client",
     "to_rental": "Turn into a rental",
-    "to_rental_title": "Booking № {{number}}: turning into a rental"
+    "to_rental_title": "Booking № {{number}}: turning into a rental",
+    "block": "Booking",
+    "issue_place": "Place of the issue",
+    "return_place": "Place of the return",
+    "order_number": "Order № {{number}}",
+    "action_transfer": "Move to another order",
+    "total_rental": "Rental",
+    "total": "Total",
+    "deposit_apart": "The deposit is not a part of the total: it is received and paid back apart."
   },
   "issue_rules": {
     "page_hint": "Rules of the issue and auto-cancel of bookings: for the whole company, and a location may have its own.",

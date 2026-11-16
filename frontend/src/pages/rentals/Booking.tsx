@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 
@@ -456,16 +456,38 @@ type Panel = "" | "edit" | "vehicle" | "cancel" | "auto" | "deposit" | "exceptio
 /** The booking block of the rental card: number, «client not specified», a late return of the
  * vehicle (§ 14.6.2), a different current location of the vehicle (§ 14.2.2) and the actions
  * before the issue (§ 14.1.6, § 14.7.3, § 14.8.1). */
-export function BookingCard({ rental, onDone }: { rental: Rental; onDone: (next?: Rental) => Promise<void> }) {
+/** A further action of the card: a button among the others and what it opens under them. */
+export type CardAction = { key: string; label: string; body: ReactNode };
+
+export function BookingCard({
+  rental,
+  onDone,
+  lead,
+  middle,
+  more = [],
+  merged = false,
+}: {
+  rental: Rental;
+  onDone: (next?: Rental) => Promise<void>;
+  /** Rows before the period and after it: the card of a booking is one block (decision of
+   * 16.11.2026) — vehicle, tariff, client, place first; the return and the order after. */
+  lead?: ReactNode;
+  middle?: ReactNode;
+  more?: CardAction[];
+  /** The number is in the title and an empty contact is not shown. */
+  merged?: boolean;
+}) {
   const { t, i18n } = useTranslation();
   const company = useCompany();
   const can = useCan();
   const locations = useLocations();
-  const [panel, setPanel] = useState<Panel>("");
+  const [panel, setPanel] = useState<Panel | string>("");
   const booking = rental.booking;
   if (!booking) return null;
   const zone = rental.calc_timezone;
-  const when = (value: string | null | undefined) => formatMoment(value, zone, i18n.language);
+  // The zone stands beside every time, not in a note under the card (decision of 16.11.2026).
+  const when = (value: string | null | undefined) =>
+    value ? `${formatMoment(value, zone, i18n.language)} ${zoneShort(zone)}` : "—";
   const place = new Map((locations.data?.locations ?? []).map((l) => [l.id, l.name]));
   const booked = rental.state === "booked";
   const elsewhere =
@@ -508,18 +530,24 @@ export function BookingCard({ rental, onDone }: { rental: Rental; onDone: (next?
         </div>
       ) : null}
       <dl className="facts">
-        {booking.direct ? null : (
+        {booking.direct || merged ? null : (
           <>
             <dt>{t("bookings.number_label")}</dt>
             <dd>{booking.number}</dd>
           </>
         )}
+        {lead}
         <dt>{t("bookings.planned_start")}</dt>
         <dd>{when(booking.planned_start)}</dd>
         <dt>{t("rentals.planned_end")}</dt>
         <dd>{when(rental.planned_end)}</dd>
-        <dt>{t("bookings.contact")}</dt>
-        <dd>{booking.contact || "—"}</dd>
+        {middle}
+        {merged && !booking.contact ? null : (
+          <>
+            <dt>{t("bookings.contact")}</dt>
+            <dd>{booking.contact || "—"}</dd>
+          </>
+        )}
         <dt>{t("bookings.comment")}</dt>
         <dd>{booking.comment || "—"}</dd>
         <dt>{t("bookings.auto_cancel_at")}</dt>
@@ -559,9 +587,9 @@ export function BookingCard({ rental, onDone }: { rental: Rental; onDone: (next?
           </>
         ) : null}
       </dl>
-      {booked ? (
+      {booked || more.length ? (
         <div className="actions">
-          {can("rental.issue") ? (
+          {booked && can("rental.issue") ? (
             <Link className="button" to={companyPath(company, `/rentals/new?booking=${rental.id}`)}>
               {t(booking.direct ? "rentals.issue" : "bookings.to_rental")}
             </Link>
@@ -571,8 +599,20 @@ export function BookingCard({ rental, onDone }: { rental: Rental; onDone: (next?
               {t(booking.direct && p === "cancel" ? "rentals.cancel_awaiting" : `bookings.action_${p}`)}
             </button>
           ))}
+          {more.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              className="secondary"
+              aria-expanded={panel === item.key}
+              onClick={() => setPanel(panel === item.key ? "" : item.key)}
+            >
+              {item.label}
+            </button>
+          ))}
         </div>
       ) : null}
+      {more.find((item) => item.key === panel)?.body ?? null}
       {panel === "edit" ? <EditBooking rental={rental} onDone={done} /> : null}
       {panel === "vehicle" ? <ReplaceVehicle rental={rental} onDone={done} /> : null}
       {panel === "auto" ? <AutoCancel rental={rental} onDone={done} /> : null}

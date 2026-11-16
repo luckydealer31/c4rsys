@@ -56,7 +56,14 @@ test("a booking is issued by its own screen", async ({ page }) => {
   // The booking card; the vehicle is held for its period.
   await expect(page).toHaveURL(/\/rentals\/[0-9a-f-]+$/);
   const bookingUrl = page.url();
-  await expect(page.getByRole("heading", { level: 1 })).toContainText(t("rentals.state_booked"));
+  // The card of a booking: one block «Booking» with the order by its number; no actual start
+  // and no inspections — those belong to a rental.
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(t("bookings.title", { number: 1 }));
+  const block = page.locator("section.card", { has: page.getByRole("heading", { name: t("bookings.block"), exact: true }) });
+  await expect(block.getByRole("link", { name: t("bookings.order_number", { number: 1 }) })).toBeVisible();
+  await expect(block).not.toContainText(t("rentals.actual_start"));
+  await expect(page.getByRole("heading", { name: t("inspections.of_rental") })).toHaveCount(0);
+  await expect(page.locator("section.card", { hasText: t("bookings.total") })).toContainText("1000.00 THB");
 
   // A booking is not issued by itself: it is turned into a rental, which starts from what the
   // booking has — vehicle, tariff, client. No readings are asked at that moment.

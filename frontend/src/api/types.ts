@@ -1216,6 +1216,7 @@ export type InspectionView = {
 };
 
 export type Rental = RentalSummary & {
+  order_number: number;
   tariff_id: string | null;
   issue_place_kind: "location" | "other" | "";
   issue_place_note: string;

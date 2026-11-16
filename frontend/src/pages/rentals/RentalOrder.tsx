@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import type { Rental } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { ErrorMessage, Field } from "../../components/ui";
+import { ErrorMessage, Field, Info } from "../../components/ui";
 import { useCompany } from "../../layout/CompanyShell";
 import { useOrders } from "../orders/OrdersPage";
 
@@ -38,7 +38,6 @@ export function TransferRental({ rental, onDone }: { rental: Rental; onDone: Don
 
   return (
     <form onSubmit={submit}>
-      <p className="muted small">{t("rental_order.transfer_hint")}</p>
       <div className="row">
         <Field label={t("rental_order.target")}>
           <select value={target} onChange={(e) => setTarget(e.target.value)}>
@@ -54,8 +53,9 @@ export function TransferRental({ rental, onDone }: { rental: Rental; onDone: Don
       <ErrorMessage error={transfer.error} />
       <div className="actions">
         <button type="submit" className="secondary" disabled={transfer.pending}>
-          {t("rental_order.transfer")}
+          {t(rental.state === "booked" && !rental.booking?.direct ? "bookings.action_transfer" : "rental_order.transfer")}
         </button>
+        <Info text={t("rental_order.transfer_hint")} />
       </div>
     </form>
   );

@@ -15,6 +15,7 @@ import { JournalTable } from "../settings/EmployeesPage";
 import { useLocations } from "../settings/LocationsPage";
 import { useVehicles } from "../vehicles/VehiclesPage";
 import { BookingCard } from "./Booking";
+import { BookingView } from "./BookingView";
 import { DepositCard } from "./Deposit";
 import { IssueExceptionView, placeText } from "./IssueRules";
 import { FreeTime, ManualCharges, MileageView } from "./RentalCharges";
@@ -71,7 +72,9 @@ export function RentalPage() {
   const locationName = new Map((locations.data?.locations ?? []).map((l) => [l.id, l.name]));
   const vehicle = vehicles.data?.vehicles.find((v) => v.id === current.vehicle_card_id);
   const zone = current.calc_timezone;
-  const when = (value: string | null) => formatMoment(value, zone, i18n.language);
+  // The zone stands beside every time, not in a note under the card (decision of 16.11.2026).
+  const when = (value: string | null) =>
+    value ? `${formatMoment(value, zone, i18n.language)} ${zoneShort(zone)}` : "—";
   // A booking has no return, formalization or settlement yet (§ 14.1); a cancelled one never.
   const operated = current.state !== "booked" && current.state !== "cancelled";
   // Decisions П6, П11: the tariff changes until the formalization is completed.
@@ -84,6 +87,24 @@ export function RentalPage() {
     await queryClient.invalidateQueries({ queryKey: ["rental-history", company.public_id, id] });
     await queryClient.invalidateQueries({ queryKey: ["rentals", company.public_id] });
     await queryClient.invalidateQueries({ queryKey: ["vehicles", company.public_id] });
+  }
+
+  // A booking has a card of its own; a rental waiting for its issue is a rental.
+  if (current.booking && !current.booking.direct && (current.state === "booked" || current.state === "cancelled")) {
+    return (
+      <BookingView
+        rental={current}
+        vehicleName={vehicle ? `${vehicle.name} · ${vehicle.vehicle_id}` : t("rentals.rental")}
+        client={client.data?.client ?? null}
+        locationName={(place) => locationName.get(place ?? "") ?? "—"}
+        history={{
+          entries: history.data?.history ?? [],
+          loading: history.isLoading,
+          error: (history.error as ApiError | null) ?? null,
+        }}
+        onDone={refresh}
+      />
+    );
   }
 
   return (
@@ -126,7 +147,6 @@ export function RentalPage() {
             <Link to={companyPath(company, `/orders/${current.order_id}`)}>{t("rentals.open_order")}</Link>
           </dd>
         </dl>
-        <p className="muted small">{t("rentals.time_zone", { zone: zoneShort(zone) })}</p>
       </Card>
 
       {current.issue_exception && current.state !== "booked" ? (
@@ -186,8 +206,9 @@ export function RentalPage() {
         </>
       ) : null}
 
-      {/* Before the issue: the inspection created with the rental is opened and conducted here. */}
-      {current.state === "booked" ? <RentalInspectionsCard rental={current} /> : null}
+      {/* Before the issue: the inspection created with the rental is opened and conducted here.
+          A booking has none: an inspection at the issue belongs to a rental. */}
+      {current.state === "booked" && current.booking?.direct ? <RentalInspectionsCard rental={current} /> : null}
 
       <Card title={t("deposit.title")}>
         <DepositCard rental={current} onDone={() => refresh()} />

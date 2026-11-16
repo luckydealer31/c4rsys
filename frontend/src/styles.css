@@ -550,3 +550,24 @@ td.vehicle-cell { display: flex; align-items: center; gap: 12px; }
 .bell-row.plain:hover { background: transparent; }
 .bell-empty { padding: 8px 6px; margin: 0; }
 .bell-all { justify-content: center; color: var(--accent); border-top: 1px solid var(--border); border-radius: 0 0 6px 6px; margin-top: 4px; }
+
+/* The «i» mark with an explanation under the pointer. */
+.info-tip {
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; margin-left: 6px; border: 1px solid var(--border); border-radius: 50%;
+  color: var(--muted); font-size: 0.75rem; font-weight: 600; font-style: italic; cursor: help;
+  vertical-align: middle; flex: 0 0 auto;
+}
+.info-tip:hover::after, .info-tip:focus-visible::after {
+  content: attr(data-tip); position: absolute; z-index: 40; left: 50%; top: calc(100% + 6px);
+  transform: translateX(-50%); width: max-content; max-width: 320px; padding: 8px 10px;
+  background: var(--text); color: var(--surface); border-radius: 6px; font-size: 0.8rem;
+  font-weight: 400; font-style: normal; line-height: 1.35; white-space: normal; text-align: left;
+}
+/* Two columns of blocks on a wide screen, one under another on a narrow one. */
+.cols-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--gap); align-items: start; }
+@media (max-width: 1000px) { .cols-2 { grid-template-columns: minmax(0, 1fr); } }
+.total-lines { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; }
+.total-lines dt { color: var(--muted); }
+.total-lines dd { margin: 0; }
+.total-lines .sum { font-weight: 600; border-top: 1px solid var(--border); padding-top: 6px; }

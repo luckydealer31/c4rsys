@@ -1981,7 +1981,6 @@
     "state_returned": "Returned",
     "summary": "Rental",
     "tariff": "Tariff",
-    "time_zone": "Times are shown in {{zone}}.",
     "vehicle": "Vehicle",
     "state_proposed": "เสนอแล้ว",
     "missing_return_documents_missing": "ไม่มีเอกสารที่ต้องมีเมื่อคืน",
@@ -3490,7 +3489,15 @@
     "no_client_contact": "ไม่ระบุลูกค้า — ข้อมูลติดต่อ",
     "pick_client": "ระบุลูกค้า",
     "to_rental": "เปลี่ยนเป็นการเช่า",
-    "to_rental_title": "การจอง № {{number}}: เปลี่ยนเป็นการเช่า"
+    "to_rental_title": "การจอง № {{number}}: เปลี่ยนเป็นการเช่า",
+    "block": "การจอง",
+    "issue_place": "สถานที่ส่งมอบ",
+    "return_place": "สถานที่คืนรถ",
+    "order_number": "คำสั่งซื้อ № {{number}}",
+    "action_transfer": "ย้ายไปยังคำสั่งซื้ออื่น",
+    "total_rental": "ค่าเช่า",
+    "total": "รวม",
+    "deposit_apart": "เงินมัดจำไม่รวมในยอดรวม: รับและคืนแยกต่างหาก"
   },
   "issue_rules": {
     "page_hint": "กฎการส่งมอบและการยกเลิกการจองอัตโนมัติ: สำหรับทั้งบริษัท และแต่ละสถานที่ตั้งค่าเองได้",

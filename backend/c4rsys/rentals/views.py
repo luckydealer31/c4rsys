@@ -409,6 +409,8 @@ def _rental_payload(rental: Rental) -> dict[str, Any]:
     return {
         "id": str(rental.id),
         "order_id": str(rental.order_id),
+        # Shown as «Order № N» in the card (decision of 16.11.2026).
+        "order_number": rental.order.number,
         "vehicle_card_id": str(rental.vehicle_card_id),
         "client_id": str(rental.client_id) if rental.client_id else None,
         "tariff_id": str(rental.tariff_id) if rental.tariff_id else None,

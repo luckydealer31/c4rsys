@@ -46,6 +46,17 @@ export function Field({
   );
 }
 
+/** A small «i» beside a field or a title (decision of 16.11.2026): an explanation is shown
+ * when the pointer is over it or it has the focus, instead of a note always printed on the
+ * screen. */
+export function Info({ text }: { text: string }) {
+  return (
+    <span className="info-tip" tabIndex={0} role="note" aria-label={text} data-tip={text}>
+      i
+    </span>
+  );
+}
+
 /** A field with its caption inside the box, above the value (customer's decision of
  * 14.11.2026): takes no line of its own. */
 export function FloatField({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
