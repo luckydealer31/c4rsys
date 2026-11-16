@@ -57,6 +57,36 @@ export function Info({ text }: { text: string }) {
   );
 }
 
+/** A switch: on to the right and green, off to the left (customer's decision of 16.11.2026).
+ * `name` is what it switches, said to a screen reader; the words beside it say the state. */
+export function Switch({
+  name,
+  checked,
+  onChange,
+  children,
+}: {
+  name: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  children: ReactNode;
+}) {
+  return (
+    <label className="switch">
+      <span className="switch-box">
+        <input
+          type="checkbox"
+          role="switch"
+          aria-label={name}
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+        />
+        <span className="switch-track" aria-hidden="true" />
+      </span>
+      <span>{children}</span>
+    </label>
+  );
+}
+
 /** A field with its caption inside the box, above the value (customer's decision of
  * 14.11.2026): takes no line of its own. */
 export function FloatField({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {

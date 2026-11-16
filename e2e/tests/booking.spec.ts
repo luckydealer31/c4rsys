@@ -107,7 +107,10 @@ test("a booking is issued by its own screen", async ({ page }) => {
   await expect(page.getByLabel(t("rentals.odometer", { unit: "km" }))).toHaveCount(0);
   await expect(page.getByRole("button", { name: t("rentals.confirm_issue") })).toHaveCount(0);
   // «Without an inspection» is said here; then the rental is issued with its readings.
-  await page.getByLabel(t("rentals.without_inspection")).check();
+  // The inspection at the issue is a switch, on by itself; switched off it says «Without an inspection».
+  await expect(page.getByRole("switch", { name: t("rentals.issue_inspection") })).toBeChecked();
+  await page.getByRole("switch", { name: t("rentals.issue_inspection") }).uncheck();
+  await expect(page.getByText(t("rentals.without_inspection"), { exact: true })).toBeVisible();
   // The cost is counted by itself from the period of the booking.
   await expect(page.locator("section.card", { hasText: t("rentals.preliminary") }).last()).toContainText("× 1000 THB = ");
   await page.getByRole("button", { name: t("bookings.to_rental") }).click();

@@ -226,7 +226,7 @@ test("base example from registration to closing survives a restart", async ({ pa
   await page.getByLabel(t("rentals.planned_end")).fill(returnAt);
   await expect(card(page, t("rentals.calculation"))).toContainText(`2 ${t("rentals.days")} × 1000 THB = 2000.00 THB`);
   // «Without an inspection»: no inspection is created, the readings are given at the issue.
-  await page.getByLabel(t("rentals.without_inspection")).check();
+  await page.getByRole("switch", { name: t("rentals.issue_inspection") }).uncheck();
   await page.getByRole("button", { name: t("vehicles.action_rental"), exact: true }).click();
   await expect(page).toHaveURL(/\/rentals\/[0-9a-f-]+$/);
   await expect(page.getByRole("heading", { level: 1 })).toContainText(t("rentals.state_awaiting"));

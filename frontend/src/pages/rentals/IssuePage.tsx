@@ -15,7 +15,7 @@ import type {
   Warning,
 } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { Card, ErrorMessage, Field, IconButton, Loading, Modal } from "../../components/ui";
+import { Card, ErrorMessage, Field, IconButton, Info, Loading, Modal, Switch } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { fromLocalInput, toLocalInput, zoneShort } from "../../time";
 import { ClientForm, clientName } from "../clients/ClientsPage";
@@ -406,6 +406,20 @@ function IssueForm({
               }
               value={place}
               onChange={setPlace}
+              tail={
+                plain ? (
+                  <div className="beside-field switch-line">
+                    <Switch
+                      name={t("rentals.issue_inspection")}
+                      checked={!withoutInspection}
+                      onChange={(on) => setWithoutInspection(!on)}
+                    >
+                      {withoutInspection ? t("rentals.without_inspection") : t("rentals.issue_inspection")}
+                    </Switch>
+                    <Info text={t("rentals.issue_inspection_hint")} />
+                  </div>
+                ) : null
+              }
             />
             {/* The odometer and the fuel (decision of 16.11.2026): given in the inspection created
                 with the rental — the issue waits for it and takes them from it; given here only
@@ -425,21 +439,6 @@ function IssueForm({
                 })}{" "}
                 <Link to={companyPath(company, `/inspections/${inspected.id}`)}>{t("rentals.open_inspection")}</Link>
               </p>
-            ) : null}
-            {plain ? (
-              <div>
-                <label className="small">
-                  <input
-                    type="checkbox"
-                    checked={withoutInspection}
-                    onChange={() => setWithoutInspection(!withoutInspection)}
-                  />{" "}
-                  {t("rentals.without_inspection")}
-                </label>
-                <p className="muted small" style={{ margin: "4px 0 0" }}>
-                  {t("rentals.without_inspection_hint")}
-                </p>
-              </div>
             ) : null}
             {converting || inspected || waiting ? null : (
               <div className="row compact">

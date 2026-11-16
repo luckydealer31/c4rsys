@@ -48,6 +48,7 @@ export function PlaceFields({
   onChange,
   lead,
   leadOnly = false,
+  tail,
 }: {
   value: PlaceValue;
   onChange: (next: PlaceValue) => void;
@@ -56,6 +57,9 @@ export function PlaceFields({
   lead?: ReactNode;
   /** Only the leading field: the place is asked once the location is chosen. */
   leadOnly?: boolean;
+  /** What closes the same line, after the place (decision of 16.11.2026: the switch of the
+   * inspection stands in the line, not under it). */
+  tail?: ReactNode;
 }) {
   const { t } = useTranslation();
   const [locating, setLocating] = useState(false);
@@ -99,6 +103,7 @@ export function PlaceFields({
             <input value={value.address} onChange={(e) => set({ address: e.target.value })} />
           </Field>
         ) : null}
+        {tail}
       </div>
       {!leadOnly && value.kind === "other" ? (
         <>

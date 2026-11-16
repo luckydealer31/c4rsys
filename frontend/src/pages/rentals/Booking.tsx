@@ -7,7 +7,7 @@ import { api, ApiError } from "../../api/client";
 import { useApi } from "../../api/queries";
 import type { BookingConflict, Calculation, Client, Rental } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { Card, ErrorMessage, Field, IconButton, Modal } from "../../components/ui";
+import { Card, ErrorMessage, Field, IconButton, Info, Modal, Switch } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { formatMoment, fromLocalInput, toLocalInput, zoneShort } from "../../time";
 import { ClientForm, clientName } from "../clients/ClientsPage";
@@ -379,7 +379,29 @@ export function BookingPage({ mode = "booking" }: { mode?: "booking" | "rental" 
                 }
               />
             )}
-            <PlaceFields lead={locationField} leadOnly={!locationId} value={place} onChange={setPlace} />
+            {/* «Without an inspection» is said before the rental is created (decision of
+                15.11.2026): otherwise an inspection is created with it, to be conducted later.
+                The switch closes the line of the place. */}
+            <PlaceFields
+              lead={locationField}
+              leadOnly={!locationId}
+              value={place}
+              onChange={setPlace}
+              tail={
+                direct ? (
+                  <div className="beside-field switch-line">
+                    <Switch
+                      name={t("rentals.issue_inspection")}
+                      checked={!withoutInspection}
+                      onChange={(on) => setWithoutInspection(!on)}
+                    >
+                      {withoutInspection ? t("rentals.without_inspection") : t("rentals.issue_inspection")}
+                    </Switch>
+                    <Info text={t("rentals.issue_inspection_hint")} />
+                  </div>
+                ) : null
+              }
+            />
             {direct ? (
               <div className="row compact">
                 <Field label={t("rentals.planned_return_location")}>
@@ -401,23 +423,6 @@ export function BookingPage({ mode = "booking" }: { mode?: "booking" | "rental" 
                 </Field>
               </div>
             </div>
-            {direct ? (
-              // «Without an inspection» is said before the rental is created (decision of
-              // 15.11.2026): otherwise an inspection is created with it, to be conducted later.
-              <div>
-                <label className="small">
-                  <input
-                    type="checkbox"
-                    checked={withoutInspection}
-                    onChange={() => setWithoutInspection(!withoutInspection)}
-                  />{" "}
-                  {t("rentals.without_inspection")}
-                </label>
-                <p className="muted small" style={{ margin: "4px 0 0" }}>
-                  {t("rentals.without_inspection_hint")}
-                </p>
-              </div>
-            ) : null}
           </div>
         </Card>
         {/* The cost stands in a block of its own. */}
