@@ -2,6 +2,7 @@ from typing import Any
 
 from django.test import Client
 
+from c4rsys.companies.models import MVP_MODULES, Company
 from tests.accounts.helpers import CODE, post, register
 
 BROAD = {"company_admin", "employee.rights.manage"}
@@ -19,8 +20,18 @@ def named_user(client: Client, email: str = "owner@example.com") -> None:
 
 
 def create_company(client: Client, key: str = "c-1", **data: Any) -> Any:
+    """A new company has no application connected (customer's decision of 16.11.2026). The
+    companies of the tests get the applications of the first launch straight in the database, so
+    each test starts from the working company it is about; `apps=()` leaves the company as the
+    product creates it (tests/companies/test_apps.py)."""
+    apps: tuple[str, ...] = data.pop("apps", MVP_MODULES)
     body = {"display_name": "Sunrise Rent", **data}
-    return post(client, "/api/companies", body, headers={"Idempotency-Key": key})
+    response = post(client, "/api/companies", body, headers={"Idempotency-Key": key})
+    if response.status_code == 201 and apps:
+        Company.objects.filter(public_id=response.json()["company"]["public_id"]).update(
+            modules=list(apps)
+        )
+    return response
 
 
 def patch_company(client: Client, cmp: str, data: dict[str, Any], key: str = "p-1") -> Any:

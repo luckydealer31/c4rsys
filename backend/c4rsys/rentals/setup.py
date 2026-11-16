@@ -128,6 +128,8 @@ def sections(company: Company, result_locations: list[dict[str, Any]]) -> dict[s
     choices = company.setup_choices or {}
     return {
         "profile": bool(company.display_name and company.timezone),
+        # Decision of 16.11.2026: the company chooses its applications; done with at least one.
+        "apps": bool(company.modules),
         "location": any(not loc["missing"] and loc["contexts"] for loc in result_locations),
         "finance": company.main_currency_id is not None,
         "catalog": bool(types) and catalog_ok,

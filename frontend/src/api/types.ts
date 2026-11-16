@@ -30,7 +30,7 @@ export type CompanySummary = {
 
 export type Company = CompanySummary & {
   timezone: string | null;
-  modules?: string[]; // § 4.1.9: connected by the platform administrator
+  modules?: string[]; // § 4.1.9: the connected applications (decision of 16.11.2026)
   main_currency: string | null;
   created_at: string;
   version: number;

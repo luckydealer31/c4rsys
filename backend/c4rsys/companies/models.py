@@ -15,13 +15,14 @@ from c4rsys.files.models import StoredFile
 from c4rsys.platform.ids import uuid7
 from c4rsys.platform.models import Currency
 
-# § 4.1.6, § 4.1.9: the modules of the first launch; a company has them all until the platform
-# administrator changes it (PROPOSAL, block 16).
+# § 4.1.6, § 4.1.9: the modules of the first launch — the applications a company can connect.
 MVP_MODULES = ("rental", "service", "warehouse")
 
 
 def default_modules() -> list[str]:
-    return list(MVP_MODULES)
+    """A new company has no application connected and chooses them itself (customer's decision of
+    16.11.2026); the companies created before keep what they had."""
+    return []
 
 
 class Company(models.Model):
@@ -44,8 +45,9 @@ class Company(models.Model):
         Currency, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
     setup_completed_at = models.DateTimeField(null=True, blank=True)
-    # § 4.1.9: the modules connected to the company by the platform administrator; a context of
-    # another type cannot be added.
+    # § 4.1.9: the modules (applications) connected to the company — by the company itself
+    # (decision of 16.11.2026) or by the platform administrator; a context of another type
+    # cannot be added.
     modules = models.JSONField(default=default_modules)
     # § 3.6.1: a voluntarily deactivated company keeps its data and ID; new activity is refused
     # until it is restored (companies.deactivation).

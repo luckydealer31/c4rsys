@@ -25,6 +25,7 @@ import { ClientPage, ClientsPage } from "./pages/clients/ClientsPage";
 import { CounterpartyPage } from "./pages/clients/Counterparties";
 import { NewClientPage, NewCounterpartyPage } from "./pages/clients/NewCardWizard";
 import { LinkRequestsPage } from "./pages/company/LinkRequestsPage";
+import { AppsPage } from "./pages/company/AppsPage";
 import { CompanyPage } from "./pages/company/CompanyPage";
 import { ImportPage } from "./pages/imports/ImportPage";
 import { ItemPage, NewItemPage } from "./pages/warehouse/ItemPage";
@@ -239,6 +240,7 @@ function MainApp({ cabinet }: { cabinet: boolean }) {
         <Route path="finance" element={<FinancePage />} />
         <Route path="finance/accounts/new" element={<NewAccountPage />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="company/apps" element={<AppsPage />} />
         <Route path="company/settings" element={<CompanyProfilePage />} />
         {/* The settings of the company are a tab of «Company» (decision of 14.11.2026). */}
         <Route path="settings/company" element={<Navigate to="../company/settings" replace />} />

@@ -10,11 +10,14 @@ import { useCommand } from "../../api/useCommand";
 import { contextAvailable } from "../../contexts";
 import { Card, ErrorMessage, Loading } from "../../components/ui";
 import { companyPath, useCompany } from "../../layout/CompanyShell";
+import { AppsEditor } from "../company/AppsPage";
 import { CashAccountsEditor } from "../finance/FinancePage";
 import { CompanyProfileForm } from "../settings/CompanyProfilePage";
 import { LocationsEditor } from "../settings/LocationsPage";
 
-const STEPS = ["profile", "location", "finance", "catalog", "vehicles", "employees", "documents", "check"] as const;
+// «Applications» (decision of 16.11.2026) stand before the locations (PROPOSAL): a location
+// offers the contexts of the connected applications only (§ 4.1.9).
+const STEPS = ["profile", "apps", "location", "finance", "catalog", "vehicles", "employees", "documents", "check"] as const;
 type Step = (typeof STEPS)[number];
 
 /** The setup wizard (§ 22.1): the sections of § 22.1.3 on the ordinary screens of the sections;
@@ -46,6 +49,7 @@ export function SetupPage() {
 
   const content: Record<Step, ReactNode> = {
     profile: <CompanyProfileForm onSaved={refresh} />,
+    apps: <AppsEditor />,
     location: <LocationsEditor createOpen />,
     finance: (
       <>

@@ -29,7 +29,7 @@ def test_modules_are_connected_by_the_platform_administrator(
     owner: Client, s: Scenario, admin: Member, support: Member
 ) -> None:
     company = owner.get(f"/api/c/{s.cmp}").json()["company"]
-    # A company starts with the modules of the first launch (PROPOSAL).
+    # The company of the tests has the applications of the first launch connected (helpers).
     assert company["modules"] == ["rental", "service", "warehouse"]
     # Only with the permission of the platform administrator.
     assert _modules(support, s.cmp, ["rental"]).status_code == 403

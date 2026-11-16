@@ -87,7 +87,9 @@ export async function createCompany(page: Page): Promise<Company> {
   ).company as { public_id: string };
   const cmp = company.public_id;
   const location = ((await ok(page, "POST", `/c/${cmp}/locations`, { name: "Пхукет" })).location as { id: string }).id;
-  await ok(page, "POST", `/c/${cmp}/locations/${location}/contexts`, { type: "rental" });
+  // A new company has no application (decision of 16.11.2026): «Rental» is switched on in the
+  // location, which adds its context there.
+  await ok(page, "POST", `/c/${cmp}/modules/rental/connect`, { locations: [location] });
   const tariff = (
     (await ok(page, "POST", `/c/${cmp}/tariffs`, {
       name: "Сутки",

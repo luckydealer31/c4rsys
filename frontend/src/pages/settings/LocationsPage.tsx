@@ -17,7 +17,8 @@ import { ScheduleEditor } from "./ScheduleEditor";
 // Only types whose modules work are offered (§ 4.1.9).
 const CONTEXT_TYPES = AVAILABLE_CONTEXTS;
 
-/** § 4.1.9: only the modules connected to the company by the platform administrator. */
+/** § 4.1.9: only the applications connected to the company — by the company itself in
+ * «Applications» (decision of 16.11.2026) or by the platform administrator. */
 function connected(company: { modules?: string[] }, type: string): boolean {
   return !company.modules || company.modules.includes(type);
 }
@@ -141,6 +142,13 @@ export function CreateLocationForm({ onDone, bare = false }: { onDone: () => voi
               {t(`contexts.${type}`)}
             </label>
           ))}
+          {CONTEXT_TYPES.some((type) => connected(company, type)) ? null : (
+            // A new company has no application yet (decision of 16.11.2026).
+            <p className="muted small">
+              {t("locations.no_apps")}{" "}
+              <Link to={companyPath(company, "/company/apps")}>{t("company.tab_apps")}</Link>
+            </p>
+          )}
           <p className="muted small">{t("locations.contexts_hint")}</p>
         </div>
         <ErrorMessage error={create.error} />

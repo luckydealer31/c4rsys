@@ -104,6 +104,15 @@ test("base example from registration to closing survives a restart", async ({ pa
   await expect(page.getByText(t("common.saved"))).toBeVisible();
   await expect(page.getByLabel(t("companies.main_currency"))).toBeDisabled();
 
+  // A new company has no application: «Rental» is switched on in the tab «Applications» of the
+  // company (decision of 16.11.2026); without locations it is only connected.
+  await page.goto(`${base}/company/apps`);
+  await expect(page.getByRole("tab", { name: t("company.tab_apps") })).toHaveAttribute("aria-selected", "true");
+  const rentalApp = page.getByRole("checkbox", { name: `${t("contexts.rental")} — ${t("apps.enabled")}` });
+  await expect(rentalApp).not.toBeChecked();
+  await rentalApp.click();
+  await expect(rentalApp).toBeChecked();
+
   await page.goto(`${base}/company`);
   await expect(page.locator("dl.facts")).toContainText("Директор");
   await expect(page.locator("dl.facts")).toContainText("+66 80 000 0002");

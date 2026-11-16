@@ -405,7 +405,9 @@ def location_info(company_id: UUID, location_id: UUID) -> LocationInfo | None:
 
 
 def set_modules(ctx: CommandContext, company: Company, modules: list[str]) -> list[str]:
-    """§ 4.1.9: the platform administrator connects the company's modules. PROPOSAL (block 16):
+    """§ 4.1.9: the modules of the company as a whole list — the action of the platform
+    administrator; the company itself uses `connect_module` and `disconnect_module`. PROPOSAL
+    (block 16):
     a module with enabled contexts is not disconnected — they are disabled first by § 4.4.2;
     disabled contexts keep their history and cannot be restored until the module is connected
     again."""
@@ -439,3 +441,43 @@ def set_modules(ctx: CommandContext, company: Company, modules: list[str]) -> li
         company_id=locked.id,
     )
     return wanted
+
+
+def connect_module(
+    ctx: CommandContext, company: Company, module: str, location_ids: list[UUID]
+) -> list[str]:
+    """Customer's decisions of 16.11.2026: the company connects an application itself and names
+    the locations where it works. In each of them the context is created, or switched on again
+    when it was there before (§ 4.1.7). Without locations only the module is connected: its
+    contexts are added when a location is created or in its settings."""
+    from c4rsys.companies.models import MVP_MODULES
+
+    if module not in MVP_MODULES:
+        raise errors.validation_error("module")
+    locked = Company.objects.select_for_update().get(pk=company.pk)
+    if module in locked.modules:
+        raise errors.business_rule("MODULE_ALREADY_CONNECTED")
+    modules = set_modules(ctx, locked, [*locked.modules, module])
+    for location_id in location_ids:
+        existing = ActivityContext.objects.filter(
+            company_id=locked.id, location_id=location_id, type=module
+        ).first()
+        if existing is None:
+            add_context(ctx, locked.id, location_id, module)
+        elif existing.state != ActivityContext.State.ENABLED:
+            set_context_enabled(ctx, locked.id, location_id, existing.id, True)
+    return modules
+
+
+def disconnect_module(ctx: CommandContext, company: Company, module: str) -> list[str]:
+    """The company disconnects an application. As for the platform administrator (PROPOSAL of
+    block 16): not while it has enabled contexts — they are disabled first in the locations
+    (§ 4.4.2) and keep their history."""
+    from c4rsys.companies.models import MVP_MODULES
+
+    if module not in MVP_MODULES:
+        raise errors.validation_error("module")
+    locked = Company.objects.select_for_update().get(pk=company.pk)
+    if module not in locked.modules:
+        raise errors.business_rule("MODULE_NOT_CONNECTED")
+    return set_modules(ctx, locked, [m for m in locked.modules if m != module])

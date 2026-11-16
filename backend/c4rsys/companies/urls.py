@@ -9,6 +9,9 @@ urlpatterns = [
     path("c/<str:cmp>/search", search_views.company_search),
     path("c/<str:cmp>/public-fields", views.public_fields),
     path("c/<str:cmp>/profile-history", views.profile_history),
+    # The company connects its applications itself (§ 4.1.9, decisions of 16.11.2026).
+    path("c/<str:cmp>/modules/<str:module>/connect", views.module_connect),
+    path("c/<str:cmp>/modules/<str:module>/disconnect", views.module_disconnect),
     path("c/<str:cmp>/locations", views.location_list),
     path("c/<str:cmp>/locations/<uuid:location_id>", views.location_detail),
     path("c/<str:cmp>/locations/<uuid:location_id>/contexts", views.location_contexts),

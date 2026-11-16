@@ -11,7 +11,7 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 
 from c4rsys.accounts.middleware import require_user
 from c4rsys.companies import access, history, locations, ownership, schedules, services
-from c4rsys.companies.models import ActivityContext, Company, Location
+from c4rsys.companies.models import MVP_MODULES, ActivityContext, Company, Location
 from c4rsys.companies.permissions import PERMISSIONS
 from c4rsys.platform import errors
 from c4rsys.platform.access import require_permission
@@ -507,6 +507,51 @@ def context_enable(
     request: HttpRequest, cmp: str, location_id: UUID, context_id: UUID
 ) -> JsonResponse:
     return _context_state_command(request, cmp, location_id, context_id, enabled=True)
+
+
+# --- Applications (§ 4.1.9; customer's decisions of 16.11.2026) ---------------------------------
+
+
+def _module_command(request: HttpRequest, cmp: str, module: str, connect: bool) -> JsonResponse:
+    """The company connects and disconnects its applications (modules) itself: whoever may change
+    the settings of the company. With the connection come the locations where the application
+    works; choosing them needs no separate right of the locations (PROPOSAL)."""
+    context, actor = _settings_actor(request, cmp, "company.settings")
+    if module not in MVP_MODULES:
+        raise errors.validation_error("module", code="MODULE_INVALID")
+    location_ids: list[UUID] = []
+    if connect:
+        raw = parse_json(request).get("locations", [])
+        if not isinstance(raw, list) or not all(isinstance(x, str) for x in raw):
+            raise errors.validation_error("locations")
+        try:
+            location_ids = [UUID(x) for x in raw]
+        except ValueError as exc:
+            raise errors.validation_error("locations") from exc
+        if len(set(location_ids)) != len(location_ids):
+            raise errors.validation_error("locations")
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        if connect:
+            locations.connect_module(ctx, context.company, module, location_ids)
+        else:
+            locations.disconnect_module(ctx, context.company, module)
+        company = Company.objects.get(pk=context.company.pk)
+        return CommandResult(200, {"company": _company_payload(company, context)})
+
+    payload = {"module": module, "locations": [str(x) for x in location_ids]}
+    name = "company.connect_module" if connect else "company.disconnect_module"
+    return run_and_respond(request, name, actor, payload, handler)
+
+
+@require_POST
+def module_connect(request: HttpRequest, cmp: str, module: str) -> JsonResponse:
+    return _module_command(request, cmp, module, connect=True)
+
+
+@require_POST
+def module_disconnect(request: HttpRequest, cmp: str, module: str) -> JsonResponse:
+    return _module_command(request, cmp, module, connect=False)
 
 
 # --- Schedules (§ 4.2.3, § 4.2.4, § 22.1.6; block 16 B) -----------------------------------------

@@ -29,7 +29,7 @@ function Strip({ label, tabs, current }: { label: string; tabs: [key: string, te
   );
 }
 
-export type CompanyTab = "about" | "garage" | "contacts" | "documents" | "settings";
+export type CompanyTab = "about" | "garage" | "contacts" | "documents" | "apps" | "settings";
 
 export function CompanyTabs({ current }: { current: CompanyTab }) {
   const { t } = useTranslation();
@@ -46,6 +46,12 @@ export function CompanyTabs({ current }: { current: CompanyTab }) {
     ...(garage ? [["garage", t("company.tab_garage"), "/vehicles"] as [string, string, string]] : []),
     ["contacts", t("company.tab_contacts"), "/clients"],
     ...(documents ? [["documents", t("nav.documents"), "/documents"] as [string, string, string]] : []),
+    // The applications of the company (decision of 16.11.2026) are switched on by whoever may
+    // change its settings; the tab is shown to them (PROPOSAL) and stands before «Settings»
+    // (PROPOSAL).
+    ...(can("company.settings")
+      ? [["apps", t("company.tab_apps"), "/company/apps"] as [string, string, string]]
+      : []),
     // The profile of the company, its public fields and their history: for whoever may change
     // the settings of the company (decision of 14.11.2026).
     ...(can("company.settings")

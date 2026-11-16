@@ -444,7 +444,8 @@
     "identifier_add": "Add an identifier",
     "phone_add": "Add a phone",
     "tab_settings": "Settings",
-    "extra_phones": "Further phones"
+    "extra_phones": "Further phones",
+    "tab_apps": "Applications"
   },
   "contexts": {
     "module_later": "Work in this section comes with its module; its sections by location are already shown.",
@@ -1291,8 +1292,8 @@
     "deposit_part_used": "The deposit part of this receipt is already used (free {{free}}): correct the deposit first.",
     "previous_booking_not_cancelled": "Only a cancelled booking can be the previous one.",
     "booking_unknown": "Booking not found.",
-    "module_not_connected": "This module is not connected to the company.",
-    "module_has_contexts": "The module has enabled contexts: disable them first.",
+    "module_not_connected": "This application is not switched on for the company.",
+    "module_has_contexts": "The application works in locations: switch it off in their settings first.",
     "schedule_time_invalid": "Enter the time as HH:MM.",
     "schedule_intervals_invalid": "The intervals of the schedule are not filled correctly (up to 6 a day).",
     "schedule_interval_empty": "The end of an interval must be after its start.",
@@ -1328,7 +1329,8 @@
     "vehicle_documents_no_recipient": "There is nobody to pass copies of documents to: the owner is not confirmed in the system.",
     "phone_incomplete": "Give the number next to its caption.",
     "issue_inspection_not_done": "Conduct the inspection at the issue first.",
-    "booking_not_rental": "A booking is turned into a rental first; the issue is made from the rental."
+    "booking_not_rental": "A booking is turned into a rental first; the issue is made from the rental.",
+    "module_already_connected": "This application is already switched on."
   },
   "history": {
     "action": "Action",
@@ -1462,7 +1464,8 @@
     "conflict_role_issue": "planned issue",
     "conflict_role_return": "planned return",
     "conflict_role_start": "planned start",
-    "conflict_role_end": "planned end"
+    "conflict_role_end": "planned end",
+    "no_apps": "No application is switched on yet, so there is nothing to choose here."
   },
   "money": {
     "account": "Cash desk or account",
@@ -2142,7 +2145,9 @@
     "service_act": "Act of the service",
     "choice_employees": "Work without employees",
     "choice_documents": "No required documents",
-    "missing_no_service_work": "No active service work"
+    "missing_no_service_work": "No active service work",
+    "step_apps": "Applications",
+    "hint_apps": "Choose what the company works with: rental, service, warehouse."
   },
   "tariffs": {
     "add_range": "Add range",
@@ -6386,5 +6391,22 @@
     "preview_failed": "The file could not be shown.",
     "preview_unsupported": "This type of file cannot be shown here.",
     "preview_first_pages": "Only the first {{count}} pages are shown."
+  },
+  "apps": {
+    "intro": "Switch on the directions your company works with. The section of an application appears in the menu once it is added to at least one location.",
+    "enabled": "Enabled",
+    "about_rental": "Bookings, issue and return of vehicles, tariffs and additional services.",
+    "about_service": "Service orders: works, posts and the materials used for them.",
+    "about_warehouse": "Stock, purchases and the sale of goods through an order.",
+    "works_in": "Works in: {{locations}}",
+    "no_locations": "Not added to any location yet. Add it in the settings of a location.",
+    "where_title": "{{app}}: where to switch it on",
+    "where_text": "Mark the locations where this application works. Later it can be added or switched off in the settings of each location.",
+    "connect": "Switch on",
+    "soon": "Soon",
+    "upcoming_tyre_fitting": "Tyre fitting",
+    "upcoming_car_wash": "Car wash",
+    "upcoming_parking": "Parking",
+    "upcoming_shop": "Shop"
   }
 }

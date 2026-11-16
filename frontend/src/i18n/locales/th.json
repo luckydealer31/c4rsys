@@ -444,7 +444,8 @@
     "identifier_add": "เพิ่มหมายเลขประจำตัว",
     "phone_add": "เพิ่มหมายเลขโทรศัพท์",
     "tab_settings": "การตั้งค่า",
-    "extra_phones": "เบอร์โทรเพิ่มเติม"
+    "extra_phones": "เบอร์โทรเพิ่มเติม",
+    "tab_apps": "แอปพลิเคชัน"
   },
   "contexts": {
     "module_later": "Work in this section comes with its module; its sections by location are already shown.",
@@ -1291,8 +1292,8 @@
     "deposit_part_used": "ส่วนมัดจำของรายการรับนี้ถูกใช้แล้ว (คงเหลือ {{free}}): แก้ไขมัดจำก่อน",
     "previous_booking_not_cancelled": "การจองก่อนหน้าต้องเป็นการจองที่ยกเลิกแล้วเท่านั้น",
     "booking_unknown": "ไม่พบการจอง",
-    "module_not_connected": "โมดูลนี้ไม่ได้เชื่อมต่อกับบริษัท",
-    "module_has_contexts": "โมดูลมีบริบทที่เปิดอยู่: ปิดก่อน",
+    "module_not_connected": "แอปนี้ยังไม่ได้เปิดใช้งานสำหรับบริษัท",
+    "module_has_contexts": "แอปนี้ใช้งานอยู่ในสาขา: ปิดในการตั้งค่าของสาขาเหล่านั้นก่อน",
     "schedule_time_invalid": "ระบุเวลาในรูปแบบ HH:MM",
     "schedule_intervals_invalid": "ช่วงเวลาของตารางไม่ถูกต้อง (ไม่เกิน 6 ช่วงต่อวัน)",
     "schedule_interval_empty": "เวลาสิ้นสุดต้องอยู่หลังเวลาเริ่มต้น",
@@ -1328,7 +1329,8 @@
     "vehicle_documents_no_recipient": "ไม่มีผู้รับสำเนาเอกสาร: เจ้าของยังไม่ได้รับการยืนยันในระบบ",
     "phone_incomplete": "กรุณาระบุหมายเลขคู่กับคำอธิบาย",
     "issue_inspection_not_done": "โปรดตรวจสภาพตอนส่งมอบก่อน",
-    "booking_not_rental": "ต้องเปลี่ยนการจองเป็นการเช่าก่อน แล้วจึงส่งมอบจากการเช่า"
+    "booking_not_rental": "ต้องเปลี่ยนการจองเป็นการเช่าก่อน แล้วจึงส่งมอบจากการเช่า",
+    "module_already_connected": "แอปนี้เปิดใช้งานอยู่แล้ว"
   },
   "history": {
     "action": "Action",
@@ -1462,7 +1464,8 @@
     "conflict_role_issue": "กำหนดส่งมอบ",
     "conflict_role_return": "กำหนดคืน",
     "conflict_role_start": "กำหนดเริ่ม",
-    "conflict_role_end": "กำหนดสิ้นสุด"
+    "conflict_role_end": "กำหนดสิ้นสุด",
+    "no_apps": "ยังไม่ได้เปิดใช้งานแอปใด จึงยังไม่มีให้เลือกที่นี่"
   },
   "money": {
     "account": "เงินสดหรือบัญชี",
@@ -2142,7 +2145,9 @@
     "service_act": "ใบรับรองงานบริการ",
     "choice_employees": "ทำงานโดยไม่มีพนักงาน",
     "choice_documents": "ไม่มีเอกสารบังคับ",
-    "missing_no_service_work": "ไม่มีงานบริการที่ใช้งาน"
+    "missing_no_service_work": "ไม่มีงานบริการที่ใช้งาน",
+    "step_apps": "แอปพลิเคชัน",
+    "hint_apps": "เลือกสิ่งที่บริษัทใช้งาน: เช่ารถ บริการ คลังสินค้า"
   },
   "tariffs": {
     "add_range": "Add range",
@@ -6386,5 +6391,22 @@
     "preview_failed": "ไม่สามารถแสดงไฟล์ได้",
     "preview_unsupported": "ไม่สามารถแสดงไฟล์ประเภทนี้ที่นี่ได้",
     "preview_first_pages": "แสดงเฉพาะ {{count}} หน้าแรก"
+  },
+  "apps": {
+    "intro": "เปิดใช้งานส่วนงานที่บริษัทของคุณใช้ เมนูของแอปจะปรากฏเมื่อเพิ่มแอปในสาขาอย่างน้อยหนึ่งแห่ง",
+    "enabled": "เปิดใช้งาน",
+    "about_rental": "การจอง การส่งมอบและรับคืนรถ อัตราค่าเช่าและบริการเสริม",
+    "about_service": "งานบริการ: รายการงาน ช่องซ่อม และวัสดุที่ใช้",
+    "about_warehouse": "สต็อก การจัดซื้อ และการขายสินค้าผ่านคำสั่งซื้อ",
+    "works_in": "ใช้งานในสาขา: {{locations}}",
+    "no_locations": "ยังไม่ได้เพิ่มในสาขาใด เพิ่มได้ในการตั้งค่าของสาขา",
+    "where_title": "{{app}}: เปิดใช้งานในสาขาใด",
+    "where_text": "เลือกสาขาที่ใช้แอปนี้ ภายหลังสามารถเพิ่มหรือปิดได้ในการตั้งค่าของแต่ละสาขา",
+    "connect": "เปิดใช้งาน",
+    "soon": "เร็ว ๆ นี้",
+    "upcoming_tyre_fitting": "ร้านยาง",
+    "upcoming_car_wash": "ล้างรถ",
+    "upcoming_parking": "ที่จอดรถ",
+    "upcoming_shop": "ร้านค้า"
   }
 }
