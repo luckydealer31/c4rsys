@@ -104,6 +104,41 @@ def figures(rental: Any) -> Figures:
     return result
 
 
+def _came_in(entries: Any) -> dict[str, tuple[Decimal, Decimal]]:
+    sign: dict[str, int] = {K.RECEIVED: 1, K.CORRECTION: -1, K.REFUND: -1}
+    left: dict[str, tuple[Decimal, Decimal]] = {}
+    for entry in entries:
+        if entry.kind not in sign or entry.money_currency_id is None or entry.money_amount is None:
+            continue
+        part, money = left.get(entry.money_currency_id, (ZERO, ZERO))
+        left[entry.money_currency_id] = (
+            part + sign[entry.kind] * entry.amount,
+            money + sign[entry.kind] * entry.money_amount,
+        )
+    return {c: v for c, v in left.items() if v[0] > 0 and v[1] > 0}
+
+
+def received_in(rental_id: UUID) -> dict[str, tuple[Decimal, Decimal]]:
+    """What is left of the deposit that came in another currency, per that currency: the part
+    of the deposit and the money it came as, less what was corrected and what was already paid
+    back in that currency. A refund in the currency of the receipt pays this money back as it
+    came, without a rate (customer's decision of 16.11.2026)."""
+    return _came_in(DepositEntry.objects.filter(rental_id=rental_id, money_currency__isnull=False))
+
+
+def _as_received(rental_id: UUID, currency: str, amount: Decimal) -> Decimal | None:
+    """The money to pay back for `amount` of the deposit in the currency it came in: the whole
+    part gives exactly what came, a smaller one its share. None when the deposit did not come
+    in this currency or less of it is left than asked."""
+    part, money = received_in(rental_id).get(currency, (ZERO, ZERO))
+    if part <= 0 or amount > part:
+        return None
+    if amount == part:
+        return money
+    places = Currency.objects.get(code=currency).minor_units
+    return round_money(amount * money / part, places)
+
+
 def payload(rental: Any) -> dict[str, Any]:
     data = figures(rental)
     places = Currency.objects.get(code=data.currency).minor_units
@@ -111,6 +146,7 @@ def payload(rental: Any) -> dict[str, Any]:
     def money(value: Decimal) -> str:
         return str(round_money(value, places))
 
+    entries = list(DepositEntry.objects.filter(rental_id=rental.id).order_by("created_at"))
     return {
         "currency": data.currency,
         "required": money(data.required),
@@ -125,6 +161,11 @@ def payload(rental: Any) -> dict[str, Any]:
         "waived": data.waived,
         "hold_days": data.hold_days,
         "release_at": data.release_at.isoformat() if data.release_at else None,
+        # Paid back in the same currency without a rate: the part of the deposit and its money.
+        "received_in": [
+            {"currency": code, "amount": money(part), "money": str(came)}
+            for code, (part, came) in sorted(_came_in(entries).items())
+        ],
         "entries": [
             {
                 "id": str(e.id),
@@ -137,7 +178,7 @@ def payload(rental: Any) -> dict[str, Any]:
                 "automatic": e.automatic,
                 "created_at": e.created_at.isoformat(),
             }
-            for e in DepositEntry.objects.filter(rental_id=rental.id).order_by("created_at")
+            for e in entries
         ],
     }
 
@@ -386,9 +427,12 @@ def offset(
     *,
     rate: Decimal | None = None,
     may_override_rate: bool = False,
+    wanted: str | None = None,
 ) -> DepositEntry:
     """Sets off the held deposit against a debt of an order of the client, not above the debt
-    and the held rest (§ 14.7.2–14.7.3); no money is received again."""
+    and the held rest (§ 14.7.2–14.7.3); no money is received again. An order charged in several
+    currencies is settled currency by currency, as by a payment: `wanted` names which one
+    (decision of 16.11.2026)."""
     rental = _rentals().lock_rental(company_id, rental_id)
     data = figures(rental)
     if amount > data.held:
@@ -401,9 +445,18 @@ def offset(
     if order.state == Order.State.CANCELLED:
         raise errors.business_rule("ORDER_CANCELLED", field="order_id")
     charged = set(charges.charged_for_order(company_id, order.id))
-    if len(charged) > 1:
-        raise errors.business_rule("ORDER_CURRENCIES_MIXED", field="order_id")
-    currency = charged.pop() if charged else data.currency
+    if wanted is not None and charged:
+        if wanted not in charged:
+            raise errors.business_rule(
+                "ORDER_CURRENCY_NOT_CHARGED", field="currency", order_currencies=sorted(charged)
+            )
+        currency = wanted
+    elif len(charged) > 1:
+        raise errors.business_rule(
+            "ORDER_CURRENCIES_MIXED", field="order_id", order_currencies=sorted(charged)
+        )
+    else:
+        currency = charged.pop() if charged else data.currency
     # A debt in another currency is paid from the deposit by the applied rate (§ 17.1.4).
     applied = None
     settled = amount
@@ -452,7 +505,8 @@ def refund(
 ) -> DepositEntry:
     """Pays back the held deposit fully or in part. By default after the vehicle is returned; an
     earlier refund needs an explicit confirmation (customer's decision of 26.10.2026). In another
-    currency the account pays the converted amount by the rate of this payout."""
+    currency the account pays the converted amount by the rate of this payout; in the currency
+    the deposit came in it pays back what came, without a rate (decision of 16.11.2026)."""
     account = (
         CashAccount.objects.select_for_update()
         .filter(company_id=company_id, pk=data.cash_account_id)
@@ -468,15 +522,34 @@ def refund(
         raise _too_much(state, state.held, "DEPOSIT_EXCEEDS_HELD")
     if rental.state == "active" and not data.vehicle_with_client:
         raise errors.business_rule("DEPOSIT_VEHICLE_NOT_RETURNED")
-    applied = None
     paid = data.amount
+    exchange: dict[str, Any] = {}
     if account.currency_id != state.currency:
-        applied = rates.apply(
-            state.currency, account.currency_id, data.rate, may_override=may_override_rate
+        came = (
+            _as_received(rental.id, account.currency_id, data.amount) if data.rate is None else None
         )
-        paid = rates.convert(data.amount, applied.rate, account.currency_id)
+        if came is not None:
+            # The rate of the receipt itself: no rate is asked or loaded.
+            paid = came
+            exchange = {
+                "applied_rate": rates.quantize(paid / data.amount),
+                "rate_manual": False,
+            }
+        else:
+            applied = rates.apply(
+                state.currency, account.currency_id, data.rate, may_override=may_override_rate
+            )
+            paid = rates.convert(data.amount, applied.rate, account.currency_id)
+            exchange = {
+                "rate_fetch": applied.fetch,
+                "suggested_rate": applied.suggested,
+                "applied_rate": applied.rate,
+                "rate_manual": applied.manual,
+            }
         if paid <= 0:
             raise errors.validation_error("amount", code="AMOUNT_TOO_SMALL")
+        exchange["money_amount"] = paid
+        exchange["money_currency_id"] = account.currency_id
     now = timezone.now()
     movement = MoneyMovement.objects.create(
         company_id=company_id,
@@ -500,13 +573,8 @@ def refund(
         K.REFUND,
         data.amount,
         money_movement=movement,
-        money_amount=paid if applied else None,
-        money_currency_id=account.currency_id if applied else None,
-        rate_fetch=applied.fetch if applied else None,
-        suggested_rate=applied.suggested if applied else None,
-        applied_rate=applied.rate if applied else None,
-        rate_manual=applied.manual if applied else False,
         reason=data.note,
+        **exchange,
     )
 
 

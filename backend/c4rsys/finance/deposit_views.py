@@ -19,6 +19,7 @@ from c4rsys.finance.views import (
     _rate,
     _uuid,
     _visible,
+    _wanted_currency,
 )
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
@@ -124,6 +125,7 @@ def deposit_offset(request: HttpRequest, cmp: str, rental_id: UUID) -> JsonRespo
             "order_id": _uuid(data.get("order_id"), "order_id"),
             "amount": _amount(data.get("amount"), "amount", 4),
             "rate": _rate(data.get("rate"), "rate"),
+            "currency": _wanted_currency(data.get("currency"), "currency"),
         }
 
     _, actor = _actor(request, cmp)
@@ -141,6 +143,7 @@ def deposit_offset(request: HttpRequest, cmp: str, rental_id: UUID) -> JsonRespo
             d["amount"],
             rate=d["rate"],
             may_override_rate=may_override,
+            wanted=d["currency"],
         ),
         parse,
     )

@@ -86,7 +86,10 @@ export function RateField({
  * the last loaded rate stands in the field at once; either of the two may be changed and the
  * other follows — a new rate gives the equivalent, a new equivalent gives the rate. Nothing is
  * printed around them: where the rate came from is shown under the pointer; only an outdated
- * or a missing rate is said aloud. Changing either needs the right to set a rate (§ 23.7.6). */
+ * or a missing rate is said aloud. Changing either needs the right to set a rate (§ 23.7.6).
+ *
+ * The rate is shown the way it is said: «1 USD = 37 THB», not «1 THB = 0.027 USD» (decision of
+ * 16.11.2026) — turned over when it is below one. `manual` stays the rate from `from` to `to`. */
 export function RateAmount({
   from,
   to,
@@ -108,17 +111,29 @@ export function RateAmount({
   const company = useCompany();
   const suggestion = useRateSuggestion(from, to);
   const data = suggestion.data;
-  // The equivalent while it is being typed; else it follows the amount and the rate.
+  // The equivalent and the rate while they are being typed; else they follow each other.
   const [typed, setTyped] = useState<string | null>(null);
-  useEffect(() => setTyped(null), [amount, from, to]);
+  const [typedRate, setTypedRate] = useState<string | null>(null);
+  // Without a loaded rate the way to show it is known only from a typed equivalent.
+  const [turned, setTurned] = useState<boolean | null>(null);
+  useEffect(() => {
+    setTyped(null);
+    setTypedRate(null);
+  }, [amount, from, to]);
+  useEffect(() => setTurned(null), [from, to]);
   if (!data) return lead ? <div className="row">{lead}</div> : null;
   const zone = company.timezone ?? "UTC";
   const rate = effectiveRate(data, manual);
   const source = Number(amount) > 0 ? Number(amount) : 0;
   const derived = rate && source ? (source * Number(rate)).toFixed(2) : "";
+  const inverse = data.rate ? Number(data.rate) < 1 : (turned ?? false);
+  const over = (value: string | null) => (value && Number(value) > 0 ? String(Number((1 / Number(value)).toFixed(6))) : "");
+  const shown = inverse ? over(rate) : (rate ?? "");
+  const [one, other] = inverse ? [to, from] : [from, to];
+  const direction = t("rates.manual", { from: one, to: other });
   const origin = data.rate
-    ? `${t("rates.suggested", { from, to, rate: data.rate })} ${t("rates.source", { time: formatMoment(data.fetched_at, zone, i18n.language) })}`
-    : undefined;
+    ? `${t("rates.suggested", { from: one, to: other, rate: inverse ? over(data.rate) : data.rate })} ${t("rates.source", { time: formatMoment(data.fetched_at, zone, i18n.language) })}`
+    : direction;
   return (
     <>
       {data.rate && data.stale ? <p className="alert error">{t("rates.stale")}</p> : null}
@@ -137,11 +152,14 @@ export function RateAmount({
           <input
             inputMode="decimal"
             title={origin}
-            value={manual || data.rate || ""}
+            value={typedRate ?? shown}
             disabled={!data.may_override}
             onChange={(e) => {
+              const value = e.target.value.replace(",", ".");
               setTyped(null);
-              onManual(e.target.value.replace(",", "."));
+              setTypedRate(value);
+              // 12 places as the server keeps.
+              onManual(inverse ? (Number(value) > 0 ? String(Number((1 / Number(value)).toFixed(12))) : "") : value);
             }}
           />
         </Field>
@@ -153,8 +171,10 @@ export function RateAmount({
             onChange={(e) => {
               const value = e.target.value.replace(",", ".");
               setTyped(value);
+              setTypedRate(null);
               const wanted = Number(value);
-              // The rate that turns the amount into this equivalent; 12 places as the server keeps.
+              if (!data.rate && wanted > 0 && source) setTurned(wanted < source);
+              // The rate that turns the amount into this equivalent.
               onManual(wanted > 0 && source ? String(Number((wanted / source).toFixed(12))) : "");
             }}
           />

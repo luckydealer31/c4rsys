@@ -361,3 +361,138 @@ def test_order_charged_in_two_currencies_is_paid_currency_by_currency(
     # 50 USD by 36.5 settle 1 825 THB of the rental; the service in USD is still owed.
     assert amounts["THB"]["paid"] == "1825.00"
     assert amounts["USD"]["paid"] == "0.00"
+
+
+def test_deposit_is_set_off_against_one_currency_of_the_order(
+    owner: Client, s: Scenario, stored: RateFetch
+) -> None:
+    # Decision of 16.11.2026: as a payment, a set-off of the deposit names which charges of an
+    # order in several currencies it settles.
+    rental: dict[str, Any] = issue(owner, s).json()["rental"]
+    service = post(
+        owner,
+        f"/api/c/{s.cmp}/extra-services",
+        {
+            "name": "Phone",
+            "pricing": "once",
+            "price": "10",
+            "currency": "USD",
+            "locations": "all",
+            "vehicles": [],
+            "tariffs": [],
+        },
+        key(),
+    ).json()["service"]["id"]
+    added = post(
+        owner,
+        f"/api/c/{s.cmp}/rentals/{rental['id']}/services",
+        {"service_id": service, "expected_version": rental["version"]},
+        key(),
+    )
+    assert added.status_code in (200, 201), added.content
+    thb = _account(owner, s.cmp, "Desk", "THB")
+    received = post(
+        owner,
+        f"/api/c/{s.cmp}/payments/cash",
+        {
+            "cash_account_id": thb,
+            "client_id": s.client,
+            "amount": "1000",
+            "currency": "THB",
+            "allocations": [],
+            "deposits": [{"rental_id": rental["id"], "amount": "1000"}],
+        },
+        key(),
+    )
+    assert received.status_code == 201, received.content
+    rental = added.json()["rental"]
+    returned = post(
+        owner,
+        f"/api/c/{s.cmp}/rentals/{rental['id']}/return",
+        {
+            "actual_end": NOW.isoformat(),
+            "return_location_id": s.location,
+            "odometer": "10300",
+            "fuel": "8",
+            "expected_version": rental["version"],
+        },
+        key(),
+    )
+    assert returned.status_code == 200, returned.content
+    url = f"/api/c/{s.cmp}/rentals/{rental['id']}/deposit/offset"
+    part = {"order_id": rental["order_id"], "amount": "365"}
+
+    unnamed = post(owner, url, part, key())
+    assert unnamed.json()["error"]["code"] == "ORDER_CURRENCIES_MIXED"
+    wrong = post(owner, url, {**part, "currency": "EUR"}, key())
+    assert wrong.json()["error"]["code"] == "ORDER_CURRENCY_NOT_CHARGED"
+    same = post(owner, url, {**part, "currency": "THB"}, key())
+    assert same.status_code == 200, same.content
+    other = post(owner, url, {**part, "currency": "USD"}, key())
+    assert other.status_code == 200, other.content
+
+    amounts = owner.get(f"/api/c/{s.cmp}/orders/{rental['order_id']}").json()["order"]["amounts"]
+    # 365 THB settle 365 THB of the rental; 365 THB by 36.5 settle the 10 USD of the service.
+    assert amounts["THB"]["paid"] == "365.00"
+    assert amounts["USD"]["paid"] == "10.00"
+    assert other.json()["deposit"]["held"] == "270.00"
+
+
+def test_deposit_is_paid_back_in_the_currency_it_came_in_without_a_rate(
+    owner: Client, s: Scenario, stored: RateFetch
+) -> None:
+    # Customer's decision of 16.11.2026: a deposit paid back in the currency it came in gives
+    # back what came, no rate is asked; in a third currency the rate of the payout is applied.
+    rental: dict[str, Any] = issue(owner, s).json()["rental"]
+    usd = _account(owner, s.cmp, "Bank USD", "USD")
+    eur = _account(owner, s.cmp, "Bank EUR", "EUR")
+    _opening(owner, s.cmp, eur, "1000", "EUR")
+    received = post(
+        owner,
+        f"/api/c/{s.cmp}/payments/cash",
+        {
+            "cash_account_id": usd,
+            "client_id": s.client,
+            "amount": "100",
+            "currency": "USD",
+            "allocations": [],
+            # By hand 1 USD = 37 THB, not the loaded 36.5: 3 700 THB of the deposit.
+            "deposits": [{"rental_id": rental["id"], "amount": "100", "rate": "37"}],
+        },
+        key(),
+    )
+    assert received.status_code == 201, received.content
+    base = f"/api/c/{s.cmp}/rentals/{rental['id']}/deposit"
+    start = owner.get(base).json()["deposit"]
+    assert start["held"] == "3700.00"
+    assert start["received_in"] == [{"currency": "USD", "amount": "3700.00", "money": "100.0000"}]
+    post(
+        owner,
+        f"/api/c/{s.cmp}/rentals/{rental['id']}/return",
+        {
+            "actual_end": NOW.isoformat(),
+            "return_location_id": s.location,
+            "odometer": "10300",
+            "fuel": "8",
+            "expected_version": rental["version"],
+        },
+        key(),
+    )
+
+    def paid(response: Any) -> tuple[str, str]:
+        assert response.status_code == 200, response.content
+        entry = response.json()["deposit"]["entries"][-1]
+        return entry["money_amount"], entry["money_currency"]
+
+    # A part: its share of the 100 USD. The loaded rate would give 10.14.
+    part = post(owner, f"{base}/refund", {"cash_account_id": usd, "amount": "370"}, key())
+    assert paid(part) == ("10.0000", "USD")
+    # In a third currency the rate of the payout: 370 THB / 36.5 * 0.92.
+    third = post(owner, f"{base}/refund", {"cash_account_id": eur, "amount": "370"}, key())
+    assert paid(third) == ("9.3300", "EUR")
+    # The rest in USD: what is left of the 100 USD is not above what came.
+    left = owner.get(base).json()["deposit"]
+    assert left["received_in"] == [{"currency": "USD", "amount": "3330.00", "money": "90.0000"}]
+    rest = post(owner, f"{base}/refund", {"cash_account_id": usd, "amount": "2960"}, key())
+    assert paid(rest) == ("80.0000", "USD")
+    assert rest.json()["deposit"]["held"] == "0.00"

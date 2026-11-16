@@ -1156,6 +1156,8 @@ export type DepositInfo = {
   waived: boolean;
   hold_days: number | null;
   release_at: string | null;
+  /** What is left of the deposit that came in another currency: paid back there without a rate. */
+  received_in: { currency: string; amount: string; money: string }[];
   entries: {
     id: string;
     kind: "received" | "to_balance" | "hold" | "release" | "offset" | "refund" | "waiver";

@@ -3429,7 +3429,6 @@
     "hint_waive": "Ends the missing-deposit conflict; money received does not change.",
     "order": "Order",
     "reason": "Reason (required)",
-    "refund_preview": "Payout ≈ {{amount}} {{currency}}",
     "vehicle_with_client": "The vehicle is still with the client — refund anyway",
     "kind_correction": "Corrected with its receipt",
     "pay": "Receive the deposit",

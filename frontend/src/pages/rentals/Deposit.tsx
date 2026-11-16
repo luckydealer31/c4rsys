@@ -8,7 +8,7 @@ import { ErrorMessage, Field } from "../../components/ui";
 import { useCan, useCompany } from "../../layout/CompanyShell";
 import { formatMoment } from "../../time";
 import { useCashAccounts } from "../finance/FinancePage";
-import { RateField, effectiveRate, useRateSuggestion } from "../finance/Rates";
+import { RateAmount, effectiveRate, useRateSuggestion } from "../finance/Rates";
 import { useOrders } from "../orders/OrdersPage";
 
 type Action = "" | "to_balance" | "hold" | "release" | "offset" | "refund" | "waive";
@@ -123,12 +123,25 @@ function DepositAction({
   const [accountId, setAccountId] = useState("");
   const [rate, setRate] = useState("");
   const [withClient, setWithClient] = useState(false);
+  // Which charges of an order in several currencies the deposit settles (decision of 16.11.2026).
+  const [target, setTarget] = useState("");
   const path = { to_balance: "to-balance", hold: "hold", release: "release", offset: "offset", refund: "refund", waive: "waive" }[action];
   const run = useCommand<Record<string, unknown>, unknown>(`/c/${company.public_id}/rentals/${rental.id}/deposit/${path}`);
-  const account = accounts.find((a) => a.id === accountId) ?? accounts.find((a) => a.currency === deposit.currency) ?? accounts[0];
+  // The account a refund is paid from is chosen by hand, none stands there by itself: a payout
+  // must not leave from an account nobody looked at (customer's decision of 16.11.2026).
+  const account = accounts.find((a) => a.id === accountId);
   const exchange = action === "refund" && Boolean(account && account.currency !== deposit.currency);
   const suggestion = useRateSuggestion(exchange ? deposit.currency : undefined, account?.currency);
-  const applied = exchange ? effectiveRate(suggestion.data, rate) : "1";
+  // Paid back in the currency the deposit came in: what came, no rate (decision of 16.11.2026).
+  const came = exchange ? deposit.received_in.find((r) => r.currency === account?.currency) : undefined;
+  const asReceived = Boolean(came && Number(amount) <= Number(came.amount));
+  const payout =
+    came && asReceived && Number(amount) > 0
+      ? Number(amount) === Number(came.amount)
+        ? Number(came.money).toFixed(2)
+        : ((Number(amount) * Number(came.money)) / Number(came.amount)).toFixed(2)
+      : "";
+  const applied = exchange && !asReceived ? effectiveRate(suggestion.data, rate) : "1";
   const debts = (orders.data?.orders ?? []).filter(
     (o) =>
       o.client_id === rental.client_id &&
@@ -136,7 +149,19 @@ function DepositAction({
       Object.values(o.amounts).some((a) => Number(a.to_pay) > 0),
   );
   const order = debts.find((o) => o.id === orderId);
-  const orderCurrency = order ? Object.keys(order.amounts)[0] : undefined;
+  // As a payment: the currency chosen; else the deposit's own, when the order owes in it; else
+  // the one with the most left to pay.
+  const owing = order ? Object.keys(order.amounts).filter((code) => Number(order.amounts[code]?.to_pay) > 0) : [];
+  const mostOwed = [...owing].sort(
+    (a, b) => Number(order?.amounts[b]?.to_pay ?? 0) - Number(order?.amounts[a]?.to_pay ?? 0),
+  )[0];
+  const orderCurrency = order
+    ? owing.includes(target)
+      ? target
+      : owing.includes(deposit.currency)
+        ? deposit.currency
+        : mostOwed
+    : undefined;
   const offsetExchange = action === "offset" && Boolean(orderCurrency && orderCurrency !== deposit.currency);
   const offsetSuggestion = useRateSuggestion(offsetExchange ? deposit.currency : undefined, orderCurrency);
   const offsetRate = offsetExchange ? effectiveRate(offsetSuggestion.data, rate) : "1";
@@ -148,61 +173,131 @@ function DepositAction({
     if (action === "offset") {
       body.order_id = orderId;
       body.rate = offsetExchange && rate ? rate : null;
+      if (orderCurrency) body.currency = orderCurrency;
     }
     if (action === "refund") {
       body.cash_account_id = account?.id;
-      body.rate = exchange && rate ? rate : null;
+      body.rate = exchange && !asReceived && rate ? rate : null;
       body.vehicle_with_client = withClient;
       body.note = reason;
     }
     if ((await run.run(body)) !== null) await onDone();
   }
 
+  const amountField = (
+    <Field label={t("payments.amount", { currency: deposit.currency })}>
+      <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(",", "."))} />
+    </Field>
+  );
+  const reasonField = (
+    <Field label={needsReason ? t("deposit.reason") : t("money.note")}>
+      <input value={reason} onChange={(e) => setReason(e.target.value)} />
+    </Field>
+  );
   return (
     <div className="stack">
       <p className="muted">{t(`deposit.hint_${action}`)}</p>
-      <div className="row">
-        {action !== "waive" ? (
-          <Field label={t("payments.amount", { currency: deposit.currency })}>
-            <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(",", "."))} />
-          </Field>
-        ) : null}
-        {action === "offset" ? (
-          <Field label={t("deposit.order")}>
-            <select value={orderId} onChange={(e) => setOrderId(e.target.value)}>
-              {debts.map((o) => (
-                <option key={o.id} value={o.id}>
-                  № {o.number} ·{" "}
-                  {Object.entries(o.amounts)
-                    .map(([c, a]) => `${a.to_pay} ${c}`)
-                    .join(", ")}
-                </option>
-              ))}
-            </select>
-          </Field>
-        ) : null}
-        {action === "refund" ? (
-          <Field label={t("money.account")}>
-            <select value={account?.id ?? ""} onChange={(e) => setAccountId(e.target.value)}>
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name} · {a.currency}
-                </option>
-              ))}
-            </select>
-          </Field>
-        ) : null}
-        <Field label={needsReason ? t("deposit.reason") : t("money.note")}>
-          <input value={reason} onChange={(e) => setReason(e.target.value)} />
-        </Field>
-      </div>
-      {exchange && account ? <RateField from={deposit.currency} to={account.currency} manual={rate} onManual={setRate} /> : null}
-      {offsetExchange && orderCurrency ? (
-        <RateField from={deposit.currency} to={orderCurrency} manual={rate} onManual={setRate} />
-      ) : null}
-      {action === "refund" && exchange && applied && amount ? (
-        <p>{t("deposit.refund_preview", { amount: (Number(amount) * Number(applied)).toFixed(2), currency: account?.currency ?? "" })}</p>
-      ) : null}
+      {action === "offset" ? (
+        <>
+          <div className="row">
+            <Field label={t("deposit.order")}>
+              <select
+                value={orderId}
+                onChange={(e) => {
+                  setOrderId(e.target.value);
+                  setTarget("");
+                  setRate("");
+                }}
+              >
+                {debts.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    № {o.number} ·{" "}
+                    {Object.entries(o.amounts)
+                      .map(([c, a]) => `${a.to_pay} ${c}`)
+                      .join(", ")}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            {order && owing.length > 1 ? (
+              <Field label={t("payments.settle_currency")}>
+                <select
+                  value={orderCurrency ?? ""}
+                  onChange={(e) => {
+                    setTarget(e.target.value);
+                    setRate("");
+                  }}
+                >
+                  {owing.map((code) => (
+                    <option key={code} value={code}>
+                      {t("payments.settle_option", { currency: code, amount: order.amounts[code]?.to_pay ?? "0" })}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            ) : null}
+          </div>
+          {offsetExchange && orderCurrency ? (
+            <RateAmount
+              lead={amountField}
+              from={deposit.currency}
+              to={orderCurrency}
+              amount={amount}
+              manual={rate}
+              onManual={setRate}
+            />
+          ) : (
+            <div className="row">{amountField}</div>
+          )}
+          <div className="row">{reasonField}</div>
+        </>
+      ) : action === "refund" ? (
+        <>
+          <div className="row">
+            <Field label={t("money.account")}>
+              <select
+                value={account?.id ?? ""}
+                onChange={(e) => {
+                  setAccountId(e.target.value);
+                  setRate("");
+                }}
+              >
+                <option value="">—</option>
+                {accounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name} · {a.currency}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+          {exchange && account && asReceived ? (
+            <div className="row">
+              {amountField}
+              <Field label={t("rates.equivalent", { currency: account.currency })}>
+                <input value={payout} disabled readOnly />
+              </Field>
+            </div>
+          ) : exchange && account ? (
+            <RateAmount
+              lead={amountField}
+              from={deposit.currency}
+              to={account.currency}
+              amount={amount}
+              manual={rate}
+              onManual={setRate}
+            />
+          ) : (
+            <div className="row">{amountField}</div>
+          )}
+          <div className="row">{reasonField}</div>
+        </>
+      ) : (
+        <div className="row">
+          {action !== "waive" ? amountField : null}
+          {reasonField}
+        </div>
+      )}
       {action === "refund" && rental.state === "active" ? (
         <label>
           <input type="checkbox" checked={withClient} onChange={(e) => setWithClient(e.target.checked)} /> {t("deposit.vehicle_with_client")}

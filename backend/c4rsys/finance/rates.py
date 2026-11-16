@@ -37,8 +37,11 @@ class FetchError(Exception):
     pass
 
 
-def _quantize(rate: Decimal) -> Decimal:
+def quantize(rate: Decimal) -> Decimal:
     return rate.quantize(Decimal(1).scaleb(-RATE_PLACES), rounding=ROUND_HALF_UP)
+
+
+_quantize = quantize
 
 
 def download(api_key: str) -> dict[str, Any]:
