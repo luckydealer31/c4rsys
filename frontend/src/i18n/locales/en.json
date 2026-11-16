@@ -1658,7 +1658,9 @@
     "when": "Date and time",
     "without_order": "Without an order",
     "order_currency": "The order is in {{currency}}; left to pay {{amount}} {{currency}}.",
-    "settles": "Settles ≈ {{amount}} {{currency}} of the order."
+    "settles": "Settles ≈ {{amount}} {{currency}} of the order.",
+    "pay": "Receive a payment",
+    "client_first": "Give the client first: there is nobody to receive money from."
   },
   "permissions": {
     "client_create": "Create clients",
@@ -3499,7 +3501,10 @@
     "action_transfer": "Move to another order",
     "total_rental": "Rental",
     "total": "Total",
-    "deposit_apart": "The deposit is not a part of the total: it is received and paid back apart."
+    "deposit_apart": "The deposit is not a part of the total: it is received and paid back apart.",
+    "total_with_deposit": "Total with the deposit",
+    "paid": "Paid",
+    "deposit_received": "Deposit received"
   },
   "issue_rules": {
     "page_hint": "Rules of the issue and auto-cancel of bookings: for the whole company, and a location may have its own.",
@@ -3646,7 +3651,7 @@
     "none_applicable": "No services of the catalog fit this rental.",
     "service": "Service",
     "linked_hint": "A linked service has the period of the rental and is charged together with it at the return.",
-    "add": "Add service",
+    "add": "Add a service",
     "add_standalone": "Add a standalone service",
     "location": "Location of the service",
     "location_hint": "The revenue of the service belongs to it.",

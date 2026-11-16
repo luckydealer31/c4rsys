@@ -2,10 +2,12 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 
 import type { ApiError } from "../../api/client";
-import type { Client, JournalEntry, Rental } from "../../api/types";
+import { useApi } from "../../api/queries";
+import type { Client, JournalEntry, Order, Rental } from "../../api/types";
 import { Card, ErrorMessage, Info, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { clientName } from "../clients/ClientsPage";
+import { PaymentButton } from "../finance/CashReceipt";
 import { JournalTable } from "../settings/EmployeesPage";
 import { BookingCard, type CardAction } from "./Booking";
 import { DepositCard } from "./Deposit";
@@ -111,6 +113,7 @@ export function BookingView({
           </Card>
           <Card title={t("rentals.calculation")}>
             <Total rental={rental} />
+            {booked ? <PaymentButton orderId={rental.order_id} clientId={rental.client_id} onDone={() => onDone()} /> : null}
           </Card>
         </div>
       </div>
@@ -119,9 +122,15 @@ export function BookingView({
 }
 
 /** The calculation with its total: the rental by the tariff, the linked services, their sum;
- * the deposit apart — it is not a part of the cost. */
+ * the deposit apart — it is not a part of the cost — and both together, so it is seen how much
+ * is to be brought in all; then what is already paid to the order and received as the deposit. */
 function Total({ rental }: { rental: Rental }) {
   const { t } = useTranslation();
+  const company = useCompany();
+  const order = useApi<{ order: Order }>(
+    ["order", company.public_id, rental.order_id],
+    `/c/${company.public_id}/orders/${rental.order_id}`,
+  );
   const calculation = rental.calculation;
   if (!calculation) return <p className="muted">{t("bookings.no_calculation")}</p>;
   const currency = calculation.currency;
@@ -130,6 +139,7 @@ function Total({ rental }: { rental: Rental }) {
     .reduce((sum, line) => sum + Number(line.calculation?.amount ?? 0), 0);
   const base = Number(calculation.base_amount);
   const deposit = rental.deposit && Number(rental.deposit.required) > 0 ? rental.deposit : null;
+  const paid = order.data?.order.amounts[currency]?.paid;
   return (
     <dl className="total-lines">
       <dt>{t("bookings.total_rental")}</dt>
@@ -152,6 +162,30 @@ function Total({ rental }: { rental: Rental }) {
           </dt>
           <dd>
             {deposit.required} {deposit.currency}
+          </dd>
+          {deposit.currency === currency ? (
+            <>
+              <dt className="sum">{t("bookings.total_with_deposit")}</dt>
+              <dd className="sum">
+                {(base + services + Number(deposit.required)).toFixed(2)} {currency}
+              </dd>
+            </>
+          ) : null}
+        </>
+      ) : null}
+      {paid !== undefined ? (
+        <>
+          <dt>{t("bookings.paid")}</dt>
+          <dd>
+            {paid} {currency}
+          </dd>
+        </>
+      ) : null}
+      {deposit ? (
+        <>
+          <dt>{t("bookings.deposit_received")}</dt>
+          <dd>
+            {deposit.received} {deposit.currency}
           </dd>
         </>
       ) : null}

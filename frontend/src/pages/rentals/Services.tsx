@@ -673,9 +673,11 @@ export function RentalServices({ rental, onDone }: { rental: Rental; onDone: (ne
         <RentalLine key={line.id} line={line} onDone={() => onDone()} open={hash === `#service-${line.id}`} />
       ))}
       {open && can("rental.issue") && !adding ? (
-        <div className="actions" style={{ marginTop: 0 }}>
-          <button type="button" className="secondary" onClick={() => setAdding(true)}>
-            {t("common.add")}
+        // At the right edge and of the main colour: it adds a new service, it is not an action
+        // with the service above it (decision of 16.11.2026).
+        <div className="actions end">
+          <button type="button" onClick={() => setAdding(true)}>
+            {t("services.add")}
           </button>
         </div>
       ) : null}
@@ -762,7 +764,7 @@ function AddLinked({
       <ErrorMessage error={add.error} />
       <div className="actions">
         <button type="submit" disabled={add.pending || !serviceId}>
-          {t("common.add")}
+          {t("services.add")}
         </button>
         <button type="button" className="secondary" onClick={onClose}>
           {t("common.cancel")}

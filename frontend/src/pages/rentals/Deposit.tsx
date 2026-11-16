@@ -84,7 +84,7 @@ export function DepositCard({ rental, onDone }: { rental: Rental; onDone: () => 
           </tbody>
         </table>
       ) : null}
-      {rental.client_id && rental.state !== "cancelled" ? (
+      {rental.state !== "cancelled" ? (
         <DepositButton rentalId={rental.id} clientId={rental.client_id} onDone={onDone} />
       ) : null}
       {actions.length ? (

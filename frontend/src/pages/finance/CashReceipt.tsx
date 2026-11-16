@@ -1,11 +1,12 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { ApiError } from "../../api/client";
 import { useApi } from "../../api/queries";
 import type { DepositInfo, Order, Payment } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { Card, ErrorMessage, Field, Modal } from "../../components/ui";
+import { Card, ErrorMessage, Field, Info, Modal } from "../../components/ui";
 import { useCan, useCompany } from "../../layout/CompanyShell";
 import { useCashAccounts } from "./FinancePage";
 import { RateField, effectiveRate, useRateSuggestion } from "./Rates";
@@ -26,10 +27,13 @@ export function CashReceipt({
   clientId,
   order,
   onDone,
+  bare = false,
 }: {
   clientId: string;
   order: Order | null;
   onDone: () => Promise<void>;
+  /** Inside a window that has the title: the form alone. */
+  bare?: boolean;
 }) {
   const { t } = useTranslation();
   const company = useCompany();
@@ -85,8 +89,9 @@ export function CashReceipt({
     }
   }
 
+  const Frame = bare ? Bare : Card;
   return (
-    <Card title={t("payments.receive_title")}>
+    <Frame title={t("payments.receive_title")}>
       {usable.length === 0 ? <p className="muted">{t("payments.no_accounts")}</p> : null}
       <form onSubmit={submit}>
         <div className="row">
@@ -137,8 +142,63 @@ export function CashReceipt({
           </button>
         </div>
       </form>
-      {rentalId ? <DepositButton rentalId={rentalId} clientId={clientId} onDone={onDone} /> : null}
-    </Card>
+      {rentalId && !bare ? <DepositButton rentalId={rentalId} clientId={clientId} onDone={onDone} /> : null}
+    </Frame>
+  );
+}
+
+function Bare({ children }: { title?: string; children: ReactNode }) {
+  return <div>{children}</div>;
+}
+
+/** «Receive a payment» for the order of a rental or a booking (decision of 16.11.2026): a
+ * button of its own beside the calculation, apart from «Receive the deposit»; it opens the
+ * payment of the order in a window. Without a client there is nobody to receive from. */
+export function PaymentButton({
+  orderId,
+  clientId,
+  onDone,
+}: {
+  orderId: string;
+  clientId: string | null;
+  onDone: () => Promise<void>;
+}) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const can = useCan();
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const order = useApi<{ order: Order }>(
+    ["order", company.public_id, orderId],
+    `/c/${company.public_id}/orders/${orderId}`,
+    open,
+  );
+  if (!can("finance.payment.receive")) return null;
+  return (
+    <div className="actions end">
+      {clientId ? null : <Info text={t("payments.client_first")} />}
+      <button type="button" disabled={!clientId} onClick={() => setOpen(true)}>
+        {t("payments.pay")}
+      </button>
+      {open && clientId ? (
+        <Modal title={t("payments.receive_title")} onClose={() => setOpen(false)}>
+          {order.data ? (
+            <CashReceipt
+              bare
+              clientId={clientId}
+              order={order.data.order}
+              onDone={async () => {
+                setOpen(false);
+                await queryClient.invalidateQueries({ queryKey: ["order", company.public_id, orderId] });
+                await onDone();
+              }}
+            />
+          ) : (
+            <ErrorMessage error={order.error as ApiError | null} />
+          )}
+        </Modal>
+      ) : null}
+    </div>
   );
 }
 
@@ -150,7 +210,8 @@ export function DepositButton({
   onDone,
 }: {
   rentalId: string;
-  clientId: string;
+  /** Without a client the button is shown but cannot be pressed: there is nobody to receive from. */
+  clientId: string | null;
   onDone: () => Promise<void>;
 }) {
   const { t } = useTranslation();
@@ -165,12 +226,13 @@ export function DepositButton({
   return (
     <div className="stack" style={{ marginTop: 16 }}>
       <p className="alert warn">{t("deposit.conflict", { amount: deposit.missing, currency: deposit.currency })}</p>
-      <div className="actions" style={{ marginTop: 0 }}>
-        <button type="button" className="secondary" onClick={() => setOpen(true)}>
+      <div className="actions end" style={{ marginTop: 0 }}>
+        {clientId ? null : <Info text={t("payments.client_first")} />}
+        <button type="button" disabled={!clientId} onClick={() => setOpen(true)}>
           {t("deposit.pay")}
         </button>
       </div>
-      {open ? (
+      {open && clientId ? (
         <Modal title={t("deposit.pay")} onClose={() => setOpen(false)}>
           <DepositReceipt
             rentalId={rentalId}

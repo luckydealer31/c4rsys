@@ -67,9 +67,16 @@ test("a booking is issued by its own screen", async ({ page }) => {
   // A service is added by the button «Add», which opens the choice; no field stands open.
   const services = page.locator("section.card", { has: page.getByRole("heading", { name: t("services.title"), exact: true }) });
   await expect(services.getByLabel(t("services.service"))).toHaveCount(0);
-  await services.getByRole("button", { name: t("common.add"), exact: true }).click();
+  await services.getByRole("button", { name: t("services.add"), exact: true }).click();
   await services.getByRole("button", { name: t("common.cancel"), exact: true }).click();
-  await expect(services.getByRole("button", { name: t("common.add"), exact: true })).toBeVisible();
+  await expect(services.getByRole("button", { name: t("services.add"), exact: true })).toBeVisible();
+  // The payment has a button of its own beside the calculation; it opens in a window.
+  await page.getByRole("button", { name: t("payments.pay"), exact: true }).click();
+  const payment = page.getByRole("dialog");
+  await expect(payment.getByRole("heading", { name: t("payments.receive_title") })).toHaveCount(1);
+  await expect(payment.getByRole("button", { name: t("payments.receive"), exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 
   // A booking is not issued by itself: it is turned into a rental, which starts from what the
   // booking has — vehicle, tariff, client. No readings are asked at that moment.

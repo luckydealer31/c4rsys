@@ -576,3 +576,6 @@ td.vehicle-cell { display: flex; align-items: center; gap: 12px; }
 .service-line { border-top: 1px solid var(--border); padding-top: 8px; }
 .service-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
 .service-row > span:first-child { flex: 1 1 220px; }
+
+/* The main action of a block stands at its right edge. */
+.actions.end { justify-content: flex-end; align-items: center; }

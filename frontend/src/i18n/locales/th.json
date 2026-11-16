@@ -1658,7 +1658,9 @@
     "when": "Date and time",
     "without_order": "Without an order",
     "order_currency": "คำสั่งเป็น {{currency}} ค้างชำระ {{amount}} {{currency}}",
-    "settles": "ชำระคำสั่ง ≈ {{amount}} {{currency}}"
+    "settles": "ชำระคำสั่ง ≈ {{amount}} {{currency}}",
+    "pay": "รับชำระเงิน",
+    "client_first": "โปรดระบุลูกค้าก่อน: ยังไม่มีผู้ชำระเงิน"
   },
   "permissions": {
     "client_create": "Create clients",
@@ -3499,7 +3501,10 @@
     "action_transfer": "ย้ายไปยังคำสั่งซื้ออื่น",
     "total_rental": "ค่าเช่า",
     "total": "รวม",
-    "deposit_apart": "เงินมัดจำไม่รวมในยอดรวม: รับและคืนแยกต่างหาก"
+    "deposit_apart": "เงินมัดจำไม่รวมในยอดรวม: รับและคืนแยกต่างหาก",
+    "total_with_deposit": "รวมเงินมัดจำ",
+    "paid": "ชำระแล้ว",
+    "deposit_received": "รับเงินมัดจำแล้ว"
   },
   "issue_rules": {
     "page_hint": "กฎการส่งมอบและการยกเลิกการจองอัตโนมัติ: สำหรับทั้งบริษัท และแต่ละสถานที่ตั้งค่าเองได้",
