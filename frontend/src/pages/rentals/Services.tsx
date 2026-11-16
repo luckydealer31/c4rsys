@@ -18,6 +18,7 @@ import type {
 } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, IconButton, Info, Loading, UnconfiguredConfirm } from "../../components/ui";
+import { OrderOffer, useOrderOffer } from "../orders/CancelWith";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { currencies, formatMoment, fromLocalInput, toLocalInput, zoneShort } from "../../time";
 import { clientName } from "../clients/ClientsPage";
@@ -362,10 +363,38 @@ function LineSettings({ line, onDone, terms = false }: LineProps & { terms?: boo
   const completeCmd = useLineCommand(line, "complete");
   const cancelCmd = useLineCommand(line, "cancel");
   const unlinkCmd = useLineCommand(line, "unlink");
+  // A standalone service that is the only position of its order: the order is offered to be
+  // cancelled with it (decision of 16.11.2026).
+  const offer = useOrderOffer(linked || terms ? null : line.order_id, [line.id]);
+  const [orderLeft, setOrderLeft] = useState(false);
   if (!editable) return null;
 
   async function run(command: ReturnType<typeof useLineCommand>, body: Record<string, unknown> = {}) {
     if (await command.run({ expected_version: line.version, ...body })) await onDone();
+  }
+
+  async function cancelLine() {
+    if (!(await cancelCmd.run({ expected_version: line.version, reason }))) return;
+    if (offer.wanted && !(await offer.cancel(reason))) {
+      // The service is cancelled, the order is not: said before the page is read again.
+      setOrderLeft(true);
+      return;
+    }
+    await onDone();
+  }
+
+  if (orderLeft) {
+    return (
+      <div className="stack">
+        <p className="alert warn">{t("orders.cancel_with_failed", { number: offer.number })}</p>
+        <ErrorMessage error={offer.error} />
+        <div className="actions">
+          <button type="button" className="secondary" onClick={() => void onDone()}>
+            {t("common.close")}
+          </button>
+        </div>
+      </div>
+    );
   }
 
   const canChange = linked ? line.state !== "cancelled" : !closed;
@@ -455,10 +484,13 @@ function LineSettings({ line, onDone, terms = false }: LineProps & { terms?: boo
           <Field label={t("charges.cancel_reason")}>
             <input value={reason} onChange={(e) => setReason(e.target.value)} />
           </Field>
-          <button type="button" className="danger" disabled={cancelCmd.pending || !reason.trim()} onClick={() => void run(cancelCmd, { reason })}>
+          <button type="button" className="danger" disabled={cancelCmd.pending || offer.pending || !reason.trim()} onClick={() => void cancelLine()}>
             {t("services.cancel")}
           </button>
         </div>
+      ) : null}
+      {!terms && (line.state === "planned" || (!linked && line.state !== "cancelled" && !(equipment && line.state === "started"))) ? (
+        <OrderOffer offer={offer} />
       ) : null}
       <ErrorMessage error={cancelCmd.error} />
       {line.pricing === "time" && canChange && (!linked || line.state !== "planned") ? <LineFreeTime line={line} onDone={onDone} /> : null}

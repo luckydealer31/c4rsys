@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { Rental } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { ErrorMessage, Field, Info } from "../../components/ui";
+import { OrderOffer, useOrderOffer } from "../orders/CancelWith";
 import { useCompany } from "../../layout/CompanyShell";
 import { useOrders } from "../orders/OrdersPage";
 
@@ -70,24 +71,50 @@ export function AnnulRental({ rental, onDone }: { rental: Rental; onDone: Done }
   const annul = useCommand<Record<string, unknown>, { rental: Rental }>(
     `/c/${company.public_id}/rentals/${rental.id}/annul`,
   );
+  // The only position of its order: the order is offered to be cancelled with it (decision of
+  // 16.11.2026). An issued rental is annulled first, then the order is cancelled.
+  const linked = (rental.services ?? []).filter((line) => line.rental_id === rental.id).map((line) => line.id);
+  const offer = useOrderOffer(rental.order_id, [rental.id, ...linked]);
+  const [annulled, setAnnulled] = useState<Rental | null>(null);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     const result = await annul.run({ reason, expected_version: rental.version });
-    if (result) await onDone(result.rental);
+    if (!result) return;
+    if (offer.wanted && !(await offer.cancel(reason))) {
+      // The rental is annulled, the order is not cancelled: said before the card is read again.
+      setAnnulled(result.rental);
+      return;
+    }
+    await onDone(result.rental);
+  }
+
+  if (annulled) {
+    return (
+      <div className="stack">
+        <p className="alert warn">{t("orders.cancel_with_failed", { number: offer.number })}</p>
+        <ErrorMessage error={offer.error} />
+        <div className="actions">
+          <button type="button" className="secondary" onClick={() => void onDone(annulled)}>
+            {t("common.close")}
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <form onSubmit={submit}>
+    <form onSubmit={submit} className="stack">
       <p className="muted small">{t("rental_order.annul_hint")}</p>
       <div className="row">
         <Field label={t("rental_order.annul_reason")}>
           <input value={reason} onChange={(e) => setReason(e.target.value)} />
         </Field>
       </div>
+      <OrderOffer offer={offer} />
       <ErrorMessage error={annul.error} />
       <div className="actions">
-        <button type="submit" className="danger" disabled={annul.pending || !reason.trim()}>
+        <button type="submit" className="danger" disabled={annul.pending || offer.pending || !reason.trim()}>
           {t("rental_order.annul")}
         </button>
       </div>

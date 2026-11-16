@@ -163,6 +163,10 @@ def test_auto_cancel_at_no_show(owner: Client, s: Scenario) -> None:
     assert bookings.cancel_no_shows(planned + timedelta(minutes=31)) == 1
     stored = Rental.objects.get(pk=rental["id"])
     assert (stored.state, stored.cancel_reason) == ("cancelled", "no_show")
+    # Customer's decision of 16.11.2026: the booking was the only position of its order, so the
+    # order is cancelled with it and does not stay open, forgotten.
+    order = owner.get(f"/api/c/{s.cmp}/orders/{rental['order_id']}").json()["order"]
+    assert (order["state"], order["cancel_reason"]) == ("cancelled", "no_show")
 
 
 def test_new_start_moves_the_auto_cancel_and_keeps_the_end(owner: Client, s: Scenario) -> None:

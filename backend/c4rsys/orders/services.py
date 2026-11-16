@@ -693,7 +693,13 @@ def register_on_cancel(handler: CancelHandler) -> None:
 
 
 def cancel_order(
-    ctx: CommandContext, company_id: UUID, order_id: UUID, expected_version: int, reason: str
+    ctx: CommandContext,
+    company_id: UUID,
+    order_id: UUID,
+    expected_version: int,
+    reason: str,
+    *,
+    only_if_empty: bool = False,
 ) -> Order:
     """The whole order before its operations start: bookings and services not started are
     cancelled and their reserves freed (§ 12.2.1). An issued or returned rental is transferred
@@ -704,6 +710,9 @@ def cancel_order(
     order = _locked(company_id, order_id, expected_version)
     if order.state not in (Order.State.OPEN, Order.State.PRELIMINARY):
         raise errors.business_rule("ORDER_CLOSED")
+    # Orders without positions cancelled at once: one that got a position meanwhile stays.
+    if only_if_empty and not is_empty(order):
+        raise errors.business_rule("ORDER_NOT_EMPTY")
     before = order.state
     for handler in _on_cancel:
         handler(ctx, company_id, order.id, reason)
@@ -720,6 +729,34 @@ def cancel_order(
         reason=reason,
     )
     return order
+
+
+# A position that no longer counts: it was cancelled or annulled.
+GONE = ("cancelled", "annulled")
+
+
+def is_empty(order: Order, own: set[UUID] | None = None) -> bool:
+    """Nothing but cancelled positions is left in the order; `own` — positions counted as
+    cancelled already (the one being cancelled and what belongs to it)."""
+    mine = own or set()
+    return all(
+        op.id in mine or op.state in GONE or op.type == "approval" for op in operations_of(order)
+    )
+
+
+def cancel_if_emptied(
+    ctx: CommandContext, company_id: UUID, order_id: UUID, reason: str, own: set[UUID]
+) -> bool:
+    """After the only position of an order was cancelled, the order is cancelled with it, so an
+    empty order does not stay open (customer's decision of 16.11.2026). With another live
+    position the order stays (§ 14.8.1)."""
+    order = Order.objects.select_for_update().filter(company_id=company_id, pk=order_id).first()
+    if order is None or order.state not in (Order.State.OPEN, Order.State.PRELIMINARY):
+        return False
+    if not is_empty(order, own):
+        return False
+    cancel_order(ctx, company_id, order.id, order.version, reason)
+    return True
 
 
 # --- History (§ 23.10, screens «История») ----------------------------------------------------

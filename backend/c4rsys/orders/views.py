@@ -423,10 +423,25 @@ def order_cancel(request: HttpRequest, cmp: str, order_id: UUID) -> JsonResponse
     data = parse_json(request)
     expected_version = get_int(data, "expected_version")
     reason = get_str(data, "reason", max_length=2000, required=False)
+    only_if_empty = data.get("only_if_empty", False)
+    if not isinstance(only_if_empty, bool):
+        raise errors.validation_error("only_if_empty")
 
     def handler(ctx: CommandContext) -> CommandResult:
-        order = services.cancel_order(ctx, context.company.id, order_id, expected_version, reason)
+        order = services.cancel_order(
+            ctx,
+            context.company.id,
+            order_id,
+            expected_version,
+            reason,
+            only_if_empty=only_if_empty,
+        )
         return _result(order)
 
-    payload = {"order_id": str(order_id), "expected_version": expected_version, "reason": reason}
+    payload = {
+        "order_id": str(order_id),
+        "expected_version": expected_version,
+        "reason": reason,
+        "only_if_empty": only_if_empty,
+    }
     return run_and_respond(request, "order.cancel", actor, payload, handler)

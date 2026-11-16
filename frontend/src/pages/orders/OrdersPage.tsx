@@ -6,11 +6,11 @@ import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useParams, useSearchParams } from "react-router";
 
-import type { ApiError } from "../../api/client";
+import { api, type ApiError } from "../../api/client";
 import { useApi } from "../../api/queries";
 import type { Client, JournalEntry, Order } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { Card, ErrorMessage, Loading } from "../../components/ui";
+import { Card, ErrorMessage, Field, Loading, Switch } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { FinanceTabs } from "../../layout/CompanyTabs";
 import { formatMoment } from "../../time";
@@ -68,6 +68,81 @@ export function OrderAmountsText({ order }: { order: Order }) {
 const isLine = (op: Order["operations"][number]) =>
   op.type !== "sale" && op.type !== "service" && op.type !== "approval" && op.state !== "proposed";
 
+/** An order still open with nothing in it: no position, or cancelled ones only. */
+function isEmpty(order: Order) {
+  return (
+    ["preliminary", "open", "ready_to_close"].includes(order.state) &&
+    order.operations.every((op) => op.state === "cancelled" || op.state === "annulled")
+  );
+}
+
+/** Whether money stands in the order: charged or paid. Such an order is decided one by one. */
+function hasMoney(order: Order) {
+  return Object.values(order.amounts).some((a) => Number(a.charged) !== 0 || Number(a.paid) !== 0);
+}
+
+/** The orders without positions are cancelled at once, with one reason (customer's decision of
+ * 16.11.2026). Each is cancelled by the command of the order; those with money charged or paid
+ * are left to be opened one by one. Needs the right «Cancel orders». */
+function CancelEmpty({ orders }: { orders: Order[] }) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const can = useCan();
+  const queryClient = useQueryClient();
+  const [reason, setReason] = useState("");
+  const [pending, setPending] = useState(false);
+  const [failed, setFailed] = useState<number[]>([]);
+  const plain = orders.filter((order) => !hasMoney(order));
+  const withMoney = orders.length - plain.length;
+  if (!can("order.cancel") || orders.length === 0) return null;
+
+  async function run() {
+    setPending(true);
+    const refused: number[] = [];
+    for (const order of plain) {
+      try {
+        await api(`/c/${company.public_id}/orders/${order.id}/cancel`, {
+          method: "POST",
+          // The server looks again: an order that got a position meanwhile is left alone.
+          body: { reason, expected_version: order.version, only_if_empty: true },
+          idempotencyKey: crypto.randomUUID(),
+        });
+      } catch {
+        refused.push(order.number);
+      }
+    }
+    setFailed(refused);
+    setReason("");
+    setPending(false);
+    await queryClient.invalidateQueries({ queryKey: ["orders", company.public_id] });
+    await queryClient.invalidateQueries({ queryKey: ["order", company.public_id] });
+  }
+
+  return (
+    <Card>
+      <div className="row compact">
+        <div className="w-wide">
+          <Field label={t("orders.cancel_reason")}>
+            <input value={reason} onChange={(e) => setReason(e.target.value)} />
+          </Field>
+        </div>
+        <button
+          type="button"
+          className="danger beside-field"
+          disabled={pending || plain.length === 0 || !reason.trim()}
+          onClick={() => void run()}
+        >
+          {t("orders.cancel_empty", { count: plain.length })}
+        </button>
+      </div>
+      {withMoney ? <p className="muted small">{t("orders.cancel_empty_money", { count: withMoney })}</p> : null}
+      {failed.length ? (
+        <p className="alert error">{t("orders.cancel_empty_failed", { numbers: failed.map((n) => `№ ${n}`).join(", ") })}</p>
+      ) : null}
+    </Card>
+  );
+}
+
 /** Orders of the company (§ 12.2.3). */
 export function OrdersPage() {
   const { t, i18n } = useTranslation();
@@ -88,6 +163,10 @@ export function OrdersPage() {
   const orders = filtered ? found : all;
   const names = useClientNames(can("client.list"));
   const zone = company.timezone ?? "UTC";
+  // Orders left without positions — everything in them was cancelled — are found by a switch
+  // and cancelled at once (customer's decision of 16.11.2026).
+  const [emptyOnly, setEmptyOnly] = useState(false);
+  const listed = (orders.data?.orders ?? []).filter((order) => !emptyOnly || isEmpty(order));
 
   function apply(next: { q?: string; debt?: string }) {
     const merged = { q, debt, ...next };
@@ -100,7 +179,7 @@ export function OrdersPage() {
       <h1>{t("nav.orders")}</h1>
       {can("order.create") ? <NewOrder /> : null}
       <form
-        className="actions"
+        className="list-bar"
         role="search"
         onSubmit={(event: FormEvent) => {
           event.preventDefault();
@@ -113,18 +192,24 @@ export function OrdersPage() {
           onChange={(e) => setText(e.target.value)}
           placeholder={t("search.section_placeholder")}
           aria-label={t("search.section_placeholder")}
+          style={{ width: 280 }}
         />
         <select value={debt} onChange={(e) => apply({ debt: e.target.value })} aria-label={t("orders.filter_debt")}>
           <option value="">{t("orders.filter_all")}</option>
           <option value="any">{t("orders.filter_debt")}</option>
           <option value="overdue">{t("orders.filter_overdue")}</option>
         </select>
+        <Switch name={t("orders.filter_empty")} checked={emptyOnly} onChange={setEmptyOnly}>
+          {t("orders.filter_empty")}
+        </Switch>
       </form>
+      {emptyOnly ? <CancelEmpty orders={listed} /> : null}
       <Card>
         {orders.isLoading ? <Loading /> : null}
         <ErrorMessage error={orders.error as ApiError} />
         {orders.data?.orders.length === 0 ? <p className="muted">{t("orders.none")}</p> : null}
-        {orders.data?.orders.length ? (
+        {orders.data?.orders.length && listed.length === 0 ? <p className="muted">{t("orders.none_empty")}</p> : null}
+        {listed.length ? (
           <table>
             <thead>
               <tr>
@@ -136,7 +221,7 @@ export function OrdersPage() {
               </tr>
             </thead>
             <tbody>
-              {orders.data.orders.map((order) => (
+              {listed.map((order) => (
                 <tr key={order.id}>
                   <td>
                     <Link to={companyPath(company, `/orders/${order.id}`)}>№ {order.number}</Link>

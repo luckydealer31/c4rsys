@@ -24,6 +24,7 @@ import {
   placeText,
   type PlaceValue,
 } from "./IssueRules";
+import { OrderOffer, useOrderOffer } from "../orders/CancelWith";
 import { usePeriodCount } from "./period";
 
 type VehicleTariff = { id: string; name: string; currency: string; unit: string };
@@ -801,21 +802,31 @@ function CancelBooking({ rental, onDone }: FormProps) {
   const company = useCompany();
   const [reason, setReason] = useState("");
   const cancel = useCommand<Record<string, unknown>, RentalResponse>(bookingPath(company.public_id, rental, "cancel"));
+  // The only position of its order: the order is offered to be cancelled with it (decision of
+  // 16.11.2026). The services linked to the booking belong to it.
+  const linked = (rental.services ?? []).filter((line) => line.rental_id === rental.id).map((line) => line.id);
+  const offer = useOrderOffer(rental.order_id, [rental.id, ...linked]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (offer.wanted) {
+      // One command: the order cancels its booking by the same reason.
+      if (await offer.cancel(reason)) await onDone();
+      return;
+    }
     const result = await cancel.run({ reason, expected_version: rental.version });
     if (result) await onDone(result.rental);
   }
 
   return (
-    <form onSubmit={submit}>
+    <form onSubmit={submit} className="stack">
       <Field label={t("bookings.cancel_reason")}>
         <input value={reason} onChange={(e) => setReason(e.target.value)} />
       </Field>
-      <ErrorMessage error={cancel.error} />
+      <OrderOffer offer={offer} />
+      <ErrorMessage error={cancel.error ?? offer.error} />
       <div className="actions">
-        <button type="submit" className="danger" disabled={cancel.pending || !reason.trim()}>
+        <button type="submit" className="danger" disabled={cancel.pending || offer.pending || !reason.trim()}>
           {t("bookings.cancel")}
         </button>
       </div>

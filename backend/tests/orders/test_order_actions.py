@@ -261,6 +261,31 @@ def test_cancel_order_cancels_bookings_and_keeps_payments(owner: Client, s: Scen
     _book(owner, s, 1, 3)
 
 
+def test_orders_without_positions_are_cancelled_only_while_empty(
+    owner: Client, s: Scenario
+) -> None:
+    # Customer's decision of 16.11.2026: orders left without positions are found and cancelled
+    # at once; one that has a live position is refused, so it is not cancelled by mistake.
+    live = _book(owner, s, 1, 3)
+    order = _order(owner, s, live["order_id"])
+    refused = _action(owner, s, order, "cancel", reason="Empty", only_if_empty=True)
+    assert _code(refused) == "ORDER_NOT_EMPTY"
+    assert _rental(owner, s, live["id"])["state"] == "booked"
+
+    gone = post(
+        owner,
+        f"/api/c/{s.cmp}/bookings/{live['id']}/cancel",
+        {"reason": "Client changed plans", "expected_version": live["version"]},
+        key(),
+    )
+    assert gone.status_code == 200, gone.content
+    order = _order(owner, s, live["order_id"])
+    assert order["state"] != "cancelled"
+    cancelled = _action(owner, s, order, "cancel", reason="Empty", only_if_empty=True)
+    assert cancelled.status_code == 200, cancelled.content
+    assert cancelled.json()["order"]["state"] == "cancelled"
+
+
 def test_cancel_order_refuses_an_issued_rental(owner: Client, s: Scenario) -> None:
     rental = issue(owner, s).json()["rental"]
     order = _order(owner, s, rental["order_id"])

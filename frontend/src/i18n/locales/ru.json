@@ -1334,7 +1334,8 @@
     "issue_inspection_not_done": "Сначала проведите осмотр при выдаче.",
     "booking_not_rental": "Бронь сначала переводится в аренду, выдача делается из аренды.",
     "module_already_connected": "Это приложение уже включено.",
-    "order_currency_not_charged": "У заказа нет начислений в этой валюте."
+    "order_currency_not_charged": "У заказа нет начислений в этой валюте.",
+    "order_not_empty": "В заказе появились позиции — он не отменён."
   },
   "history": {
     "action": "Действие",
@@ -1638,7 +1639,15 @@
     "filter_debt": "С долгом",
     "filter_overdue": "Просроченный долг",
     "client_missing": "Клиент не указан",
-    "set_client": "Указать клиента"
+    "set_client": "Указать клиента",
+    "cancel_with": "Отменить и заказ № {{number}}",
+    "cancel_with_hint": "В заказе нет других позиций. Заказ отменится с той же причиной; внесённые деньги останутся переплатой клиента.",
+    "cancel_with_failed": "Заказ № {{number}} отменить не удалось — он остался открытым.",
+    "filter_empty": "Без позиций",
+    "none_empty": "Открытых заказов без позиций нет.",
+    "cancel_empty": "Отменить заказы без позиций: {{count}}",
+    "cancel_empty_money": "Заказы с начислениями или оплатой ({{count}}) не отменяются разом — откройте их по одному.",
+    "cancel_empty_failed": "Не удалось отменить: {{numbers}}."
   },
   "payments": {
     "account": "Касса или счёт",
@@ -2023,7 +2032,12 @@
     "open_inspection": "Открыть осмотр",
     "readings_from_inspection": "Показания из осмотра: одометр {{odometer}} {{unit}}, топливо {{fuel}}.",
     "inspection_planned": "запланирован",
-    "inspection_in_progress": "проводится"
+    "inspection_in_progress": "проводится",
+    "filter_both": "Аренды и брони",
+    "filter_all_locations": "Все локации",
+    "filter_from": "с",
+    "filter_to": "по",
+    "none_found": "По этим условиям ничего нет."
   },
   "rights": {
     "add": "Добавить права",

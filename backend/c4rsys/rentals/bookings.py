@@ -697,7 +697,8 @@ def _hold_auto_cancel(ctx: CommandContext, rental: Rental, found: list[dict[str,
 
 
 def cancel_no_shows(now: datetime | None = None) -> int:
-    """Cancels bookings whose auto-cancel moment has passed and that are not issued (§ 14.8.1).
+    """Cancels bookings whose auto-cancel moment has passed and that are not issued (§ 14.8.1);
+    an order left without positions is cancelled with its booking.
     Run on a schedule; returns how many were cancelled. Each cancellation is a system command:
     the journal names the process, a pending approval is withdrawn and the charge of the booking
     is recalculated as at a manual cancellation. A delivery on the way keeps the booking with a
@@ -724,7 +725,12 @@ def cancel_no_shows(now: datetime | None = None) -> int:
             if found:
                 _hold_auto_cancel(ctx, locked, found)
                 return 0
+            # The booking and the services linked to it are one position of the order: when
+            # nothing else is left in it, the order is cancelled too, with its services not
+            # started (customer's decision of 16.11.2026).
+            own = {locked.id, *extra_lines.linked_ids(locked.id)}
             cancel(ctx, locked.company_id, locked.id, "no_show", None, automatic=True)
+            orders.cancel_if_emptied(ctx, locked.company_id, locked.order_id, "no_show", own)
             return 1
 
         def work(company_id: UUID = booking.company_id, handler: Any = handler) -> int:

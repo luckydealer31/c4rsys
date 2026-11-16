@@ -1334,7 +1334,8 @@
     "issue_inspection_not_done": "โปรดตรวจสภาพตอนส่งมอบก่อน",
     "booking_not_rental": "ต้องเปลี่ยนการจองเป็นการเช่าก่อน แล้วจึงส่งมอบจากการเช่า",
     "module_already_connected": "แอปนี้เปิดใช้งานอยู่แล้ว",
-    "order_currency_not_charged": "คำสั่งซื้อไม่มียอดในสกุลเงินนี้"
+    "order_currency_not_charged": "คำสั่งซื้อไม่มียอดในสกุลเงินนี้",
+    "order_not_empty": "คำสั่งซื้อมีรายการแล้ว — ไม่ได้ยกเลิก"
   },
   "history": {
     "action": "Action",
@@ -1638,7 +1639,15 @@
     "filter_debt": "มีหนี้",
     "filter_overdue": "หนี้เกินกำหนด",
     "client_missing": "ยังไม่ระบุลูกค้า",
-    "set_client": "ระบุลูกค้า"
+    "set_client": "ระบุลูกค้า",
+    "cancel_with": "ยกเลิกคำสั่งซื้อเลขที่ {{number}} ด้วย",
+    "cancel_with_hint": "คำสั่งซื้อไม่มีรายการอื่น ระบบจะยกเลิกด้วยเหตุผลเดียวกัน เงินที่รับไว้จะเป็นยอดชำระเกินของลูกค้า",
+    "cancel_with_failed": "ยกเลิกคำสั่งซื้อเลขที่ {{number}} ไม่สำเร็จ — คำสั่งซื้อยังเปิดอยู่",
+    "filter_empty": "ไม่มีรายการ",
+    "none_empty": "ไม่มีคำสั่งซื้อที่เปิดอยู่และไม่มีรายการ",
+    "cancel_empty": "ยกเลิกคำสั่งซื้อที่ไม่มีรายการ: {{count}}",
+    "cancel_empty_money": "คำสั่งซื้อที่มียอดเรียกเก็บหรือการชำระเงิน ({{count}}) ไม่ถูกยกเลิกพร้อมกัน — โปรดเปิดทีละรายการ",
+    "cancel_empty_failed": "ยกเลิกไม่สำเร็จ: {{numbers}}"
   },
   "payments": {
     "account": "Cash desk or account",
@@ -2023,7 +2032,12 @@
     "open_inspection": "เปิดการตรวจสภาพ",
     "readings_from_inspection": "ค่าจากการตรวจสภาพ: เลขไมล์ {{odometer}} {{unit}}, น้ำมัน {{fuel}}",
     "inspection_planned": "วางแผนไว้",
-    "inspection_in_progress": "กำลังดำเนินการ"
+    "inspection_in_progress": "กำลังดำเนินการ",
+    "filter_both": "การเช่าและการจอง",
+    "filter_all_locations": "ทุกสาขา",
+    "filter_from": "ตั้งแต่",
+    "filter_to": "ถึง",
+    "none_found": "ไม่พบรายการตามเงื่อนไขนี้"
   },
   "rights": {
     "add": "Add rights",

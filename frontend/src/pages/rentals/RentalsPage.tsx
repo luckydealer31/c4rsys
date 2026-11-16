@@ -5,7 +5,7 @@ import { Link, useSearchParams } from "react-router";
 import type { Booking, Client, ExtraService, ServiceLine } from "../../api/types";
 import { useApi } from "../../api/queries";
 import { Icon } from "../../components/icons";
-import { Card, Loading } from "../../components/ui";
+import { Card, Loading, Switch } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { formatMoment } from "../../time";
 import { clientName } from "../clients/ClientsPage";
@@ -20,12 +20,6 @@ import { useRentals, useVehicles } from "../vehicles/VehiclesPage";
 // The list shows one kind at a time (customer's decision of 11.11.2026): rentals, bookings,
 // cancelled, or all. «Cancelled» covers cancelled bookings and annulled rentals alike.
 type Kind = "rentals" | "bookings" | "cancelled" | "all";
-const KINDS: Record<Kind, string[] | null> = {
-  rentals: ["active", "returned"],
-  bookings: ["booked", "proposed"],
-  cancelled: ["cancelled", "annulled"],
-  all: null,
-};
 // The order of the buttons (decision of 14.11.2026): all, rentals, bookings, cancelled.
 const ALL_KINDS: Kind[] = ["all", "rentals", "bookings", "cancelled"];
 // The same for the ordered services: in progress or done, booked, cancelled, all.
@@ -35,6 +29,10 @@ const SERVICE_KINDS: Record<Kind, string[] | null> = {
   cancelled: ["cancelled"],
   all: null,
 };
+
+// The list of rentals and bookings (decision of 16.11.2026): what is listed and how it is put.
+type ListKind = "all" | "rentals" | "bookings";
+const LIST_KINDS: ListKind[] = ["all", "rentals", "bookings"];
 
 function KindTabs({ value, onChange, first }: { value: Kind; onChange: (kind: Kind) => void; first: string }) {
   const { t } = useTranslation();
@@ -259,17 +257,45 @@ function RentalsList({ lines }: { lines: ServiceLine[] }) {
   const [waiting, setWaiting] = useState(false);
   const all = rentals.data?.rentals ?? [];
   const pending = all.filter((r) => r.issue_exception?.state === "pending");
-  const [kind, setKind] = useState<Kind>("all");
-  const states = KINDS[kind];
+  // What is listed (decision of 16.11.2026): rentals and bookings, rentals alone or bookings
+  // alone; the cancelled ones of either are switched on apart, off by itself.
+  const [kind, setKind] = useState<ListKind>("all");
+  const [cancelled, setCancelled] = useState(false);
+  const [locationId, setLocationId] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  // Put by the number of the order, the newest first; a click on the heading turns it over
+  // (decision of 17.11.2026: no list of sortings, no «Reset»).
+  const [desc, setDesc] = useState(true);
   // A rental created ahead of its issue is a rental, not a booking (decision of 15.11.2026).
   const awaiting = (r: { state: string; booking?: Booking | null }) => r.state === "booked" && Boolean(r.booking?.direct);
-  const shown = (waiting ? pending : all).filter(
-    (r) =>
-      states === null ||
-      (kind === "rentals" && awaiting(r)) ||
-      (states.includes(r.state) && !(kind === "bookings" && awaiting(r))),
-  );
+  // A booking stays a booking when it is cancelled; the same for a rental.
+  const isBooking = (r: { state: string; booking?: Booking | null }) =>
+    r.state === "proposed" || (["booked", "cancelled"].includes(r.state) && Boolean(r.booking) && !r.booking?.direct);
+  const startOf = (r: (typeof all)[number]) => r.actual_start ?? r.booking?.planned_start ?? null;
+  const zoneOf = (r: (typeof all)[number]) => zones.get(r.issue_location_id ?? "") ?? company.timezone ?? "UTC";
+  // The day of the start where the vehicle is issued, as the fields of the dates give it.
+  const dayOf = (r: (typeof all)[number]) => {
+    const start = startOf(r);
+    return start ? new Intl.DateTimeFormat("en-CA", { timeZone: zoneOf(r) }).format(new Date(start)) : "";
+  };
   const orders = useOrders();
+  const orderNumber = new Map((orders.data?.orders ?? []).map((o) => [o.id, o.number]));
+  const shown = (waiting ? pending : all)
+    .filter(
+      (r) =>
+        (kind === "all" || (kind === "bookings") === isBooking(r)) &&
+        (cancelled || !["cancelled", "annulled"].includes(r.state)) &&
+        (!locationId || r.issue_location_id === locationId) &&
+        (!from || dayOf(r) >= from) &&
+        (!to || (dayOf(r) !== "" && dayOf(r) <= to)),
+    )
+    .sort((a, b) => {
+      const [x, y] = [orderNumber.get(a.order_id) ?? 0, orderNumber.get(b.order_id) ?? 0];
+      // In one order — by the order of creation: the identifiers grow with time.
+      const order = x !== y ? x - y : a.id < b.id ? -1 : 1;
+      return desc ? -order : order;
+    });
   const amounts = new Map(
     (orders.data?.orders ?? []).map((o) => [
       o.id,
@@ -286,7 +312,34 @@ function RentalsList({ lines }: { lines: ServiceLine[] }) {
     <>
       <Card>
         <div className="list-bar">
-          <KindTabs value={kind} onChange={setKind} first={t("rentals.filter_rentals")} />
+          <div className="segmented" role="group">
+            {LIST_KINDS.map((key) => (
+              <button key={key} type="button" aria-pressed={kind === key} onClick={() => setKind(key)}>
+                {t(key === "all" ? "rentals.filter_both" : `rentals.filter_${key}`)}
+              </button>
+            ))}
+          </div>
+          <Switch name={t("rentals.filter_cancelled")} checked={cancelled} onChange={setCancelled}>
+            {t("rentals.filter_cancelled")}
+          </Switch>
+          {(locations.data?.locations.length ?? 0) > 1 ? (
+            <select value={locationId} aria-label={t("rentals.issue_location")} onChange={(e) => setLocationId(e.target.value)}>
+              <option value="">{t("rentals.filter_all_locations")}</option>
+              {(locations.data?.locations ?? []).map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
+                </option>
+              ))}
+            </select>
+          ) : null}
+          <label className="inline-field">
+            {t("rentals.filter_from")}
+            <input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} />
+          </label>
+          <label className="inline-field">
+            {t("rentals.filter_to")}
+            <input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} />
+          </label>
         </div>
         {pending.length || waiting ? (
           <label className="small">
@@ -296,10 +349,16 @@ function RentalsList({ lines }: { lines: ServiceLine[] }) {
         ) : null}
         {rentals.isLoading ? <Loading /> : null}
         {rentals.data?.rentals.length === 0 ? <p className="muted">{t("rentals.none")}</p> : null}
+        {all.length > 0 && shown.length === 0 ? <p className="muted">{t("rentals.none_found")}</p> : null}
         <div className="table-scroll">
         <table>
           <thead>
             <tr>
+              <th aria-sort={desc ? "descending" : "ascending"}>
+                <button type="button" className="link" style={{ whiteSpace: "nowrap" }} onClick={() => setDesc(!desc)}>
+                  {t("orders.order")} {desc ? "↓" : "↑"}
+                </button>
+              </th>
               <th>{t("rentals.vehicle")}</th>
               <th>{t("rentals.client")}</th>
               <th>{t("rentals.start")}</th>
@@ -312,13 +371,20 @@ function RentalsList({ lines }: { lines: ServiceLine[] }) {
           </thead>
           <tbody>
             {shown.map((rental) => {
-              const zone = zones.get(rental.issue_location_id ?? "") ?? company.timezone ?? "UTC";
+              const zone = zoneOf(rental);
               const booking = rental.booking;
               // A booking is shown with its planned period until the issue (§ 14.1).
               const start = rental.actual_start ?? booking?.planned_start ?? null;
               const end = rental.actual_end ?? (rental.state === "booked" ? rental.planned_end : null);
               return (
                 <tr key={rental.id}>
+                  <td>
+                    {orderNumber.has(rental.order_id) ? (
+                      <Link to={companyPath(company, `/orders/${rental.order_id}`)}>№ {orderNumber.get(rental.order_id)}</Link>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                   <td>
                     <Link to={companyPath(company, `/rentals/${rental.id}`)}>
                       {vehicleName.get(rental.vehicle_card_id) ?? "—"}

@@ -1082,6 +1082,11 @@ def _cancelled(
     charge_line(ctx, line, "cancelled")
 
 
+def linked_ids(rental_id: UUID) -> set[UUID]:
+    """The services linked to the rental: they belong to it as one position of the order."""
+    return set(ExtraServiceLine.objects.filter(rental_id=rental_id).values_list("id", flat=True))
+
+
 def cancel_for_order(ctx: CommandContext, company_id: UUID, order_id: UUID, reason: str) -> None:
     """With the whole order the services not started are cancelled; a started or completed one
     keeps the order from cancelling (§ 12.2.1). Linked services of cancelled bookings are already

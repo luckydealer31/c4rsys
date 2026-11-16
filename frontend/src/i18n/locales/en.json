@@ -1334,7 +1334,8 @@
     "issue_inspection_not_done": "Conduct the inspection at the issue first.",
     "booking_not_rental": "A booking is turned into a rental first; the issue is made from the rental.",
     "module_already_connected": "This application is already switched on.",
-    "order_currency_not_charged": "The order has no charges in this currency."
+    "order_currency_not_charged": "The order has no charges in this currency.",
+    "order_not_empty": "The order has positions now — it is not cancelled."
   },
   "history": {
     "action": "Action",
@@ -1638,7 +1639,15 @@
     "filter_debt": "With debt",
     "filter_overdue": "Overdue debt",
     "client_missing": "The client is not specified",
-    "set_client": "Set the client"
+    "set_client": "Set the client",
+    "cancel_with": "Cancel order No. {{number}} as well",
+    "cancel_with_hint": "The order has no other positions. It is cancelled with the same reason; money received stays as the client's overpayment.",
+    "cancel_with_failed": "Order No. {{number}} could not be cancelled — it stays open.",
+    "filter_empty": "Without positions",
+    "none_empty": "There are no open orders without positions.",
+    "cancel_empty": "Cancel orders without positions: {{count}}",
+    "cancel_empty_money": "Orders with charges or payments ({{count}}) are not cancelled at once — open them one by one.",
+    "cancel_empty_failed": "Could not be cancelled: {{numbers}}."
   },
   "payments": {
     "account": "Cash desk or account",
@@ -2023,7 +2032,12 @@
     "open_inspection": "Open the inspection",
     "readings_from_inspection": "Readings from the inspection: odometer {{odometer}} {{unit}}, fuel {{fuel}}.",
     "inspection_planned": "planned",
-    "inspection_in_progress": "in progress"
+    "inspection_in_progress": "in progress",
+    "filter_both": "Rentals and bookings",
+    "filter_all_locations": "All locations",
+    "filter_from": "from",
+    "filter_to": "to",
+    "none_found": "Nothing matches these conditions."
   },
   "rights": {
     "add": "Add rights",

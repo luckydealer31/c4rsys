@@ -37,6 +37,10 @@ test("a completed service is cancelled in its order", async ({ page }) => {
   await page.goto(`${s.base}/orders/${line.order_id}`);
   await page.getByRole("button", { name: t("services.settings"), exact: true }).click();
   await page.getByLabel(t("charges.cancel_reason"), { exact: true }).first().fill("по ошибке");
+  // The service is the only position of its order: the order is offered to be cancelled with
+  // it (decision of 16.11.2026), and is.
+  await expect(page.getByRole("switch", { name: /№/ })).toBeChecked();
   await page.getByRole("button", { name: t("services.cancel"), exact: true }).click();
   await expect(page.getByText(t("services.state_cancelled")).first()).toBeVisible();
+  await expect(page.getByText(t("orders.state_cancelled")).first()).toBeVisible();
 });
