@@ -10,3 +10,18 @@ The customer chose it for the menu item «Settings» (decision of 16.11.2026). T
 playing once is 0.25–2.1 s, as the page of the icon says.
 
 The license of the set is in `../gentleface/LICENSE.txt`.
+
+`bell-ring.svg` is the animated «bell» icon of Gentleface, downloaded unchanged from
+https://gentleface.com/motion/bell-ring.svg (page: https://gentleface.com/icons/bell). The
+customer chose it for the notifications in the header (decision of 16.11.2026). The part worth
+playing once is 0.2–1.5 s, as the page of the icon says.
+
+`package-open.svg` is the animated «package» icon of Gentleface, downloaded unchanged from
+https://gentleface.com/motion/package-open.svg (page: https://gentleface.com/icons/package).
+The customer chose it for the warehouse (decision of 16.11.2026). The part worth playing once
+is 0.25–2.7 s, as the page of the icon says.
+
+`wrench-turn.svg` is the animated «wrench» icon of Gentleface, downloaded unchanged from
+https://gentleface.com/motion/wrench-turn.svg (page: https://gentleface.com/icons/wrench). The
+customer chose it for the service (decision of 16.11.2026). The part worth playing once is
+0.25–3.1 s, as the page of the icon says.

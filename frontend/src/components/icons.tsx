@@ -64,16 +64,6 @@ const PATHS: Record<string, ReactNode> = {
       </text>
     </>
   ),
-  service: (
-    <path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.5-.5-.5-2.5z" />
-  ),
-  warehouse: (
-    <>
-      {/* A box (decision of 24.10.2026). */}
-      <path d="M21 8l-9-5-9 5v8l9 5 9-5z" />
-      <path d="M3 8l9 5 9-5M12 13v8M7.5 5.5l9 5" />
-    </>
-  ),
   garage: (
     <>
       {/* A car seen from the side (decision of 24.10.2026). */}
@@ -89,13 +79,6 @@ const PATHS: Record<string, ReactNode> = {
       {/* A sheet with a folded corner. */}
       <path d="M6 3h8l4 4v14H6z" />
       <path d="M14 3v4h4M9 12h6M9 16h6" />
-    </>
-  ),
-  bell: (
-    <>
-      {/* A bell of the notification centre. */}
-      <path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z" />
-      <path d="M10 20a2 2 0 0 0 4 0" />
     </>
   ),
   tasks: (
@@ -176,9 +159,16 @@ const PATHS: Record<string, ReactNode> = {
 const DOWNLOADED: Record<string, string> = { productivity: clipboardData };
 
 /** Animated icons of Gentleface: they play when the pointer comes to their menu item. The
- * wallet stands for "Finance" (decision of 11.11.2026), the gear for "Settings" (decision of
+ * wallet stands for "Finance" (decision of 11.11.2026), the gear for "Settings", the bell for
+ * the notifications, the box for the warehouse and the wrench for the service (decisions of
  * 16.11.2026). */
-const MOVING: Record<string, MotionName> = { finance: "wallet", settings: "settings" };
+const MOVING: Record<string, MotionName> = {
+  finance: "wallet",
+  settings: "settings",
+  bell: "bell",
+  warehouse: "box",
+  service: "wrench",
+};
 
 export type IconName = keyof typeof PATHS;
 
