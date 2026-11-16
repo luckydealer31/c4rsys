@@ -8,7 +8,7 @@ import type { Delivery, Vehicle, VehicleMove } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
-import { formatMoment, fromLocalInput, toLocalInput } from "../../time";
+import { formatMoment, fromLocalInput, toLocalInput, zoneShort } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
 
 /** Moves of the vehicle and recording a move that already happened, in one action: destination,
@@ -152,10 +152,10 @@ export function VehicleMoves({ vehicle }: { vehicle: Vehicle }) {
             </Field>
           </div>
           <div className="row">
-            <Field label={t("moves.actual_start")} hint={zone}>
+            <Field label={t("moves.actual_start")} hint={zoneShort(zone)} hintTitle={zone}>
               <input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} />
             </Field>
-            <Field label={t("moves.actual_end")} hint={zone}>
+            <Field label={t("moves.actual_end")} hint={zoneShort(zone)} hintTitle={zone}>
               <input type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} />
             </Field>
             <Field label={t("payments.note")}>

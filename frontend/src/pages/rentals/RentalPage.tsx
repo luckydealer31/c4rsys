@@ -9,7 +9,7 @@ import type { Client, InspectionView, JournalEntry, Rental, Warning } from "../.
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
-import { formatMoment, fromLocalInput, toLocalInput } from "../../time";
+import { formatMoment, fromLocalInput, toLocalInput, zoneShort } from "../../time";
 import { clientName } from "../clients/ClientsPage";
 import { JournalTable } from "../settings/EmployeesPage";
 import { useLocations } from "../settings/LocationsPage";
@@ -126,7 +126,7 @@ export function RentalPage() {
             <Link to={companyPath(company, `/orders/${current.order_id}`)}>{t("rentals.open_order")}</Link>
           </dd>
         </dl>
-        <p className="muted small">{t("rentals.time_zone", { zone })}</p>
+        <p className="muted small">{t("rentals.time_zone", { zone: zoneShort(zone) })}</p>
       </Card>
 
       {current.issue_exception && current.state !== "booked" ? (
@@ -326,7 +326,7 @@ function ReturnForm({ rental, onDone }: { rental: Rental; onDone: (next?: Rental
         ) : null}
       </div>
       <div className="row">
-        <Field label={t("rentals.actual_end")} hint={zone}>
+        <Field label={t("rentals.actual_end")} hint={zoneShort(zone)} hintTitle={zone}>
           <input type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} />
         </Field>
         <Field label={t("rentals.odometer", { unit: "" })} hint={t("rentals.readings_later")}>

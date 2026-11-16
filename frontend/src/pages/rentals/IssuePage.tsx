@@ -17,7 +17,7 @@ import type {
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, IconButton, Loading, Modal } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
-import { fromLocalInput, toLocalInput } from "../../time";
+import { fromLocalInput, toLocalInput, zoneShort } from "../../time";
 import { ClientForm, clientName } from "../clients/ClientsPage";
 import { useLocations } from "../settings/LocationsPage";
 import { unitShort } from "../tariffs/TariffsPage";
@@ -336,7 +336,7 @@ function IssueForm({
               </div>
             ) : null}
             <div className="row compact">
-              <Field label={t(converting ? "bookings.planned_start" : "rentals.actual_start")} hint={zone}>
+              <Field label={t(converting ? "bookings.planned_start" : "rentals.actual_start")} hint={zoneShort(zone)} hintTitle={zone}>
                 <input
                   type="datetime-local"
                   value={from}

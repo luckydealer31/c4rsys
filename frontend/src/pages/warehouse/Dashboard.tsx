@@ -8,6 +8,7 @@ import { Card, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { useCategoryName, usePartCategories } from "./Categories";
 import { useMoney, useQuantity } from "./Stock";
+import { zoneShort } from "../../time";
 
 type Unit = { id?: string; name: string; unit: string };
 type MoneyValue = { amount: string; incomplete: boolean };
@@ -103,7 +104,7 @@ export function WarehouseDashboard() {
         </div>
         {data ? (
           <p className="small muted">
-            {t("dashboard.scope", { warehouses: data.scope.warehouses.join(", ") || "—", zone: data.filters.time_zone })}
+            {t("dashboard.scope", { warehouses: data.scope.warehouses.join(", ") || "—", zone: zoneShort(data.filters.time_zone) })}
             {data.scope.partial ? ` · ${t("dashboard.partial")}` : ""}
           </p>
         ) : null}

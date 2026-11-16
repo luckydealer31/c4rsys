@@ -12,6 +12,7 @@ import { useLocations } from "../settings/LocationsPage";
 import { useServicePosts, useSystemWorks } from "../service/hooks";
 import { useTariffs } from "../tariffs/TariffsPage";
 import { useVehicles } from "../vehicles/VehiclesPage";
+import { zoneShort } from "../../time";
 
 export type ReportBlock = {
   code: string;
@@ -335,7 +336,7 @@ export function ReportView({ code, title }: { code: string; title: string }) {
       <FilterBar code={code} value={filters} onChange={setFilters} />
       {data ? (
         <p className="small muted">
-          {t("reports.applied", { start: data.filters.start, end: data.filters.end, zone: data.filters.zone })}
+          {t("reports.applied", { start: data.filters.start, end: data.filters.end, zone: zoneShort(data.filters.zone) })}
         </p>
       ) : null}
       <div className="actions no-print">

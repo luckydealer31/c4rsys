@@ -10,7 +10,7 @@ import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { workHome } from "../../layout/CompanyTabs";
-import { deviceTimeZone, formatMoment, fromLocalInput, toLocalInput } from "../../time";
+import { deviceTimeZone, formatMoment, fromLocalInput, toLocalInput, zoneShort } from "../../time";
 import { useOrders } from "../orders/OrdersPage";
 import { useLocations } from "../settings/LocationsPage";
 import { LinkedTasks } from "../tasks/TasksPage";
@@ -284,10 +284,10 @@ export function NewTripPage() {
             </Field>
           ) : null}
           <div className="row">
-            <Field label={t("trips.planned_start")} hint={zone}>
+            <Field label={t("trips.planned_start")} hint={zoneShort(zone)} hintTitle={zone}>
               <input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} />
             </Field>
-            <Field label={t("trips.planned_end")} hint={zone}>
+            <Field label={t("trips.planned_end")} hint={zoneShort(zone)} hintTitle={zone}>
               <input type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} />
             </Field>
             {can("delivery.assign") ? (
@@ -469,7 +469,7 @@ function PlannedActions({ d, own, zone }: { d: Delivery; own: boolean; zone: str
       {d.driver_id && (own || can("delivery.start")) ? (
         <Card title={t("trips.start")}>
           <div className="row">
-            <Field label={t("trips.actual_start")} hint={zone}>
+            <Field label={t("trips.actual_start")} hint={zoneShort(zone)} hintTitle={zone}>
               <input type="datetime-local" value={at} onChange={(e) => setAt(e.target.value)} />
             </Field>
             <div className="actions">
@@ -539,7 +539,7 @@ function RunningActions({ d, own, zone }: { d: Delivery; own: boolean; zone: str
     <>
       <Card title={t("trips.finish")}>
         <div className="row">
-          <Field label={t("trips.actual_end")} hint={zone}>
+          <Field label={t("trips.actual_end")} hint={zoneShort(zone)} hintTitle={zone}>
             <input type="datetime-local" value={at} onChange={(e) => setAt(e.target.value)} />
           </Field>
           <Field label={t("trips.result")}>
@@ -634,10 +634,10 @@ function Corrections({ d, zone }: { d: Delivery; zone: string }) {
       ) : null}
       {d.charged !== undefined && d.charged !== null ? <p className="small">{t("trips.charged", { amount: Number(d.charged), currency: d.currency ?? "" })}</p> : null}
       <div className="row">
-        <Field label={t("trips.actual_start")} hint={zone}>
+        <Field label={t("trips.actual_start")} hint={zoneShort(zone)} hintTitle={zone}>
           <input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} />
         </Field>
-        <Field label={t("trips.actual_end")} hint={zone}>
+        <Field label={t("trips.actual_end")} hint={zoneShort(zone)} hintTitle={zone}>
           <input type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} />
         </Field>
         {d.state === "completed" ? (

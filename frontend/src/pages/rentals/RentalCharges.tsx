@@ -5,7 +5,7 @@ import type { ManualCharge, Rental } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { ErrorMessage, Field } from "../../components/ui";
 import { useCan, useCompany } from "../../layout/CompanyShell";
-import { formatMoment, fromLocalInput, toLocalInput } from "../../time";
+import { formatMoment, fromLocalInput, toLocalInput, zoneShort } from "../../time";
 import { unitShort } from "../tariffs/TariffsPage";
 
 type Props = { rental: Rental; onDone: (next?: Rental) => Promise<void> };
@@ -88,7 +88,7 @@ export function FreeTime({ rental, onDone }: Props) {
       {editable ? (
         <form onSubmit={submit}>
           <div className="row">
-            <Field label={t("charges.free_start")} hint={zone}>
+            <Field label={t("charges.free_start")} hint={zoneShort(zone)} hintTitle={zone}>
               <input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} />
             </Field>
             <Field label={t("charges.free_by")}>
@@ -102,7 +102,7 @@ export function FreeTime({ rental, onDone }: Props) {
                 <input value={units} inputMode="numeric" onChange={(e) => setUnits(e.target.value.replace(/\D/g, ""))} />
               </Field>
             ) : (
-              <Field label={t("charges.free_end")} hint={zone}>
+              <Field label={t("charges.free_end")} hint={zoneShort(zone)} hintTitle={zone}>
                 <input type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} />
               </Field>
             )}

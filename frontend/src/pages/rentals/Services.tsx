@@ -19,7 +19,7 @@ import type {
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading, UnconfiguredConfirm } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
-import { currencies, formatMoment, fromLocalInput, toLocalInput } from "../../time";
+import { currencies, formatMoment, fromLocalInput, toLocalInput, zoneShort } from "../../time";
 import { clientName } from "../clients/ClientsPage";
 import { useLocations } from "../settings/LocationsPage";
 import { unitShort, useTariffs } from "../tariffs/TariffsPage";
@@ -394,10 +394,10 @@ function LineSettings({ line, onDone }: LineProps) {
             ) : null}
             {own ? (
               <>
-                <Field label={t("services.period_start")} hint={zone}>
+                <Field label={t("services.period_start")} hint={zoneShort(zone)} hintTitle={zone}>
                   <input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} />
                 </Field>
-                <Field label={t("services.period_end")} hint={zone}>
+                <Field label={t("services.period_end")} hint={zoneShort(zone)} hintTitle={zone}>
                   <input type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} />
                 </Field>
               </>
@@ -508,7 +508,7 @@ function LineFreeTime({ line, onDone }: LineProps) {
         }}
       >
         <div className="row">
-          <Field label={t("charges.free_start")} hint={zone}>
+          <Field label={t("charges.free_start")} hint={zoneShort(zone)} hintTitle={zone}>
             <input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} />
           </Field>
           <Field label={t("charges.free_units", { unit })}>
@@ -744,10 +744,10 @@ function StandaloneFields({
         ) : null}
         {chosen?.pricing === "time" ? (
           <>
-            <Field label={t("services.period_start")} hint={zone}>
+            <Field label={t("services.period_start")} hint={zoneShort(zone)} hintTitle={zone}>
               <input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} />
             </Field>
-            <Field label={t("services.period_end")} hint={zone}>
+            <Field label={t("services.period_end")} hint={zoneShort(zone)} hintTitle={zone}>
               <input type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} />
             </Field>
           </>

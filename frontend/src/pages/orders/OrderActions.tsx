@@ -8,7 +8,7 @@ import type { Client, Order, RentalProposal } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
-import { formatMoment, fromLocalInput, toLocalInput } from "../../time";
+import { formatMoment, fromLocalInput, toLocalInput, zoneShort } from "../../time";
 import { clientName } from "../clients/ClientsPage";
 import { useVehicleTariffs } from "../rentals/Booking";
 import { ClientFinder } from "../rentals/IssuePage";
@@ -320,10 +320,10 @@ export function RentalProposals({ order, onDone }: { order: Order; onDone: Done 
             </Field>
           </div>
           <div className="row">
-            <Field label={t("bookings.planned_start")} hint={zone}>
+            <Field label={t("bookings.planned_start")} hint={zoneShort(zone)} hintTitle={zone}>
               <input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} />
             </Field>
-            <Field label={t("rentals.planned_end")} hint={zone}>
+            <Field label={t("rentals.planned_end")} hint={zoneShort(zone)} hintTitle={zone}>
               <input type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} />
             </Field>
           </div>

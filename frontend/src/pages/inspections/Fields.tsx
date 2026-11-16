@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import type { Employee, Inspection } from "../../api/types";
 import { Field } from "../../components/ui";
-import { fromLocalInput, toLocalInput } from "../../time";
+import { fromLocalInput, toLocalInput, zoneShort } from "../../time";
 import { useContractors } from "../service/hooks";
 import { useEmployees } from "../settings/EmployeesPage";
 import { useLocations } from "../settings/LocationsPage";
@@ -137,7 +137,7 @@ export function DetailsFields({
   return (
     <div className="stack">
       {planned ? null : (
-        <Field label={t("inspections.performed_at")} hint={t("inspections.performed_at_hint", { zone })}>
+        <Field label={t("inspections.performed_at")} hint={t("inspections.performed_at_hint", { zone: zoneShort(zone) })}>
           <input
             type="datetime-local"
             max={now}

@@ -288,7 +288,7 @@ export function ClientForm({ onCreated }: { onCreated?: (client: Client) => void
     setDraft({ ...draft, [key]: e.target.value });
 
   return (
-    <Card title={t("clients.create_title")}>
+    <Card>
       <form className="stack" onSubmit={submit}>
         <Field label={t("clients.kind")}>
           <select value={draft.kind} onChange={set("kind")}>
@@ -354,7 +354,7 @@ export function ClientForm({ onCreated }: { onCreated?: (client: Client) => void
         <ErrorMessage error={create.error} />
         <div className="actions">
           <button type="submit" disabled={create.pending}>
-            {t("clients.create")}
+            {t("common.create")}
           </button>
         </div>
       </form>

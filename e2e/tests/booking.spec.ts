@@ -41,6 +41,13 @@ test("a booking is issued by its own screen", async ({ page }) => {
   // «Create a client» is offered at once, before anything is typed.
   await page.getByRole("combobox", { name: t("rentals.find_client") }).click();
   await expect(page.getByRole("button", { name: `+ ${t("rentals.new_client")}` })).toBeVisible();
+  // The window of a new client: one title, the button says «Create».
+  await page.getByRole("button", { name: `+ ${t("rentals.new_client")}` }).click();
+  const window = page.getByRole("dialog");
+  await expect(window.getByRole("heading", { name: t("clients.create_title") })).toHaveCount(1);
+  await expect(window.getByRole("button", { name: t("common.create"), exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.getByRole("combobox", { name: t("rentals.find_client") }).fill("Иван");
   await expect(page.getByRole("button", { name: /Иван Петров ·/ })).toBeVisible();
   await page.getByRole("button", { name: /Иван Петров ·/ }).click();

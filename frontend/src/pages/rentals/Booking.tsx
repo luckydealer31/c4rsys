@@ -9,7 +9,7 @@ import type { BookingConflict, Calculation, Client, Rental } from "../../api/typ
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, IconButton, Modal } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
-import { formatMoment, fromLocalInput, toLocalInput } from "../../time";
+import { formatMoment, fromLocalInput, toLocalInput, zoneShort } from "../../time";
 import { ClientForm, clientName } from "../clients/ClientsPage";
 import { useLocations } from "../settings/LocationsPage";
 import { unitShort } from "../tariffs/TariffsPage";
@@ -296,7 +296,7 @@ export function BookingPage({ mode = "booking" }: { mode?: "booking" | "rental" 
               </div>
             ) : null}
             <div className="row compact">
-              <Field label={t("bookings.planned_start")} hint={zone}>
+              <Field label={t("bookings.planned_start")} hint={zoneShort(zone)} hintTitle={zone}>
                 <input
                   type="datetime-local"
                   value={start}
@@ -632,10 +632,10 @@ function EditBooking({ rental, onDone }: FormProps) {
   return (
     <form onSubmit={submit}>
       <div className="row">
-        <Field label={t("bookings.planned_start")} hint={zone}>
+        <Field label={t("bookings.planned_start")} hint={zoneShort(zone)} hintTitle={zone}>
           <input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} />
         </Field>
-        <Field label={t("rentals.planned_end")} hint={zone}>
+        <Field label={t("rentals.planned_end")} hint={zoneShort(zone)} hintTitle={zone}>
           <input type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} />
         </Field>
       </div>
@@ -799,7 +799,7 @@ function AutoCancel({ rental, onDone }: FormProps) {
         void run(at ? fromLocalInput(at, zone) : null);
       }}
     >
-      <Field label={t("bookings.auto_cancel_at")} hint={zone}>
+      <Field label={t("bookings.auto_cancel_at")} hint={zoneShort(zone)} hintTitle={zone}>
         <input type="datetime-local" value={at} onChange={(e) => setAt(e.target.value)} />
       </Field>
       <ErrorMessage error={save.error} />

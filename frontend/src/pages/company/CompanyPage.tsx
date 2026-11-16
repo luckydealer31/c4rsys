@@ -7,8 +7,8 @@ import { Avatar } from "../../components/images";
 import { Card, IconButton, Modal } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { CompanyTabs } from "../../layout/CompanyTabs";
-import { useZoneLabel } from "../../components/TimeZoneSelect";
 import { CreateLocationForm, LocationsEditor } from "../settings/LocationsPage";
+import { zoneShort } from "../../time";
 
 /** Tab «About» of the company (decisions of 24.10.2026 and 14.11.2026): the company's card to
  * read on the left half — name, logo and the filled profile data only (§ 3.1.5), with small
@@ -18,7 +18,6 @@ export function CompanyPage() {
   const { t, i18n } = useTranslation();
   const company = useCompany();
   const can = useCan();
-  const zoneLabel = useZoneLabel();
   const navigate = useNavigate();
   const [adding, setAdding] = useState(false);
   const country = company.country
@@ -36,7 +35,8 @@ export function CompanyPage() {
     ...company.extra_phones.map((item): [string, string] => [item.label || t("company.phone"), item.number]),
     [t("company.email"), company.email],
     [t("company.website"), company.website],
-    [t("companies.timezone"), company.timezone ? zoneLabel(company.timezone) : ""],
+    // Shortly — «UTC+7»: the cities are for the choice of a zone, not for reading it.
+    [t("companies.timezone"), zoneShort(company.timezone)],
     [t("companies.main_currency"), company.main_currency ?? ""],
   ];
   // Only what is filled: no dashes for empty fields (decision of 14.11.2026).

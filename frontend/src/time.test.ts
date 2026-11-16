@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatOffset, timeZoneOptions, zoneOffsetMinutes } from "./time";
+import { formatOffset, timeZoneOptions, zoneOffsetMinutes, zoneShort } from "./time";
 
 describe("time zones with offsets", () => {
   it("computes the current offset, summer time included", () => {
@@ -29,5 +29,16 @@ describe("time zones with offsets", () => {
     );
     expect(options.find((o) => o.zone === "Asia/Kolkata")?.offset).toBe(330);
     expect(options.some((o) => o.zone === "Asia/Barnaul")).toBe(true);
+  });
+});
+
+describe("the short record of a zone", () => {
+  it("writes whole hours without minutes and keeps a half hour", () => {
+    const winter = new Date("2026-01-15T12:00:00Z");
+    expect(zoneShort("Asia/Bangkok", winter)).toBe("UTC+7");
+    expect(zoneShort("Asia/Kolkata", winter)).toBe("UTC+5:30");
+    expect(zoneShort("America/Sao_Paulo", winter)).toBe("UTC−3");
+    expect(zoneShort("UTC", winter)).toBe("UTC");
+    expect(zoneShort("", winter)).toBe("");
   });
 });

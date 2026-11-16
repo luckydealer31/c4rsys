@@ -25,6 +25,23 @@ export function formatOffset(minutes: number): string {
   return `UTC${sign}${hours}:${rest}`;
 }
 
+/** The short record of a zone where it is already chosen (decision of 16.11.2026): «UTC+7»,
+ * «UTC+5:30», «UTC−3», «UTC» — whole hours without minutes. The cities stay for the choice. */
+export function zoneShort(timeZone: string | null | undefined, at: Date = new Date()): string {
+  if (!timeZone) return "";
+  let minutes: number;
+  try {
+    minutes = zoneOffsetMinutes(timeZone, at);
+  } catch {
+    return timeZone;
+  }
+  if (!Number.isFinite(minutes)) return timeZone;
+  if (minutes === 0) return "UTC";
+  const abs = Math.abs(minutes);
+  const rest = abs % 60;
+  return `UTC${minutes < 0 ? "−" : "+"}${Math.floor(abs / 60)}${rest ? `:${String(rest).padStart(2, "0")}` : ""}`;
+}
+
 export type ZoneOption = { zone: string; offset: number; label: string };
 
 /** Offered time zones with their current offset from UTC, ordered by offset (decision of

@@ -575,6 +575,7 @@ function PreferencesCard({ user }: { user: User }) {
         </Field>
         <Field label={t("profile.timezone")} hint={t("profile.timezone_hint")}>
           <TimeZoneSelect
+            compact
             value={user.timezone || deviceTimeZone()}
             onChange={(timezone) => void change({ timezone })}
           />

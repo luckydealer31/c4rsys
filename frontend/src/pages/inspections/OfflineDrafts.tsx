@@ -46,7 +46,7 @@ import {
   type OfflineVehicle,
 } from "../../offline/hooks";
 import { isSessionLost, syncDraft, type SyncResult } from "../../offline/sync";
-import { formatMoment, fromLocalInput, toLocalInput } from "../../time";
+import { formatMoment, fromLocalInput, toLocalInput, zoneShort } from "../../time";
 import { useServiceOperations } from "../service/hooks";
 import { useRentals, useVehicles } from "../vehicles/VehiclesPage";
 import { APPLICATIONS, KINDS, KINDS_OF, stateBadge, usePositionName, useRefreshInspections } from "./data";
@@ -469,7 +469,7 @@ function NewDraftForm({
                 <input value={data.vehicleText} maxLength={60} onChange={(e) => set({ vehicleText: e.target.value })} />
               </Field>
             )}
-            <Field label={t("inspections.performed_at")} hint={t("inspections.performed_at_hint", { zone })}>
+            <Field label={t("inspections.performed_at")} hint={t("inspections.performed_at_hint", { zone: zoneShort(zone) })}>
               <input
                 type="datetime-local"
                 max={now}

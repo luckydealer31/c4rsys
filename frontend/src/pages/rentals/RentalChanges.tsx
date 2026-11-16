@@ -6,7 +6,7 @@ import type { Rental } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { ErrorMessage, Field } from "../../components/ui";
 import { useCan, useCompany } from "../../layout/CompanyShell";
-import { fromLocalInput, toLocalInput } from "../../time";
+import { fromLocalInput, toLocalInput, zoneShort } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
 
 type Done = (next?: Rental) => Promise<void>;
@@ -46,7 +46,7 @@ export function ExtendForm({ rental, onDone }: { rental: Rental; onDone: Done })
       <p className="muted small">{t("changes.extend_hint")}</p>
       {rental.overdue ? <p className="alert warn">{t("changes.overdue_cost")}</p> : null}
       <div className="row">
-        <Field label={t("changes.new_planned_end")} hint={zone}>
+        <Field label={t("changes.new_planned_end")} hint={zoneShort(zone)} hintTitle={zone}>
           <input type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} />
         </Field>
         <Field label={t("changes.consent_comment")}>
@@ -187,10 +187,10 @@ export function CorrectionForm({ rental, onDone }: { rental: Rental; onDone: Don
     <form onSubmit={submit}>
       <p className="alert warn">{t("changes.reopened")}</p>
       <div className="row">
-        <Field label={t("rentals.actual_start")} hint={zone}>
+        <Field label={t("rentals.actual_start")} hint={zoneShort(zone)} hintTitle={zone}>
           <input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} />
         </Field>
-        <Field label={t("rentals.actual_end")} hint={zone}>
+        <Field label={t("rentals.actual_end")} hint={zoneShort(zone)} hintTitle={zone}>
           <input type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} />
         </Field>
       </div>
