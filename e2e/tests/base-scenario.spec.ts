@@ -201,6 +201,14 @@ test("base example from registration to closing survives a restart", async ({ pa
   await page.getByRole("dialog").locator("form").getByRole("button", { name: t("common.cancel") }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
 
+  // The bell inside a company opens the notifications inside it: the menu of the company stays.
+  await page.getByRole("link", { name: t("notifications.title") }).click();
+  await expect(page).toHaveURL(new RegExp(`${base}/notifications$`));
+  // One company: no switch between «this company» and «all», only the list.
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(t("notifications.title"));
+  await expect(page.getByRole("button", { name: t("notifications.scope_this") })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: t("nav.rentals"), exact: true })).toBeVisible();
+
   // A rental from 3 days ago 10:00 to 1 day ago 10:00; issued with odometer 10 000, fuel 8.
   await page.goto(`${base}/rentals/new`);
   await choose(page.getByRole("combobox", { name: t("rentals.vehicle"), exact: true }), "Toyota Yaris");

@@ -4475,7 +4475,11 @@
     "event_company_system_unblocked": "การระงับบริษัทสิ้นสุดแล้ว",
     "rule_company_system_unblocked": "การคืนสถานะบริษัท",
     "event_account_system_unblocked": "การระงับบัญชีของคุณสิ้นสุดแล้ว",
-    "rule_account_system_unblocked": "การคืนสถานะบัญชี"
+    "rule_account_system_unblocked": "การคืนสถานะบัญชี",
+    "scope_this": "บริษัทนี้",
+    "scope_all": "ทุกบริษัท",
+    "read_all_here": "ทำเครื่องหมายว่าอ่านแล้วทั้งหมดในบริษัทนี้",
+    "other_company": "บริษัทอื่น: {{name}}"
   },
   "reports": {
     "metric_rental_issues_today": "การส่งมอบที่คาดว่าจะมีวันนี้",

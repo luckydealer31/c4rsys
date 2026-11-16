@@ -144,7 +144,8 @@ def notification_detail(request: HttpRequest, recipient_id: UUID) -> JsonRespons
 
 @require_POST
 def notification_read(request: HttpRequest) -> JsonResponse:
-    """`{ids: [...]}` or `{all: true}`: the user's own mark; it does not end the notification
+    """`{ids: [...]}` or `{all: true}`, the latter also with `company` (public id) for the
+    notifications of one company: the user's own mark; it does not end the notification
     (§ 20.3.3)."""
     import json
 
@@ -156,6 +157,11 @@ def notification_read(request: HttpRequest) -> JsonResponse:
     if not isinstance(data, dict):
         raise errors.validation_error("body")
     read_all = data.get("all") is True
+    # «All» of one company (decision of 16.11.2026): the centre opened inside a company marks
+    # only its notifications, not those of the other companies of the user.
+    of_company = data.get("company") or ""
+    if not isinstance(of_company, str):
+        raise errors.validation_error("company")
     ids = data.get("ids") or []
     if not read_all and (not isinstance(ids, list) or not ids or len(ids) > LIMIT):
         raise errors.validation_error("ids", code="FIELD_REQUIRED")
@@ -170,6 +176,8 @@ def notification_read(request: HttpRequest) -> JsonResponse:
         query = _mine(user.id).filter(read_at__isnull=True)
         if not read_all:
             query = query.filter(pk__in=chosen)
+        elif of_company:
+            query = query.filter(notification__company__public_id=of_company)
         marked = NotificationRecipient.objects.filter(
             pk__in=list(query.values_list("id", flat=True))
         ).update(read_at=timezone.now())
@@ -177,7 +185,7 @@ def notification_read(request: HttpRequest) -> JsonResponse:
             "notification.read",
             object_type="user_account",
             object_id=user.id,
-            after={"count": marked, "all": read_all},
+            after={"count": marked, "all": read_all, "company": of_company or None},
         )
         return CommandResult(200, {"marked": marked})
 
@@ -186,7 +194,7 @@ def notification_read(request: HttpRequest) -> JsonResponse:
             command="notification.read",
             actor=Actor(user_id=user.id, session_id=session.id),
             idempotency_key=idempotency_key(request),
-            payload={"ids": [str(x) for x in chosen], "all": read_all},
+            payload={"ids": [str(x) for x in chosen], "all": read_all, "company": of_company},
             handler=handler,
             request_id=get_request_id(request),
         )

@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 
 import { api } from "../../api/client";
 import { useApi } from "../../api/queries";
@@ -58,8 +58,11 @@ export function NotificationBell() {
     refetchInterval: 60_000,
   });
   const unread = count.data?.unread ?? 0;
+  // Inside a company the centre opens inside it: the menu of the company stays (decision of
+  // 16.11.2026). The number counts the unread of every company, so nothing is missed.
+  const inside = /^\/c\/([^/]+)/.exec(useLocation().pathname)?.[1];
   return (
-    <Link to="/notifications" className="bell" aria-label={t("notifications.title")} data-tip={t("notifications.title")}>
+    <Link to={inside ? `/c/${inside}/notifications` : "/notifications"} className="bell" aria-label={t("notifications.title")} data-tip={t("notifications.title")}>
       <Icon name="bell" size={22} />
       {unread ? <span className="bell-count">{unread > 99 ? "99+" : unread}</span> : null}
     </Link>
@@ -78,13 +81,17 @@ export function notificationText(t: (key: string, options?: Record<string, unkno
   return t(`notifications.event_${event}`, { ...n.params, defaultValue: n.event });
 }
 
-/** The notification centre of the user: every company, with filters (§ 20.1.5). */
-export function NotificationsPage() {
+/** The notification centre of the user: every company, with filters (§ 20.1.5). Opened inside
+ * a company (`current`) it shows that company, with a switch to all of them (decision of
+ * 16.11.2026). */
+export function NotificationsPage({ current = "" }: { current?: string }) {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const [kind, setKind] = useState("");
   const [state, setState] = useState("active");
-  const [company, setCompany] = useState("");
+  const [scope, setScope] = useState<"this" | "all">(current ? "this" : "all");
+  const [chosenCompany, setCompany] = useState("");
+  const company = scope === "this" ? current : chosenCompany;
   const [location, setLocation] = useState<{ id: string; name: string } | null>(null);
   const [contextType, setContextType] = useState("");
   const [from, setFrom] = useState("");
@@ -94,6 +101,7 @@ export function NotificationsPage() {
     queryKey: ["companies"],
     queryFn: async () => (await api<{ companies: CompanySummary[] }>("/companies")).companies,
   });
+  const several = (companies.data ?? []).length > 1;
   const query = [
     kind && `kind=${kind}`,
     state && `state=${state}`,
@@ -120,6 +128,16 @@ export function NotificationsPage() {
   return (
     <div className="page">
       <h1>{t("notifications.title")}</h1>
+      {/* With one company there is nothing to switch between: only the list. */}
+      {current && several ? (
+        <div className="segmented" role="group" style={{ marginBottom: 16 }}>
+          {(["this", "all"] as const).map((key) => (
+            <button key={key} type="button" aria-pressed={scope === key} onClick={() => setScope(key)}>
+              {t(`notifications.scope_${key}`)}
+            </button>
+          ))}
+        </div>
+      ) : null}
       <div className="row">
         <Field label={t("notifications.kind")}>
           <select value={kind} onChange={(e) => setKind(e.target.value)}>
@@ -138,16 +156,18 @@ export function NotificationsPage() {
             <option value="done">{t("notifications.state_done")}</option>
           </select>
         </Field>
-        <Field label={t("notifications.company")}>
-          <select value={company} onChange={(e) => setCompany(e.target.value)}>
-            <option value="">{t("notifications.all")}</option>
-            {(companies.data ?? []).map((c) => (
-              <option key={c.public_id} value={c.public_id}>
-                {c.display_name}
-              </option>
-            ))}
-          </select>
-        </Field>
+        {scope === "all" ? (
+          <Field label={t("notifications.company")}>
+            <select value={chosenCompany} onChange={(e) => setCompany(e.target.value)}>
+              <option value="">{t("notifications.all")}</option>
+              {(companies.data ?? []).map((c) => (
+                <option key={c.public_id} value={c.public_id}>
+                  {c.display_name}
+                </option>
+              ))}
+            </select>
+          </Field>
+        ) : null}
         <Field label={t("notifications.location")}>
           <select
             value={location?.id ?? ""}
@@ -182,8 +202,8 @@ export function NotificationsPage() {
         <input type="checkbox" checked={unread} onChange={() => setUnread(!unread)} /> {t("notifications.only_unread")}
       </label>
       <div className="actions">
-        <button type="button" className="secondary" disabled={read.pending} onClick={() => void read.run({ all: true }).then((r) => (r ? refresh() : undefined))}>
-          {t("notifications.read_all")}
+        <button type="button" className="secondary" disabled={read.pending} onClick={() => void read.run({ all: true, ...(scope === "this" ? { company: current } : {}) }).then((r) => (r ? refresh() : undefined))}>
+          {t(scope === "this" && several ? "notifications.read_all_here" : "notifications.read_all")}
         </button>
       </div>
       <ErrorMessage error={read.error} />
@@ -198,7 +218,11 @@ export function NotificationsPage() {
               <span className={`badge ${n.kind === "warning" || n.kind === "action" ? "warn" : ""}`}>{t(`notifications.kind_${n.kind}`)}</span>{" "}
               {path ? <Link to={`/c/${n.company.public_id}${path}${n.object_id}`}>{text}</Link> : text}
               <div className="muted" style={{ fontWeight: 400 }}>
-                {n.company.name}
+                {current && n.company.public_id !== current ? (
+                  <span className="badge">{t("notifications.other_company", { name: n.company.name })}</span>
+                ) : (
+                  n.company.name
+                )}
                 {n.location ? ` · ${n.location.name}` : ""}
                 {n.context ? ` · ${t(`contexts.${n.context.type}`)}` : ""} · {when(n.last_at)}
                 {n.repeats ? ` · ${t("notifications.repeats", { count: n.repeats })}` : ""}

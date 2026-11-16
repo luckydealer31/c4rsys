@@ -4475,7 +4475,11 @@
     "event_company_system_unblocked": "The block of the company has ended",
     "rule_company_system_unblocked": "Restoration of the company",
     "event_account_system_unblocked": "The block of your account has ended",
-    "rule_account_system_unblocked": "Restoration of the account"
+    "rule_account_system_unblocked": "Restoration of the account",
+    "scope_this": "This company",
+    "scope_all": "All companies",
+    "read_all_here": "Mark all of this company as read",
+    "other_company": "another company: {{name}}"
   },
   "reports": {
     "metric_rental_issues_today": "Issues expected today",

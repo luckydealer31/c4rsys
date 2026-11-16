@@ -122,6 +122,9 @@ def test_read_all_and_filters(owner: Client, s: Scenario) -> None:
     assert _unread(mechanic) == 2
     assert len(_mine(mechanic, f"company={s.cmp}&kind=info")) == 2
     assert _mine(mechanic, "company=CMP-NONE") == []
-    post(mechanic, "/api/notifications/read", {"all": True}, key())
+    # «All» of one company only (decision of 16.11.2026): another company leaves them unread.
+    post(mechanic, "/api/notifications/read", {"all": True, "company": "CMP-NONE"}, key())
+    assert _unread(mechanic) == 2
+    post(mechanic, "/api/notifications/read", {"all": True, "company": s.cmp}, key())
     assert _unread(mechanic) == 0
     assert _mine(mechanic, "unread=1") == []

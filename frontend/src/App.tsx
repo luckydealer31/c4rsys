@@ -17,6 +17,7 @@ import { CompanyShell } from "./layout/CompanyShell";
 import { ProfilePage } from "./pages/account/ProfilePage";
 import { LoginPage } from "./pages/auth/LoginPage";
 import { RecoveryPasswordPage, RecoveryRequestPage } from "./pages/auth/RecoveryPage";
+import { CompanyNotificationsPage } from "./pages/notifications/CompanyNotifications";
 import { NotificationsPage } from "./pages/notifications/NotificationsPage";
 import { SignByLinkPage } from "./pages/documents/Signing";
 import { RegisterPage } from "./pages/auth/RegisterPage";
@@ -211,6 +212,7 @@ function MainApp({ cabinet }: { cabinet: boolean }) {
         <Route path="service" element={<ServicePage />} />
         <Route path="trips" element={<TripsPage />} />
         <Route path="tasks" element={<TasksPage />} />
+        <Route path="notifications" element={<CompanyNotificationsPage />} />
         <Route path="tasks/:id" element={<TaskPage />} />
         <Route path="documents" element={<DocumentsPage />} />
         <Route path="documents/templates" element={<TemplatesPage />} />

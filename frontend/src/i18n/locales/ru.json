@@ -4475,7 +4475,11 @@
     "event_company_system_unblocked": "Блокировка компании завершена",
     "rule_company_system_unblocked": "Восстановление компании",
     "event_account_system_unblocked": "Блокировка вашего аккаунта завершена",
-    "rule_account_system_unblocked": "Восстановление аккаунта"
+    "rule_account_system_unblocked": "Восстановление аккаунта",
+    "scope_this": "Эта компания",
+    "scope_all": "Все компании",
+    "read_all_here": "Отметить все прочитанными в этой компании",
+    "other_company": "другая компания: {{name}}"
   },
   "reports": {
     "metric_rental_issues_today": "Ожидаемые сегодня выдачи (брони на сегодня)",
