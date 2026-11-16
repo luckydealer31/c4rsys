@@ -1658,13 +1658,10 @@
     "unallocated": "не распределён",
     "when": "Дата и время",
     "without_order": "Без заказа",
-    "order_currency": "Заказ в {{currency}}; осталось оплатить {{amount}} {{currency}}.",
-    "settles": "Погасит ≈ {{amount}} {{currency}} по заказу.",
     "pay": "Внести оплату",
     "client_first": "Сначала укажите клиента: принимать деньги не от кого.",
     "settle_currency": "В счёт начислений",
-    "settle_option": "{{currency}} · к оплате {{amount}}",
-    "left_after": "Останется к оплате {{amount}} {{currency}}."
+    "settle_option": "{{currency}} · к оплате {{amount}}"
   },
   "permissions": {
     "client_create": "Создавать клиентов",
@@ -3295,7 +3292,9 @@
     "enter_manual": "Введите курс вручную.",
     "no_right": "Без права менять курс операцию провести нельзя — отложите её.",
     "manual": "Курс: 1 {{from}} = … {{to}}",
-    "manual_hint": "Оставьте пустым, чтобы применить предложенный курс."
+    "manual_hint": "Оставьте пустым, чтобы применить предложенный курс.",
+    "rate": "Курс",
+    "equivalent": "Сумма, {{currency}}"
   },
   "settlements": {
     "clients_title": "Клиенты: долги и авансы",

@@ -1,6 +1,6 @@
 import { expect, test, type Locator } from "@playwright/test";
 
-import { bangkok, createCompany, registerUser, uniqueEmail, waitForServer } from "../lib/api";
+import { bangkok, createCompany, ok, registerUser, uniqueEmail, waitForServer } from "../lib/api";
 import { t } from "../lib/i18n";
 
 // Audit item 41: a booking made in the interface and the issue by that booking (§ 14.1, § 14.4.1).
@@ -71,12 +71,31 @@ test("a booking is issued by its own screen", async ({ page }) => {
   await services.getByRole("button", { name: t("common.cancel"), exact: true }).click();
   await expect(services.getByRole("button", { name: t("services.add"), exact: true })).toBeVisible();
   // The payment has a button of its own beside the calculation; it opens in a window.
+  // An account in another currency: the payment is typed in its currency; the rate and the
+  // equivalent in the currency of the charges are two fields, and either follows the other.
+  await ok(page, "POST", `/c/${s.cmp}/cash-accounts`, { name: "Bank USD", type: "cash", currency: "USD" });
+  await page.reload();
   await page.getByRole("button", { name: t("payments.pay"), exact: true }).click();
   const payment = page.getByRole("dialog");
   await expect(payment.getByRole("heading", { name: t("payments.receive_title") })).toHaveCount(1);
-  await expect(payment.getByRole("button", { name: t("payments.receive"), exact: true })).toBeVisible();
-  await page.keyboard.press("Escape");
+  await payment.getByLabel(t("payments.amount", { currency: "USD" })).fill("100");
+  const rate = payment.getByLabel(t("rates.rate"), { exact: true });
+  const equivalent = payment.getByLabel(t("rates.equivalent", { currency: "THB" }), { exact: true });
+  await rate.fill("36.5");
+  await expect(equivalent).toHaveValue("3650.00");
+  await equivalent.fill("3700");
+  await expect(rate).toHaveValue("37");
+  // The amount, the rate and the equivalent stand in one line of a wider window.
+  const tops = await Promise.all(
+    [payment.getByLabel(t("payments.amount", { currency: "USD" })), rate, equivalent].map(
+      async (field) => (await field.boundingBox())?.y,
+    ),
+  );
+  expect(new Set(tops).size).toBe(1);
+  await payment.getByRole("button", { name: t("payments.receive"), exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
+  // 100 USD by 37 settle 3 700 THB of the 1 000 owed: the order shows what was paid.
+  await expect(page.locator("section.card", { hasText: t("bookings.paid") })).toContainText("3700.00 THB");
 
   // A booking is not issued by itself: it is turned into a rental, which starts from what the
   // booking has — vehicle, tariff, client. No readings are asked at that moment.

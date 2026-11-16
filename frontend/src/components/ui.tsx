@@ -141,12 +141,15 @@ export function Modal({
   onClose,
   children,
   wide = false,
+  roomy = false,
 }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
   /** For a picture or a page of a document: as wide as the screen allows. */
   wide?: boolean;
+  /** For a form with three fields in a line. */
+  roomy?: boolean;
 }) {
   const { t } = useTranslation();
   const ref = useRef<HTMLDialogElement>(null);
@@ -158,7 +161,7 @@ export function Modal({
   return (
     <dialog
       ref={ref}
-      className={wide ? "modal modal-wide" : "modal"}
+      className={wide ? "modal modal-wide" : roomy ? "modal modal-roomy" : "modal"}
       aria-label={title}
       onCancel={(event) => {
         event.preventDefault();

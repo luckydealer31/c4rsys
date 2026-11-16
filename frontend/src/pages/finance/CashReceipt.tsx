@@ -9,7 +9,7 @@ import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Info, Modal } from "../../components/ui";
 import { useCan, useCompany } from "../../layout/CompanyShell";
 import { useCashAccounts } from "./FinancePage";
-import { RateField, effectiveRate, useRateSuggestion } from "./Rates";
+import { RateAmount, effectiveRate, useRateSuggestion } from "./Rates";
 
 export function usePayments(q = "") {
   const company = useCompany();
@@ -74,8 +74,10 @@ export function CashReceipt({
   const rentalId = order?.operations.find((o) => o.type === "rental")?.id;
   const due = Number(remainder) > 0 ? Number(remainder) : 0;
   const amountValue = amount ?? (due > 0 ? due.toFixed(2) : "");
-  const allocationValue = allocation ?? (Number(remainder) > 0 ? remainder : amount !== null ? amount : "");
-  const settles = exchange && rate && allocationValue ? (Number(allocationValue) * Number(rate)).toFixed(2) : "";
+  // In a window opened for this order the whole payment goes to it: no field of its own.
+  const allocationValue = bare
+    ? amountValue
+    : (allocation ?? (Number(remainder) > 0 ? remainder : amount !== null ? amount : ""));
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -109,11 +111,26 @@ export function CashReceipt({
     }
   }
 
+  const amountFields = (
+    <>
+      <Field label={t("payments.amount", { currency: account?.currency ?? "" })}>
+        <input value={amountValue} inputMode="decimal" onChange={(e) => setAmount(e.target.value)} />
+      </Field>
+      {order && !bare ? (
+        <Field label={t("payments.allocation", { number: order.number })} hint={t("payments.allocation_hint")}>
+          <input value={allocationValue} inputMode="decimal" onChange={(e) => setAllocation(e.target.value)} />
+        </Field>
+      ) : null}
+    </>
+  );
   const Frame = bare ? Bare : Card;
   return (
     <Frame title={t("payments.receive_title")}>
       {usable.length === 0 ? <p className="muted">{t("payments.no_accounts")}</p> : null}
-      <form onSubmit={submit}>
+      <form className="stack" onSubmit={submit}>
+        {/* The account and what the money settles in one line; below, in one line again, the
+            amount, the rate and the amount in the currency of the charges — either of the last
+            two may be changed (decisions of 16.11.2026). No notes around them. */}
         <div className="row">
           <Field label={t("payments.account")}>
             <select value={account?.id ?? ""} onChange={(e) => setAccountId(e.target.value)}>
@@ -123,9 +140,6 @@ export function CashReceipt({
                 </option>
               ))}
             </select>
-          </Field>
-          <Field label={t("payments.amount", { currency: account?.currency ?? "" })}>
-            <input value={amountValue} inputMode="decimal" onChange={(e) => setAmount(e.target.value)} />
           </Field>
           {order && orderCurrencies.length > 1 ? (
             <Field label={t("payments.settle_currency")}>
@@ -146,34 +160,19 @@ export function CashReceipt({
               </select>
             </Field>
           ) : null}
-          {order ? (
-            <Field label={t("payments.allocation", { number: order.number })} hint={t("payments.allocation_hint")}>
-              <input value={allocationValue} inputMode="decimal" onChange={(e) => setAllocation(e.target.value)} />
-            </Field>
-          ) : null}
         </div>
         {exchange && order && account && orderCurrency ? (
-          <>
-            <p className="muted">
-              {t("payments.order_currency", {
-                currency: orderCurrency,
-                amount: order.amounts[orderCurrency]?.to_pay ?? "0",
-              })}
-            </p>
-            <RateField from={account.currency} to={orderCurrency} manual={manualRate} onManual={setManualRate} />
-            {settles ? (
-              <p>
-                {t("payments.settles", { amount: settles, currency: orderCurrency })}
-                {Number(owed) > 0
-                  ? ` ${t("payments.left_after", {
-                      amount: Math.max(Number(owed) - Number(settles), 0).toFixed(2),
-                      currency: orderCurrency,
-                    })}`
-                  : ""}
-              </p>
-            ) : null}
-          </>
-        ) : null}
+          <RateAmount
+            lead={amountFields}
+            from={account.currency}
+            to={orderCurrency}
+            amount={allocationValue}
+            manual={manualRate}
+            onManual={setManualRate}
+          />
+        ) : (
+          <div className="row">{amountFields}</div>
+        )}
         <div className="row">
           <Field label={t("payments.note")}>
             <input value={note} onChange={(e) => setNote(e.target.value)} />
@@ -185,7 +184,7 @@ export function CashReceipt({
             {t("payments.received", { number: done.number, amount: done.amount, currency: done.currency })}
           </div>
         ) : null}
-        <div className="actions">
+        <div className={bare ? "actions end" : "actions"}>
           <button type="submit" disabled={receive.pending || !account || !amountValue || (exchange && !rate)}>
             {t("payments.receive")}
           </button>
@@ -233,7 +232,7 @@ export function PaymentButton({
         {t("payments.pay")}
       </button>
       {open && clientId ? (
-        <Modal title={t("payments.receive_title")} onClose={() => setOpen(false)}>
+        <Modal roomy title={t("payments.receive_title")} onClose={() => setOpen(false)}>
           {order.data ? (
             <CashReceipt
               bare
@@ -286,7 +285,7 @@ export function DepositButton({
         </button>
       </div>
       {open && clientId ? (
-        <Modal title={t("deposit.pay")} onClose={() => setOpen(false)}>
+        <Modal roomy title={t("deposit.pay")} onClose={() => setOpen(false)}>
           <DepositReceipt
             rentalId={rentalId}
             clientId={clientId}
@@ -349,10 +348,14 @@ function DepositReceipt({
     }
   }
 
+  const amountField = (
+    <Field label={t("deposit.pay_amount", { currency: account?.currency ?? "" })}>
+      <input value={amountValue} inputMode="decimal" onChange={(e) => setAmount(e.target.value)} />
+    </Field>
+  );
   return (
-    <form onSubmit={submit}>
+    <form className="stack" onSubmit={submit}>
       {usable.length === 0 ? <p className="muted">{t("payments.no_accounts")}</p> : null}
-      <p className="muted small">{t("deposit.pay_hint")}</p>
       <div className="row">
         <Field label={t("payments.account")}>
           <select value={account?.id ?? ""} onChange={(e) => setAccountId(e.target.value)}>
@@ -363,20 +366,27 @@ function DepositReceipt({
             ))}
           </select>
         </Field>
-        <Field label={t("deposit.pay_amount", { currency: account?.currency ?? "" })}>
-          <input value={amountValue} inputMode="decimal" onChange={(e) => setAmount(e.target.value)} />
-        </Field>
       </div>
       {exchange && account ? (
-        <RateField from={account.currency} to={deposit.currency} manual={manualRate} onManual={setManualRate} />
-      ) : null}
+        <RateAmount
+          lead={amountField}
+          from={account.currency}
+          to={deposit.currency}
+          amount={amountValue}
+          manual={manualRate}
+          onManual={setManualRate}
+        />
+      ) : (
+        <div className="row">{amountField}</div>
+      )}
       <div className="row">
         <Field label={t("payments.note")}>
           <input value={note} onChange={(e) => setNote(e.target.value)} />
         </Field>
       </div>
       <ErrorMessage error={receive.error} />
-      <div className="actions">
+      <div className="actions end">
+        <Info text={t("deposit.pay_hint")} />
         <button type="submit" disabled={receive.pending || !account || !amountValue || (exchange && !rate)}>
           {t("deposit.pay")}
         </button>

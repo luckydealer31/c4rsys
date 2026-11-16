@@ -1658,13 +1658,10 @@
     "unallocated": "not allocated",
     "when": "Date and time",
     "without_order": "Without an order",
-    "order_currency": "คำสั่งเป็น {{currency}} ค้างชำระ {{amount}} {{currency}}",
-    "settles": "ชำระคำสั่ง ≈ {{amount}} {{currency}}",
     "pay": "รับชำระเงิน",
     "client_first": "โปรดระบุลูกค้าก่อน: ยังไม่มีผู้ชำระเงิน",
     "settle_currency": "ชำระยอดในสกุลเงิน",
-    "settle_option": "{{currency}} · ค้างชำระ {{amount}}",
-    "left_after": "คงเหลือที่ต้องชำระ {{amount}} {{currency}}"
+    "settle_option": "{{currency}} · ค้างชำระ {{amount}}"
   },
   "permissions": {
     "client_create": "Create clients",
@@ -3295,7 +3292,9 @@
     "enter_manual": "กรอกอัตราเอง",
     "no_right": "หากไม่มีสิทธิ์เปลี่ยนอัตรา ไม่สามารถบันทึกรายการได้ ให้เลื่อนออกไป",
     "manual": "อัตรา: 1 {{from}} = … {{to}}",
-    "manual_hint": "เว้นว่างเพื่อใช้อัตราที่เสนอ"
+    "manual_hint": "เว้นว่างเพื่อใช้อัตราที่เสนอ",
+    "rate": "อัตราแลกเปลี่ยน",
+    "equivalent": "จำนวนเงิน, {{currency}}"
   },
   "settlements": {
     "clients_title": "ลูกค้า: หนี้และเงินล่วงหน้า",
