@@ -1,16 +1,19 @@
 import { useEffect, useRef } from "react";
 
+import settings from "./settings-ratchet.svg?raw";
 import wallet from "./wallet-fill.svg?raw";
 
 /** Animated icons from Gentleface (https://gentleface.com, MIT licensed), kept as downloaded:
  * native SVG animation, no script. The drawing rests on its first frame and plays once when the
  * pointer comes to the link or the button it stands in, or when that gets the focus (customer's
  * decision of 11.11.2026). People who ask for reduced motion get the still drawing. */
-const DRAWINGS = { wallet } as const;
+const DRAWINGS = { wallet, settings } as const;
 // The part of the loop worth showing once, in seconds — as the source of the icon advises.
-const PLAY = { wallet: [0.18, 2.5] } as const;
+const PLAY = { wallet: [0.18, 2.5], settings: [0.25, 2.1] } as const;
 
-export function MotionIcon({ name, size = 20 }: { name: keyof typeof DRAWINGS; size?: number }) {
+export type MotionName = keyof typeof DRAWINGS;
+
+export function MotionIcon({ name, size = 20 }: { name: MotionName; size?: number }) {
   const ref = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     const span = ref.current;

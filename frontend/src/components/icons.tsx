@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 import clipboardData from "./gentleface/clipboard-data.svg?raw";
-import { MotionIcon } from "./motion/MotionIcon";
+import { MotionIcon, type MotionName } from "./motion/MotionIcon";
 
 /** Line icons of the interface (24×24, stroke = current color). Drawn here to avoid a
  * dependency; the set is a PROPOSAL until a design exists. */
@@ -113,12 +113,6 @@ const PATHS: Record<string, ReactNode> = {
       <path d="M8.5 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.5" />
     </>
   ),
-  settings: (
-    <>
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
-    </>
-  ),
   invitations: (
     <>
       <rect x="3" y="5" width="18" height="14" rx="2" />
@@ -181,11 +175,16 @@ const PATHS: Record<string, ReactNode> = {
  * for the menu item "Productivity" (decision of 16.11.2026). */
 const DOWNLOADED: Record<string, string> = { productivity: clipboardData };
 
+/** Animated icons of Gentleface: they play when the pointer comes to their menu item. The
+ * wallet stands for "Finance" (decision of 11.11.2026), the gear for "Settings" (decision of
+ * 16.11.2026). */
+const MOVING: Record<string, MotionName> = { finance: "wallet", settings: "settings" };
+
 export type IconName = keyof typeof PATHS;
 
 export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
-  // «Finance» is the animated wallet: it plays when the pointer comes to its menu item.
-  if (name === "finance") return <MotionIcon name="wallet" size={size} />;
+  const moving = MOVING[name];
+  if (moving) return <MotionIcon name={moving} size={size} />;
   const downloaded = DOWNLOADED[name];
   if (downloaded) {
     const markup = downloaded.replace(
