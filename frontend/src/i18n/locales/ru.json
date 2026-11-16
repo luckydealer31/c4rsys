@@ -4479,7 +4479,8 @@
     "scope_this": "Эта компания",
     "scope_all": "Все компании",
     "read_all_here": "Отметить все прочитанными в этой компании",
-    "other_company": "другая компания: {{name}}"
+    "other_company": "другая компания: {{name}}",
+    "open_all": "Открыть все"
   },
   "reports": {
     "metric_rental_issues_today": "Ожидаемые сегодня выдачи (брони на сегодня)",

@@ -201,8 +201,14 @@ test("base example from registration to closing survives a restart", async ({ pa
   await page.getByRole("dialog").locator("form").getByRole("button", { name: t("common.cancel") }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
 
-  // The bell inside a company opens the notifications inside it: the menu of the company stays.
-  await page.getByRole("link", { name: t("notifications.title") }).click();
+  // A click on the bell shows the latest notifications in a popup, without leaving the screen.
+  const here = page.url();
+  await page.getByRole("button", { name: t("notifications.title") }).click();
+  const popup = page.getByRole("dialog", { name: t("notifications.title") });
+  await expect(popup).toContainText(t("notifications.none"));
+  await expect(page).toHaveURL(here);
+  // «Open all» leads to the page with the filters, inside the company.
+  await popup.getByRole("link", { name: t("notifications.open_all") }).click();
   await expect(page).toHaveURL(new RegExp(`${base}/notifications$`));
   // One company: no switch between «this company» and «all», only the list.
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(t("notifications.title"));

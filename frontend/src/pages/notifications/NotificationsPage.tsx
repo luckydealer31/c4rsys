@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation } from "react-router";
 
@@ -9,6 +9,7 @@ import type { CompanySummary } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { Icon } from "../../components/icons";
+import { useDismiss } from "../../components/useDismiss";
 import { deviceTimeZone, formatMoment } from "../../time";
 
 export type CentreNotification = {
@@ -49,23 +50,83 @@ const OBJECT_PATHS: Record<string, string> = {
   warehouse_item: "/warehouse/items/",
 };
 
-/** The mark in the header: unread active notifications (§ 20.1.5; З3). */
+// How many notifications the popup of the bell shows; the rest is on the page of all.
+const POPUP_ROWS = 8;
+
+/** The bell in the header (§ 20.1.5; З3) with the number of unread notifications. A click
+ * opens a popup with the latest active ones — of the current company inside a company, with
+ * nothing to choose — so they are seen without leaving the screen; «Open all» leads to the
+ * page with the filters (decision of 16.11.2026). */
 export function NotificationBell() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const close = useCallback(() => setOpen(false), []);
+  useDismiss(open, close, root);
   const count = useQuery({
     queryKey: ["notifications", "count"],
     queryFn: () => api<{ unread: number }>("/notifications/count"),
     refetchInterval: 60_000,
   });
   const unread = count.data?.unread ?? 0;
-  // Inside a company the centre opens inside it: the menu of the company stays (decision of
-  // 16.11.2026). The number counts the unread of every company, so nothing is missed.
-  const inside = /^\/c\/([^/]+)/.exec(useLocation().pathname)?.[1];
+  // Inside a company the notifications are of that company and its menu stays. The number
+  // counts the unread of every company, so nothing is missed.
+  const { pathname } = useLocation();
+  const inside = /^\/c\/([^/]+)/.exec(pathname)?.[1] ?? "";
+  const query = `state=active${inside ? `&company=${inside}` : ""}`;
+  const latest = useApi<{ notifications: CentreNotification[] }>(
+    ["notifications", "popup", query],
+    `/notifications?${query}`,
+    open,
+  );
+  const items = (latest.data?.notifications ?? []).slice(0, POPUP_ROWS);
+  const zone = deviceTimeZone();
   return (
-    <Link to={inside ? `/c/${inside}/notifications` : "/notifications"} className="bell" aria-label={t("notifications.title")} data-tip={t("notifications.title")}>
-      <Icon name="bell" size={22} />
-      {unread ? <span className="bell-count">{unread > 99 ? "99+" : unread}</span> : null}
-    </Link>
+    <div className="user-menu bell-menu" ref={root}>
+      <button
+        type="button"
+        className="bell"
+        aria-label={t("notifications.title")}
+        aria-expanded={open}
+        data-tip={open ? undefined : t("notifications.title")}
+        onClick={() => setOpen(!open)}
+      >
+        <Icon name="bell" size={22} />
+        {unread ? <span className="bell-count">{unread > 99 ? "99+" : unread}</span> : null}
+      </button>
+      {open ? (
+        <div className="popup bell-panel" role="dialog" aria-label={t("notifications.title")}>
+          <div className="popup-head">
+            <strong>{t("notifications.title")}</strong>
+          </div>
+          {latest.isLoading ? <Loading /> : null}
+          {latest.data && !items.length ? <p className="muted small bell-empty">{t("notifications.none")}</p> : null}
+          {items.map((n) => {
+            const path = n.object_type && n.object_id && OBJECT_PATHS[n.object_type];
+            const body = (
+              <>
+                <span style={{ fontWeight: n.read ? 400 : 600 }}>{notificationText(t, n)}</span>
+                <span className="muted small">
+                  {t(`notifications.kind_${n.kind}`)} · {formatMoment(n.last_at, zone, i18n.language)}
+                </span>
+              </>
+            );
+            return path ? (
+              <Link key={n.id} className="menu-row bell-row" to={`/c/${n.company.public_id}${path}${n.object_id}`} onClick={close}>
+                {body}
+              </Link>
+            ) : (
+              <div key={n.id} className="menu-row bell-row plain">
+                {body}
+              </div>
+            );
+          })}
+          <Link className="menu-row bell-all" to={inside ? `/c/${inside}/notifications` : "/notifications"} onClick={close}>
+            {t("notifications.open_all")}
+          </Link>
+        </div>
+      ) : null}
+    </div>
   );
 }
 

@@ -4479,7 +4479,8 @@
     "scope_this": "บริษัทนี้",
     "scope_all": "ทุกบริษัท",
     "read_all_here": "ทำเครื่องหมายว่าอ่านแล้วทั้งหมดในบริษัทนี้",
-    "other_company": "บริษัทอื่น: {{name}}"
+    "other_company": "บริษัทอื่น: {{name}}",
+    "open_all": "เปิดทั้งหมด"
   },
   "reports": {
     "metric_rental_issues_today": "การส่งมอบที่คาดว่าจะมีวันนี้",

@@ -541,3 +541,12 @@ td.vehicle-cell { display: flex; align-items: center; gap: 12px; }
 .row.compact > .w-short { flex-basis: 120px; }
 /* A button in a line of fields stands level with their boxes, under the line of the captions. */
 .row.compact > .beside-field { flex: 0 0 auto; margin-top: 23px; }
+
+/* The bell: a button with a popup of the latest notifications under it. */
+.topbar button.bell { border: 0; background: none; padding: 0; cursor: pointer; }
+.bell-panel { right: 0; top: calc(100% + 6px); width: 360px; max-width: calc(100vw - 16px); max-height: 70vh; overflow-y: auto; }
+.bell-row { flex-direction: column; align-items: flex-start; gap: 2px; min-height: 0; }
+.bell-row.plain { cursor: default; }
+.bell-row.plain:hover { background: transparent; }
+.bell-empty { padding: 8px 6px; margin: 0; }
+.bell-all { justify-content: center; color: var(--accent); border-top: 1px solid var(--border); border-radius: 0 0 6px 6px; margin-top: 4px; }
