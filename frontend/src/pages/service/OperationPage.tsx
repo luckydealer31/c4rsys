@@ -30,6 +30,7 @@ import {
   workTerms,
   zoneOf,
 } from "./hooks";
+import { TagsLine } from "../tags/Tags";
 
 type Result = { operation: ServiceOperation };
 
@@ -64,6 +65,7 @@ export function ServiceOperationPage() {
         {t("service.operation_title", { number: op.number })}{" "}
         <span className={`badge ${final ? "" : "warn"}`}>{t(`service.state_${op.state}`)}</span>
       </h1>
+      <TagsLine kind="service_operation" id={op.id} />
       <Card>
         <dl className="facts">
           <dt>{t("service.vehicle")}</dt>

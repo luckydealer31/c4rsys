@@ -253,7 +253,20 @@
     "vehicle_document_archived": "Документ ТС отправлен в архив",
     "vehicle_document_received": "Получена копия документа ТС",
     "vehicle_document_passed_to_owner": "Копии документов ТС переданы собственнику",
-    "rental_booking_to_rental": "Бронь переведена в аренду"
+    "rental_booking_to_rental": "Бронь переведена в аренду",
+    "tag_created": "Тег создан",
+    "tag_changed": "Тег изменён",
+    "tag_archived": "Тег в архиве",
+    "tag_restored": "Тег возвращён",
+    "tag_links_changed": "Теги изменены",
+    "tag_personal_created": "Личный тег создан",
+    "tag_personal_changed": "Личный тег изменён",
+    "tag_personal_archived": "Личный тег в архиве",
+    "tag_personal_restored": "Личный тег возвращён",
+    "tag_personal_links_changed": "Личные теги изменены",
+    "tag_group_created": "Группа тегов создана",
+    "tag_group_changed": "Группа тегов изменена",
+    "tag_group_removed": "Группа тегов удалена"
   },
   "finance_articles": {
     "archive": "В архив",
@@ -450,7 +463,8 @@
     "phone_add": "Добавить телефон",
     "tab_settings": "Настройки",
     "extra_phones": "Дополнительные телефоны",
-    "tab_apps": "Приложения"
+    "tab_apps": "Приложения",
+    "tab_tags": "Теги"
   },
   "contexts": {
     "module_later": "Работа в этом разделе появится вместе с его модулем; разделы по локациям уже видны.",
@@ -1337,7 +1351,17 @@
     "booking_not_rental": "Бронь сначала переводится в аренду, выдача делается из аренды.",
     "module_already_connected": "Это приложение уже включено.",
     "order_currency_not_charged": "У заказа нет начислений в этой валюте.",
-    "order_not_empty": "В заказе появились позиции — он не отменён."
+    "order_not_empty": "В заказе появились позиции — он не отменён.",
+    "tag_exists": "Такой тег уже есть.",
+    "tag_name_too_long": "Название тега — до 40 символов.",
+    "tag_color_unknown": "Выберите цвет из списка.",
+    "tag_unknown": "Такого тега в списке уже нет.",
+    "tag_unchanged": "Ничего не изменилось.",
+    "tag_object_type_unknown": "На эту запись тег не ставится.",
+    "tag_group_exists": "Такая группа уже есть.",
+    "tag_group_unknown": "Такой группы уже нет.",
+    "tag_group_member_unknown": "Выберите сотрудников компании.",
+    "tag_not_for_kind": "Группа этого тега не предназначена для таких записей."
   },
   "history": {
     "action": "Действие",
@@ -1852,7 +1876,8 @@
     "service_policy_manage": "Управлять политиками сервиса",
     "documents_policy_manage": "Управлять требованиями к документам",
     "tasks_policy_manage": "Управлять политикой задач",
-    "notifications_policy_manage": "Управлять правилами уведомлений"
+    "notifications_policy_manage": "Управлять правилами уведомлений",
+    "tags_manage": "Управлять тегами компании"
   },
   "positions": {
     "director": "Директор",
@@ -4405,7 +4430,8 @@
     "system_warehouse_adjustment_confirmation": "Подтвердить или отклонить складскую корректировку",
     "system_warehouse_low_stock": "Пополнить низкий остаток",
     "system_rental_schedule_conflict": "Урегулировать конфликт расписания брони",
-    "system_service_work_overdue": "Разобраться с просроченной сервисной работой"
+    "system_service_work_overdue": "Разобраться с просроченной сервисной работой",
+    "tags_in_company": "Теги ведутся в «Компания → Теги»"
   },
   "notifications": {
     "title": "Уведомления",
@@ -6430,7 +6456,8 @@
     "numbered_task": "Задача № {{number}}",
     "party_person": "физлицо",
     "party_company": "организация",
-    "section_placeholder": "Поиск в разделе"
+    "section_placeholder": "Поиск в разделе",
+    "kind_tag": "Теги"
   },
   "wizard": {
     "step": "Шаг {{n}} из {{total}}",
@@ -6461,5 +6488,53 @@
     "upcoming_car_wash": "Мойка",
     "upcoming_parking": "Парковка",
     "upcoming_shop": "Магазин"
+  },
+  "tags": {
+    "title": "Теги",
+    "company_title": "Теги компании",
+    "personal_title": "Мои теги",
+    "personal_hint": "Личные теги видите только вы.",
+    "personal_mark": "личный тег",
+    "new": "Новый тег",
+    "new_personal": "Мой тег",
+    "name": "Название",
+    "color": "Цвет",
+    "color_gray": "Серый",
+    "color_red": "Красный",
+    "color_orange": "Оранжевый",
+    "color_yellow": "Жёлтый",
+    "color_green": "Зелёный",
+    "color_teal": "Бирюзовый",
+    "color_blue": "Синий",
+    "color_purple": "Фиолетовый",
+    "color_pink": "Розовый",
+    "edit": "Изменить тег",
+    "archive": "В архив",
+    "restore": "Вернуть",
+    "archived": "в архиве",
+    "show_archived": "Архивные",
+    "none": "Тегов пока нет.",
+    "none_personal": "Личных тегов пока нет.",
+    "count": "Отмечено: {{count}}",
+    "add": "Тег",
+    "change": "Изменить теги",
+    "nothing_marked": "Этим тегом пока ничего не отмечено.",
+    "scope_note": "Показано только то, что вам доступно.",
+    "group": "Группа",
+    "no_group": "Без группы",
+    "group_new": "Новая группа",
+    "group_edit": "Изменить группу",
+    "group_edit_named": "Изменить группу «{{group}}»",
+    "group_name": "Название группы",
+    "group_kinds": "Где предлагать",
+    "group_kinds_hint": "Теги группы предлагаются только для отмеченных записей. Ничего не отмечено — везде.",
+    "group_members": "Кто создаёт теги",
+    "group_members_hint": "Эти сотрудники создают и меняют теги группы — кроме тех, кто управляет тегами компании. Видят теги все.",
+    "group_remove": "Удалить группу",
+    "group_remove_hint": "Теги группы останутся, без группы.",
+    "group_where": "Где: {{kinds}}",
+    "group_everywhere": "везде",
+    "group_makers": "создают: {{names}}",
+    "add_to_group": "Тег в группу «{{group}}»"
   }
 }

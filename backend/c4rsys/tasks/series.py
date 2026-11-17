@@ -27,7 +27,8 @@ from c4rsys.platform import errors, jobs, suspension
 from c4rsys.platform.commands import CommandContext
 from c4rsys.platform.counters import next_number
 from c4rsys.platform.models import AuditEvent
-from c4rsys.tasks.models import Task, TaskSeries, TaskTagLink
+from c4rsys.tags import services as tags
+from c4rsys.tasks.models import Task, TaskSeries
 
 Frequency = TaskSeries.Frequency
 PROCESS = "task_schedule"
@@ -186,8 +187,9 @@ def _instance(series: TaskSeries, company: Company, on: date) -> Task:
         )
         for i, text in enumerate(series.checklist)
     )
-    for tag_id in series.tag_ids:
-        TaskTagLink.objects.get_or_create(company=company, task=t, tag_id=tag_id)
+    # The tags of the series that are still tags of the company.
+    wanted = tags.company_tags_among(company.id, [UUID(str(x)) for x in series.tag_ids])
+    tags.replace_company_links(series.created_by_user_id, company.id, "task", t.id, wanted)
     from c4rsys.tasks import notices
 
     notices.sync(t, series.created_by_employment_id)

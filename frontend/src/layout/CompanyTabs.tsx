@@ -42,7 +42,7 @@ function Strip({
   );
 }
 
-export type CompanyTab = "about" | "garage" | "contacts" | "documents" | "apps" | "settings";
+export type CompanyTab = "about" | "garage" | "contacts" | "documents" | "tags" | "apps" | "settings";
 
 export function useCompanyTabs(): StripTab[] {
   const { t } = useTranslation();
@@ -59,6 +59,8 @@ export function useCompanyTabs(): StripTab[] {
     ...(garage ? [["garage", t("company.tab_garage"), "/vehicles"] as [string, string, string]] : []),
     ["contacts", t("company.tab_contacts"), "/clients"],
     ...(documents ? [["documents", t("nav.documents"), "/documents"] as [string, string, string]] : []),
+    // The tags of the company and the user's own (decision of 17.11.2026): seen by everybody.
+    ["tags", t("company.tab_tags"), "/company/tags"],
     // The applications of the company (decision of 16.11.2026) are switched on by whoever may
     // change its settings; the tab is shown to them (PROPOSAL) and stands before «Settings»
     // (PROPOSAL).

@@ -599,6 +599,51 @@ td.vehicle-cell { display: flex; align-items: center; gap: 12px; }
   background: var(--text); color: var(--surface); border-radius: 6px; font-size: 0.8rem;
   font-weight: 400; font-style: normal; line-height: 1.35; white-space: normal; text-align: left;
 }
+/* Tags. A tag of the company is a filled pill of its colour; a personal one — an outlined
+   square mark with a little person, so the two are not confused. */
+.tag-gray { --tag: #6b7280; } .tag-red { --tag: #d14343; } .tag-orange { --tag: #dd7a1f; }
+.tag-yellow { --tag: #b8930a; } .tag-green { --tag: #2f9e58; } .tag-teal { --tag: #1a98a6; }
+.tag-blue { --tag: #2f6fdd; } .tag-purple { --tag: #8250df; } .tag-pink { --tag: #d1418f; }
+.tag-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 999px;
+  font-size: 0.82rem; font-weight: 500; line-height: 1.5; white-space: nowrap; text-decoration: none;
+  border: 1px solid transparent; color: color-mix(in srgb, var(--tag) 72%, var(--text));
+  background: color-mix(in srgb, var(--tag) 16%, var(--surface)); }
+a.tag-chip:hover { border-color: var(--tag); }
+.tag-chip.personal { background: transparent; border: 1px dashed var(--tag); border-radius: 5px; }
+.tags-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: var(--gap); }
+.card-head .tags-line { margin-bottom: 0; }
+.tag-add { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; min-height: 0 !important;
+  font-size: 0.82rem; line-height: 1.5; background: transparent; color: var(--muted);
+  border: 1px dashed var(--border); border-radius: 999px; }
+.tag-add:hover { color: var(--accent); border-color: var(--accent); }
+.tag-choices { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tag-choice { padding: 3px; min-height: 0 !important; background: transparent; border: 2px solid transparent;
+  border-radius: 999px; opacity: 0.55; }
+.tag-choice[aria-pressed="true"] { opacity: 1; border-color: var(--accent); }
+.tag-choice:hover { opacity: 1; }
+.tag-new { margin-top: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; }
+.tag-palette { display: flex; flex-wrap: wrap; gap: 8px; }
+.tag-swatch { width: 28px; height: 28px; min-height: 0 !important; padding: 0; border-radius: 50%;
+  background: var(--tag); border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--border); }
+.tag-swatch[aria-checked="true"] { box-shadow: 0 0 0 2px var(--accent); }
+.tag-rows { list-style: none; margin: 0; padding: 0; }
+.tag-rows li { display: flex; align-items: center; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.tag-rows li:last-child { border-bottom: 0; }
+.tag-rows li.archived .tag-chip { opacity: 0.5; }
+.tag-row-actions { margin-left: auto; display: inline-flex; gap: 2px; }
+.tag-title .tag-chip { font-size: 1.1rem; padding: 4px 16px; }
+/* A group of tags: its name, the button of a new tag and the pencil of the group in one line. */
+.tag-group-head { display: flex; align-items: center; gap: 10px; }
+.tag-group-head h2 { margin: 0; }
+.tag-group-head .icon-button { margin-left: auto; }
+.tag-group-note { margin: 4px 0 8px; }
+.tag-checks { border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; margin: 0;
+  display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.tag-checks legend { padding: 0 4px; font-size: 0.9rem; color: var(--muted); }
+@media (pointer: coarse), (max-width: 760px) {
+  .tag-add, .tag-choice, .tag-swatch { min-height: 44px !important; }
+  .tag-swatch { width: 44px; }
+}
 /* A mark with its explanation under the pointer, shown to the left of it: it stands at the
    right end of a row. A press shows it on a screen without a pointer. */
 .tip-left { position: relative; cursor: help; }

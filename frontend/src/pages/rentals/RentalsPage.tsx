@@ -12,7 +12,9 @@ import { useFirstTab } from "../../layout/tabOrder";
 import { formatMoment } from "../../time";
 import { clientName } from "../clients/ClientsPage";
 import { useOrders } from "../orders/OrdersPage";
+import { SectionSearch } from "../search/SearchPage";
 import { useLocations } from "../settings/LocationsPage";
+import { useTagMatch } from "../tags/Tags";
 import { rangesText, unitText, useTariffs } from "../tariffs/TariffsPage";
 import { Park } from "./Park";
 import { serviceTerms } from "./Services";
@@ -33,7 +35,9 @@ function useListFilters() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [desc, setDesc] = useState(true);
-  return { kind, setKind, cancelled, setCancelled, locationId, setLocationId, from, setFrom, to, setTo, desc, setDesc };
+  // The search of the list (customer's decision of 17.11.2026): by what a row shows and by a tag.
+  const [q, setQ] = useState("");
+  return { kind, setKind, cancelled, setCancelled, locationId, setLocationId, from, setFrom, to, setTo, desc, setDesc, q, setQ };
 }
 type ListFilters = ReturnType<typeof useListFilters>;
 
@@ -101,8 +105,15 @@ function ListBar({ f, both, main }: { f: ListFilters; both: string; main: string
         {t("rentals.filter_to")}
         <input type="date" value={f.to} min={f.from || undefined} onChange={(e) => f.setTo(e.target.value)} />
       </label>
+      <SectionSearch compact value={f.q} onSearch={f.setQ} />
     </div>
   );
+}
+
+/** Whether the text of the search stands in one of the words of a row. */
+function hasText(q: string, words: (string | number | null | undefined)[]) {
+  const needle = q.trim().toLowerCase();
+  return !needle || words.some((word) => word !== null && word !== undefined && String(word).toLowerCase().includes(needle));
 }
 
 /** The heading of the number of the order: a click turns the list over. */
@@ -210,13 +221,20 @@ function OrderedServices({ lines, loading }: { lines: ServiceLine[]; loading: bo
   const orderNumber = new Map((orders.data?.orders ?? []).map((o) => [o.id, o.number]));
   const all = lines;
   lines = byOrder(
-    all.filter((line) =>
-      passes(f, {
-        booking: line.state === "planned" || (line.state === "cancelled" && !line.actual_start),
-        cancelled: line.state === "cancelled",
-        locationId: line.location_id,
-        day: dayIn(line.actual_start ?? line.period?.start ?? null, line.time_zone),
-      }),
+    all.filter(
+      (line) =>
+        passes(f, {
+          booking: line.state === "planned" || (line.state === "cancelled" && !line.actual_start),
+          cancelled: line.state === "cancelled",
+          locationId: line.location_id,
+          day: dayIn(line.actual_start ?? line.period?.start ?? null, line.time_zone),
+        }) &&
+        hasText(f.q, [
+          line.name,
+          line.equipment?.public_id,
+          orderNumber.get(line.order_id),
+          line.rental_id ? rentalVehicle.get(line.rental_id) : "",
+        ]),
     ),
     orderNumber,
     f.desc,
@@ -357,14 +375,23 @@ function RentalsList({ lines }: { lines: ServiceLine[] }) {
   const zoneOf = (r: (typeof all)[number]) => zones.get(r.issue_location_id ?? "") ?? company.timezone ?? "UTC";
   const orders = useOrders();
   const orderNumber = new Map((orders.data?.orders ?? []).map((o) => [o.id, o.number]));
+  const tagged = useTagMatch("rental");
   const shown = byOrder(
-    (waiting ? pending : all).filter((r) =>
-      passes(f, {
-        booking: isBooking(r),
-        cancelled: ["cancelled", "annulled"].includes(r.state),
-        locationId: r.issue_location_id,
-        day: dayIn(startOf(r), zoneOf(r)),
-      }),
+    (waiting ? pending : all).filter(
+      (r) =>
+        passes(f, {
+          booking: isBooking(r),
+          cancelled: ["cancelled", "annulled"].includes(r.state),
+          locationId: r.issue_location_id,
+          day: dayIn(startOf(r), zoneOf(r)),
+        }) &&
+        (hasText(f.q, [
+          vehicleName.get(r.vehicle_card_id),
+          r.client_id ? clientNames.get(r.client_id) : "",
+          orderNumber.get(r.order_id),
+          r.booking?.number,
+        ]) ||
+          tagged(r.id, f.q)),
     ),
     orderNumber,
     f.desc,

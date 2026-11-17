@@ -6,6 +6,7 @@ A counterparty is archived and restored, not deleted. Linking to a c4rsys profil
 merging duplicates in merges.py (block 13).
 """
 
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from typing import Any
 from uuid import UUID
@@ -306,7 +307,11 @@ def categories(company_id: UUID) -> list[str]:
 
 
 def search(
-    company_id: UUID, text: str, state: str = Counterparty.State.ACTIVE, category: str = ""
+    company_id: UUID,
+    text: str,
+    state: str = Counterparty.State.ACTIVE,
+    category: str = "",
+    also: Collection[UUID] = (),
 ) -> QuerySet[Counterparty]:
     """By a part of the name or a contact (§ 2.8.3)."""
     cards = of_company(company_id)
@@ -314,6 +319,7 @@ def search(
     cards = cards.filter(state=state) if state else cards.exclude(state=Counterparty.State.MERGED)
     if category:
         cards = cards.filter(category=category)
+    every = cards
     for word in text.split():
         cards = cards.filter(
             Q(first_name__icontains=word)
@@ -322,4 +328,7 @@ def search(
             | Q(company_name__icontains=word)
             | Q(contacts__value__icontains=word)
         ).distinct()
+    if also:
+        # `also` — the records marked with a tag of that name (decision of 17.11.2026).
+        cards = every.filter(Q(pk__in=cards.values("pk")) | Q(pk__in=also))
     return cards.order_by("company_name", "last_name", "first_name", "created_at")

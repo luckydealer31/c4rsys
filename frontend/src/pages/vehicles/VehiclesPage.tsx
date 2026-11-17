@@ -24,6 +24,7 @@ import { OwnerRequestCard } from "./OwnerRequestCard";
 import { VehicleDocumentsList, VehicleDocumentsSettings } from "./VehicleDocuments";
 import { DraftsPanel } from "../inspections/OfflineDrafts";
 import { VehiclePhotos } from "./VehiclePhotos";
+import { TagsLine } from "../tags/Tags";
 import { useScope } from "../../offline/hooks";
 import { VehicleMoves } from "./VehicleMoves";
 import { VehicleDamagesCard, VehicleInspectionsCard } from "../inspections/Blocks";
@@ -540,6 +541,7 @@ export function VehiclePage() {
         <h1>{data.name}</h1>
         <span className="muted">{data.vehicle_id}</span>
         <span className="badge">{t(`vehicles.relation_${data.relation}`)}</span>
+        <TagsLine kind="vehicle" id={data.id} />
       </div>
       {stored ? (
         <div className="alert warn">

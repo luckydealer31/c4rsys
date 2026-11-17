@@ -277,6 +277,10 @@ PERMISSIONS: dict[str, str] = {
     # the data inside stays limited by the rights of each section (§ 21.1.1).
     "reports.view": "reports",
     "reports.export": "reports",
+    # Tags (customer's decision of 17.11.2026): the tags of the company are created and changed
+    # with this right; the other employees choose from the list. Only in «Company administrator»
+    # (PROPOSAL).
+    "tags.manage": "company",
 }
 
 # Decision З-3: the managers get every task right in their area; the others work with their own

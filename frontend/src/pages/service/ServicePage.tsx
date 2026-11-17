@@ -9,6 +9,8 @@ import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { SectionTabs } from "../../layout/SectionTabs";
+import { SectionSearch } from "../search/SearchPage";
+import { useTagMatch } from "../tags/Tags";
 import { useFirstTab } from "../../layout/tabOrder";
 import { formatMoment } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
@@ -65,6 +67,18 @@ function ServiceWork() {
   const locations = useLocations();
   const [all, setAll] = useState(false);
   const operations = useServiceOperations(all ? "" : "active=1");
+  // The search of the list (customer's decision of 17.11.2026): by what a row shows and by a tag.
+  const [q, setQ] = useState("");
+  const tagged = useTagMatch("service_operation");
+  const needle = q.trim().toLowerCase();
+  const found = (operations.data?.operations ?? []).filter(
+    (op) =>
+      !needle ||
+      [op.number, op.vehicle_name, op.reason, op.order_number, op.post_name].some(
+        (word) => word !== null && word !== undefined && String(word).toLowerCase().includes(needle),
+      ) ||
+      tagged(op.id, q),
+  );
   const places = serviceLocations(locations.data?.locations);
   return (
     <>
@@ -88,10 +102,13 @@ function ServiceWork() {
         <Board key={l.id} locationId={l.id} name={l.name} operations={operations.data?.operations ?? []} />
       ))}
       <Card title={t("service.operations")}>
-        <label className="small">
-          <input type="checkbox" checked={all} onChange={() => setAll(!all)} /> {t("service.show_finished")}
-        </label>
-        <OperationTable items={operations.data?.operations ?? []} />
+        <div className="list-bar">
+          <label className="small">
+            <input type="checkbox" checked={all} onChange={() => setAll(!all)} /> {t("service.show_finished")}
+          </label>
+          <SectionSearch compact value={q} onSearch={setQ} />
+        </div>
+        <OperationTable items={found} />
       </Card>
     </>
   );

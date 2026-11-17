@@ -14,6 +14,7 @@ import { DepositCard } from "./Deposit";
 import { CalculationView } from "./IssuePage";
 import { TransferRental } from "./RentalOrder";
 import { RentalServices } from "./Services";
+import { TagsLine } from "../tags/Tags";
 
 /** The card of a booking (decision of 16.11.2026): over the whole screen; one block «Booking»
  * — vehicle, tariff, client, place of the issue, planned period, place of the return, order,
@@ -66,6 +67,7 @@ export function BookingView({
         {vehicleName} · {t("bookings.title", { number: booking.number })}
         {rental.state === "cancelled" ? ` · ${t("rentals.state_cancelled")}` : ""}
       </h1>
+      <TagsLine kind="rental" id={rental.id} />
       <div className="cols-2">
         <Card title={t("bookings.block")}>
           <BookingCard

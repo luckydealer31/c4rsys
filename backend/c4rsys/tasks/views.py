@@ -19,6 +19,7 @@ from c4rsys.companies.views import run_and_respond
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
+from c4rsys.tags import services as tags
 from c4rsys.tasks import extensions, objects, series, services
 from c4rsys.tasks.models import ACTIVE_STATES, Task
 
@@ -265,7 +266,9 @@ def task_list(request: HttpRequest, cmp: str) -> JsonResponse:
             query = query.filter(created_by_employment_id=actor.employment_id)
         # § 19.4.7: search and filter by tags; by group (§ 19.4.5); by the title.
         if params.get("tag"):
-            query = query.filter(tag_links__tag_id=_uuid(params["tag"], "tag"))
+            tag_id = _uuid(params["tag"], "tag")
+            tagged = tags.tagged_ids(context.company.id, tag_id, "task") if tag_id else []
+            query = query.filter(pk__in=tagged)
         if params.get("group"):
             query = query.filter(group_id=_uuid(params["group"], "group"))
         if params.get("context"):
@@ -275,7 +278,7 @@ def task_list(request: HttpRequest, cmp: str) -> JsonResponse:
             from c4rsys.platform.search import parse
             from c4rsys.tasks import search
 
-            query = search.matching(query, parse(params["q"]))
+            query = search.matching(query, parse(params["q"]), context.company.id)
         resolver = access.RightsResolver()
         items = [
             t
@@ -588,46 +591,6 @@ def group_detail(request: HttpRequest, cmp: str, group_id: UUID) -> JsonResponse
 
     payload = {"group_id": str(group_id), "name": name, "description": description}
     return run_and_respond(request, "task_group.change", actor, payload, handler)
-
-
-@require_http_methods(["GET", "POST"])
-def tag_list(request: HttpRequest, cmp: str) -> JsonResponse:
-    context, actor = _actor(request, cmp)
-    if request.method == "GET":
-        if not _any_task_right(actor):
-            raise errors.permission_denied("tasks.own")
-        tags = extensions.tags_of(context.company.id)
-        return JsonResponse({"tags": [{"id": str(x.id), "name": x.name} for x in tags]})
-    name = get_str(parse_json(request), "name", max_length=100)
-
-    def handler(ctx: CommandContext) -> CommandResult:
-        tag = extensions.save_tag(ctx, context.company, None, name)
-        return CommandResult(201, {"tag": {"id": str(tag.id), "name": tag.name}})
-
-    return run_and_respond(request, "task_tag.create", actor, {"name": name}, handler)
-
-
-@require_http_methods(["PATCH", "DELETE"])
-def tag_detail(request: HttpRequest, cmp: str, tag_id: UUID) -> JsonResponse:
-    context, actor = _actor(request, cmp)
-    if request.method == "DELETE":
-
-        def remove(ctx: CommandContext) -> CommandResult:
-            extensions.remove_tag(ctx, context.company, tag_id)
-            return CommandResult(200, {"removed": str(tag_id)})
-
-        return run_and_respond(request, "task_tag.remove", actor, {"tag_id": str(tag_id)}, remove)
-    name = get_str(parse_json(request), "name", max_length=100)
-
-    def handler(ctx: CommandContext) -> CommandResult:
-        tag = extensions.save_tag(ctx, context.company, tag_id, name)
-        return CommandResult(200, {"tag": {"id": str(tag.id), "name": tag.name}})
-
-    payload = {"tag_id": str(tag_id), "name": name}
-    return run_and_respond(request, "task_tag.rename", actor, payload, handler)
-
-
-# --- Repetition (§ 19.4.2) -----------------------------------------------------------------------
 
 
 @require_POST

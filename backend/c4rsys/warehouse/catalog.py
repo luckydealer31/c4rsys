@@ -5,6 +5,7 @@ base unit is not changed after creation, even before the first receipt: a wrong 
 a new item, the old one is archived or, while unused, deleted.
 """
 
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -100,11 +101,15 @@ def get_item(company_id: UUID, item_id: UUID) -> Item:
     return item
 
 
-def search(company_id: UUID, text: str, state: str = Item.State.ACTIVE) -> QuerySet[Item]:
-    """By name, manufacturer or barcode."""
+def search(
+    company_id: UUID, text: str, state: str = Item.State.ACTIVE, also: Collection[UUID] = ()
+) -> QuerySet[Item]:
+    """By name, manufacturer or barcode; `also` — the records found by a tag of that name
+    (customer's decision of 17.11.2026)."""
     found = items_of(company_id)
     if state:
         found = found.filter(state=state)
+    every = found
     text = text.strip()
     if text:
         found = found.filter(
@@ -122,6 +127,8 @@ def search(company_id: UUID, text: str, state: str = Item.State.ACTIVE) -> Query
             | Q(barcodes__code=text)
             | Q(external_id=text)
         ).distinct()
+    if also:
+        found = every.filter(Q(pk__in=found.values("pk")) | Q(pk__in=also))
     return found
 
 

@@ -59,28 +59,45 @@ def test_checklist_required_for_completion(owner: Client, s: Scenario) -> None:
 
 
 def test_groups_and_tags(owner: Client, s: Scenario) -> None:
+    """The tags of a task are the tags of the company (customer's decision of 17.11.2026): made
+    with «Manage tags» in the tags of the company, chosen with the editing of the task."""
     mechanic, _ = hire(owner, s.cmp, "m@example.com", [{"type": "set", "set": "mechanic"}])
-    assert post(mechanic, f"/api/c/{s.cmp}/tasks/tags", {"name": "x"}, key()).status_code == 403
+    tags = f"/api/c/{s.cmp}/tags"
+    assert post(mechanic, tags, {"name": "x", "color": "gray"}, key()).status_code == 403
     group = post(owner, f"/api/c/{s.cmp}/tasks/groups", {"name": "Season start"}, key()).json()[
         "group"
     ]
-    tag = post(owner, f"/api/c/{s.cmp}/tasks/tags", {"name": "urgent"}, key()).json()["tag"]
-    same = post(owner, f"/api/c/{s.cmp}/tasks/tags", {"name": "urgent"}, key())
-    assert _code(same) == "TASK_TAG_EXISTS"
+    tag = post(owner, tags, {"name": "urgent", "color": "red"}, key()).json()["tag"]
+    mine = post(mechanic, tags, {"name": "own", "color": "gray", "personal": True}, key())
     t = _ok(_create(owner, s, group_id=group["id"], tag_ids=[tag["id"]]), 201)
     _create(owner, s, title="Other")
+    # A personal tag is not a tag of a task; an unknown one neither.
+    wrong = _create(mechanic, s, title="Mine", tag_ids=[mine.json()["tag"]["id"]])
+    assert _code(wrong) == "TASK_TAG_UNKNOWN"
     assert [x["id"] for x in _list(owner, s, f"tag={tag['id']}")] == [t["id"]]
     assert [x["id"] for x in _list(owner, s, f"group={group['id']}")] == [t["id"]]
     assert [x["id"] for x in _list(owner, s, "q=insurer")] == [t["id"]]
+    # The list of tasks is searched by the tag too, and the tag shows the task on its page.
+    assert [x["id"] for x in _list(owner, s, "q=urgent")] == [t["id"]]
+    page = owner.get(f"{tags}/{tag['id']}/objects").json()["objects"]
+    assert [hit["id"] for hit in page["task"]] == [t["id"]]
     # Renaming keeps the links; removing the group keeps the task (§ 19.4.5, § 19.4.7).
     renamed = owner.patch(
-        f"/api/c/{s.cmp}/tasks/tags/{tag['id']}",
-        data={"name": "very urgent"},
+        f"{tags}/{tag['id']}",
+        data={"name": "very urgent", "expected_version": tag["version"]},
         content_type="application/json",
         headers=key(),
     )
     assert renamed.status_code == 200
-    assert _get(owner, s, t)["tags"] == [{"id": tag["id"], "name": "very urgent"}]
+    urgent = {"id": tag["id"], "name": "very urgent", "color": "red"}
+    assert _get(owner, s, t)["tags"] == [urgent]
+    # Taken off with the editing of the task; a tag of a task is not put through the tags.
+    assert _ok(_do(owner, s, _get(owner, s, t), "tags", tag_ids=[]))["tags"] == []
+    body = {"type": "task", "id": t["id"], "tag_ids": [tag["id"]]}
+    put = owner.put(
+        f"/api/c/{s.cmp}/tag-links", data=body, content_type="application/json", headers=key()
+    )
+    assert _code(put) == "TAG_OBJECT_TYPE_UNKNOWN"
     removed = owner.delete(f"/api/c/{s.cmp}/tasks/groups/{group['id']}", headers=key())
     assert removed.status_code == 200
     assert _get(owner, s, t)["group_id"] is None

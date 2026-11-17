@@ -161,18 +161,15 @@ export function CashReceipt({
             </Field>
           ) : null}
         </div>
-        {exchange && order && account && orderCurrency ? (
-          <RateAmount
-            lead={amountFields}
-            from={account.currency}
-            to={orderCurrency}
-            amount={allocationValue}
-            manual={manualRate}
-            onManual={setManualRate}
-          />
-        ) : (
-          <div className="row">{amountFields}</div>
-        )}
+        {/* One line in every case: the field of the amount keeps its place while the rate comes. */}
+        <RateAmount
+          lead={amountFields}
+          from={account?.currency}
+          to={exchange && order && account && orderCurrency ? orderCurrency : undefined}
+          amount={allocationValue}
+          manual={manualRate}
+          onManual={setManualRate}
+        />
         <div className="row">
           <Field label={t("payments.note")}>
             <input value={note} onChange={(e) => setNote(e.target.value)} />
@@ -367,18 +364,15 @@ function DepositReceipt({
           </select>
         </Field>
       </div>
-      {exchange && account ? (
-        <RateAmount
-          lead={amountField}
-          from={account.currency}
-          to={deposit.currency}
-          amount={amountValue}
-          manual={manualRate}
-          onManual={setManualRate}
-        />
-      ) : (
-        <div className="row">{amountField}</div>
-      )}
+      {/* One line in every case: the field of the amount keeps its place while the rate comes. */}
+      <RateAmount
+        lead={amountField}
+        from={account?.currency}
+        to={exchange && account ? deposit.currency : undefined}
+        amount={amountValue}
+        manual={manualRate}
+        onManual={setManualRate}
+      />
       <div className="row">
         <Field label={t("payments.note")}>
           <input value={note} onChange={(e) => setNote(e.target.value)} />

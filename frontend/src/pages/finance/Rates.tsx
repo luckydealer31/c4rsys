@@ -89,7 +89,12 @@ export function RateField({
  * or a missing rate is said aloud. Changing either needs the right to set a rate (§ 23.7.6).
  *
  * The rate is shown the way it is said: «1 USD = 37 THB», not «1 THB = 0.027 USD» (decision of
- * 16.11.2026) — turned over when it is below one. `manual` stays the rate from `from` to `to`. */
+ * 16.11.2026) — turned over when it is below one. `manual` stays the rate from `from` to `to`.
+ *
+ * The line is drawn the same in every state — before the rate is loaded, without an exchange
+ * (`to` not given), with the equivalent known beforehand (`exact`) — so the field of the amount
+ * is never made anew: what is being typed into it while the rate comes is not lost, and the
+ * focus stays (found on 17.11.2026 by a test on a loaded machine). */
 export function RateAmount({
   from,
   to,
@@ -97,15 +102,19 @@ export function RateAmount({
   manual,
   onManual,
   lead,
+  exact,
 }: {
-  from: string;
-  to: string;
+  from?: string;
+  /** Not given — the amount is not exchanged: only the line with its field is drawn. */
+  to?: string;
   /** In the currency `from`. */
   amount: string;
   manual: string;
   onManual: (value: string) => void;
   /** The field of the amount itself: it stands first in the same line (decision of 16.11.2026). */
   lead?: ReactNode;
+  /** The equivalent known without a rate — what came in is paid back: shown, not changed. */
+  exact?: string;
 }) {
   const { t, i18n } = useTranslation();
   const company = useCompany();
@@ -121,64 +130,79 @@ export function RateAmount({
     setTypedRate(null);
   }, [amount, from, to]);
   useEffect(() => setTurned(null), [from, to]);
-  if (!data) return lead ? <div className="row">{lead}</div> : null;
+  // The rate is asked for and shown only when the amount is exchanged by a rate.
+  const rated = to !== undefined && exact === undefined && data ? data : null;
+  if (!lead && !rated && exact === undefined) return null;
   const zone = company.timezone ?? "UTC";
-  const rate = effectiveRate(data, manual);
+  const rate = rated ? effectiveRate(rated, manual) : null;
   const source = Number(amount) > 0 ? Number(amount) : 0;
   const derived = rate && source ? (source * Number(rate)).toFixed(2) : "";
-  const inverse = data.rate ? Number(data.rate) < 1 : (turned ?? false);
+  const inverse = rated?.rate ? Number(rated.rate) < 1 : (turned ?? false);
   const over = (value: string | null) => (value && Number(value) > 0 ? String(Number((1 / Number(value)).toFixed(6))) : "");
   const shown = inverse ? over(rate) : (rate ?? "");
   const [one, other] = inverse ? [to, from] : [from, to];
   const direction = t("rates.manual", { from: one, to: other });
-  const origin = data.rate
-    ? `${t("rates.suggested", { from: one, to: other, rate: inverse ? over(data.rate) : data.rate })} ${t("rates.source", { time: formatMoment(data.fetched_at, zone, i18n.language) })}`
+  const origin = rated?.rate
+    ? `${t("rates.suggested", { from: one, to: other, rate: inverse ? over(rated.rate) : rated.rate })} ${t("rates.source", { time: formatMoment(rated.fetched_at, zone, i18n.language) })}`
     : direction;
+  // The fields of the rate and of the equivalent, when the amount is exchanged by a rate.
+  const fields = rated ? (
+  <>
+    <Field label={t("rates.rate")}>
+      <input
+        inputMode="decimal"
+        title={origin}
+        value={typedRate ?? shown}
+        disabled={!rated.may_override}
+        onChange={(e) => {
+          const value = e.target.value.replace(",", ".");
+          setTyped(null);
+          setTypedRate(value);
+          // 12 places as the server keeps.
+          onManual(inverse ? (Number(value) > 0 ? String(Number((1 / Number(value)).toFixed(12))) : "") : value);
+        }}
+      />
+    </Field>
+    <Field label={t("rates.equivalent", { currency: to })}>
+      <input
+        inputMode="decimal"
+        value={typed ?? derived}
+        disabled={!rated.may_override || !source}
+        onChange={(e) => {
+          const value = e.target.value.replace(",", ".");
+          setTyped(value);
+          setTypedRate(null);
+          const wanted = Number(value);
+          if (!rated.rate && wanted > 0 && source) setTurned(wanted < source);
+          // The rate that turns the amount into this equivalent.
+          onManual(wanted > 0 && source ? String(Number((wanted / source).toFixed(12))) : "");
+        }}
+      />
+    </Field>
+  </>
+  ) : null;
+  // The three places below are always there, empty or not: the line with the field of the
+  // amount keeps its place and is not made anew.
   return (
     <>
-      {data.rate && data.stale ? <p className="alert error">{t("rates.stale")}</p> : null}
+      {rated?.rate && rated.stale ? <p className="alert error">{t("rates.stale")}</p> : null}
       {/* Until a rate is typed in: then there is nothing to warn about. */}
-      {data.rate || manual ? null : (
+      {!rated || rated.rate || manual ? null : (
         <p className="alert error">
-          {data.latest_fetch_at
-            ? t("rates.none_since", { time: formatMoment(data.latest_fetch_at, zone, i18n.language) })
+          {rated.latest_fetch_at
+            ? t("rates.none_since", { time: formatMoment(rated.latest_fetch_at, zone, i18n.language) })
             : t("rates.none")}{" "}
-          {data.may_override ? t("rates.enter_manual") : t("rates.no_right")}
+          {rated.may_override ? t("rates.enter_manual") : t("rates.no_right")}
         </p>
       )}
       <div className="row">
         {lead}
-        <Field label={t("rates.rate")}>
-          <input
-            inputMode="decimal"
-            title={origin}
-            value={typedRate ?? shown}
-            disabled={!data.may_override}
-            onChange={(e) => {
-              const value = e.target.value.replace(",", ".");
-              setTyped(null);
-              setTypedRate(value);
-              // 12 places as the server keeps.
-              onManual(inverse ? (Number(value) > 0 ? String(Number((1 / Number(value)).toFixed(12))) : "") : value);
-            }}
-          />
-        </Field>
-        <Field label={t("rates.equivalent", { currency: to })}>
-          <input
-            inputMode="decimal"
-            value={typed ?? derived}
-            disabled={!data.may_override || !source}
-            onChange={(e) => {
-              const value = e.target.value.replace(",", ".");
-              setTyped(value);
-              setTypedRate(null);
-              const wanted = Number(value);
-              if (!data.rate && wanted > 0 && source) setTurned(wanted < source);
-              // The rate that turns the amount into this equivalent.
-              onManual(wanted > 0 && source ? String(Number((wanted / source).toFixed(12))) : "");
-            }}
-          />
-        </Field>
+        {exact !== undefined && to ? (
+          <Field label={t("rates.equivalent", { currency: to })}>
+            <input value={exact} disabled readOnly />
+          </Field>
+        ) : null}
+        {fields}
       </div>
     </>
   );

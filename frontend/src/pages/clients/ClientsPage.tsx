@@ -15,6 +15,7 @@ import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { CompanyTabs } from "../../layout/CompanyTabs";
 import { SectionTabs } from "../../layout/SectionTabs";
 import { useFirstTab } from "../../layout/tabOrder";
+import { TagsLine } from "../tags/Tags";
 import { EmployeesList, InviteForm } from "../settings/EmployeesPage";
 import { CounterpartiesList } from "./Counterparties";
 import { LinkedDocuments } from "../documents/DocumentsPage";
@@ -438,6 +439,7 @@ export function ClientPage() {
           style={{ flex: 1 }}
         />
       </div>
+      <TagsLine kind="client" id={data.id} />
       {data.merged_into ? (
         // § 6.5.2: the duplicate leads to the main card, where new operations go.
         <div className="alert warn">

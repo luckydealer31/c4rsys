@@ -253,7 +253,20 @@
     "vehicle_document_archived": "Vehicle document archived",
     "vehicle_document_received": "Copy of a vehicle document received",
     "vehicle_document_passed_to_owner": "Copies of vehicle documents passed to the owner",
-    "rental_booking_to_rental": "Booking turned into a rental"
+    "rental_booking_to_rental": "Booking turned into a rental",
+    "tag_created": "Tag created",
+    "tag_changed": "Tag changed",
+    "tag_archived": "Tag archived",
+    "tag_restored": "Tag restored",
+    "tag_links_changed": "Tags changed",
+    "tag_personal_created": "Personal tag created",
+    "tag_personal_changed": "Personal tag changed",
+    "tag_personal_archived": "Personal tag archived",
+    "tag_personal_restored": "Personal tag restored",
+    "tag_personal_links_changed": "Personal tags changed",
+    "tag_group_created": "Group of tags created",
+    "tag_group_changed": "Group of tags changed",
+    "tag_group_removed": "Group of tags removed"
   },
   "finance_articles": {
     "archive": "Archive",
@@ -450,7 +463,8 @@
     "phone_add": "Add a phone",
     "tab_settings": "Settings",
     "extra_phones": "Further phones",
-    "tab_apps": "Applications"
+    "tab_apps": "Applications",
+    "tab_tags": "Tags"
   },
   "contexts": {
     "module_later": "Work in this section comes with its module; its sections by location are already shown.",
@@ -1337,7 +1351,17 @@
     "booking_not_rental": "A booking is turned into a rental first; the issue is made from the rental.",
     "module_already_connected": "This application is already switched on.",
     "order_currency_not_charged": "The order has no charges in this currency.",
-    "order_not_empty": "The order has positions now — it is not cancelled."
+    "order_not_empty": "The order has positions now — it is not cancelled.",
+    "tag_exists": "Such a tag already exists.",
+    "tag_name_too_long": "The name of a tag is up to 40 characters.",
+    "tag_color_unknown": "Choose a colour of the list.",
+    "tag_unknown": "This tag is no longer in the list.",
+    "tag_unchanged": "Nothing has changed.",
+    "tag_object_type_unknown": "A tag cannot be put on this record.",
+    "tag_group_exists": "Such a group already exists.",
+    "tag_group_unknown": "This group is no longer there.",
+    "tag_group_member_unknown": "Choose employees of the company.",
+    "tag_not_for_kind": "The group of this tag is not for such records."
   },
   "history": {
     "action": "Action",
@@ -1852,7 +1876,8 @@
     "service_policy_manage": "Service policies",
     "documents_policy_manage": "Document requirements",
     "tasks_policy_manage": "Task policy",
-    "notifications_policy_manage": "Notification rules"
+    "notifications_policy_manage": "Notification rules",
+    "tags_manage": "Manage the tags of the company"
   },
   "positions": {
     "director": "Director",
@@ -4405,7 +4430,8 @@
     "system_warehouse_adjustment_confirmation": "Confirm or reject the stock adjustment",
     "system_warehouse_low_stock": "Replenish the low stock",
     "system_rental_schedule_conflict": "Settle the schedule conflict of the booking",
-    "system_service_work_overdue": "Settle the overdue service work"
+    "system_service_work_overdue": "Settle the overdue service work",
+    "tags_in_company": "Tags are kept in «Company → Tags»"
   },
   "notifications": {
     "title": "Notifications",
@@ -6430,7 +6456,8 @@
     "numbered_task": "Task № {{number}}",
     "party_person": "person",
     "party_company": "company",
-    "section_placeholder": "Search in the section"
+    "section_placeholder": "Search in the section",
+    "kind_tag": "Tags"
   },
   "wizard": {
     "step": "Step {{n}} of {{total}}",
@@ -6461,5 +6488,53 @@
     "upcoming_car_wash": "Car wash",
     "upcoming_parking": "Parking",
     "upcoming_shop": "Shop"
+  },
+  "tags": {
+    "title": "Tags",
+    "company_title": "Company tags",
+    "personal_title": "My tags",
+    "personal_hint": "Only you see your personal tags.",
+    "personal_mark": "personal tag",
+    "new": "New tag",
+    "new_personal": "My tag",
+    "name": "Name",
+    "color": "Colour",
+    "color_gray": "Grey",
+    "color_red": "Red",
+    "color_orange": "Orange",
+    "color_yellow": "Yellow",
+    "color_green": "Green",
+    "color_teal": "Teal",
+    "color_blue": "Blue",
+    "color_purple": "Purple",
+    "color_pink": "Pink",
+    "edit": "Change the tag",
+    "archive": "To the archive",
+    "restore": "Restore",
+    "archived": "archived",
+    "show_archived": "Archived",
+    "none": "No tags yet.",
+    "none_personal": "No personal tags yet.",
+    "count": "Marked: {{count}}",
+    "add": "Tag",
+    "change": "Change the tags",
+    "nothing_marked": "Nothing is marked with this tag yet.",
+    "scope_note": "Only the records you may see are shown.",
+    "group": "Group",
+    "no_group": "Without a group",
+    "group_new": "New group",
+    "group_edit": "Change the group",
+    "group_edit_named": "Change the group «{{group}}»",
+    "group_name": "Name of the group",
+    "group_kinds": "Where to offer",
+    "group_kinds_hint": "The tags of the group are offered only for the records marked here. Nothing marked — everywhere.",
+    "group_members": "Who makes the tags",
+    "group_members_hint": "These employees make and change the tags of the group — besides those who manage the tags of the company. Everybody sees the tags.",
+    "group_remove": "Remove the group",
+    "group_remove_hint": "The tags of the group stay, without a group.",
+    "group_where": "Offered for: {{kinds}}",
+    "group_everywhere": "everywhere",
+    "group_makers": "made by: {{names}}",
+    "add_to_group": "A tag in the group «{{group}}»"
   }
 }

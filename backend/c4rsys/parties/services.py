@@ -1,6 +1,7 @@
 """Client cards: creation, change, list and search for matches (ТЗ § 6.1.11, § 6.2.7–6.2.8)."""
 
 import re
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
@@ -482,13 +483,17 @@ def get_client(company_id: UUID, client_id: UUID) -> ClientCard:
 
 
 def search(
-    company_id: UUID, text: str, state: str = ClientCard.State.ACTIVE
+    company_id: UUID,
+    text: str,
+    state: str = ClientCard.State.ACTIVE,
+    also: Collection[UUID] = (),
 ) -> QuerySet[ClientCard]:
     """List with search by a part of the name, of a phone or of an email (§ 2.8.3; customer's
     decision of 11.11.2026: as the list of counterparties); exact matches first is left to
     ordering by name. The usual list shows active cards; the «Archive» filter the archived
     ones (§ 6.6.4); merged cards are reached through their main card (§ 6.5.2)."""
-    cards = clients_of(company_id).filter(state=state)
+    every = clients_of(company_id).filter(state=state)
+    cards = every
     for word in text.split():
         cards = cards.filter(
             Q(first_name__icontains=word)
@@ -498,6 +503,9 @@ def search(
             | Q(contacts__value__icontains=word)
             | Q(contacts__value_normalized__icontains=word)
         ).distinct()
+    if also:
+        # `also` — the records marked with a tag of that name (decision of 17.11.2026).
+        cards = every.filter(Q(pk__in=cards.values("pk")) | Q(pk__in=also))
     return cards.order_by("last_name", "first_name", "company_name", "created_at")
 
 

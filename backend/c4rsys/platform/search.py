@@ -70,6 +70,7 @@ PREFERRED = [
     "counterparty",
     "item",
     "task",
+    "tag",
 ]
 
 NUMBER = re.compile(r"^(?:#|№|n|no\.?)?\s*0*(\d{1,12})$", re.IGNORECASE)
@@ -119,6 +120,16 @@ def search(
         if hits:
             answer[kind] = [h.payload() for h in hits]
     return answer
+
+
+def lookup(actor: Actor, company_id: UUID, kind: str, object_id: UUID) -> Hit | None:
+    """One record by its id, as its section shows it to this employee; nothing when the employee
+    may not see it. Lets a module show records of the others without reading their tables."""
+    provider = _providers.get(kind)
+    if provider is None:
+        return None
+    query = Query(text=str(object_id), number=None, uuid=object_id)
+    return next((h for h in provider(actor, company_id, query, 5) if h.id == str(object_id)), None)
 
 
 def exact_text(value: str, query: Query) -> bool:

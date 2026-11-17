@@ -30,6 +30,7 @@ from c4rsys.fleet.models import Vehicle, VehicleCard, VehicleMake, VehicleModel,
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
+from c4rsys.tags import services as tags
 
 NAME_MAX = 200
 
@@ -210,7 +211,10 @@ def vehicle_list(request: HttpRequest, cmp: str) -> JsonResponse:
             from c4rsys.fleet import search
             from c4rsys.platform.search import parse
 
-            cards = search.matching(cards, parse(request.GET["q"]))
+            # Found by a tag of that name too (customer's decision of 17.11.2026).
+            also = tags.matching_ids(context.company.id, actor.user_id, "vehicle", request.GET["q"])
+            found = search.matching(cards, parse(request.GET["q"]))
+            cards = cards.filter(Q(pk__in=found.values("pk")) | Q(pk__in=also)) if also else found
         only = request.GET.get("only", "")
         if only:
             # § 21.3.1: the list a block of the overview is counted from.

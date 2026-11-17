@@ -17,6 +17,7 @@ from c4rsys.parties.models import ClientCard, ClientRestriction, Counterparty
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
+from c4rsys.tags import services as tags
 
 NAME_MAX = 150
 COMPANY_NAME_MAX = 200
@@ -105,7 +106,8 @@ def client_list(request: HttpRequest, cmp: str) -> JsonResponse:
         state = request.GET.get("state", ClientCard.State.ACTIVE)
         if state not in (ClientCard.State.ACTIVE, ClientCard.State.ARCHIVED):
             raise errors.validation_error("state")
-        found = list(services.search(context.company.id, text, state)[:LIST_LIMIT])
+        also = tags.matching_ids(context.company.id, actor.user_id, "client", text)
+        found = list(services.search(context.company.id, text, state, also)[:LIST_LIMIT])
         return JsonResponse({"clients": _payloads(context.company.id, found)})
 
     _require(actor, "client.create")
@@ -420,7 +422,8 @@ def counterparty_list(request: HttpRequest, cmp: str) -> JsonResponse:
             raise errors.validation_error("state")
         text = request.GET.get("q", "")[:100]
         category = request.GET.get("category", "")[:100]
-        found = counterparties.search(context.company.id, text, state, category)[:LIST_LIMIT]
+        also = tags.matching_ids(context.company.id, actor.user_id, "counterparty", text)
+        found = counterparties.search(context.company.id, text, state, category, also)[:LIST_LIMIT]
         return JsonResponse({"counterparties": [_counterparty_payload(c) for c in found]})
 
     _require(actor, "counterparty.create")

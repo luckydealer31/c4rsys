@@ -7,6 +7,7 @@ from functools import lru_cache
 from typing import Any
 from uuid import UUID
 
+from django.db.models import Q
 from django.http import HttpRequest, JsonResponse
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
@@ -21,6 +22,7 @@ from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
 from c4rsys.platform.models import Currency
 from c4rsys.platform.money import round_money
+from c4rsys.tags import services as tags
 
 LIST_LIMIT = 100
 
@@ -178,7 +180,10 @@ def order_list(request: HttpRequest, cmp: str) -> JsonResponse:
         from c4rsys.orders import search
         from c4rsys.platform.search import parse
 
-        found = search.matching(found, parse(request.GET["q"]))
+        # Found by a tag of that name too (customer's decision of 17.11.2026).
+        also = tags.matching_ids(context.company.id, actor.user_id, "order", request.GET["q"])
+        by_text = search.matching(found, parse(request.GET["q"]))
+        found = found.filter(Q(pk__in=by_text.values("pk")) | Q(pk__in=also)) if also else by_text
     # § 12.2.6: the filter of debts — any unpaid balance or the overdue one.
     debt = request.GET.get("debt", "")
     if debt not in ("", "any", "overdue"):

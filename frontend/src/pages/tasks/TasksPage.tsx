@@ -12,7 +12,7 @@ import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { ProductivityTabs } from "../../layout/CompanyTabs";
 import { deviceTimeZone, formatMoment } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
-import { ChecklistCard, DependenciesCard, GroupsTagsAdmin, GroupTagsCard, SeriesCard, useGroups, useTags, WEEKDAYS } from "./Extensions";
+import { ChecklistCard, DependenciesCard, GroupsTagsAdmin, GroupTagsCard, SeriesCard, TaskTagChip, useGroups, useTags, WEEKDAYS } from "./Extensions";
 
 type Result = { task: WorkTask };
 export type TaskTarget = { objectType: string; objectId: string };
@@ -78,9 +78,7 @@ function TaskList({ query, empty }: { query: string; empty?: string }) {
               {x.overdue ? <span className="badge danger">{t("tasks.overdue")}</span> : null}
               {x.blocked ? <span className="badge warn">{t("tasks.blocked")}</span> : null}
               {x.tags.map((tag) => (
-                <span key={tag.id} className="badge">
-                  #{tag.name}
-                </span>
+                <TaskTagChip key={tag.id} tag={tag} />
               ))}
             </td>
             <td className="small">{t(`tasks.state_${x.state}`)}</td>
@@ -371,7 +369,7 @@ export function NewTask({ target, onDone }: { target?: TaskTarget; onDone?: () =
                   checked={tagIds.includes(x.id)}
                   onChange={() => setTagIds(tagIds.includes(x.id) ? tagIds.filter((y) => y !== x.id) : [...tagIds, x.id])}
                 />{" "}
-                #{x.name}
+                {x.name}
               </label>
             ))}
           </div>

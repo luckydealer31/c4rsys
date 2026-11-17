@@ -42,6 +42,8 @@ export function hitPath(hit: SearchHit): string {
       return `/warehouse/items/${hit.id}`;
     case "task":
       return `/tasks/${hit.id}`;
+    case "tag":
+      return `/company/tags/${hit.id}`;
     default:
       return "";
   }
@@ -119,13 +121,13 @@ export function SearchPage() {
 
 type T = ReturnType<typeof useTranslation>["t"];
 
-function hitTitle(hit: SearchHit, t: T): string {
+export function hitTitle(hit: SearchHit, t: T): string {
   const numbered = ["order", "rental", "service_operation", "trip", "payment", "document", "task"];
   if (numbered.includes(hit.kind)) return t(`search.numbered_${hit.kind}`, { number: hit.label || "—" });
   return hit.label;
 }
 
-function hitDetail(hit: SearchHit, t: T): string {
+export function hitDetail(hit: SearchHit, t: T): string {
   if (hit.kind === "order") return t(`orders.state_${hit.detail}`, { defaultValue: hit.detail });
   // A system task is titled by its event (§ 19.1.9).
   if (hit.kind === "task" && /^[a-z_]+(\.[a-z_]+)+$/.test(hit.detail)) {

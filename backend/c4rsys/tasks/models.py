@@ -262,42 +262,6 @@ class TaskGroup(models.Model):
         return self.name
 
 
-class TaskTag(models.Model):
-    """A tag of the company; it changes no access, executor, deadline or state (§ 19.4.7)."""
-
-    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
-    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
-    name = models.CharField(max_length=100)
-    created_by_user_id = models.UUIDField()
-    created_at = models.DateTimeField(default=now)
-
-    class Meta:
-        db_table = "task_tag"
-        constraints = [
-            models.UniqueConstraint(fields=["company", "id"], name="task_tag_company_id_uniq"),
-            models.UniqueConstraint(fields=["company", "name"], name="task_tag_name_uniq"),
-            models.CheckConstraint(condition=~Q(name=""), name="task_tag_name_not_empty"),
-        ]
-
-    def __str__(self) -> str:
-        return self.name
-
-
-class TaskTagLink(models.Model):
-    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
-    task = models.ForeignKey(Task, on_delete=models.PROTECT, related_name="tag_links")
-    tag = models.ForeignKey(TaskTag, on_delete=models.PROTECT, related_name="links")
-
-    class Meta:
-        db_table = "task_tag_link"
-        constraints = [
-            models.UniqueConstraint(fields=["task", "tag"], name="task_tag_link_uniq"),
-        ]
-
-    def __str__(self) -> str:
-        return f"{self.task_id}#{self.tag_id}"
-
-
 class TaskDependency(models.Model):
     """«Start after completion»: the task waits for its predecessor (§ 19.4.6)."""
 

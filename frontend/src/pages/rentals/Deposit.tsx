@@ -237,18 +237,15 @@ function DepositAction({
               </Field>
             ) : null}
           </div>
-          {offsetExchange && orderCurrency ? (
-            <RateAmount
-              lead={amountField}
-              from={deposit.currency}
-              to={orderCurrency}
-              amount={amount}
-              manual={rate}
-              onManual={setRate}
-            />
-          ) : (
-            <div className="row">{amountField}</div>
-          )}
+          {/* One line in every case: the field of the amount keeps its place while the rate comes. */}
+          <RateAmount
+            lead={amountField}
+            from={deposit.currency}
+            to={offsetExchange && orderCurrency ? orderCurrency : undefined}
+            amount={amount}
+            manual={rate}
+            onManual={setRate}
+          />
           <div className="row">{reasonField}</div>
         </>
       ) : action === "refund" ? (
@@ -271,25 +268,18 @@ function DepositAction({
               </select>
             </Field>
           </div>
-          {exchange && account && asReceived ? (
-            <div className="row">
-              {amountField}
-              <Field label={t("rates.equivalent", { currency: account.currency })}>
-                <input value={payout} disabled readOnly />
-              </Field>
-            </div>
-          ) : exchange && account ? (
-            <RateAmount
-              lead={amountField}
-              from={deposit.currency}
-              to={account.currency}
-              amount={amount}
-              manual={rate}
-              onManual={setRate}
-            />
-          ) : (
-            <div className="row">{amountField}</div>
-          )}
+          {/* One line in every case: the field of the amount keeps its place while the rate
+              comes, and when the amount typed passes from what is paid back as it came to what
+              is paid by a rate. */}
+          <RateAmount
+            lead={amountField}
+            from={deposit.currency}
+            to={exchange && account ? account.currency : undefined}
+            exact={exchange && account && asReceived ? payout : undefined}
+            amount={amount}
+            manual={rate}
+            onManual={setRate}
+          />
           <div className="row">{reasonField}</div>
         </>
       ) : (

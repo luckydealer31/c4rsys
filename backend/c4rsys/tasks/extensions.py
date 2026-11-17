@@ -19,13 +19,13 @@ from django.utils import timezone
 from c4rsys.companies.models import Company
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
+from c4rsys.tags import services as tags
+from c4rsys.tags.models import Tag
 from c4rsys.tasks.models import (
     Task,
     TaskChecklistItem,
     TaskDependency,
     TaskGroup,
-    TaskTag,
-    TaskTagLink,
 )
 
 MAX_ITEMS = 100
@@ -253,10 +253,6 @@ def groups_of(company_id: UUID) -> list[TaskGroup]:
     return list(TaskGroup.objects.filter(company_id=company_id).order_by("name"))
 
 
-def tags_of(company_id: UUID) -> list[TaskTag]:
-    return list(TaskTag.objects.filter(company_id=company_id).order_by("name"))
-
-
 def group_of(company_id: UUID, group_id: UUID | None) -> TaskGroup | None:
     if group_id is None:
         return None
@@ -266,27 +262,26 @@ def group_of(company_id: UUID, group_id: UUID | None) -> TaskGroup | None:
     return found
 
 
-def tags_by_ids(company_id: UUID, tag_ids: list[UUID]) -> list[TaskTag]:
-    found = list(TaskTag.objects.filter(company_id=company_id, pk__in=tag_ids))
-    if len(found) != len(set(tag_ids)):
+def tags_by_ids(company_id: UUID, tag_ids: list[UUID]) -> list[Tag]:
+    """The tags of a task are the tags of the company (customer's decision of 17.11.2026)."""
+    found = tags.company_tags_by_ids(company_id, tag_ids)
+    if found is None:
         raise errors.validation_error("tag_ids", code="TASK_TAG_UNKNOWN")
     return found
 
 
 def tag_names(t: Task) -> list[dict[str, str]]:
     return [
-        {"id": str(x.tag_id), "name": x.tag.name}
-        for x in TaskTagLink.objects.filter(task=t).select_related("tag").order_by("tag__name")
+        {"id": str(x.id), "name": x.name, "color": x.color}
+        for x in tags.company_tags_of(t.company_id, "task", t.id)
     ]
 
 
 def set_tags(ctx: CommandContext, t: Task, tag_ids: list[UUID], *, audit: bool = True) -> None:
-    tags = tags_by_ids(t.company_id, tag_ids)
+    wanted = tags_by_ids(t.company_id, tag_ids)
     before = sorted(x["name"] for x in tag_names(t))
-    TaskTagLink.objects.filter(task=t).exclude(tag_id__in=tag_ids).delete()
-    for tag in tags:
-        TaskTagLink.objects.get_or_create(company_id=t.company_id, task=t, tag=tag)
-    after = sorted(x.name for x in tags)
+    tags.replace_company_links(ctx.actor.user_id, t.company_id, "task", t.id, wanted)
+    after = sorted(x.name for x in wanted)
     if audit:
         if before == after:
             raise errors.business_rule("NOTHING_CHANGED")
@@ -370,57 +365,3 @@ def remove_group(ctx: CommandContext, company: Company, group_id: UUID) -> None:
     ctx.audit(
         "task_group.removed", object_type="task_group", object_id=group_id, before={"name": name}
     )
-
-
-def save_tag(ctx: CommandContext, company: Company, tag_id: UUID | None, name: str) -> TaskTag:
-    """A renamed tag keeps its links to the tasks (§ 19.4.7)."""
-    _require_manage_anywhere(ctx)
-    name = name.strip()
-    if not name:
-        raise errors.validation_error("name", code="FIELD_REQUIRED")
-    clash = TaskTag.objects.filter(company=company, name=name)
-    if tag_id is not None:
-        clash = clash.exclude(pk=tag_id)
-    if clash.exists():
-        raise errors.business_rule("TASK_TAG_EXISTS")
-    if tag_id is None:
-        tag = TaskTag.objects.create(
-            company=company, name=name, created_by_user_id=ctx.actor.user_id
-        )
-        ctx.audit(
-            "task_tag.created", object_type="task_tag", object_id=tag.id, after={"name": name}
-        )
-        return tag
-    found = TaskTag.objects.select_for_update().filter(company=company, pk=tag_id).first()
-    if found is None:
-        raise errors.not_found()
-    tag = found
-    before = tag.name
-    tag.name = name
-    tag.save()
-    ctx.audit(
-        "task_tag.renamed",
-        object_type="task_tag",
-        object_id=tag.id,
-        before={"name": before},
-        after={"name": name},
-    )
-    return tag
-
-
-def remove_tag(ctx: CommandContext, company: Company, tag_id: UUID) -> None:
-    """The tag is taken off the tasks; the tasks stay (§ 19.4.7)."""
-    from c4rsys.tasks.models import TaskSeries
-
-    _require_manage_anywhere(ctx)
-    tag = TaskTag.objects.select_for_update().filter(company=company, pk=tag_id).first()
-    if tag is None:
-        raise errors.not_found()
-    TaskTagLink.objects.filter(tag=tag).delete()
-    for series in TaskSeries.objects.filter(company=company):
-        if str(tag_id) in series.tag_ids:
-            series.tag_ids = [x for x in series.tag_ids if x != str(tag_id)]
-            series.save(update_fields=["tag_ids"])
-    name = tag.name
-    tag.delete()
-    ctx.audit("task_tag.removed", object_type="task_tag", object_id=tag_id, before={"name": name})

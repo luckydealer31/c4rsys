@@ -26,6 +26,7 @@ import { CalculationView, Warnings } from "./IssuePage";
 import { LinkedTasks } from "../tasks/TasksPage";
 import { LinkedDocuments } from "../documents/DocumentsPage";
 import { RentalInspectionsCard } from "../inspections/Blocks";
+import { TagsLine } from "../tags/Tags";
 
 type RentalResponse = { rental: Rental };
 
@@ -113,6 +114,7 @@ export function RentalPage() {
         {vehicle?.name ?? t("rentals.rental")} ·{" "}
         {t(current.state === "booked" && current.booking?.direct ? "rentals.state_awaiting" : `rentals.state_${current.state}`)}
       </h1>
+      <TagsLine kind="rental" id={current.id} />
       <Warnings warnings={issued?.warnings ?? []} />
       {current.overdue ? <div className="alert warn">{t("rentals.overdue")}</div> : null}
       <Card title={t("rentals.summary")}>

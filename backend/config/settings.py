@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     "c4rsys.notifications",
     "c4rsys.reports",
     "c4rsys.documents",
+    "c4rsys.tags",
     "c4rsys.backoffice",
 ]
 

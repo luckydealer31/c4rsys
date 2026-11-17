@@ -253,7 +253,20 @@
     "vehicle_document_archived": "ย้ายเอกสารของยานพาหนะไปคลังเก็บ",
     "vehicle_document_received": "ได้รับสำเนาเอกสารของยานพาหนะ",
     "vehicle_document_passed_to_owner": "ส่งสำเนาเอกสารของยานพาหนะให้เจ้าของแล้ว",
-    "rental_booking_to_rental": "เปลี่ยนการจองเป็นการเช่าแล้ว"
+    "rental_booking_to_rental": "เปลี่ยนการจองเป็นการเช่าแล้ว",
+    "tag_created": "สร้างแท็กแล้ว",
+    "tag_changed": "แก้ไขแท็กแล้ว",
+    "tag_archived": "เก็บแท็กถาวรแล้ว",
+    "tag_restored": "กู้คืนแท็กแล้ว",
+    "tag_links_changed": "เปลี่ยนแท็กแล้ว",
+    "tag_personal_created": "สร้างแท็กส่วนตัวแล้ว",
+    "tag_personal_changed": "แก้ไขแท็กส่วนตัวแล้ว",
+    "tag_personal_archived": "เก็บแท็กส่วนตัวถาวรแล้ว",
+    "tag_personal_restored": "กู้คืนแท็กส่วนตัวแล้ว",
+    "tag_personal_links_changed": "เปลี่ยนแท็กส่วนตัวแล้ว",
+    "tag_group_created": "สร้างกลุ่มแท็กแล้ว",
+    "tag_group_changed": "แก้ไขกลุ่มแท็กแล้ว",
+    "tag_group_removed": "ลบกลุ่มแท็กแล้ว"
   },
   "finance_articles": {
     "archive": "เก็บเข้าคลัง",
@@ -450,7 +463,8 @@
     "phone_add": "เพิ่มหมายเลขโทรศัพท์",
     "tab_settings": "การตั้งค่า",
     "extra_phones": "เบอร์โทรเพิ่มเติม",
-    "tab_apps": "แอปพลิเคชัน"
+    "tab_apps": "แอปพลิเคชัน",
+    "tab_tags": "แท็ก"
   },
   "contexts": {
     "module_later": "Work in this section comes with its module; its sections by location are already shown.",
@@ -1337,7 +1351,17 @@
     "booking_not_rental": "ต้องเปลี่ยนการจองเป็นการเช่าก่อน แล้วจึงส่งมอบจากการเช่า",
     "module_already_connected": "แอปนี้เปิดใช้งานอยู่แล้ว",
     "order_currency_not_charged": "คำสั่งซื้อไม่มียอดในสกุลเงินนี้",
-    "order_not_empty": "คำสั่งซื้อมีรายการแล้ว — ไม่ได้ยกเลิก"
+    "order_not_empty": "คำสั่งซื้อมีรายการแล้ว — ไม่ได้ยกเลิก",
+    "tag_exists": "มีแท็กนี้อยู่แล้ว",
+    "tag_name_too_long": "ชื่อแท็กยาวได้ไม่เกิน 40 ตัวอักษร",
+    "tag_color_unknown": "เลือกสีจากรายการ",
+    "tag_unknown": "ไม่มีแท็กนี้ในรายการแล้ว",
+    "tag_unchanged": "ไม่มีการเปลี่ยนแปลง",
+    "tag_object_type_unknown": "ไม่สามารถติดแท็กกับรายการนี้ได้",
+    "tag_group_exists": "มีกลุ่มนี้อยู่แล้ว",
+    "tag_group_unknown": "ไม่มีกลุ่มนี้แล้ว",
+    "tag_group_member_unknown": "เลือกพนักงานของบริษัท",
+    "tag_not_for_kind": "กลุ่มของแท็กนี้ไม่ได้ใช้กับรายการประเภทนี้"
   },
   "history": {
     "action": "Action",
@@ -1852,7 +1876,8 @@
     "service_policy_manage": "นโยบายบริการ",
     "documents_policy_manage": "ข้อกำหนดเอกสาร",
     "tasks_policy_manage": "นโยบายงาน",
-    "notifications_policy_manage": "กฎการแจ้งเตือน"
+    "notifications_policy_manage": "กฎการแจ้งเตือน",
+    "tags_manage": "จัดการแท็กของบริษัท"
   },
   "positions": {
     "director": "Director",
@@ -4405,7 +4430,8 @@
     "system_warehouse_adjustment_confirmation": "ยืนยันหรือปฏิเสธการปรับปรุงสต็อก",
     "system_warehouse_low_stock": "เติมสต็อกที่เหลือน้อย",
     "system_rental_schedule_conflict": "แก้ไขความขัดแย้งของตารางการจอง",
-    "system_service_work_overdue": "จัดการงานบริการที่เกินกำหนด"
+    "system_service_work_overdue": "จัดการงานบริการที่เกินกำหนด",
+    "tags_in_company": "แท็กจัดการได้ที่ «บริษัท → แท็ก»"
   },
   "notifications": {
     "title": "การแจ้งเตือน",
@@ -6430,7 +6456,8 @@
     "numbered_task": "งาน № {{number}}",
     "party_person": "บุคคล",
     "party_company": "นิติบุคคล",
-    "section_placeholder": "ค้นหาในส่วนนี้"
+    "section_placeholder": "ค้นหาในส่วนนี้",
+    "kind_tag": "แท็ก"
   },
   "wizard": {
     "step": "ขั้นตอนที่ {{n}} จาก {{total}}",
@@ -6461,5 +6488,53 @@
     "upcoming_car_wash": "ล้างรถ",
     "upcoming_parking": "ที่จอดรถ",
     "upcoming_shop": "ร้านค้า"
+  },
+  "tags": {
+    "title": "แท็ก",
+    "company_title": "แท็กของบริษัท",
+    "personal_title": "แท็กของฉัน",
+    "personal_hint": "แท็กส่วนตัวมีเพียงคุณเท่านั้นที่เห็น",
+    "personal_mark": "แท็กส่วนตัว",
+    "new": "แท็กใหม่",
+    "new_personal": "แท็กของฉัน",
+    "name": "ชื่อ",
+    "color": "สี",
+    "color_gray": "เทา",
+    "color_red": "แดง",
+    "color_orange": "ส้ม",
+    "color_yellow": "เหลือง",
+    "color_green": "เขียว",
+    "color_teal": "เขียวอมฟ้า",
+    "color_blue": "น้ำเงิน",
+    "color_purple": "ม่วง",
+    "color_pink": "ชมพู",
+    "edit": "แก้ไขแท็ก",
+    "archive": "ย้ายไปที่เก็บถาวร",
+    "restore": "กู้คืน",
+    "archived": "เก็บถาวรแล้ว",
+    "show_archived": "ที่เก็บถาวร",
+    "none": "ยังไม่มีแท็ก",
+    "none_personal": "ยังไม่มีแท็กส่วนตัว",
+    "count": "ติดแท็กแล้ว: {{count}}",
+    "add": "แท็ก",
+    "change": "แก้ไขแท็ก",
+    "nothing_marked": "ยังไม่มีรายการที่ติดแท็กนี้",
+    "scope_note": "แสดงเฉพาะรายการที่คุณเข้าถึงได้",
+    "group": "กลุ่ม",
+    "no_group": "ไม่มีกลุ่ม",
+    "group_new": "กลุ่มใหม่",
+    "group_edit": "แก้ไขกลุ่ม",
+    "group_edit_named": "แก้ไขกลุ่ม «{{group}}»",
+    "group_name": "ชื่อกลุ่ม",
+    "group_kinds": "แสดงให้เลือกที่ใด",
+    "group_kinds_hint": "แท็กของกลุ่มจะแสดงให้เลือกเฉพาะกับรายการที่ทำเครื่องหมายไว้ หากไม่ได้ทำเครื่องหมายใด ๆ จะแสดงทุกที่",
+    "group_members": "ใครสร้างแท็กได้",
+    "group_members_hint": "พนักงานเหล่านี้สร้างและแก้ไขแท็กของกลุ่มได้ นอกเหนือจากผู้ที่จัดการแท็กของบริษัท ทุกคนมองเห็นแท็ก",
+    "group_remove": "ลบกลุ่ม",
+    "group_remove_hint": "แท็กของกลุ่มจะยังอยู่ โดยไม่มีกลุ่ม",
+    "group_where": "แสดงที่: {{kinds}}",
+    "group_everywhere": "ทุกที่",
+    "group_makers": "สร้างโดย: {{names}}",
+    "add_to_group": "แท็กในกลุ่ม «{{group}}»"
   }
 }

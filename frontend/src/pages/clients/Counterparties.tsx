@@ -11,6 +11,7 @@ import { Card, ErrorMessage, Field, IconButton, Loading } from "../../components
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { SectionTabs } from "../../layout/SectionTabs";
 import { useFirstTab } from "../../layout/tabOrder";
+import { TagsLine } from "../tags/Tags";
 import { CardBadges, MessengerField } from "./ClientsPage";
 import { ContractorHistoryCard, MergeCard } from "./CardExtras";
 import { DocumentsCard, Facts, MainCard, SupplierHistoryCard } from "./CardParts";
@@ -260,6 +261,7 @@ export function CounterpartyPage() {
           style={{ flex: 1 }}
         />
       </div>
+      <TagsLine kind="counterparty" id={data.id} />
       {mergedInto ? (
         <div className="alert warn">
           {t("cards.merged_banner")}{" "}

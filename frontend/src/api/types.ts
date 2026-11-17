@@ -2276,7 +2276,8 @@ export type WorkTask = {
   closed_at: string | null;
   blocked: boolean;
   group_id: string | null;
-  tags: { id: string; name: string }[];
+  /** The tags of the company put on the task. */
+  tags: { id: string; name: string; color: string }[];
   repeating: boolean;
   // Detail only.
   reminders: number[];

@@ -13,6 +13,7 @@ import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading, Switch } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { FinanceTabs } from "../../layout/CompanyTabs";
+import { TagsLine } from "../tags/Tags";
 import { formatMoment } from "../../time";
 import { clientName } from "../clients/ClientsPage";
 import { LinkedTasks } from "../tasks/TasksPage";
@@ -312,6 +313,7 @@ export function OrderPage() {
       <h1>
         {t("orders.order")} № {current.number} · {t(`orders.state_${current.state}`)}
       </h1>
+      <TagsLine kind="order" id={current.id} />
       <Card>
         <dl className="facts">
           <dt>{t("orders.client")}</dt>

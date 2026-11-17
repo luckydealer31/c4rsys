@@ -13,6 +13,7 @@ from c4rsys.companies.views import run_and_respond
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
+from c4rsys.tags import services as tags
 from c4rsys.warehouse import catalog, dictionaries
 from c4rsys.warehouse import categories as part_catalog
 from c4rsys.warehouse.models import Item, Manufacturer
@@ -129,7 +130,9 @@ def item_list(request: HttpRequest, cmp: str) -> JsonResponse:
         state = request.GET.get("state", Item.State.ACTIVE)
         if state not in ("", *Item.State.values):
             raise errors.validation_error("state")
-        found = catalog.search(context.company.id, request.GET.get("q", "")[:100], state)
+        text = request.GET.get("q", "")[:100]
+        also = tags.matching_ids(context.company.id, actor.user_id, "item", text)
+        found = catalog.search(context.company.id, text, state, also)
         # § 11.1.13: filtering by a system attribute, «code:value».
         for wanted in request.GET.getlist("attr")[:10]:
             code, _, value = wanted.partition(":")

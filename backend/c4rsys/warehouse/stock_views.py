@@ -22,6 +22,7 @@ from c4rsys.parties import counterparties
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
+from c4rsys.tags import services as tags
 from c4rsys.warehouse import catalog, operations, prices, reserves, stock
 from c4rsys.warehouse.models import Item, LotLayer, PurchaseOrder, Receipt
 
@@ -633,9 +634,10 @@ def stock_list(request: HttpRequest, cmp: str) -> JsonResponse:
         found.setdefault(item_id, {}).setdefault(
             context_id, {"quantity": stock.ZERO, "tags": set()}
         )
-    items = catalog.search(context.company.id, request.GET.get("q", "")[:100], "").filter(
-        pk__in=found
-    )
+    # Found by a tag of the item too (customer's decision of 17.11.2026).
+    text = request.GET.get("q", "")[:100]
+    also = tags.matching_ids(context.company.id, actor.user_id, "item", text)
+    items = catalog.search(context.company.id, text, "", also).filter(pk__in=found)
     held = reserves.reserved_totals(context.company.id, set(visible))
     rows = []
     for item in items[:LIST_LIMIT]:

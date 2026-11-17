@@ -8,9 +8,15 @@ import type { WorkTask } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
+import { offeredFor, TagChip, useTags as useCompanyTags } from "../tags/Tags";
 
 export type Group = { id: string; name: string; description: string; version: number };
-export type Tag = { id: string; name: string };
+export type Tag = { id: string; name: string; color: string };
+
+/** A tag of a task as the tags are drawn everywhere. */
+export function TaskTagChip({ tag }: { tag: Tag }) {
+  return <TagChip tag={{ ...tag, personal: false, archived: false, version: 0 }} link />;
+}
 export const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7] as const;
 
 export function useGroups() {
@@ -18,9 +24,15 @@ export function useGroups() {
   return useApi<{ groups: Group[] }>(["task-groups", company.public_id], `/c/${company.public_id}/tasks/groups`);
 }
 
+/** The tags of a task are the tags of the company (customer's decision of 17.11.2026): made in
+ * «Company → Tags», chosen here. Personal tags are not put on tasks. */
 export function useTags() {
-  const company = useCompany();
-  return useApi<{ tags: Tag[] }>(["task-tags", company.public_id], `/c/${company.public_id}/tasks/tags`);
+  const all = useCompanyTags();
+  const groups = all.data?.groups ?? [];
+  const tags: Tag[] = (all.data?.tags ?? []).filter(
+    (tag) => !tag.personal && !tag.archived && offeredFor(tag, groups, "task"),
+  );
+  return { data: all.data ? { tags } : undefined };
 }
 
 function useTaskAction(task: WorkTask) {
@@ -157,22 +169,25 @@ export function GroupTagsCard({ task }: { task: WorkTask }) {
         </Field>
       </div>
       <div className="small">
-        {(tags.data?.tags ?? []).map((tag) => (
-          <label key={tag.id} style={{ marginRight: 12 }}>
-            <input
-              type="checkbox"
-              checked={chosen.has(tag.id)}
+        <div className="tag-choices">
+          {(tags.data?.tags ?? []).map((tag) => (
+            <button
+              key={tag.id}
+              type="button"
+              className="tag-choice"
+              aria-pressed={chosen.has(tag.id)}
               disabled={!editable || pending}
-              onChange={() => {
+              onClick={() => {
                 const next = new Set(chosen);
                 if (next.has(tag.id)) next.delete(tag.id);
                 else next.add(tag.id);
                 void run("tags", { tag_ids: [...next] });
               }}
-            />{" "}
-            #{tag.name}
-          </label>
-        ))}
+            >
+              <TagChip tag={{ ...tag, personal: false, archived: false, version: 0 }} />
+            </button>
+          ))}
+        </div>
         {!tags.data?.tags.length ? <span className="muted">{t("tasks.no_tags")}</span> : null}
       </div>
       <ErrorMessage error={error} />
@@ -235,30 +250,25 @@ export function SeriesCard({ task }: { task: WorkTask }) {
   );
 }
 
-/** Groups and tags of the company: created, renamed and removed with «manage» (§ 23.9.5). */
+/** Groups of the company: created, renamed and removed with «manage» (§ 23.9.5). The tags are
+ * the tags of the company and are kept in «Company → Tags». */
 export function GroupsTagsAdmin() {
   const { t } = useTranslation();
   const company = useCompany();
   const can = useCan();
   const queryClient = useQueryClient();
   const groups = useGroups();
-  const tags = useTags();
   const [groupName, setGroupName] = useState("");
-  const [tagName, setTagName] = useState("");
   const base = `/c/${company.public_id}/tasks`;
   const addGroup = useCommand<Record<string, unknown>, unknown>(`${base}/groups`);
-  const addTag = useCommand<Record<string, unknown>, unknown>(`${base}/tags`);
   const removeGroup = useCommand<{ id: string }, unknown>((b) => `${base}/groups/${b.id}`, "DELETE");
-  const removeTag = useCommand<{ id: string }, unknown>((b) => `${base}/tags/${b.id}`, "DELETE");
   if (!can("tasks.manage")) return null;
   const refresh = async () => {
     await queryClient.invalidateQueries({ queryKey: ["task-groups"] });
-    await queryClient.invalidateQueries({ queryKey: ["task-tags"] });
   };
   return (
-    <Card title={t("tasks.groups_and_tags")}>
+    <Card title={t("tasks.groups")}>
       <div className="small">
-        <strong>{t("tasks.groups")}:</strong>{" "}
         {(groups.data?.groups ?? []).map((g) => (
           <span key={g.id} style={{ marginRight: 12 }}>
             {g.name}{" "}
@@ -278,28 +288,10 @@ export function GroupsTagsAdmin() {
           </button>
         </div>
       </div>
-      <div className="small">
-        <strong>{t("tasks.tags")}:</strong>{" "}
-        {(tags.data?.tags ?? []).map((tag) => (
-          <span key={tag.id} style={{ marginRight: 12 }}>
-            #{tag.name}{" "}
-            <button type="button" className="link" onClick={() => void removeTag.run({ id: tag.id }).then((r) => (r ? refresh() : undefined))}>
-              ×
-            </button>
-          </span>
-        ))}
-      </div>
-      <div className="row">
-        <Field label={t("tasks.new_tag")}>
-          <input value={tagName} onChange={(e) => setTagName(e.target.value)} />
-        </Field>
-        <div className="actions">
-          <button type="button" className="secondary" disabled={!tagName.trim() || addTag.pending} onClick={() => void addTag.run({ name: tagName }).then((r) => (r ? refresh().then(() => setTagName("")) : undefined))}>
-            {t("tasks.add")}
-          </button>
-        </div>
-      </div>
-      <ErrorMessage error={addGroup.error ?? addTag.error ?? removeGroup.error ?? removeTag.error} />
+      <p className="small">
+        <Link to={companyPath(company, "/company/tags")}>{t("tasks.tags_in_company")}</Link>
+      </p>
+      <ErrorMessage error={addGroup.error ?? removeGroup.error} />
     </Card>
   );
 }

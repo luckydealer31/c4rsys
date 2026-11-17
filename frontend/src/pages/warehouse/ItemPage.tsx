@@ -12,6 +12,7 @@ import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { PartCategoryField } from "./Categories";
 import { MinimumsCard, PricesCard } from "./Prices";
 import { ItemStockCard, SupplierArticles } from "./Stock";
+import { TagsLine } from "../tags/Tags";
 
 const OTHER = "__other";
 
@@ -221,6 +222,7 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
         <Link to={companyPath(company, "/warehouse?tab=stock")}>← {t("nav.warehouse")}</Link>
       </p>
       <h1>{item ? item.name : t("warehouse.create_item")}</h1>
+      {item ? <TagsLine kind="item" id={item.id} /> : null}
       <form className="stack" onSubmit={submit}>
         <Card title={t("warehouse.section_main")}>
           <div className="row">

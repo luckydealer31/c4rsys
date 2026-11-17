@@ -21,6 +21,7 @@ urlpatterns = [
     path("api/", include("c4rsys.notifications.urls")),
     path("api/", include("c4rsys.reports.urls")),
     path("api/", include("c4rsys.documents.urls")),
+    path("api/", include("c4rsys.tags.urls")),
     path("api/", include("c4rsys.cabinet.urls")),
     path("api/", include("c4rsys.exports.urls")),
     path("api/", include("c4rsys.backoffice.urls")),
