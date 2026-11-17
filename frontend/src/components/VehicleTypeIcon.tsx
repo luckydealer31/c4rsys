@@ -83,14 +83,25 @@ const SHAPES: Record<string, Shape> = {
 
 /** The shape for a type and a body: a passenger car is shown by its body; a truck with the body
  * of a pickup or a van is shown as one. Without data there is no picture. */
-function shapeOf(type: string, body: string): string | null {
+export function shapeOf(type: string, body: string): string | null {
   if (type === "motorcycle" || type === "moped" || type === "bus") return type;
   if (type === "truck") return body === "pickup" || body === "van" ? body : "truck";
   if (body && SHAPES[body]) return body;
   return type === "passenger_car" ? "sedan" : null;
 }
 
-export function VehicleTypeIcon({ type, body, size = 64 }: { type: string; body: string; size?: number }) {
+/** `vector` — the drawn shape, which stays sharp at a large size; the pictures are small. */
+export function VehicleTypeIcon({
+  type,
+  body,
+  size = 64,
+  vector = false,
+}: {
+  type: string;
+  body: string;
+  size?: number;
+  vector?: boolean;
+}) {
   const { t } = useTranslation();
   const mask = useId();
   const key = shapeOf(type, body);
@@ -100,7 +111,7 @@ export function VehicleTypeIcon({ type, body, size = 64 }: { type: string; body:
   const label = [type ? t(`vehicles.type_${type}`) : "", body && body !== "other" ? t(`vehicles.body.${body}`) : ""]
     .filter(Boolean)
     .join(", ");
-  const picture = key ? PICTURES[key] : undefined;
+  const picture = key && !vector ? PICTURES[key] : undefined;
   if (picture) {
     return <img className="vehicle-type-icon picture" src={picture} width={size} height={size / 2} alt={label} title={label} />;
   }

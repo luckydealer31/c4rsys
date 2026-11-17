@@ -1,0 +1,205 @@
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { Link } from "react-router";
+
+import type { RentalSummary, Vehicle } from "../../api/types";
+import { Card, Loading } from "../../components/ui";
+import { VehicleTypeIcon } from "../../components/VehicleTypeIcon";
+import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
+import { formatMoment } from "../../time";
+import { useLocations } from "../settings/LocationsPage";
+import { useRentals, useVehicles } from "../vehicles/VehiclesPage";
+
+type Status = "free" | "rented" | "booked";
+const STATUSES: Status[] = ["free", "rented", "booked"];
+const FLEET = ["own", "managed"] as const;
+
+/** The park of the rental (customer's decisions of 17.11.2026): the own and the managed vehicles
+ * — those a rental and a booking are made of; the client ones are in the garage only. A vehicle
+ * on a warehouse is a stock item and is not shown. The list is filtered by the occupancy — free,
+ * in a rental, booked; a vehicle not admitted to the rental stays in the list with what
+ * restricts it. A booking and a rental are begun from the row. */
+export function Park() {
+  const { t, i18n } = useTranslation();
+  const company = useCompany();
+  const can = useCan();
+  const vehicles = useVehicles();
+  const locations = useLocations().data?.locations ?? [];
+  const rentals = useRentals(can("rental.view")).data?.rentals ?? [];
+  const [status, setStatus] = useState<Status | "">("");
+  const [shown, setShown] = useState<Set<string>>(new Set(FLEET));
+  // Both switches are on at first; the last one that is on stays on.
+  const toggle = (key: (typeof FLEET)[number]) => {
+    if (shown.has(key) && shown.size === 1) return;
+    const next = new Set(shown);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    setShown(next);
+  };
+
+  // What holds each vehicle: the rental it is in, and its bookings from the nearest one.
+  const active = new Map<string, RentalSummary>();
+  const booked = new Map<string, RentalSummary[]>();
+  for (const rental of rentals) {
+    if (rental.state === "active") active.set(rental.vehicle_card_id, rental);
+    if (rental.state === "booked" && rental.booking) {
+      booked.set(rental.vehicle_card_id, [...(booked.get(rental.vehicle_card_id) ?? []), rental]);
+    }
+  }
+  for (const list of booked.values()) {
+    list.sort((a, b) => (a.booking?.planned_start ?? "").localeCompare(b.booking?.planned_start ?? ""));
+  }
+  // One state for a vehicle: a rental going on comes before a booking waiting.
+  const statusOf = (v: Vehicle): Status => (active.has(v.id) ? "rented" : booked.has(v.id) ? "booked" : "free");
+
+  const fleet = (vehicles.data?.vehicles ?? []).filter((v) => FLEET.some((r) => r === v.relation) && v.storage === null);
+  const list = fleet.filter((v) => shown.has(v.relation) && (!status || statusOf(v) === status));
+  const groups = [
+    ...locations.map((l) => ({ id: l.id, name: l.name, zone: l.timezone, vehicles: list.filter((v) => v.location_id === l.id) })),
+    {
+      id: "none",
+      name: t("vehicles.no_location"),
+      zone: null,
+      vehicles: list.filter((v) => !v.location_id || !locations.some((l) => l.id === v.location_id)),
+    },
+  ].filter((group) => group.vehicles.length > 0);
+
+  /** What restricts the rental of the vehicle: what its admission lacks and the manual
+   * restriction that forbids the issue now. */
+  const limits = (v: Vehicle, zone: string): string[] => {
+    const r = v.restriction;
+    return [
+      ...(v.rental_readiness.ready
+        ? []
+        : [`${t("rentals.park_not_admitted")}: ${v.rental_readiness.missing.map((code) => t(`vehicles.missing_${code}`)).join(", ")}`]),
+      ...(r && r.state === "active" && r.forbid_rental_issue
+        ? [
+            `${r.custom_reason ? r.custom_reason.name : t(`vehicles.restriction_reason_${r.reason}`)}${
+              r.ends_at ? ` · ${t("rentals.park_until", { when: formatMoment(r.ends_at, zone, i18n.language) })}` : ""
+            }`,
+          ]
+        : []),
+    ];
+  };
+
+  return (
+    <>
+      <div className="list-bar">
+        <div className="segmented" role="group" aria-label={t("vehicles.occupancy")}>
+          <button type="button" aria-pressed={status === ""} onClick={() => setStatus("")}>
+            {t("rentals.park_all")}
+          </button>
+          {STATUSES.map((key) => (
+            <button key={key} type="button" aria-pressed={status === key} onClick={() => setStatus(key)}>
+              {t(`rentals.park_${key}`)}
+            </button>
+          ))}
+        </div>
+        {FLEET.map((key) => (
+          <button key={key} type="button" className="toggle-chip" aria-pressed={shown.has(key)} onClick={() => toggle(key)}>
+            {t(`vehicles.tab_${key}`)}
+          </button>
+        ))}
+      </div>
+      {vehicles.isLoading ? <Loading /> : null}
+      {vehicles.data && list.length === 0 ? (
+        <Card>
+          <p className="muted">{t(fleet.length ? "rentals.none_found" : "vehicles.none")}</p>
+        </Card>
+      ) : null}
+      {groups.map((group) => {
+        const zone = group.zone ?? company.timezone ?? "UTC";
+        const when = (moment: string | null | undefined) => formatMoment(moment, zone, i18n.language);
+        return (
+          <Card key={group.id} title={group.name}>
+            <div className="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>{t("vehicles.name")}</th>
+                    <th>{t("vehicles.occupancy")}</th>
+                    <th>{t("rentals.park_limits")}</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {group.vehicles.map((vehicle) => {
+                    const state = statusOf(vehicle);
+                    const rental = active.get(vehicle.id);
+                    const next = booked.get(vehicle.id)?.[0];
+                    const limited = limits(vehicle, zone);
+                    const admitted = vehicle.rental_readiness.ready;
+                    return (
+                      <tr key={vehicle.id}>
+                        <td className="vehicle-cell">
+                          <VehicleTypeIcon
+                            type={vehicle.characteristics.vehicle_type}
+                            body={vehicle.characteristics.body_type}
+                          />
+                          <div>
+                            <Link to={companyPath(company, `/vehicles/${vehicle.id}`)}>{vehicle.name}</Link>{" "}
+                            {vehicle.relation === "managed" ? (
+                              <span className="badge">{t("vehicles.relation_managed")}</span>
+                            ) : null}
+                            <div className="muted small">{vehicle.vehicle_id}</div>
+                          </div>
+                        </td>
+                        <td>
+                          <span className={`badge ${state === "free" ? "ok" : state === "rented" ? "warn" : ""}`}>
+                            {t(`rentals.park_${state}`)}
+                          </span>
+                          {rental ? (
+                            <div className="small">
+                              <Link to={companyPath(company, `/rentals/${rental.id}`)}>
+                                {rental.planned_end
+                                  ? t("rentals.park_until", { when: when(rental.planned_end) })
+                                  : t("rentals.park_rental")}
+                              </Link>
+                            </div>
+                          ) : null}
+                          {next?.booking ? (
+                            <div className="small">
+                              <Link to={companyPath(company, `/rentals/${next.id}`)}>
+                                {t(next.booking.direct ? "rentals.park_rental_from" : "rentals.park_booking_from", {
+                                  number: next.booking.number,
+                                  when: when(next.booking.planned_start),
+                                })}
+                              </Link>
+                            </div>
+                          ) : null}
+                        </td>
+                        <td className="small">
+                          {limited.length ? limited.map((text) => <div key={text}>{text}</div>) : <span className="muted">—</span>}
+                        </td>
+                        <td>
+                          <div className="row-actions">
+                            {admitted && can("rental.book") ? (
+                              <Link
+                                className="button secondary small-button"
+                                to={companyPath(company, `/rentals/book?vehicle=${vehicle.id}`)}
+                              >
+                                {t("rentals.park_book")}
+                              </Link>
+                            ) : null}
+                            {admitted && state !== "rented" && can("rental.issue") ? (
+                              <Link
+                                className="button secondary small-button"
+                                to={companyPath(company, `/rentals/new?vehicle=${vehicle.id}`)}
+                              >
+                                {t("rentals.park_issue")}
+                              </Link>
+                            ) : null}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        );
+      })}
+    </>
+  );
+}

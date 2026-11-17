@@ -21,6 +21,7 @@ import { VehicleParts } from "../warehouse/Reserves";
 import { OwnerRequestCard } from "./OwnerRequestCard";
 import { VehicleDocumentsList, VehicleDocumentsSettings } from "./VehicleDocuments";
 import { DraftsPanel } from "../inspections/OfflineDrafts";
+import { VehiclePhotos } from "./VehiclePhotos";
 import { useScope } from "../../offline/hooks";
 import { VehicleMoves } from "./VehicleMoves";
 import { VehicleDamagesCard, VehicleInspectionsCard } from "../inspections/Blocks";
@@ -416,6 +417,9 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
           ...facts.filter(([, , field]) => field && !field.startsWith("#") && !MAIN.includes(field)),
         ])}
         <div>
+          {/* The photos stand above the plate: the documents under it may be many (decision of
+              17.11.2026). */}
+          <VehiclePhotos vehicle={vehicle} />
           {renderFacts([...facts.filter(([, , field]) => field === "#plate"), ...facts.filter(([, , field]) => !field)])}
           <h3 style={{ marginTop: 20 }}>{t("nav.documents")}</h3>
           <GlobalDocumentsList vehicle={vehicle} />

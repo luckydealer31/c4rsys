@@ -7,11 +7,13 @@ import { useApi } from "../../api/queries";
 import { Icon } from "../../components/icons";
 import { Card, Loading, Switch } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
+import { useTabOrder } from "../../layout/tabOrder";
 import { formatMoment } from "../../time";
 import { clientName } from "../clients/ClientsPage";
 import { useOrders } from "../orders/OrdersPage";
 import { useLocations } from "../settings/LocationsPage";
 import { rangesText, unitText, useTariffs } from "../tariffs/TariffsPage";
+import { Park } from "./Park";
 import { serviceTerms } from "./Services";
 import { mayTrips, TripsView } from "../trips/TripsPage";
 import { ScheduleTab } from "../vehicles/SchedulePage";
@@ -119,7 +121,7 @@ function OrderCell({ id, numbers }: { id: string; numbers: Map<string, number> }
   return <td>{numbers.has(id) ? <Link to={companyPath(company, `/orders/${id}`)}>№ {numbers.get(id)}</Link> : "—"}</td>;
 }
 
-type Tab = "schedule" | "rentals" | "trips" | "services" | "catalog";
+type Tab = "schedule" | "rentals" | "trips" | "services" | "park" | "catalog";
 
 /** The rental section (customer's decision of 11.11.2026): bookings and rentals; the ordered
  * extra services, linked to rentals and standalone; the tariffs and the catalog of services,
@@ -129,9 +131,12 @@ export function RentalsPage() {
   const company = useCompany();
   const can = useCan();
   const [params, setParams] = useSearchParams();
-  // The schedule and the trips are tabs of the rental (customer's decision of 14.11.2026); the
-  // list of rentals and bookings is the first one, the schedule follows it.
-  const TABS: Tab[] = ["rentals", "schedule", ...(mayTrips(can) ? (["trips"] as Tab[]) : []), "services", "catalog"];
+  // The schedule and the trips are tabs of the rental (customer's decision of 14.11.2026). The
+  // order is the customer's of 17.11.2026: rentals and bookings, the schedule, the ordered
+  // services, the trips, the park, the tariffs and services; a user puts their own order by
+  // dragging the tabs. The section opens on the rentals and bookings in any order.
+  const TABS: Tab[] = ["rentals", "schedule", "services", ...(mayTrips(can) ? (["trips"] as Tab[]) : []), "park", "catalog"];
+  const order = useTabOrder("rentals", TABS);
   const tab: Tab = TABS.find((key) => key === params.get("tab")) ?? "rentals";
   const lines = useApi<{ lines: ServiceLine[] }>(
     ["service-lines", company.public_id],
@@ -144,6 +149,8 @@ export function RentalsPage() {
       ? [[can("rental.issue"), "/rentals/new", t("vehicles.action_rental")], booking]
       : tab === "trips"
         ? []
+      : tab === "park"
+        ? [[can("vehicle.create"), "/vehicles/new?relation=own", t("vehicles.create_button")]]
       : tab === "services"
         ? [
             [can("order.create"), "/rentals/services/order?mode=now", t("rentals.action_service_now")],
@@ -160,11 +167,12 @@ export function RentalsPage() {
       <div className={allowed.length ? "split" : ""}>
         <div>
           <div className="tabs left" role="tablist">
-            {TABS.map((key) => (
+            {order.ordered.map((key) => (
               <button
                 key={key}
                 type="button"
                 role="tab"
+                {...order.drag(key)}
                 aria-selected={tab === key}
                 className={tab === key ? "active" : ""}
                 onClick={() => setParams(key === "rentals" ? {} : { tab: key })}
@@ -177,6 +185,7 @@ export function RentalsPage() {
           {tab === "trips" ? <TripsView /> : null}
           {tab === "rentals" ? <RentalsList lines={lines.data?.lines ?? []} /> : null}
           {tab === "services" ? <OrderedServices lines={lines.data?.lines ?? []} loading={lines.isLoading} /> : null}
+          {tab === "park" ? <Park /> : null}
           {tab === "catalog" ? <Catalog /> : null}
         </div>
         {allowed.length ? (

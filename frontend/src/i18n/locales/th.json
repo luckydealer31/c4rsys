@@ -2037,7 +2037,20 @@
     "filter_from": "ตั้งแต่",
     "filter_to": "ถึง",
     "none_found": "ไม่พบรายการตามเงื่อนไขนี้",
-    "filter_services_both": "บริการและการจอง"
+    "filter_services_both": "บริการและการจอง",
+    "tab_park": "ลานรถ",
+    "park_all": "ทั้งหมด",
+    "park_free": "ว่าง",
+    "park_rented": "กำลังเช่า",
+    "park_booked": "จองแล้ว",
+    "park_limits": "ข้อจำกัด",
+    "park_not_admitted": "ไม่อนุญาตให้เช่า",
+    "park_until": "ถึง {{when}}",
+    "park_rental": "การเช่า",
+    "park_booking_from": "การจอง № {{number}} ตั้งแต่ {{when}}",
+    "park_rental_from": "การเช่าตั้งแต่ {{when}}",
+    "park_book": "จอง",
+    "park_issue": "ส่งมอบ"
   },
   "rights": {
     "add": "Add rights",
@@ -2784,7 +2797,8 @@
     "finance_moves_none": "ยังไม่มีรายรับหรือรายจ่าย",
     "finance_kind": "ประเภท",
     "finance_income_one": "รายรับ",
-    "finance_expense_one": "รายจ่าย"
+    "finance_expense_one": "รายจ่าย",
+    "photos_from": "การตรวจสภาพเมื่อ {{when}}"
   },
   "warehouse": {
     "action_create": "Create",

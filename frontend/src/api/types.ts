@@ -19,6 +19,8 @@ export type User = {
   theme: "system" | "light" | "dark";
   /** Personal time zone of the interface; empty — the device's. */
   timezone: string;
+  /** The order of the tabs of sections the user has put: the section — the keys of its tabs. */
+  tab_orders?: Record<string, string[]>;
 };
 
 export type CompanySummary = {

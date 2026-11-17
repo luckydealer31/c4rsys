@@ -2037,7 +2037,20 @@
     "filter_from": "from",
     "filter_to": "to",
     "none_found": "Nothing matches these conditions.",
-    "filter_services_both": "Services and bookings"
+    "filter_services_both": "Services and bookings",
+    "tab_park": "Park",
+    "park_all": "All",
+    "park_free": "Free",
+    "park_rented": "In rental",
+    "park_booked": "Booked",
+    "park_limits": "Restrictions",
+    "park_not_admitted": "Not admitted to rental",
+    "park_until": "until {{when}}",
+    "park_rental": "rental",
+    "park_booking_from": "booking № {{number}} from {{when}}",
+    "park_rental_from": "rental from {{when}}",
+    "park_book": "Book",
+    "park_issue": "Issue"
   },
   "rights": {
     "add": "Add rights",
@@ -2784,7 +2797,8 @@
     "finance_moves_none": "No income or expenses yet.",
     "finance_kind": "Type",
     "finance_income_one": "Income",
-    "finance_expense_one": "Expense"
+    "finance_expense_one": "Expense",
+    "photos_from": "Inspection of {{when}}"
   },
   "warehouse": {
     "action_create": "Create",

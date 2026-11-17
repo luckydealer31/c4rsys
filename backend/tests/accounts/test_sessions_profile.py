@@ -147,6 +147,34 @@ def test_language_and_theme_are_saved_in_profile(client: Client) -> None:
     assert AuditEvent.objects.filter(action="account.settings_changed").count() == 1
 
 
+def test_order_of_tabs_is_kept_for_the_user_by_sections(client: Client) -> None:
+    """Customer's decision of 17.11.2026: the order of the tabs a user has put is remembered for
+    the user; the order of one section does not touch the others."""
+    register(client)
+
+    def put(orders: Any, key: str) -> Any:
+        return client.patch(
+            "/api/me",
+            data={"tab_orders": orders},
+            content_type="application/json",
+            headers={"Idempotency-Key": key},
+        )
+
+    assert put({"rentals": ["park", "rentals"]}, "tabs-1").status_code == 200
+    response = put({"finance": ["orders", "money"]}, "tabs-2")
+    assert response.json()["user"]["tab_orders"] == {
+        "rentals": ["park", "rentals"],
+        "finance": ["orders", "money"],
+    }
+    assert client.get("/api/me").json()["user"]["tab_orders"]["rentals"] == ["park", "rentals"]
+    # A repeated key, a key that is not a name and a list in place of the sections are refused.
+    for number, wrong in enumerate(
+        ({"rentals": ["park", "park"]}, {"rentals": ["<b>"]}, ["park"], {"rentals": "park"})
+    ):
+        assert put(wrong, f"tabs-wrong-{number}").status_code == 400
+    assert UserAccount.objects.get().tab_orders["rentals"] == ["park", "rentals"]
+
+
 def _set_name(client: Client, key: str, **extra: str) -> Any:
     data = {"first_name": "Иван", "last_name": "Петров", **extra}
     return post(client, "/api/me/personal-data", data, headers={"Idempotency-Key": key})

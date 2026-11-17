@@ -2037,7 +2037,20 @@
     "filter_from": "с",
     "filter_to": "по",
     "none_found": "По этим условиям ничего нет.",
-    "filter_services_both": "Услуги и брони"
+    "filter_services_both": "Услуги и брони",
+    "tab_park": "Парк",
+    "park_all": "Все",
+    "park_free": "Свободно",
+    "park_rented": "В аренде",
+    "park_booked": "Забронировано",
+    "park_limits": "Ограничения",
+    "park_not_admitted": "Не допущено к аренде",
+    "park_until": "до {{when}}",
+    "park_rental": "аренда",
+    "park_booking_from": "бронь № {{number}} с {{when}}",
+    "park_rental_from": "аренда с {{when}}",
+    "park_book": "Забронировать",
+    "park_issue": "Выдать"
   },
   "rights": {
     "add": "Добавить права",
@@ -2784,7 +2797,8 @@
     "finance_moves_none": "Доходов и расходов пока нет.",
     "finance_kind": "Вид",
     "finance_income_one": "Доход",
-    "finance_expense_one": "Расход"
+    "finance_expense_one": "Расход",
+    "photos_from": "Осмотр от {{when}}"
   },
   "warehouse": {
     "action_create": "Создать",

@@ -140,7 +140,8 @@ export function BookingPage({ mode = "booking" }: { mode?: "booking" | "rental" 
   const queryClient = useQueryClient();
   const vehicles = useVehicles();
   const locations = useLocations();
-  const [vehicleId, setVehicleId] = useState(() => (direct ? (params.get("vehicle") ?? "") : ""));
+  // The vehicle may be given by the address: a row of the park begins a booking or a rental.
+  const [vehicleId, setVehicleId] = useState(() => params.get("vehicle") ?? "");
   const [tariffId, setTariffId] = useState("");
   const [locationId, setLocationId] = useState("");
   const [returnId, setReturnId] = useState("");

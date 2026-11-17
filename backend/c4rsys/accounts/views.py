@@ -87,6 +87,7 @@ def _user_payload(user: UserAccount) -> dict[str, Any]:
         "language": user.language,
         "theme": user.theme,
         "timezone": user.time_zone,
+        "tab_orders": user.tab_orders,
     }
 
 
@@ -213,7 +214,9 @@ def me(request: HttpRequest) -> JsonResponse:
         return JsonResponse({"user": _user_payload(user)})
 
     data = parse_json(request)
-    changes: dict[str, str] = {}
+    changes: dict[str, Any] = {}
+    if "tab_orders" in data:
+        changes["tab_orders"] = _tab_orders(data["tab_orders"])
     if "language" in data:
         language = get_str(data, "language", max_length=10, required=False)
         if language not in LANGUAGES:
@@ -234,7 +237,8 @@ def me(request: HttpRequest) -> JsonResponse:
         locked = UserAccount.objects.select_for_update().get(pk=user.pk)
         before = {key: getattr(locked, key) for key in changes}
         for key, value in changes.items():
-            setattr(locked, key, value)
+            # The order of one section is put; the orders of the others stay.
+            setattr(locked, key, {**locked.tab_orders, **value} if key == "tab_orders" else value)
         locked.save(update_fields=[*changes, "updated_at"])
         ctx.audit(
             "account.settings_changed",
@@ -246,6 +250,27 @@ def me(request: HttpRequest) -> JsonResponse:
         return CommandResult(200, {"user": _user_payload(locked)})
 
     return _run(request, "account.update_settings", _actor(user, session), changes, handler)
+
+
+_TAB_KEY = re.compile(r"^[a-z][a-z0-9_]{0,29}$")
+
+
+def _tab_orders(raw: Any) -> dict[str, list[str]]:
+    """The order of the tabs of sections: the keys the interface names them by, without
+    repeats. What the keys mean is the interface's matter — unknown ones are passed over there."""
+    if not isinstance(raw, dict) or not raw or len(raw) > 20:
+        raise errors.validation_error("tab_orders")
+    for section, keys in raw.items():
+        if (
+            not isinstance(section, str)
+            or not _TAB_KEY.match(section)
+            or not isinstance(keys, list)
+            or len(keys) > 30
+            or len(set(map(str, keys))) != len(keys)
+            or not all(isinstance(key, str) and _TAB_KEY.match(key) for key in keys)
+        ):
+            raise errors.validation_error("tab_orders")
+    return {str(section): [str(key) for key in keys] for section, keys in raw.items()}
 
 
 @require_POST

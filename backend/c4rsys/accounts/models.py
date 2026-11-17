@@ -55,6 +55,9 @@ class UserAccount(models.Model):
     backup_code_hash = models.CharField(max_length=255, blank=True, default="")
     language = models.CharField(max_length=10, blank=True, default="")
     theme = models.CharField(max_length=10, choices=Theme.choices, default=Theme.SYSTEM)
+    # The order of the tabs of a section the user has put for themself (customer's decision of
+    # 17.11.2026): the section — the keys of its tabs in order. Empty — the usual order.
+    tab_orders = models.JSONField(default=dict, blank=True)
     session_idle_limit_min = models.PositiveIntegerField(default=DEFAULT_IDLE_MINUTES)
     session_total_limit_min = models.PositiveIntegerField(default=DEFAULT_TOTAL_MINUTES)
     state = models.CharField(max_length=20, choices=State.choices, default=State.ACTIVE)
