@@ -478,6 +478,8 @@ class ReceiptLine(models.Model):
     # The quantity after corrections of the posted line (§ 11.6.2); `quantity` stays as posted.
     corrected_quantity = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     unit_cost = models.DecimalField(max_digits=14, decimal_places=4, null=True, blank=True)
+    # The names of the storage places written in the document; the units and lots it makes get
+    # the tags of those places (warehouse/places.py).
     tags = ArrayField(models.CharField(max_length=50), default=list, blank=True)
     serial_numbers = ArrayField(models.CharField(max_length=100), default=list, blank=True)
     # Lot: an existing one, or the data of a new one (created at posting).
@@ -542,7 +544,6 @@ class Asset(models.Model):
     )
     state = models.CharField(max_length=20, choices=State.choices, default=State.IN_STOCK)
     serial_number = models.CharField(max_length=100, blank=True, default="")
-    tags = ArrayField(models.CharField(max_length=50), default=list, blank=True)
     # Purchase cost of this very unit (§ 11.2.13); empty — «Cost not given» (§ 11.2.6).
     purchase_cost = models.DecimalField(max_digits=14, decimal_places=4, null=True, blank=True)
     # Its own selling price over the price of the item (§ 11.7.4); empty — the item's price.
@@ -583,7 +584,6 @@ class Lot(models.Model):
     external_number = models.CharField(max_length=100, blank=True, default="")
     production_date = models.DateField(null=True, blank=True)
     expiry_date = models.DateField(null=True, blank=True)
-    tags = ArrayField(models.CharField(max_length=50), default=list, blank=True)
     currency = models.CharField(max_length=3)
     created_at = models.DateTimeField(default=now)
 

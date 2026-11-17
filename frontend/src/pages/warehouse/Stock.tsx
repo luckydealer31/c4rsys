@@ -8,6 +8,7 @@ import type { Counterparty, ItemStock, StockRow, SupplierArticle, WarehouseItem 
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
+import { PlaceTags } from "../tags/Tags";
 
 /** A quantity with the short unit; trailing zeros of hundredths are dropped. */
 export function useQuantity() {
@@ -250,14 +251,14 @@ function Tags({ kind, id, tags, item }: { kind: "assets" | "lots"; id: string; t
   const company = useCompany();
   const can = useCan();
   const client = useQueryClient();
-  const [text, setText] = useState<string | null>(null);
+  const [chosen, setChosen] = useState<string[] | null>(null);
   const save = useCommand<{ tags: string[] }, unknown>(`/c/${company.public_id}/warehouse/${kind}/${id}/tags`);
-  if (text === null) {
+  if (chosen === null) {
     return (
       <span className="small">
         {tags.join(", ") || "—"}{" "}
         {can("warehouse.tags.edit") ? (
-          <button type="button" className="link" onClick={() => setText(tags.join(", "))}>
+          <button type="button" className="link" onClick={() => setChosen(tags)}>
             {t("stock.edit_tags")}
           </button>
         ) : null}
@@ -266,13 +267,14 @@ function Tags({ kind, id, tags, item }: { kind: "assets" | "lots"; id: string; t
   }
   return (
     <span className="row" style={{ alignItems: "center" }}>
-      <input value={text} placeholder={t("receipts.tags_hint")} onChange={(e) => setText(e.target.value)} />
+      <PlaceTags value={chosen} onChange={setChosen} />
       <button
         type="button"
         disabled={save.pending}
         onClick={async () => {
-          if ((await save.run({ tags: parseTags(text) })) !== null) {
-            setText(null);
+          if ((await save.run({ tags: chosen })) !== null) {
+            setChosen(null);
+            await client.invalidateQueries({ queryKey: ["tags", company.public_id] });
             await client.invalidateQueries({ queryKey: ["warehouse-item-stock", company.public_id, item.id] });
             await client.invalidateQueries({ queryKey: ["warehouse-stock", company.public_id] });
           }

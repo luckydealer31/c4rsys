@@ -632,6 +632,12 @@ a.tag-chip:hover { border-color: var(--tag); }
 .tag-rows li.archived .tag-chip { opacity: 0.5; }
 .tag-row-actions { margin-left: auto; display: inline-flex; gap: 2px; }
 .tag-title .tag-chip { font-size: 1.1rem; padding: 4px 16px; }
+/* The storage places of a unit or a lot: the chosen ones as marks, and the field that adds one. */
+.place-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.place-tags input { flex: 1 1 140px; min-width: 120px; }
+.place-tags .tag-chip button { padding: 0 0 0 2px; min-height: 0 !important; background: none; border: 0;
+  color: inherit; font-size: 1rem; line-height: 1; cursor: pointer; }
+.place-refused { flex: 1 1 100%; color: var(--danger); }
 /* A group of tags: its name, the button of a new tag and the pencil of the group in one line. */
 .tag-group-head { display: flex; align-items: center; gap: 10px; }
 .tag-group-head h2 { margin: 0; }

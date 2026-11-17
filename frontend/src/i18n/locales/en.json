@@ -1361,7 +1361,9 @@
     "tag_group_exists": "Such a group already exists.",
     "tag_group_unknown": "This group is no longer there.",
     "tag_group_member_unknown": "Choose employees of the company.",
-    "tag_not_for_kind": "The group of this tag is not for such records."
+    "tag_not_for_kind": "The group of this tag is not for such records.",
+    "place_tag_unknown": "There is no storage place «{{name}}» in the list. New places are made by the employees named in the group «Storage places».",
+    "tag_group_of_system": "This group is kept by the system and is not removed."
   },
   "history": {
     "action": "Action",
@@ -6535,6 +6537,11 @@
     "group_where": "Offered for: {{kinds}}",
     "group_everywhere": "everywhere",
     "group_makers": "made by: {{names}}",
-    "add_to_group": "A tag in the group «{{group}}»"
+    "add_to_group": "A tag in the group «{{group}}»",
+    "system_group_storage_places": "Storage places",
+    "system_where_storage_places": "Offered at the warehouse: the place of a unit or a lot.",
+    "place_add": "Add a place",
+    "place_remove": "Remove «{{name}}»",
+    "place_unknown": "There is no place «{{name}}» in the list. New places are made by the employees named in the group «Storage places»."
   }
 }

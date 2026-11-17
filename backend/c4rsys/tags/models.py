@@ -23,6 +23,10 @@ class TagGroup(models.Model):
     name_key = models.CharField(max_length=NAME_MAX)
     # The kinds of records the tags of the group are offered for; empty — for every kind.
     kinds = models.JSONField(default=list, blank=True)
+    # A group the system keeps for a purpose of its own — the storage places of the warehouse
+    # (`storage_places`): one in a company, not removed; its name is the interface's. Empty — a
+    # group of the company's own.
+    code = models.CharField(max_length=30, blank=True, default="")
     created_by_user_id = models.UUIDField()
     created_at = models.DateTimeField(default=now)
     version = models.PositiveIntegerField(default=1)
@@ -33,6 +37,9 @@ class TagGroup(models.Model):
             models.UniqueConstraint(fields=["company", "id"], name="tag_group_company_id_uniq"),
             models.UniqueConstraint(fields=["company", "name_key"], name="tag_group_name_uniq"),
             models.CheckConstraint(condition=~Q(name=""), name="tag_group_name_given"),
+            models.UniqueConstraint(
+                fields=["company", "code"], condition=~Q(code=""), name="tag_group_code_uniq"
+            ),
         ]
 
     def __str__(self) -> str:

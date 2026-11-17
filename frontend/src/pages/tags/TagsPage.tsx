@@ -76,6 +76,8 @@ export function TagsPage() {
   );
 
   const groups = data?.groups ?? [];
+  // A group of the system is named by the interface.
+  const groupName = (group: TagGroup) => (group.code ? t(`tags.system_group_${group.code}`) : group.name);
   const ofCompany = shown.filter((tag) => !tag.personal);
   const loose = ofCompany.filter((tag) => !groups.some((g) => g.id === tag.group_id));
   const mine = shown.filter((tag) => tag.personal);
@@ -107,13 +109,13 @@ export function TagsPage() {
                 return (
                   <section key={group.id} className="card tag-group">
                     <div className="tag-group-head">
-                      <h2>{group.name}</h2>
+                      <h2>{groupName(group)}</h2>
                       {group.can_create ? (
                         <button
                           type="button"
                           className="tag-add"
-                          aria-label={t("tags.add_to_group", { group: group.name })}
-                          title={t("tags.add_to_group", { group: group.name })}
+                          aria-label={t("tags.add_to_group", { group: groupName(group) })}
+                          title={t("tags.add_to_group", { group: groupName(group) })}
                           onClick={() => setEditing({ personal: false, groupId: group.id })}
                         >
                           <Icon name="plus" size={12} /> {t("tags.add")}
@@ -122,17 +124,19 @@ export function TagsPage() {
                       {data.can_manage ? (
                         <IconButton
                           icon="edit"
-                          label={t("tags.group_edit_named", { group: group.name })}
+                          label={t("tags.group_edit_named", { group: groupName(group) })}
                           onClick={() => setGrouping(group)}
                         />
                       ) : null}
                     </div>
                     <p className="muted small tag-group-note">
-                      {t("tags.group_where", {
-                        kinds: group.kinds.length
-                          ? group.kinds.map((kind) => t(`search.kind_${kind}`)).join(", ")
-                          : t("tags.group_everywhere"),
-                      })}
+                      {group.code
+                        ? t(`tags.system_where_${group.code}`)
+                        : t("tags.group_where", {
+                            kinds: group.kinds.length
+                              ? group.kinds.map((kind) => t(`search.kind_${kind}`)).join(", ")
+                              : t("tags.group_everywhere"),
+                          })}
                       {group.members.length
                         ? ` · ${t("tags.group_makers", { names: group.members.map((m) => m.name).join(", ") })}`
                         : ""}
@@ -184,7 +188,10 @@ export function TagsPage() {
         </Modal>
       ) : null}
       {grouping && data ? (
-        <Modal title={t(grouping === "new" ? "tags.group_new" : "tags.group_edit")} onClose={() => setGrouping(null)}>
+        <Modal
+          title={grouping === "new" ? t("tags.group_new") : grouping.code ? groupName(grouping) : t("tags.group_edit")}
+          onClose={() => setGrouping(null)}
+        >
           <GroupForm group={grouping === "new" ? undefined : grouping} list={data} onClose={() => setGrouping(null)} />
         </Modal>
       ) : null}
@@ -237,22 +244,29 @@ function GroupForm({ group, list, onClose }: { group?: TagGroup; list: TagList; 
         void send(group ? "PATCH" : "POST");
       }}
     >
-      <label className="field">
-        <span>{t("tags.group_name")}</span>
-        <input value={name} maxLength={40} autoFocus onChange={(e) => setName(e.target.value)} />
-      </label>
-      <fieldset className="tag-checks">
-        <legend>
-          {t("tags.group_kinds")}
-          <Info text={t("tags.group_kinds_hint")} />
-        </legend>
-        {list.kinds.map((kind) => (
-          <label key={kind}>
-            <input type="checkbox" checked={kinds.has(kind)} onChange={() => setKinds(flip(kinds, kind))} />{" "}
-            {t(`search.kind_${kind}`)}
+      {/* A group of the system keeps its name and its purpose: only its people are named. */}
+      {group?.code ? (
+        <p className="muted">{t(`tags.system_where_${group.code}`)}</p>
+      ) : (
+        <>
+          <label className="field">
+            <span>{t("tags.group_name")}</span>
+            <input value={name} maxLength={40} autoFocus onChange={(e) => setName(e.target.value)} />
           </label>
-        ))}
-      </fieldset>
+          <fieldset className="tag-checks">
+            <legend>
+              {t("tags.group_kinds")}
+              <Info text={t("tags.group_kinds_hint")} />
+            </legend>
+            {list.kinds.map((kind) => (
+              <label key={kind}>
+                <input type="checkbox" checked={kinds.has(kind)} onChange={() => setKinds(flip(kinds, kind))} />{" "}
+                {t(`search.kind_${kind}`)}
+              </label>
+            ))}
+          </fieldset>
+        </>
+      )}
       <fieldset className="tag-checks">
         <legend>
           {t("tags.group_members")}
@@ -267,7 +281,7 @@ function GroupForm({ group, list, onClose }: { group?: TagGroup; list: TagList; 
       </fieldset>
       <ErrorMessage error={error} />
       <div className="actions end">
-        {group ? (
+        {group && !group.code ? (
           <button type="button" className="secondary" disabled={pending} title={t("tags.group_remove_hint")} onClick={() => void send("DELETE")}>
             {t("tags.group_remove")}
           </button>
@@ -312,7 +326,7 @@ export function TagPage() {
             <TagChip tag={data.tag} />
           </h1>
         ) : null}
-        {group ? <span className="muted">{group.name}</span> : null}
+        {group ? <span className="muted">{group.code ? t(`tags.system_group_${group.code}`) : group.name}</span> : null}
         {data?.tag.archived ? <span className="badge">{t("tags.archived")}</span> : null}
         {data?.can_manage && !data.tag.archived ? (
           <IconButton icon="edit" label={t("tags.edit")} onClick={() => setEditing(true)} />

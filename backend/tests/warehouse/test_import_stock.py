@@ -8,6 +8,7 @@ import pytest
 from django.test import Client
 from openpyxl import load_workbook
 
+from c4rsys.warehouse import places
 from c4rsys.warehouse.models import (
     Asset,
     Lot,
@@ -121,7 +122,10 @@ def test_units_and_lots_are_imported(owner: Client, cmp: str, setup: dict[str, A
     assert str(receipt.import_operation_id) == body["id"]
     units = list(Asset.objects.order_by("created_at"))
     assert [u.serial_number for u in units] == ["SN-1", ""]
-    assert units[0].purchase_cost == Decimal("450") and units[1].tags == ["Shelf 2", "Box 1"]
+    assert units[0].purchase_cost == Decimal("450")
+    # The marks of the place are tags of the group of the storage places now (§ 11.1.9).
+    marked = places.names(units[1].company_id, places.ASSET, [units[1].id])
+    assert marked[units[1].id] == ["Box 1", "Shelf 2"]
     assert all(u.public_id.startswith("AST") for u in units)
     first = Lot.objects.get(external_number="B-77")  # one LOT ID for the group
     assert str(first.expiry_date) == "2027-01-01"

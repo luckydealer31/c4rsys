@@ -30,6 +30,7 @@ from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
 from c4rsys.platform.counters import next_number
 from c4rsys.platform.registry import allocate_public_id
+from c4rsys.warehouse import places as storage
 from c4rsys.warehouse import reserves
 from c4rsys.warehouse.models import (
     Asset,
@@ -1370,12 +1371,12 @@ def correct_receipt_line(
                     receipt_line=line,
                     actor_user_id=ctx.actor.user_id,
                 )
+        marks = storage.resolve(ctx, company.id, line.tags) if delta > 0 else []
         for _ in range(int(max(delta, ZERO))):
             asset = Asset(
                 company_id=company.id,
                 item=line.item,
                 context=context,
-                tags=line.tags,
                 purchase_cost=unit_cost if change_cost else line.unit_cost,
                 currency=receipt.currency,
                 receipt_line=line,
@@ -1384,6 +1385,7 @@ def correct_receipt_line(
                 "AST", entity_type="warehouse_asset", entity_id=asset.id
             )
             asset.save(force_insert=True)
+            storage.put(ctx, company.id, storage.ASSET, [asset.id], marks)
             StockMovement.objects.create(
                 company_id=company.id,
                 kind=StockMovement.Kind.CORRECTION,
@@ -1511,13 +1513,14 @@ def sources(company_id: UUID, item_id: UUID, context_id: UUID) -> dict[str, Any]
         assets = Asset.objects.filter(
             company_id=company_id, item=item, context_id=context_id, state=Asset.State.IN_STOCK
         ).order_by("created_at")
+        marked = storage.names(company_id, storage.ASSET, [a.id for a in assets])
         return {
             "assets": [
                 {
                     "id": str(a.id),
                     "public_id": a.public_id,
                     "serial_number": a.serial_number,
-                    "tags": a.tags,
+                    "tags": marked.get(a.id, []),
                 }
                 for a in assets
             ],

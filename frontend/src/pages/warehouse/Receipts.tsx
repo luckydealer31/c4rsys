@@ -21,6 +21,7 @@ import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { CounterpartyForm } from "../clients/Counterparties";
 import { parseTags, useMoney, useQuantity } from "./Stock";
+import { PlaceTags } from "../tags/Tags";
 
 /** Receipts of the warehouses the employee may see, drafts and posted (§ 11.2.7, § 11.6.2). */
 export function ReceiptsList() {
@@ -648,9 +649,10 @@ function LineEditor({
         </p>
       ) : null}
       <div className="row">
-        <Field label={t("receipts.tags")} hint={t("receipts.tags_hint")}>
-          <input value={line.tags} onChange={set("tags")} />
-        </Field>
+        <div className="field">
+          <span>{t("receipts.tags")}</span>
+          <PlaceTags value={parseTags(line.tags)} onChange={(names) => onChange({ ...line, tags: names.join(", ") })} />
+        </div>
         <button type="button" className="secondary" style={{ alignSelf: "end", flex: "0 0 auto" }} onClick={onRemove}>
           {t("receipts.remove_line")}
         </button>

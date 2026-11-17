@@ -14,6 +14,10 @@ class WarehouseConfig(AppConfig):
         from c4rsys.warehouse import search as warehouse_search
 
         platform_search.register("item", warehouse_search.provider)
+        # § 11.1.9: the storage places are tags; on the page of a tag a unit is shown as its item.
+        from c4rsys.warehouse import places
+
+        places.register()
         from c4rsys.companies import readiness
 
         # TODO(spec): § 4.3.1 does not define readiness of a warehouse context. PROPOSAL: an

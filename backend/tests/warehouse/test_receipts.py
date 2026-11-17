@@ -310,3 +310,59 @@ def test_movement_journal_is_append_only(owner: Client, cmp: str) -> None:
     post_receipt(owner, cmp, draft.json()["receipt"])
     with pytest.raises(Exception), connection.cursor() as cursor:  # noqa: B017 — the trigger
         cursor.execute("UPDATE warehouse_movement SET quantity = 5")
+
+
+def test_storage_places_are_tags_of_their_group(owner: Client, cmp: str) -> None:
+    """Customer's decision of 17.11.2026 (§ 11.1.9): a storage place is no free text — it is a
+    tag of the group «Storage places». A new place is made by whoever is named in the group or
+    manages the tags; the others choose from the list."""
+    ctx = warehouse(owner, cmp)
+    pads = item(owner, cmp, "Brake pads", "piece")
+    keeper, keeper_id = hire(owner, cmp, "k@example.com", [{"type": "set", "set": "storekeeper"}])
+    line = {"item_id": pads["id"], "quantity": 1, "unit_cost": "100"}
+
+    def received(by: Client, place: str) -> Any:
+        draft = receipt(by, cmp, context_id=ctx, lines=[{**line, "tags": [place]}])
+        assert draft.status_code == 201, draft.content
+        return post_receipt(by, cmp, draft.json()["receipt"])
+
+    # The storekeeper is not named in the group yet: a place that is not in the list is refused.
+    refused = received(keeper, "Rack 7")
+    assert refused.status_code == 400, refused.content
+    assert refused.json()["error"]["code"] == "PLACE_TAG_UNKNOWN"
+    # The owner makes the place by a receipt; the storekeeper then chooses it.
+    assert received(owner, "Rack 7").status_code == 200
+    assert received(keeper, "rack 7").status_code == 200
+    tags = owner.get(f"/api/c/{cmp}/tags").json()
+    group = next(g for g in tags["groups"] if g["code"] == "storage_places")
+    place = next(t for t in tags["tags"] if t["name"] == "Rack 7")
+    assert place["group_id"] == group["id"] and place["count"] == 2
+    # Named in the group, the storekeeper makes a new place themself.
+    body = {"member_ids": [str(keeper_id)], "expected_version": group["version"]}
+    url = f"/api/c/{cmp}/tag-groups/{group['id']}"
+    changed = owner.patch(url, data=body, content_type="application/json", headers=key())
+    assert changed.status_code == 200, changed.content
+    assert received(keeper, "Rack 8").status_code == 200
+
+    stock = owner.get(f"/api/c/{cmp}/warehouse/stock").json()["stock"]
+    assert stock[0]["tags"] == ["Rack 7", "Rack 8"]
+    # The stock is searched by the place; the page of the tag shows the item.
+    assert len(owner.get(f"/api/c/{cmp}/warehouse/stock?q=rack 8").json()["stock"]) == 1
+    assert owner.get(f"/api/c/{cmp}/warehouse/stock?q=rack 9").json()["stock"] == []
+    page = owner.get(f"/api/c/{cmp}/tags/{place['id']}/objects").json()["objects"]
+    assert [hit["id"] for hit in page["item"]] == [pads["id"]]
+    # A place is not a tag for the cards: it is not put on a client or a vehicle by hand.
+    wrong = {"type": "item", "id": pads["id"], "tag_ids": [place["id"]]}
+    put = owner.put(
+        f"/api/c/{cmp}/tag-links", data=wrong, content_type="application/json", headers=key()
+    )
+    assert put.json()["error"]["code"] == "TAG_NOT_FOR_KIND"
+    # Renamed in the tags, the place is renamed in the stock at once.
+    rename = {"name": "Rack 7A", "expected_version": place["version"]}
+    url = f"/api/c/{cmp}/tags/{place['id']}"
+    assert (
+        owner.patch(url, data=rename, content_type="application/json", headers=key()).status_code
+        == 200
+    )
+    stock = owner.get(f"/api/c/{cmp}/warehouse/stock").json()["stock"]
+    assert stock[0]["tags"] == ["Rack 7A", "Rack 8"]

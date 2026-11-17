@@ -61,6 +61,9 @@ def tag_list(request: HttpRequest, cmp: str) -> JsonResponse:
     company_id = context.company.id
     if request.method == "GET":
         may = _may_manage(actor)
+        # The group of the storage places is kept by the system: it is there from the first look,
+        # so that its people can be named before the first receipt.
+        services.storage_group(company_id, actor.user_id)
         answer: dict[str, Any] = {
             "tags": services.listing(company_id, actor.user_id),
             "groups": services.group_payloads(company_id, actor, may),

@@ -32,6 +32,7 @@ from c4rsys.platform.models import Currency
 from c4rsys.platform.money import round_money
 from c4rsys.platform.registry import allocate_public_id
 from c4rsys.warehouse import catalog
+from c4rsys.warehouse import places as storage
 from c4rsys.warehouse.models import (
     Asset,
     Item,
@@ -516,6 +517,8 @@ def post_receipt(
             raise errors.business_rule("ITEM_ARCHIVED", field=f"{where}.item_id")
         if line.packaging is not None and line.packaging.state != Packaging.State.ACTIVE:
             raise errors.business_rule("PACKAGING_UNKNOWN", field=f"{where}.packaging_id")
+        # The storage places of the line: tags of the group of places (§ 11.1.9).
+        marks = storage.resolve(ctx, company_id, line.tags, f"{where}.tags")
         if item.accounting == Item.Accounting.INDIVIDUAL:
             for unit in range(int(line.quantity)):
                 asset = Asset(
@@ -525,7 +528,6 @@ def post_receipt(
                     serial_number=line.serial_numbers[unit]
                     if unit < len(line.serial_numbers)
                     else "",
-                    tags=line.tags,
                     purchase_cost=line.unit_cost,
                     currency=receipt.currency,
                     receipt_line=line,
@@ -534,6 +536,7 @@ def post_receipt(
                 asset.public_id = allocate_public_id(
                     "AST", entity_type="warehouse_asset", entity_id=asset.id
                 )
+                storage.put(ctx, company_id, storage.ASSET, [asset.id], marks)
                 asset.save(force_insert=True)
                 created_assets.append(asset.public_id)
                 StockMovement.objects.create(
@@ -556,12 +559,12 @@ def post_receipt(
                 external_number=line.lot_external_number,
                 production_date=line.lot_production_date,
                 expiry_date=line.lot_expiry_date,
-                tags=line.tags,
                 currency=receipt.currency,
                 created_at=now,
             )
             lot.public_id = allocate_public_id("LOT", entity_type="warehouse_lot", entity_id=lot.id)
             lot.save(force_insert=True)
+            storage.put(ctx, company_id, storage.LOT, [lot.id], marks)
             created_lots.append(lot.public_id)
             line.lot = lot
             line.save(update_fields=["lot"])
@@ -574,9 +577,7 @@ def post_receipt(
             if found is None or found.context_id != context.id or found.item_id != item.id:
                 raise errors.business_rule("LOT_UNKNOWN", field=f"{where}.lot_id")
             lot = found
-            if line.tags:
-                lot.tags = list(dict.fromkeys([*lot.tags, *line.tags]))
-                lot.save(update_fields=["tags"])
+            storage.put(ctx, company_id, storage.LOT, [lot.id], marks)
         LotLayer.objects.create(
             company_id=company_id,
             lot=lot,
@@ -802,13 +803,13 @@ def post_initial_line(
     now = timezone.now()
     from c4rsys.warehouse import prices  # prices use the values of this module
 
+    marks = storage.resolve(ctx, company.id, list(data.tags), "place_tags")
     if item.accounting == Item.Accounting.INDIVIDUAL:
         asset = Asset(
             company=company,
             item=item,
             context=context,
             serial_number=data.serial_number,
-            tags=list(data.tags),
             purchase_cost=data.unit_cost,
             currency=receipt.currency,
             receipt_line=line,
@@ -818,6 +819,7 @@ def post_initial_line(
             "AST", entity_type="warehouse_asset", entity_id=asset.id
         )
         asset.save(force_insert=True)
+        storage.put(ctx, company.id, storage.ASSET, [asset.id], marks)
         StockMovement.objects.create(
             company=company,
             kind=StockMovement.Kind.RECEIPT,
@@ -841,7 +843,6 @@ def post_initial_line(
                 external_number=data.lot_external_number,
                 production_date=data.lot_production_date,
                 expiry_date=data.lot_expiry_date,
-                tags=list(data.tags),
                 currency=receipt.currency,
                 created_at=now,
             )
@@ -850,9 +851,7 @@ def post_initial_line(
             session[f"lot:{data.new_lot}"] = lot.id
             line.lot = lot
             line.save(update_fields=["lot"])
-        elif data.tags:
-            lot.tags = list(dict.fromkeys([*lot.tags, *data.tags]))
-            lot.save(update_fields=["tags"])
+        storage.put(ctx, company.id, storage.LOT, [lot.id], marks)
         LotLayer.objects.create(
             company=company,
             lot=lot,
@@ -1313,15 +1312,16 @@ def set_tags(
     record = model.objects.select_for_update().filter(company_id=company_id, pk=record_id).first()
     if record is None:
         raise errors.not_found()
-    before = list(record.tags)
-    record.tags = values
-    record.save(update_fields=["tags"])
+    where = storage.KINDS[kind]
+    before = storage.names(company_id, where, [record.id]).get(record.id, [])
+    storage.replace(ctx, company_id, where, record.id, storage.resolve(ctx, company_id, values))
+    after = storage.names(company_id, where, [record.id]).get(record.id, [])
     ctx.audit(
         "warehouse.tags_changed",
         object_type=f"warehouse_{kind}",
         object_id=record.id,
         before={"tags": before},
-        after={"tags": values},
+        after={"tags": after},
     )
     return record
 
@@ -1364,16 +1364,18 @@ def totals(company_id: UUID, context_ids: set[UUID]) -> dict[UUID, dict[UUID, di
     def cell(item_id: UUID, context_id: UUID) -> dict[str, Any]:
         return result[item_id].setdefault(context_id, {"quantity": ZERO, "tags": set()})
 
+    of_assets = storage.names(company_id, storage.ASSET)
+    of_lots = storage.names(company_id, storage.LOT)
     for asset in Asset.objects.filter(
         company_id=company_id, context_id__in=context_ids, state=Asset.State.IN_STOCK
-    ).only("item_id", "context_id", "tags"):
+    ).only("id", "item_id", "context_id"):
         entry = cell(asset.item_id, asset.context_id)
         entry["quantity"] += 1
-        entry["tags"].update(asset.tags)
+        entry["tags"].update(of_assets.get(asset.id, ()))
     lots = {
         lot.id: lot
         for lot in Lot.objects.filter(company_id=company_id, context_id__in=context_ids).only(
-            "id", "item_id", "context_id", "tags"
+            "id", "item_id", "context_id"
         )
     }
     amounts: dict[UUID, Decimal] = defaultdict(lambda: ZERO)
@@ -1394,7 +1396,7 @@ def totals(company_id: UUID, context_ids: set[UUID]) -> dict[UUID, dict[UUID, di
         lot = lots[lot_id]
         entry = cell(lot.item_id, lot.context_id)
         entry["quantity"] += amount
-        entry["tags"].update(lot.tags)
+        entry["tags"].update(of_lots.get(lot.id, ()))
     return result
 
 
@@ -1429,6 +1431,8 @@ def item_stock(company_id: UUID, item_id: UUID, context_ids: set[UUID]) -> dict[
             "id", "receipt__number"
         )
     )
+    of_assets = storage.names(company_id, storage.ASSET)
+    of_lots = storage.names(company_id, storage.LOT)
     if item.accounting == Item.Accounting.INDIVIDUAL:
         for asset in Asset.objects.filter(
             company_id=company_id, item=item, context_id__in=context_ids, state=Asset.State.IN_STOCK
@@ -1440,7 +1444,7 @@ def item_stock(company_id: UUID, item_id: UUID, context_ids: set[UUID]) -> dict[
                     "id": str(asset.id),
                     "public_id": asset.public_id,
                     "serial_number": asset.serial_number,
-                    "tags": asset.tags,
+                    "tags": of_assets.get(asset.id, []),
                     "purchase_cost": money_text(asset.purchase_cost, asset.currency),
                     "currency": asset.currency,
                     "receipt_number": numbers.get(asset.receipt_line_id)
@@ -1476,7 +1480,7 @@ def item_stock(company_id: UUID, item_id: UUID, context_ids: set[UUID]) -> dict[
                     else None,
                     "expiry_date": lot.expiry_date.isoformat() if lot.expiry_date else None,
                     "expired": expired(lot),
-                    "tags": lot.tags,
+                    "tags": of_lots.get(lot.id, []),
                     "quantity": str(quantity),
                     "currency": lot.currency,
                     "stock": [

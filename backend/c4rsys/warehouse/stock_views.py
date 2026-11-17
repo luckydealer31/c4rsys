@@ -24,6 +24,7 @@ from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
 from c4rsys.tags import services as tags
 from c4rsys.warehouse import catalog, operations, prices, reserves, stock
+from c4rsys.warehouse import places as storage
 from c4rsys.warehouse.models import Item, LotLayer, PurchaseOrder, Receipt
 
 LIST_LIMIT = 200
@@ -637,6 +638,8 @@ def stock_list(request: HttpRequest, cmp: str) -> JsonResponse:
     # Found by a tag of the item too (customer's decision of 17.11.2026).
     text = request.GET.get("q", "")[:100]
     also = tags.matching_ids(context.company.id, actor.user_id, "item", text)
+    # … and by a storage place of its units or lots.
+    also |= storage.item_ids_by_text(context.company.id, text)
     items = catalog.search(context.company.id, text, "", also).filter(pk__in=found)
     held = reserves.reserved_totals(context.company.id, set(visible))
     rows = []
@@ -706,7 +709,8 @@ def _tags_command(request: HttpRequest, cmp: str, kind: str, record_id: UUID) ->
 
     def handler(ctx: CommandContext) -> CommandResult:
         record = stock.set_tags(ctx, context.company.id, kind, record_id, values)
-        return CommandResult(200, {"id": str(record.id), "tags": record.tags})
+        named = storage.names(context.company.id, storage.KINDS[kind], [record.id])
+        return CommandResult(200, {"id": str(record.id), "tags": named.get(record.id, [])})
 
     payload = {"kind": kind, "id": str(record_id), "tags": values}
     return run_and_respond(request, "warehouse.set_tags", actor, payload, handler)

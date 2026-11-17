@@ -286,6 +286,20 @@ def objects_of(actor: Actor, company_id: UUID, tag: Tag) -> dict[str, list[dict[
         found = [h.payload() for h in hits if h is not None]
         if found:
             answer[object_type] = found
+    for object_type, (shown_as, resolver) in _shown_as.items():
+        own = list(
+            TagLink.objects.filter(tag=tag, object_type=object_type).values_list(
+                "object_id", flat=True
+            )[: PER_KIND * 5]
+        )
+        listed = {hit["id"] for hit in answer.get(shown_as, [])}
+        for record_id in dict.fromkeys(resolver(company_id, own)):
+            if str(record_id) in listed or len(listed) >= PER_KIND:
+                continue
+            hit = platform_search.lookup(actor, company_id, shown_as, record_id)
+            if hit is not None:
+                answer.setdefault(shown_as, []).append(hit.payload())
+                listed.add(str(record_id))
     return answer
 
 
@@ -407,6 +421,7 @@ def group_payloads(company_id: UUID, actor: Actor, may_manage: bool) -> list[dic
         {
             "id": str(g.id),
             "name": g.name,
+            "code": g.code,
             "kinds": list(g.kinds),
             "members": sorted(
                 (
@@ -491,10 +506,11 @@ def change_group(
     if group.version != expected_version:
         raise errors.version_conflict()
     before = _group_state(group)
-    if name is not None:
+    # A group of the system keeps its name and its purpose; only its people are changed.
+    if name is not None and not group.code:
         group.name = _name(name)
         group.name_key = group.name.lower()
-    if kinds is not None:
+    if kinds is not None and not group.code:
         group.kinds = _kinds(kinds)
     if member_ids is not None:
         _set_members(ctx, group, member_ids)
@@ -519,6 +535,119 @@ def remove_group(ctx: CommandContext, company_id: UUID, group_id: UUID) -> None:
     group = TagGroup.objects.select_for_update().filter(company_id=company_id, pk=group_id).first()
     if group is None:
         raise errors.not_found()
+    if group.code:
+        raise errors.validation_error("group_id", code="TAG_GROUP_OF_SYSTEM")
     before = _group_state(group)
     group.delete()
     ctx.audit("tag_group.removed", object_type="tag_group", object_id=group_id, before=before)
+
+
+# --- Storage places of the warehouse (customer's decision of 17.11.2026) ------------------------
+# The marks of a place — «Rack 3, shelf B» — are tags of a group the system keeps in every
+# company. Its tags are put on units and lots by the warehouse; they are made, as in any group,
+# by the employees named in it and by whoever manages the tags.
+
+STORAGE = "storage_places"
+# The kind the group is for: none of the kinds a tag is chosen for in a card.
+STORAGE_KIND = "storage"
+STORAGE_NAME = "Storage places"
+PLACE_COLOR = "gray"
+
+
+def storage_group(company_id: UUID, user_id: UUID) -> TagGroup:
+    """The group of the storage places of the company; made at the first need of it."""
+    group, _ = TagGroup.objects.get_or_create(
+        company_id=company_id,
+        code=STORAGE,
+        defaults={
+            "name": STORAGE_NAME,
+            "name_key": STORAGE_NAME.lower(),
+            "kinds": [STORAGE_KIND],
+            "created_by_user_id": user_id,
+        },
+    )
+    return group
+
+
+def place_tags(
+    ctx: CommandContext, company_id: UUID, names: list[str], may_create: bool, field: str = "tags"
+) -> list[Tag]:
+    """The tags of the storage places with these names. A name not known yet becomes a new tag
+    when the employee may make tags in the group; else it is refused — a place is chosen from
+    the list, not written freely."""
+    if not names:
+        return []
+    group = storage_group(company_id, ctx.actor.user_id)
+    wanted = {name.lower(): name for name in (" ".join(n.split()) for n in names) if name}
+    known = {
+        tag.name_key: tag
+        for tag in Tag.objects.select_for_update().filter(
+            company_id=company_id, group=group, name_key__in=list(wanted)
+        )
+    }
+    found: list[Tag] = []
+    for key, name in wanted.items():
+        tag = known.get(key)
+        if tag is None:
+            if not may_create:
+                raise errors.validation_error(field, code="PLACE_TAG_UNKNOWN", name=name)
+            tag = create(ctx, company_id, name, PLACE_COLOR, personal=False, group_id=group.id)
+        elif tag.archived_at is not None:
+            raise errors.validation_error(field, code="PLACE_TAG_UNKNOWN", name=name)
+        found.append(tag)
+    return found
+
+
+def add_company_links(
+    user_id: UUID, company_id: UUID, object_type: str, object_ids: list[UUID], wanted: list[Tag]
+) -> None:
+    """Puts the tags on the records besides those they have."""
+    if not wanted or not object_ids:
+        return
+    have = set(
+        TagLink.objects.filter(
+            company_id=company_id,
+            object_type=object_type,
+            object_id__in=object_ids,
+            tag__in=wanted,
+        ).values_list("object_id", "tag_id")
+    )
+    TagLink.objects.bulk_create(
+        TagLink(
+            company_id=company_id,
+            tag=tag,
+            object_type=object_type,
+            object_id=object_id,
+            added_by_user_id=user_id,
+        )
+        for object_id in object_ids
+        for tag in wanted
+        if (object_id, tag.id) not in have
+    )
+
+
+def names_by_object(
+    company_id: UUID, object_type: str, object_ids: list[UUID] | None = None
+) -> dict[UUID, list[str]]:
+    """The names of the tags of the company on records of a kind, by name."""
+    links = TagLink.objects.filter(
+        company_id=company_id,
+        object_type=object_type,
+        tag__owner_user_id__isnull=True,
+        tag__archived_at__isnull=True,
+    )
+    if object_ids is not None:
+        links = links.filter(object_id__in=object_ids)
+    answer: dict[UUID, list[str]] = {}
+    for object_id, name in links.order_by("tag__name_key").values_list("object_id", "tag__name"):
+        answer.setdefault(object_id, []).append(name)
+    return answer
+
+
+# Records shown on the page of a tag as another record: a unit or a lot of the warehouse — as
+# its item. kind -> (the kind it is shown as, ids of that kind for the ids of this one).
+_shown_as: dict[str, tuple[str, Any]] = {}
+
+
+def register_shown_as(object_type: str, shown_as: str, resolver: Any) -> None:
+    _shown_as[object_type] = (shown_as, resolver)
