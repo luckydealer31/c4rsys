@@ -2045,14 +2045,14 @@
     "park_free": "ว่าง",
     "park_rented": "กำลังเช่า",
     "park_booked": "จองแล้ว",
-    "park_limits": "ข้อจำกัด",
     "park_not_admitted": "ไม่อนุญาตให้เช่า",
     "park_until": "ถึง {{when}}",
     "park_rental": "การเช่า",
     "park_booking_from": "การจอง № {{number}} ตั้งแต่ {{when}}",
     "park_rental_from": "การเช่าตั้งแต่ {{when}}",
     "park_book": "จอง",
-    "park_issue": "ส่งมอบ"
+    "park_issue": "ส่งมอบ",
+    "park_limited": "ถูกจำกัด"
   },
   "rights": {
     "add": "Add rights",

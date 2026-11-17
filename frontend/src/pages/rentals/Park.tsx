@@ -11,14 +11,17 @@ import { useLocations } from "../settings/LocationsPage";
 import { useRentals, useVehicles } from "../vehicles/VehiclesPage";
 
 type Status = "free" | "rented" | "booked";
-const STATUSES: Status[] = ["free", "rented", "booked"];
+// What the list is filtered by: the occupancy, or the vehicles whose rental is restricted.
+type Filter = Status | "limited";
+const FILTERS: Filter[] = ["free", "rented", "booked", "limited"];
 const FLEET = ["own", "managed"] as const;
 
 /** The park of the rental (customer's decisions of 17.11.2026): the own and the managed vehicles
  * — those a rental and a booking are made of; the client ones are in the garage only. A vehicle
  * on a warehouse is a stock item and is not shown. The list is filtered by the occupancy — free,
- * in a rental, booked; a vehicle not admitted to the rental stays in the list with what
- * restricts it. A booking and a rental are begun from the row. */
+ * in a rental, booked. A vehicle whose rental is restricted stays in the list, greyed: in place
+ * of the buttons of its row stands the red mark «Restricted» with the reason under the pointer,
+ * and it is not counted as free. A booking and a rental are begun from the row. */
 export function Park() {
   const { t, i18n } = useTranslation();
   const company = useCompany();
@@ -26,7 +29,7 @@ export function Park() {
   const vehicles = useVehicles();
   const locations = useLocations().data?.locations ?? [];
   const rentals = useRentals(can("rental.view")).data?.rentals ?? [];
-  const [status, setStatus] = useState<Status | "">("");
+  const [status, setStatus] = useState<Filter | "">("");
   const [shown, setShown] = useState<Set<string>>(new Set(FLEET));
   // Both switches are on at first; the last one that is on stays on.
   const toggle = (key: (typeof FLEET)[number]) => {
@@ -51,9 +54,15 @@ export function Park() {
   }
   // One state for a vehicle: a rental going on comes before a booking waiting.
   const statusOf = (v: Vehicle): Status => (active.has(v.id) ? "rented" : booked.has(v.id) ? "booked" : "free");
+  /** Restricted: not admitted to the rental, or under a manual restriction forbidding the issue. */
+  const limited = (v: Vehicle) =>
+    !v.rental_readiness.ready || (v.restriction?.state === "active" && v.restriction.forbid_rental_issue);
+  // A restricted vehicle is not free, though nothing holds it.
+  const passes = (v: Vehicle) =>
+    !status || (status === "limited" ? limited(v) : statusOf(v) === status && !(status === "free" && limited(v)));
 
   const fleet = (vehicles.data?.vehicles ?? []).filter((v) => FLEET.some((r) => r === v.relation) && v.storage === null);
-  const list = fleet.filter((v) => shown.has(v.relation) && (!status || statusOf(v) === status));
+  const list = fleet.filter((v) => shown.has(v.relation) && passes(v));
   const groups = [
     ...locations.map((l) => ({ id: l.id, name: l.name, zone: l.timezone, vehicles: list.filter((v) => v.location_id === l.id) })),
     {
@@ -66,7 +75,7 @@ export function Park() {
 
   /** What restricts the rental of the vehicle: what its admission lacks and the manual
    * restriction that forbids the issue now. */
-  const limits = (v: Vehicle, zone: string): string[] => {
+  const reasons = (v: Vehicle, zone: string): string[] => {
     const r = v.restriction;
     return [
       ...(v.rental_readiness.ready
@@ -89,7 +98,7 @@ export function Park() {
           <button type="button" aria-pressed={status === ""} onClick={() => setStatus("")}>
             {t("rentals.park_all")}
           </button>
-          {STATUSES.map((key) => (
+          {FILTERS.map((key) => (
             <button key={key} type="button" aria-pressed={status === key} onClick={() => setStatus(key)}>
               {t(`rentals.park_${key}`)}
             </button>
@@ -118,7 +127,7 @@ export function Park() {
                   <tr>
                     <th>{t("vehicles.name")}</th>
                     <th>{t("vehicles.occupancy")}</th>
-                    <th>{t("rentals.park_limits")}</th>
+                    <th>{t("vehicles.odometer")}</th>
                     <th />
                   </tr>
                 </thead>
@@ -127,10 +136,9 @@ export function Park() {
                     const state = statusOf(vehicle);
                     const rental = active.get(vehicle.id);
                     const next = booked.get(vehicle.id)?.[0];
-                    const limited = limits(vehicle, zone);
-                    const admitted = vehicle.rental_readiness.ready;
+                    const restricted = limited(vehicle);
                     return (
-                      <tr key={vehicle.id}>
+                      <tr key={vehicle.id} className={restricted ? "limited" : undefined}>
                         <td className="vehicle-cell">
                           <VehicleTypeIcon
                             type={vehicle.characteristics.vehicle_type}
@@ -145,9 +153,13 @@ export function Park() {
                           </div>
                         </td>
                         <td>
-                          <span className={`badge ${state === "free" ? "ok" : state === "rented" ? "warn" : ""}`}>
-                            {t(`rentals.park_${state}`)}
-                          </span>
+                          {restricted && state === "free" ? (
+                            <span className="muted">—</span>
+                          ) : (
+                            <span className={`badge ${state === "free" ? "ok" : state === "rented" ? "warn" : ""}`}>
+                              {t(`rentals.park_${state}`)}
+                            </span>
+                          )}
                           {rental ? (
                             <div className="small">
                               <Link to={companyPath(company, `/rentals/${rental.id}`)}>
@@ -168,12 +180,22 @@ export function Park() {
                             </div>
                           ) : null}
                         </td>
-                        <td className="small">
-                          {limited.length ? limited.map((text) => <div key={text}>{text}</div>) : <span className="muted">—</span>}
-                        </td>
+                        <td>{vehicle.odometer ? `${Number(vehicle.odometer.value)} ${vehicle.odometer.unit}` : "—"}</td>
                         <td>
                           <div className="row-actions">
-                            {admitted && can("rental.book") ? (
+                            {/* In place of the buttons: the mark, the reason under the pointer. */}
+                            {restricted ? (
+                              <span
+                                className="badge danger tip-left"
+                                tabIndex={0}
+                                role="note"
+                                aria-label={`${t("rentals.park_limited")}: ${reasons(vehicle, zone).join("; ")}`}
+                                data-tip={reasons(vehicle, zone).join("; ")}
+                              >
+                                {t("rentals.park_limited")}
+                              </span>
+                            ) : null}
+                            {!restricted && can("rental.book") ? (
                               <Link
                                 className="button secondary small-button"
                                 to={companyPath(company, `/rentals/book?vehicle=${vehicle.id}`)}
@@ -181,7 +203,7 @@ export function Park() {
                                 {t("rentals.park_book")}
                               </Link>
                             ) : null}
-                            {admitted && state !== "rented" && can("rental.issue") ? (
+                            {!restricted && state !== "rented" && can("rental.issue") ? (
                               <Link
                                 className="button secondary small-button"
                                 to={companyPath(company, `/rentals/new?vehicle=${vehicle.id}`)}

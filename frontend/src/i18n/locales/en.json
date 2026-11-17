@@ -2045,14 +2045,14 @@
     "park_free": "Free",
     "park_rented": "In rental",
     "park_booked": "Booked",
-    "park_limits": "Restrictions",
     "park_not_admitted": "Not admitted to rental",
     "park_until": "until {{when}}",
     "park_rental": "rental",
     "park_booking_from": "booking № {{number}} from {{when}}",
     "park_rental_from": "rental from {{when}}",
     "park_book": "Book",
-    "park_issue": "Issue"
+    "park_issue": "Issue",
+    "park_limited": "Restricted"
   },
   "rights": {
     "add": "Add rights",

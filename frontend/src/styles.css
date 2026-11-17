@@ -597,6 +597,17 @@ td.vehicle-cell { display: flex; align-items: center; gap: 12px; }
   background: var(--text); color: var(--surface); border-radius: 6px; font-size: 0.8rem;
   font-weight: 400; font-style: normal; line-height: 1.35; white-space: normal; text-align: left;
 }
+/* A mark with its explanation under the pointer, shown to the left of it: it stands at the
+   right end of a row. A press shows it on a screen without a pointer. */
+.tip-left { position: relative; cursor: help; }
+.tip-left:hover::after, .tip-left:focus::after {
+  content: attr(data-tip); position: absolute; z-index: 40; right: calc(100% + 8px); top: 50%;
+  transform: translateY(-50%); width: max-content; max-width: 320px; padding: 8px 10px;
+  background: var(--text); color: var(--surface); border-radius: 6px; font-size: 0.8rem;
+  font-weight: 400; line-height: 1.35; white-space: normal; text-align: left;
+}
+/* A row of a vehicle whose rental is restricted: greyed, its mark stays bright. */
+tr.limited > td:not(:last-child) { opacity: 0.5; }
 /* Two columns of blocks on a wide screen, one under another on a narrow one. */
 .cols-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--gap); align-items: start; }
 @media (max-width: 1000px) { .cols-2 { grid-template-columns: minmax(0, 1fr); } }

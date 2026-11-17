@@ -2045,14 +2045,14 @@
     "park_free": "Свободно",
     "park_rented": "В аренде",
     "park_booked": "Забронировано",
-    "park_limits": "Ограничения",
     "park_not_admitted": "Не допущено к аренде",
     "park_until": "до {{when}}",
     "park_rental": "аренда",
     "park_booking_from": "бронь № {{number}} с {{when}}",
     "park_rental_from": "аренда с {{when}}",
     "park_book": "Забронировать",
-    "park_issue": "Выдать"
+    "park_issue": "Выдать",
+    "park_limited": "Ограничено"
   },
   "rights": {
     "add": "Добавить права",

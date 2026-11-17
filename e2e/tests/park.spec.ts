@@ -80,10 +80,15 @@ test("the park is filtered by the occupancy and begins a booking; the card shows
   const row = (name: string) => rows.filter({ hasText: name });
   await expect(row("Toyota Yaris")).toContainText(t("rentals.park_rented"));
   await expect(row("Honda Civic")).toContainText(t("rentals.park_booked"));
-  await expect(row("Mazda 3")).toContainText(t("rentals.park_free"));
-  // What restricts the vehicle is said; it is not booked or issued from the row.
-  await expect(row("Mazda 3")).toContainText(t("rentals.park_not_admitted"));
+  // A restricted vehicle is greyed and not said to be free; in place of the buttons of its row
+  // stands the mark with the reason under the pointer.
+  await expect(row("Mazda 3")).not.toContainText(t("rentals.park_free"));
+  const mark = row("Mazda 3").getByRole("note");
+  await expect(mark).toHaveText(t("rentals.park_limited"));
+  await expect(mark).toHaveAttribute("data-tip", new RegExp(t("rentals.park_not_admitted")));
+  await expect(row("Mazda 3")).toHaveClass(/limited/);
   await expect(row("Mazda 3").getByRole("link", { name: t("rentals.park_book"), exact: true })).toHaveCount(0);
+  await expect(row("Honda Civic").getByRole("note")).toHaveCount(0);
   // A vehicle in a rental is booked for later, not issued.
   await expect(row("Toyota Yaris").getByRole("link", { name: t("rentals.park_book"), exact: true })).toBeVisible();
   await expect(row("Toyota Yaris").getByRole("link", { name: t("rentals.park_issue"), exact: true })).toHaveCount(0);
@@ -95,9 +100,20 @@ test("the park is filtered by the occupancy and begins a booking; the card shows
   await expect(rows).toContainText("Toyota Yaris");
   await filter("booked").click();
   await expect(rows).toContainText("Honda Civic");
+  // Nothing is free: the third vehicle is restricted, and is found by that.
   await filter("free").click();
+  await expect(rows).toHaveCount(0);
+  await filter("limited").click();
+  await expect(rows).toHaveCount(1);
   await expect(rows).toContainText("Mazda 3");
   await filter("all").click();
+  await expect(rows).toHaveCount(3);
+
+  // A restricted vehicle is greyed, but its card is still opened from its name.
+  await row("Mazda 3").getByRole("link", { name: "Mazda 3", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/vehicles/${closed.id}$`));
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Mazda 3");
+  await page.goBack();
   await expect(rows).toHaveCount(3);
 
   // A booking begun from the row has its vehicle chosen.
