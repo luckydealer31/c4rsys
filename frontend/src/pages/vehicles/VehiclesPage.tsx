@@ -11,6 +11,7 @@ import { Card, ErrorMessage, Field, IconButton, Loading } from "../../components
 import { VehicleTypeIcon } from "../../components/VehicleTypeIcon";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { CompanyTabs, workHome } from "../../layout/CompanyTabs";
+import { SectionTabs } from "../../layout/SectionTabs";
 import { formatMoment } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
 import { SectionSearch } from "../search/SearchPage";
@@ -554,20 +555,12 @@ export function VehiclePage() {
       {data.restriction?.state === "active" ? (
         <div className="alert warn">{t("vehicles.restricted_banner")}</div>
       ) : null}
-      <div className="tabs left" role="tablist">
-        {tabs.map((key) => (
-          <button
-            key={key}
-            type="button"
-            role="tab"
-            aria-selected={tab === key}
-            className={tab === key ? "active" : ""}
-            onClick={() => openTab(key)}
-          >
-            {t(`vehicles.card_${key}`)}
-          </button>
-        ))}
-      </div>
+      <SectionTabs
+        section="vehicle_card"
+        current={tab}
+        tabs={tabs.map((key) => ({ key, text: t(`vehicles.card_${key}`) }))}
+        onSelect={openTab}
+      />
       {tab === "main" ? (
       <>
       <VehicleFacts vehicle={data} />

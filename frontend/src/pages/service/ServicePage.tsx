@@ -8,6 +8,7 @@ import type { MaintenanceRule, QueueJob, ServiceOperation } from "../../api/type
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
+import { SectionTabs } from "../../layout/SectionTabs";
 import { formatMoment } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
 import { mayTrips, TripsView } from "../trips/TripsPage";
@@ -42,22 +43,12 @@ export function ServicePage() {
   return (
     <div className="page full">
       <h1>{t("nav.service")}</h1>
-      {tabs.length > 1 ? (
-        <div className="tabs left" role="tablist">
-          {tabs.map((key) => (
-            <button
-              key={key}
-              type="button"
-              role="tab"
-              aria-selected={tab === key}
-              className={tab === key ? "active" : ""}
-              onClick={() => setParams(key === "work" ? {} : { tab: key })}
-            >
-              {t(key === "work" ? "service.tab_work" : `vehicles.view_${key}`)}
-            </button>
-          ))}
-        </div>
-      ) : null}
+      <SectionTabs
+        section="service"
+        current={tab}
+        tabs={tabs.map((key) => ({ key, text: t(key === "work" ? "service.tab_work" : `vehicles.view_${key}`) }))}
+        onSelect={(key) => setParams(key === "work" ? {} : { tab: key })}
+      />
       {tab === "work" ? <ServiceWork /> : null}
       {tab === "schedule" ? <ScheduleTab /> : null}
       {tab === "trips" ? <TripsView /> : null}

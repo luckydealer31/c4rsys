@@ -391,7 +391,9 @@
     "close": "Закрыть",
     "create": "Создать",
     "add": "Добавить",
-    "confirm": "Подтвердить"
+    "confirm": "Подтвердить",
+    "tabs_order": "Изменить порядок вкладок",
+    "tabs_order_done": "Готово"
   },
   "companies": {
     "company_id": "ID компании",

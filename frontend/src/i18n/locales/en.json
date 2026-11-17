@@ -391,7 +391,9 @@
     "close": "Close",
     "create": "Create",
     "add": "Add",
-    "confirm": "Confirm"
+    "confirm": "Confirm",
+    "tabs_order": "Change the order of the tabs",
+    "tabs_order_done": "Done"
   },
   "companies": {
     "company_id": "Company ID",

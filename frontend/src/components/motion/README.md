@@ -25,3 +25,11 @@ is 0.25–2.7 s, as the page of the icon says.
 https://gentleface.com/motion/wrench-turn.svg (page: https://gentleface.com/icons/wrench). The
 customer chose it for the service (decision of 16.11.2026). The part worth playing once is
 0.25–3.1 s, as the page of the icon says.
+
+`arrow-left-right-push.svg` and `check-write.svg` are the animated «arrow left right» and
+«check» icons of Gentleface, downloaded unchanged from
+https://gentleface.com/motion/arrow-left-right-push.svg and
+https://gentleface.com/motion/check-write.svg (pages: https://gentleface.com/icons/arrow-left-right
+and https://gentleface.com/icons/check). The customer chose them for the button of the order of
+the tabs and for its state «Done» (decision of 17.11.2026). The part worth playing once is
+0.25–1.3 s for both, as the pages of the icons say.

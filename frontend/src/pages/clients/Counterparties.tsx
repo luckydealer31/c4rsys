@@ -9,6 +9,7 @@ import type { ClientContact, Counterparty, Messenger } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, IconButton, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
+import { SectionTabs } from "../../layout/SectionTabs";
 import { CardBadges, MessengerField } from "./ClientsPage";
 import { ContractorHistoryCard, MergeCard } from "./CardExtras";
 import { DocumentsCard, Facts, MainCard, SupplierHistoryCard } from "./CardParts";
@@ -249,20 +250,13 @@ export function CounterpartyPage() {
             route.key === "default" ? navigate(companyPath(company, "/clients?tab=counterparties")) : navigate(-1)
           }
         />
-        <div className="tabs left" role="tablist" style={{ flex: 1 }}>
-          {CARD_TABS.map((key) => (
-            <button
-              key={key}
-              type="button"
-              role="tab"
-              aria-selected={tab === key}
-              className={tab === key ? "active" : ""}
-              onClick={() => setParams(key === "main" ? {} : { tab: key }, { replace: true })}
-            >
-              {t(`cards.tab_${key}`)}
-            </button>
-          ))}
-        </div>
+        <SectionTabs
+          section="counterparty_card"
+          current={tab}
+          tabs={CARD_TABS.map((key) => ({ key, text: t(`cards.tab_${key}`) }))}
+          onSelect={(key) => setParams(key === "main" ? {} : { tab: key }, { replace: true })}
+          style={{ flex: 1 }}
+        />
       </div>
       {mergedInto ? (
         <div className="alert warn">

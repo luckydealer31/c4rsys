@@ -13,6 +13,7 @@ import { Icon } from "../../components/icons";
 import { Card, ErrorMessage, Field, IconButton, Loading, Modal } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { CompanyTabs } from "../../layout/CompanyTabs";
+import { SectionTabs } from "../../layout/SectionTabs";
 import { EmployeesList, InviteForm } from "../settings/EmployeesPage";
 import { CounterpartiesList } from "./Counterparties";
 import { LinkedDocuments } from "../documents/DocumentsPage";
@@ -96,20 +97,12 @@ export function ClientsPage() {
       <CompanyTabs current="contacts" />
       <div className={allowed.length ? "split" : ""}>
         <div>
-      <div className="tabs left" role="tablist">
-        {tabs.map((key) => (
-          <button
-            key={key}
-            type="button"
-            role="tab"
-            aria-selected={tab === key}
-            className={tab === key ? "active" : ""}
-            onClick={() => setParams(key === tabs[0] ? {} : { tab: key })}
-          >
-            {t(`clients.tab_${key}`)}
-          </button>
-        ))}
-      </div>
+      <SectionTabs
+        section="contacts"
+        current={tab}
+        tabs={tabs.map((key) => ({ key, text: t(`clients.tab_${key}`) }))}
+        onSelect={(key) => setParams(key === tabs[0] ? {} : { tab: key })}
+      />
       {tab === "clients" ? <ClientsList /> : null}
       {tab === "counterparties" ? <CounterpartiesList /> : null}
       {tab === "employees" ? <EmployeesList /> : null}
@@ -434,20 +427,13 @@ export function ClientPage() {
           label={t("common.back")}
           onClick={() => (route.key === "default" ? navigate(companyPath(company, "/clients")) : navigate(-1))}
         />
-        <div className="tabs left" role="tablist" style={{ flex: 1 }}>
-          {CLIENT_TABS.map((key) => (
-            <button
-              key={key}
-              type="button"
-              role="tab"
-              aria-selected={tab === key}
-              className={tab === key ? "active" : ""}
-              onClick={() => setParams(key === "main" ? {} : { tab: key }, { replace: true })}
-            >
-              {t(`cards.tab_${key}`)}
-            </button>
-          ))}
-        </div>
+        <SectionTabs
+          section="client_card"
+          current={tab}
+          tabs={CLIENT_TABS.map((key) => ({ key, text: t(`cards.tab_${key}`) }))}
+          onSelect={(key) => setParams(key === "main" ? {} : { tab: key }, { replace: true })}
+          style={{ flex: 1 }}
+        />
       </div>
       {data.merged_into ? (
         // § 6.5.2: the duplicate leads to the main card, where new operations go.

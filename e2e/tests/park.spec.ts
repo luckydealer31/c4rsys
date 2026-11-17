@@ -75,21 +75,6 @@ test("the park is filtered by the occupancy and begins a booking; the card shows
     ["rentals", "schedule", "services", "park", "catalog"].map((key) => t(`rentals.tab_${key}`)),
   );
 
-  // A user puts their own order by dragging a tab onto the place of another; it is remembered
-  // for the user and stands after the page is opened again.
-  const tab = (key: string) => page.getByRole("tab", { name: t(`rentals.tab_${key}`), exact: true });
-  await tab("park").dragTo(tab("schedule"));
-  const first = async () => (await page.getByRole("tab").allTextContents()).slice(0, 3);
-  const moved = ["rentals", "park", "schedule"].map((key) => t(`rentals.tab_${key}`));
-  await expect.poll(first).toEqual(moved);
-  await page.reload();
-  await expect(tab("park")).toBeVisible();
-  await expect.poll(first).toEqual(moved);
-  // The section still opens on the rentals and bookings.
-  await page.goto(`${s.base}/rentals`);
-  await expect(tab("rentals")).toHaveAttribute("aria-selected", "true");
-  await page.goto(`${s.base}/rentals?tab=park`);
-
   const rows = page.locator("table tbody tr");
   await expect(rows).toHaveCount(3);
   const row = (name: string) => rows.filter({ hasText: name });

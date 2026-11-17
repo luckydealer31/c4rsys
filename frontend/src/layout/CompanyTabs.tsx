@@ -6,26 +6,29 @@ import { useNavigate } from "react-router";
 
 import { contextAvailable } from "../contexts";
 import { companyPath, useCan, useCompany, useMayDashboards, useMayTasks } from "./CompanyShell";
+import { SectionTabs } from "./SectionTabs";
 
-function Strip({ label, tabs, current }: { label: string; tabs: [key: string, text: string, path: string][]; current: string }) {
+function Strip({
+  section,
+  label,
+  tabs,
+  current,
+}: {
+  section: string;
+  label: string;
+  tabs: [key: string, text: string, path: string][];
+  current: string;
+}) {
   const company = useCompany();
   const navigate = useNavigate();
-  if (tabs.length < 2) return null;
   return (
-    <div className="tabs left section-tabs" role="tablist" aria-label={label}>
-      {tabs.map(([key, text, path]) => (
-        <button
-          key={key}
-          type="button"
-          role="tab"
-          aria-selected={current === key}
-          className={current === key ? "active" : ""}
-          onClick={() => navigate(companyPath(company, path))}
-        >
-          {text}
-        </button>
-      ))}
-    </div>
+    <SectionTabs
+      section={section}
+      label={label}
+      current={current}
+      tabs={tabs.map(([key, text]) => ({ key, text }))}
+      onSelect={(key) => navigate(companyPath(company, tabs.find(([other]) => other === key)?.[2] ?? ""))}
+    />
   );
 }
 
@@ -58,7 +61,7 @@ export function CompanyTabs({ current }: { current: CompanyTab }) {
       ? [["settings", t("company.tab_settings"), "/company/settings"] as [string, string, string]]
       : []),
   ];
-  return <Strip label={t("nav.company")} tabs={tabs} current={current} />;
+  return <Strip section="company" label={t("nav.company")} tabs={tabs} current={current} />;
 }
 
 /** «Productivity» (decisions of 14.11.2026 and 16.11.2026): what is going on and what is to be done — the dashboards
@@ -71,7 +74,7 @@ export function ProductivityTabs({ current }: { current: "dashboards" | "tasks" 
     ...(dashboards || !tasks ? [["dashboards", t("nav.dashboards"), "/dashboards"] as [string, string, string]] : []),
     ...(tasks ? [["tasks", t("nav.tasks"), "/tasks"] as [string, string, string]] : []),
   ];
-  return <Strip label={t("nav.productivity")} tabs={tabs} current={current} />;
+  return <Strip section="productivity" label={t("nav.productivity")} tabs={tabs} current={current} />;
 }
 
 export type FinanceTab = "money" | "orders" | "settlements" | "accounts" | "articles";
@@ -88,7 +91,7 @@ export function FinanceTabs({ current }: { current: FinanceTab }) {
         key === "orders" ? "/orders" : key === "money" ? "/finance" : `/finance?tab=${key}`,
       ] as [string, string, string],
   );
-  return <Strip label={t("nav.finance")} tabs={tabs} current={current} />;
+  return <Strip section="finance" label={t("nav.finance")} tabs={tabs} current={current} />;
 }
 
 /** Where the schedule and the trips live: in «Rental», or in «Service» for a company without

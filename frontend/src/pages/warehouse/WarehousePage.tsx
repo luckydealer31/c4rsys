@@ -7,6 +7,7 @@ import type { Storage, Vehicle, WarehouseItem } from "../../api/types";
 import { Icon } from "../../components/icons";
 import { Card, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
+import { SectionTabs } from "../../layout/SectionTabs";
 import { useVehicles } from "../vehicles/VehiclesPage";
 import { useCategoryLabel } from "./Categories";
 import { InventoriesList } from "./Inventory";
@@ -30,20 +31,13 @@ export function WarehousePage() {
   return (
     <div className="page full">
       <h1>{t("nav.warehouse")}</h1>
-      <div className="tabs" role="tablist">
-        {TABS.map((key) => (
-          <button
-            key={key}
-            type="button"
-            role="tab"
-            aria-selected={tab === key}
-            className={tab === key ? "active" : ""}
-            onClick={() => setParams(key === "stock" ? {} : { tab: key })}
-          >
-            {t(`warehouse.tab_${key}`)}
-          </button>
-        ))}
-      </div>
+      <SectionTabs
+        section="warehouse"
+        centered
+        current={tab}
+        tabs={TABS.map((key) => ({ key, text: t(`warehouse.tab_${key}`) }))}
+        onSelect={(key) => setParams(key === "stock" ? {} : { tab: key })}
+      />
       {tab === "stock" ? <StockList /> : null}
       {tab === "items" ? <Items /> : null}
       {tab === "receipts" ? <ReceiptsList /> : null}

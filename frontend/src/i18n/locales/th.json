@@ -391,7 +391,9 @@
     "close": "ปิด",
     "create": "สร้าง",
     "add": "เพิ่ม",
-    "confirm": "ยืนยัน"
+    "confirm": "ยืนยัน",
+    "tabs_order": "เปลี่ยนลำดับแท็บ",
+    "tabs_order_done": "เสร็จสิ้น"
   },
   "companies": {
     "company_id": "Company ID",

@@ -412,9 +412,23 @@ label.check { display: inline-flex; gap: 6px; align-items: center; margin-right:
 .split { display: grid; grid-template-columns: minmax(0, 1fr) 200px; gap: 20px; align-items: start; }
 /* Many tabs wrap to the next line on a narrow screen instead of scrolling the page sideways. */
 .tabs.left { justify-content: flex-start; flex-wrap: wrap; }
-/* A tab dragged over another one: the side it will stand at is marked. */
-.tabs button[data-drop="before"] { box-shadow: inset 3px 0 0 var(--accent); }
-.tabs button[data-drop="after"] { box-shadow: inset -3px 0 0 var(--accent); }
+/* The tabs of a section with the button of their order at the right end. */
+.tabs-bar { display: flex; align-items: flex-end; gap: 4px; margin-bottom: var(--gap);
+  border-bottom: 1px solid var(--border); }
+.tabs-bar > .tabs { flex: 1; min-width: 0; margin-bottom: 0; border-bottom: 0; }
+.tabs-bar.centered > .tabs { justify-content: center; }
+.tabs-order { flex: none; margin-bottom: 4px; }
+/* The order is being changed: the tabs sway and are dragged; a finger moves a tab, not the page. */
+.tabs.ordering { touch-action: none; user-select: none; -webkit-user-select: none; }
+.tabs.ordering button { cursor: grab; touch-action: none; border-radius: 8px;
+  outline: 1px dashed var(--border); outline-offset: -3px;
+  animation: tab-sway 0.26s ease-in-out infinite alternate; }
+.tabs.ordering button:nth-child(even) { animation-direction: alternate-reverse; }
+.tabs.ordering button.dragging { cursor: grabbing; animation: none; transform: scale(1.06);
+  outline: 2px solid var(--accent); background: var(--surface); box-shadow: 0 6px 16px rgb(0 0 0 / 18%);
+  position: relative; z-index: 1; }
+@keyframes tab-sway { from { transform: rotate(-1.6deg); } to { transform: rotate(1.6deg); } }
+@media (prefers-reduced-motion: reduce) { .tabs.ordering button { animation: none; } }
 .list-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: var(--gap); }
 .side-actions { display: flex; flex-direction: column; gap: 8px; position: sticky; top: 16px; }
 .side-actions .button { justify-content: flex-start; padding: 6px 10px; font-size: 0.9rem; }
