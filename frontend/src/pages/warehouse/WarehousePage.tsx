@@ -8,6 +8,7 @@ import { Icon } from "../../components/icons";
 import { Card, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { SectionTabs } from "../../layout/SectionTabs";
+import { useFirstTab } from "../../layout/tabOrder";
 import { useVehicles } from "../vehicles/VehiclesPage";
 import { useCategoryLabel } from "./Categories";
 import { InventoriesList } from "./Inventory";
@@ -27,7 +28,8 @@ export function WarehousePage() {
   const { t } = useTranslation();
   const [params, setParams] = useSearchParams();
   const wanted = params.get("tab") as Tab | null;
-  const tab: Tab = wanted && TABS.includes(wanted) ? wanted : "stock";
+  const firstTab = useFirstTab("warehouse");
+  const tab: Tab = wanted && TABS.includes(wanted) ? wanted : (firstTab(TABS) ?? "stock");
   return (
     <div className="page full">
       <h1>{t("nav.warehouse")}</h1>
@@ -36,7 +38,7 @@ export function WarehousePage() {
         centered
         current={tab}
         tabs={TABS.map((key) => ({ key, text: t(`warehouse.tab_${key}`) }))}
-        onSelect={(key) => setParams(key === "stock" ? {} : { tab: key })}
+        onSelect={(key) => setParams({ tab: key })}
       />
       {tab === "stock" ? <StockList /> : null}
       {tab === "items" ? <Items /> : null}

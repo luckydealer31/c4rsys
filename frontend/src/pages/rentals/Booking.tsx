@@ -243,7 +243,7 @@ export function BookingPage({ mode = "booking" }: { mode?: "booking" | "rental" 
         <IconButton
           icon="back"
           label={t("common.back")}
-          onClick={() => (route.key === "default" ? navigate(companyPath(company, "/rentals")) : navigate(-1))}
+          onClick={() => (route.key === "default" ? navigate(companyPath(company, "/rentals?tab=rentals")) : navigate(-1))}
         />
         <h1 style={{ margin: 0 }}>{t(direct ? "vehicles.action_rental" : "bookings.new")}</h1>
       </div>

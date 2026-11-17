@@ -443,6 +443,8 @@ label.check { display: inline-flex; gap: 6px; align-items: center; margin-right:
 .segmented button { background: transparent; color: var(--text); border: 0; border-radius: 999px;
   padding: 5px 14px; font-size: 0.9rem; }
 .segmented button[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); }
+/* On a narrow screen a long choice stands in a few lines instead of pushing the page sideways. */
+@media (max-width: 760px) { .segmented { flex-wrap: wrap; max-width: 100%; border-radius: 20px; } }
 .section-search.compact { margin-left: auto; }
 .section-search.compact input { width: 190px; border-radius: 999px; padding: 6px 12px;
   transition: width 0.2s ease; }

@@ -13,6 +13,7 @@ import { contextAvailable } from "../contexts";
 import { ScopeContext, useAutoSync, useOfflineDatasets } from "../offline/hooks";
 import { rememberCompany } from "../offline/profile";
 import { AppShell, RailLink } from "./AppShell";
+import { useCompanyTabs, useFinanceTabs, useProductivityTabs, useSectionHome } from "./CompanyTabs";
 import { SearchBox } from "../pages/search/SearchPage";
 
 type ActiveCompany = { company: Company; permissions: Set<string> };
@@ -78,16 +79,42 @@ export function companyMenu(company: Company): [key: string, path: string, icon:
 }
 
 /** Pages that belong to a section of the menu though their address is their own. */
-const INSIDE: Record<string, string[]> = { productivity: ["/tasks"], finance: ["/orders"] };
+const INSIDE: Record<string, string[]> = { productivity: ["/dashboards", "/tasks"], finance: ["/finance", "/orders"] };
 
-/** The company's logo leads straight to its card (decision of 24.10.2026). */
+/** The items of the menu. A section opens on its first tab in the user's order (customer's
+ * decision of 17.11.2026): where every tab has a page of its own, the item leads to the page of
+ * that tab; the other sections choose the tab themselves when their address names none. */
+function Menu({ company }: { company: Company }) {
+  const { t } = useTranslation();
+  const homes: Record<string, string> = {
+    productivity: useSectionHome("productivity", useProductivityTabs(), "/dashboards"),
+    finance: useSectionHome("finance", useFinanceTabs(), "/finance"),
+  };
+  return (
+    <>
+      {companyMenu(company).map(([key, path, icon]) => (
+        <RailLink
+          key={key}
+          to={companyPath(company, homes[key] ?? path)}
+          icon={icon}
+          label={t(`nav.${key}`)}
+          also={(INSIDE[key] ?? []).map((part) => companyPath(company, part))}
+        />
+      ))}
+    </>
+  );
+}
+
+/** The company's logo leads to its card (decision of 24.10.2026) — to the first tab of
+ * «Company» in the user's order. */
 function CompanyLink({ company }: { company: Company }) {
+  const home = useSectionHome("company", useCompanyTabs(), "/company");
   // The garage and the contacts are parts of «Company», so its item is lit there too.
   const { pathname } = useLocation();
   const inside = ["/company", "/vehicles", "/clients", "/documents"].some((part) => pathname.startsWith(companyPath(company, part)));
   return (
     <NavLink
-      to={companyPath(company, "/company")}
+      to={companyPath(company, home)}
       className={inside ? "rail-item rail-company active" : "rail-item rail-company"}
       aria-label={company.display_name}
       data-tip={company.display_name}
@@ -121,18 +148,11 @@ export function CompanyShell({ user }: { user: User }) {
 
   const data = company.data?.company;
   const sidebar = data ? (
-    <>
+    // The menu knows the rights and the tabs of the sections, as the pages do.
+    <CompanyContext.Provider value={company.data ?? null}>
       <CompanyLink company={data} />
-      {companyMenu(data).map(([key, path, icon]) => (
-        <RailLink
-          key={key}
-          to={`/c/${cmp}${path}`}
-          icon={icon}
-          label={t(`nav.${key}`)}
-          also={(INSIDE[key] ?? []).map((part) => `/c/${cmp}${part}`)}
-        />
-      ))}
-    </>
+      <Menu company={data} />
+    </CompanyContext.Provider>
   ) : (
     // While the company loads, no menu: the default «My companies» would only flash.
     <></>

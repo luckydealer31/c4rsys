@@ -8,6 +8,7 @@ import { Icon } from "../../components/icons";
 import { Card, Loading, Switch } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { SectionTabs } from "../../layout/SectionTabs";
+import { useFirstTab } from "../../layout/tabOrder";
 import { formatMoment } from "../../time";
 import { clientName } from "../clients/ClientsPage";
 import { useOrders } from "../orders/OrdersPage";
@@ -134,9 +135,10 @@ export function RentalsPage() {
   // The schedule and the trips are tabs of the rental (customer's decision of 14.11.2026). The
   // order is the customer's of 17.11.2026: rentals and bookings, the schedule, the ordered
   // services, the trips, the park, the tariffs and services; a user puts their own order
-  // (SectionTabs). The section opens on the rentals and bookings in any order.
+  // (SectionTabs), and the section opens on the first tab of that order.
   const TABS: Tab[] = ["rentals", "schedule", "services", ...(mayTrips(can) ? (["trips"] as Tab[]) : []), "park", "catalog"];
-  const tab: Tab = TABS.find((key) => key === params.get("tab")) ?? "rentals";
+  const firstTab = useFirstTab("rentals");
+  const tab: Tab = TABS.find((key) => key === params.get("tab")) ?? firstTab(TABS) ?? "rentals";
   const lines = useApi<{ lines: ServiceLine[] }>(
     ["service-lines", company.public_id],
     `/c/${company.public_id}/service-lines`,
@@ -169,7 +171,7 @@ export function RentalsPage() {
             section="rentals"
             current={tab}
             tabs={TABS.map((key) => ({ key, text: t(`rentals.tab_${key}`) }))}
-            onSelect={(key) => setParams(key === "rentals" ? {} : { tab: key })}
+            onSelect={(key) => setParams({ tab: key })}
           />
           {tab === "schedule" ? <ScheduleTab /> : null}
           {tab === "trips" ? <TripsView /> : null}

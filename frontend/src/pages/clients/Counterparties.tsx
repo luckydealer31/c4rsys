@@ -10,6 +10,7 @@ import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, IconButton, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { SectionTabs } from "../../layout/SectionTabs";
+import { useFirstTab } from "../../layout/tabOrder";
 import { CardBadges, MessengerField } from "./ClientsPage";
 import { ContractorHistoryCard, MergeCard } from "./CardExtras";
 import { DocumentsCard, Facts, MainCard, SupplierHistoryCard } from "./CardParts";
@@ -225,11 +226,12 @@ export function CounterpartyPage() {
   const archive = useCommand<{ expected_version: number }, unknown>(`${base}/archive`);
   const restore = useCommand<{ expected_version: number }, unknown>(`${base}/restore`);
   const [params, setParams] = useSearchParams();
+  const firstTab = useFirstTab("counterparty_card");
   if (card.isLoading) return <div className="page full"><Loading /></div>;
   const data = card.data?.counterparty;
   if (!data) return <div className="page full"><ErrorMessage error={null} /></div>;
   const current = data;
-  const tab = CARD_TABS.find((x) => x === params.get("tab")) ?? "main";
+  const tab = CARD_TABS.find((x) => x === params.get("tab")) ?? firstTab(CARD_TABS) ?? "main";
   const money = can("finance.account.view") || can("finance.settlement.manage") || can("finance.payout");
   const mergedInto = data.merged_into;
 
@@ -254,7 +256,7 @@ export function CounterpartyPage() {
           section="counterparty_card"
           current={tab}
           tabs={CARD_TABS.map((key) => ({ key, text: t(`cards.tab_${key}`) }))}
-          onSelect={(key) => setParams(key === "main" ? {} : { tab: key }, { replace: true })}
+          onSelect={(key) => setParams({ tab: key }, { replace: true })}
           style={{ flex: 1 }}
         />
       </div>

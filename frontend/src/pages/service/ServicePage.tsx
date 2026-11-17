@@ -9,6 +9,7 @@ import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { SectionTabs } from "../../layout/SectionTabs";
+import { useFirstTab } from "../../layout/tabOrder";
 import { formatMoment } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
 import { mayTrips, TripsView } from "../trips/TripsPage";
@@ -39,7 +40,8 @@ export function ServicePage() {
   const tabs: ServiceTab[] = company.context_types.includes("rental")
     ? ["work"]
     : ["work", "schedule", ...(mayTrips(can) ? (["trips"] as ServiceTab[]) : [])];
-  const tab = tabs.find((key) => key === params.get("tab")) ?? "work";
+  const firstTab = useFirstTab("service");
+  const tab = tabs.find((key) => key === params.get("tab")) ?? firstTab(tabs) ?? "work";
   return (
     <div className="page full">
       <h1>{t("nav.service")}</h1>
@@ -47,7 +49,7 @@ export function ServicePage() {
         section="service"
         current={tab}
         tabs={tabs.map((key) => ({ key, text: t(key === "work" ? "service.tab_work" : `vehicles.view_${key}`) }))}
-        onSelect={(key) => setParams(key === "work" ? {} : { tab: key })}
+        onSelect={(key) => setParams({ tab: key })}
       />
       {tab === "work" ? <ServiceWork /> : null}
       {tab === "schedule" ? <ScheduleTab /> : null}

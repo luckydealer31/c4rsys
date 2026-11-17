@@ -14,6 +14,7 @@ import { Card, ErrorMessage, Field, IconButton, Loading, Modal } from "../../com
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { CompanyTabs } from "../../layout/CompanyTabs";
 import { SectionTabs } from "../../layout/SectionTabs";
+import { useFirstTab } from "../../layout/tabOrder";
 import { EmployeesList, InviteForm } from "../settings/EmployeesPage";
 import { CounterpartiesList } from "./Counterparties";
 import { LinkedDocuments } from "../documents/DocumentsPage";
@@ -70,8 +71,9 @@ export function ClientsPage() {
   const [params, setParams] = useSearchParams();
   const tabs = peopleTabs(can);
   const [inviting, setInviting] = useState(false);
+  const firstTab = useFirstTab("contacts");
   const wanted = params.get("tab") as PeopleTab | null;
-  const tab = wanted && tabs.includes(wanted) ? wanted : tabs[0];
+  const tab = wanted && tabs.includes(wanted) ? wanted : firstTab(tabs);
   if (!tab) {
     return (
       <div className="page full">
@@ -101,7 +103,7 @@ export function ClientsPage() {
         section="contacts"
         current={tab}
         tabs={tabs.map((key) => ({ key, text: t(`clients.tab_${key}`) }))}
-        onSelect={(key) => setParams(key === tabs[0] ? {} : { tab: key })}
+        onSelect={(key) => setParams({ tab: key })}
       />
       {tab === "clients" ? <ClientsList /> : null}
       {tab === "counterparties" ? <CounterpartiesList /> : null}
@@ -409,10 +411,11 @@ export function ClientPage() {
   const queryClient = useQueryClient();
   const card = useApi<{ client: Client }>(["client", company.public_id, id], `/c/${company.public_id}/clients/${id}`);
   const [params, setParams] = useSearchParams();
+  const firstTab = useFirstTab("client_card");
   if (card.isLoading) return <div className="page full"><Loading /></div>;
   const data = card.data?.client;
   if (!data) return <div className="page full"><ErrorMessage error={null} /></div>;
-  const tab = CLIENT_TABS.find((x) => x === params.get("tab")) ?? "main";
+  const tab = CLIENT_TABS.find((x) => x === params.get("tab")) ?? firstTab(CLIENT_TABS) ?? "main";
   async function reload() {
     await queryClient.invalidateQueries({ queryKey: ["client", company.public_id, id] });
     await queryClient.invalidateQueries({ queryKey: ["clients", company.public_id] });
@@ -425,13 +428,13 @@ export function ClientPage() {
         <IconButton
           icon="back"
           label={t("common.back")}
-          onClick={() => (route.key === "default" ? navigate(companyPath(company, "/clients")) : navigate(-1))}
+          onClick={() => (route.key === "default" ? navigate(companyPath(company, "/clients?tab=clients")) : navigate(-1))}
         />
         <SectionTabs
           section="client_card"
           current={tab}
           tabs={CLIENT_TABS.map((key) => ({ key, text: t(`cards.tab_${key}`) }))}
-          onSelect={(key) => setParams(key === "main" ? {} : { tab: key }, { replace: true })}
+          onSelect={(key) => setParams({ tab: key }, { replace: true })}
           style={{ flex: 1 }}
         />
       </div>

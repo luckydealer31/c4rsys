@@ -48,7 +48,7 @@ function NewCardWizard({ cardType }: { cardType: CardType }) {
   const path = cardType === "client" ? "clients" : "counterparties";
   const cardPath = (id: string) =>
     companyPath(company, cardType === "client" ? `/clients/${id}` : `/clients/counterparties/${id}`);
-  const back = companyPath(company, cardType === "client" ? "/clients" : "/clients?tab=counterparties");
+  const back = companyPath(company, cardType === "client" ? "/clients?tab=clients" : "/clients?tab=counterparties");
   const [form, setForm] = useState<Form>({
     kind: cardType === "client" ? "person" : "company",
     target: "",

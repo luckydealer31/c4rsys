@@ -323,10 +323,9 @@ test("base example from registration to closing survives a restart", async ({ pa
   const before = await moneyTab.boundingBox();
   await page.getByRole("tab", { name: t("nav.orders") }).click();
   await expect(page).toHaveURL(/\/orders$/);
-  // The tabs of a section stay in place when its pages are switched; the page of the orders is
-  // awaited first, the tabs are drawn with it.
-  await expect(moneyTab).toBeVisible();
-  expect((await moneyTab.boundingBox())?.x).toBe(before?.x);
+  // The tabs of a section stay in place when its pages are switched; the page of the orders
+  // draws them anew, so the place is looked at until they stand.
+  await expect.poll(async () => (await moneyTab.boundingBox())?.x).toBe(before?.x);
   await expect(page.getByRole("link", { name: t("nav.finance"), exact: true })).toHaveClass(/active/);
   await page.goto(`${base}/dashboards`);
   await page.getByRole("tab", { name: t("nav.tasks") }).click();

@@ -78,6 +78,8 @@ test("the tabs are put in order by a finger on a phone", async ({ page }, info) 
   const scrolled = await page.evaluate(() => window.scrollY);
   await fingerDrag(page, start, end, info.project.name === "android");
   await expect.poll(async () => (await tabNames(page)).slice(0, 2)).toEqual([park, first]);
+  // The tab the user is on stays while the order is changed.
+  await expect(tabOf(page, first)).toHaveAttribute("aria-selected", "true");
   expect(await page.evaluate(() => window.scrollY)).toBe(scrolled);
   expect(await sideScroll(page)).toBeLessThanOrEqual(1);
 
@@ -86,6 +88,9 @@ test("the tabs are put in order by a finger on a phone", async ({ page }, info) 
   await expectOrdering(page, false);
   await tabOf(page, park).tap();
   await expect(page).toHaveURL(/tab=park/);
+  // The park fits a narrow screen: its filter stands in a few lines.
+  await expect(page.getByRole("button", { name: t("rentals.park_limited"), exact: true })).toBeVisible();
+  expect(await sideScroll(page)).toBeLessThanOrEqual(1);
   await page.reload();
   await expect(tabOf(page, park)).toBeVisible();
   await expect.poll(async () => (await tabNames(page)).slice(0, 2)).toEqual([park, first]);

@@ -32,7 +32,7 @@ export function ServiceCatalogPage() {
   return (
     <div className="page">
       <p>
-        <Link to={companyPath(company, "/service")}>← {t("nav.service")}</Link>
+        <Link to={companyPath(company, "/service?tab=work")}>← {t("nav.service")}</Link>
       </p>
       <h1>{t("service.catalog")}</h1>
       <Card>

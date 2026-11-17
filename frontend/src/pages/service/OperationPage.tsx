@@ -58,7 +58,7 @@ export function ServiceOperationPage() {
   return (
     <div className="page">
       <p>
-        <Link to={companyPath(company, "/service")}>← {t("nav.service")}</Link>
+        <Link to={companyPath(company, "/service?tab=work")}>← {t("nav.service")}</Link>
       </p>
       <h1>
         {t("service.operation_title", { number: op.number })}{" "}

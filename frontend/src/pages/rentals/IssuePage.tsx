@@ -272,7 +272,7 @@ function IssueForm({
         <IconButton
           icon="back"
           label={t("common.back")}
-          onClick={() => (route.key === "default" ? navigate(companyPath(company, "/rentals")) : navigate(-1))}
+          onClick={() => (route.key === "default" ? navigate(companyPath(company, "/rentals?tab=rentals")) : navigate(-1))}
         />
         <h1 style={{ margin: 0 }}>
           {booking?.booking && !booking.booking.direct

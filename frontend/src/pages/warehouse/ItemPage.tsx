@@ -218,7 +218,7 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
   return (
     <div className="page">
       <p>
-        <Link to={companyPath(company, "/warehouse")}>← {t("nav.warehouse")}</Link>
+        <Link to={companyPath(company, "/warehouse?tab=stock")}>← {t("nav.warehouse")}</Link>
       </p>
       <h1>{item ? item.name : t("warehouse.create_item")}</h1>
       <form className="stack" onSubmit={submit}>
@@ -635,7 +635,7 @@ function ItemState({ item }: { item: WarehouseItem }) {
               onClick={async () => {
                 if ((await remove.run({})) !== null) {
                   await refresh();
-                  navigate(companyPath(company, "/warehouse"));
+                  navigate(companyPath(company, "/warehouse?tab=stock"));
                 }
               }}
             >

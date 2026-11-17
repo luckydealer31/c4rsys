@@ -52,7 +52,7 @@ export function SaleStartPage() {
   return (
     <div className="page">
       <p>
-        <Link to={companyPath(company, "/warehouse")}>← {t("nav.warehouse")}</Link>
+        <Link to={companyPath(company, "/warehouse?tab=stock")}>← {t("nav.warehouse")}</Link>
       </p>
       <h1>{t("sales.start_title")}</h1>
       <Card title={t("sales.new_order")}>

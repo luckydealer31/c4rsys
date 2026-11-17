@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import { useLocation } from "react-router";
 
 import type { User } from "../api/types";
 import { useCommand } from "../api/useCommand";
@@ -9,13 +10,32 @@ import { ME_KEY, useMe } from "../auth";
  * 17.11.2026). It is remembered for the user, not for the device: saved in the profile. A tab
  * the saved order does not know — a new one — stands after the known ones, in its usual place
  * among such. */
+function inOrder<T extends string>(saved: string[], tabs: readonly T[]): T[] {
+  const place = (key: T) => (saved.includes(key) ? saved.indexOf(key) : saved.length + tabs.indexOf(key));
+  return [...tabs].sort((a, b) => place(a) - place(b));
+}
+
+/** The tab a section or a card opens on when its address names none: the first one in the
+ * user's order (customer's decision of 17.11.2026) — the order would be of little use if the
+ * section still opened on the usual tab. Returns a function, so that it may be called before
+ * the tabs are known. */
+export function useFirstTab(section: string) {
+  const saved = useMe().data?.tab_orders?.[section] ?? [];
+  // The order as it was when this address was opened: while the user changes the order, the tab
+  // they are on stays; the new first tab is opened the next time the section is.
+  const { key } = useLocation();
+  const [opened, setOpened] = useState({ key, saved });
+  if (opened.key !== key) setOpened({ key, saved });
+  const order = opened.key === key ? opened.saved : saved;
+  return <T extends string>(tabs: readonly T[]): T | undefined => inOrder(order, tabs)[0];
+}
+
 export function useTabOrder<T extends string>(section: string, tabs: T[]) {
   const me = useMe();
   const client = useQueryClient();
   const update = useCommand<{ tab_orders: Record<string, string[]> }, { user: User }>("/me", "PATCH");
   const saved = me.data?.tab_orders?.[section] ?? [];
-  const place = (key: T) => (saved.includes(key) ? saved.indexOf(key) : saved.length + tabs.indexOf(key));
-  const ordered = [...tabs].sort((a, b) => place(a) - place(b));
+  const ordered = inOrder(saved, tabs);
 
   // The orders are sent one after another: the last one put waits for the answer to the one
   // before it, and an answer does not bring an older order back over a newer one.

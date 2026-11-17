@@ -83,7 +83,7 @@ export function NewServiceOperationPage() {
   return (
     <div className="page">
       <p>
-        <Link to={companyPath(company, "/service")}>← {t("nav.service")}</Link>
+        <Link to={companyPath(company, "/service?tab=work")}>← {t("nav.service")}</Link>
       </p>
       <h1>{t("service.new_operation")}</h1>
       {locations.isLoading || vehicles.isLoading ? <Loading /> : null}

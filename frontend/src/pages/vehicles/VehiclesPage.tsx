@@ -12,6 +12,7 @@ import { VehicleTypeIcon } from "../../components/VehicleTypeIcon";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { CompanyTabs, workHome } from "../../layout/CompanyTabs";
 import { SectionTabs } from "../../layout/SectionTabs";
+import { useFirstTab } from "../../layout/tabOrder";
 import { formatMoment } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
 import { SectionSearch } from "../search/SearchPage";
@@ -450,6 +451,7 @@ export function VehiclePage() {
   const can = useCan();
   const client = useQueryClient();
   const [search, setSearch] = useSearchParams();
+  const firstTab = useFirstTab("vehicle_card");
   const navigate = useNavigate();
   const route = useLocation();
   const draftScope = useScope();
@@ -516,10 +518,10 @@ export function VehiclePage() {
   const named = search.get("tab") ?? "";
   const formerPart = parts.find((key) => key === named);
   const asked = search.get("merge") || formerPart ? "history" : (old[named] ?? named);
-  const tab: CardTab = tabs.find((key) => key === asked) ?? "main";
+  const tab: CardTab = tabs.find((key) => key === asked) ?? firstTab(tabs) ?? "main";
   const askedPart = search.get("merge") ? "ownership" : (formerPart ?? search.get("part"));
   const part: HistoryPart = parts.find((key) => key === askedPart) ?? parts[0] ?? "changes";
-  const openTab = (key: CardTab) => setSearch(key === "main" ? {} : { tab: key }, { replace: true });
+  const openTab = (key: CardTab) => setSearch({ tab: key }, { replace: true });
   const openPart = (key: HistoryPart) => setSearch({ tab: "history", part: key }, { replace: true });
 
   return (
