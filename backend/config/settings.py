@@ -86,8 +86,14 @@ TEMPLATES: list[dict[str, object]] = []
 DATABASE_URL = os.environ.get(
     "DATABASE_URL", "postgres://c4rsys:c4rsys_dev_only@localhost:5432/c4rsys"
 )
+# A connection is kept for a minute between requests under gunicorn, whose threads are few and
+# live long. The development server makes a new thread for every request, so a kept connection
+# is left open behind each of them: on a busy stand — the browser tests — the database ran out of
+# connections («too many clients», found on 18.11.2026). There a connection is closed with its
+# request.
+_CONN_MAX_AGE = int(os.environ.get("C4R_DB_CONN_MAX_AGE", "0" if DEBUG else "60"))
 DATABASES = {
-    "default": dj_database_url.parse(DATABASE_URL, conn_max_age=60),
+    "default": dj_database_url.parse(DATABASE_URL, conn_max_age=_CONN_MAX_AGE),
 }
 # Transactions are explicit per business command (A07), not per HTTP request.
 DATABASES["default"]["ATOMIC_REQUESTS"] = False

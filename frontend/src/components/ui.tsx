@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ApiError } from "../api/client";
@@ -50,9 +50,45 @@ export function Field({
  * when the pointer is over it or it has the focus, instead of a note always printed on the
  * screen. */
 export function Info({ text }: { text: string }) {
+  const mark = useRef<HTMLSpanElement>(null);
+  const pop = useRef<HTMLSpanElement>(null);
+  const [open, setOpen] = useState(false);
+  const [place, setPlace] = useState<CSSProperties>({ visibility: "hidden" });
+  // The explanation is put where it is seen whole (found on 18.11.2026: in a window it went
+  // beyond the edge and was cut): under the mark, moved inside the screen; above the mark when
+  // there is no room below. It is fixed to the screen, so a window does not cut it.
+  useLayoutEffect(() => {
+    if (!open || !mark.current || !pop.current) return;
+    const at = mark.current.getBoundingClientRect();
+    const size = pop.current.getBoundingClientRect();
+    const edge = 8;
+    const left = Math.min(Math.max(edge, at.left + at.width / 2 - size.width / 2), window.innerWidth - size.width - edge);
+    const below = at.bottom + 6;
+    const top = below + size.height > window.innerHeight - edge ? Math.max(edge, at.top - size.height - 6) : below;
+    setPlace({ left, top, visibility: "visible" });
+  }, [open, text]);
+  const hide = () => {
+    setOpen(false);
+    setPlace({ visibility: "hidden" });
+  };
   return (
-    <span className="info-tip" tabIndex={0} role="note" aria-label={text} data-tip={text}>
+    <span
+      ref={mark}
+      className="info-tip"
+      tabIndex={0}
+      role="note"
+      aria-label={text}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={hide}
+      onFocus={() => setOpen(true)}
+      onBlur={hide}
+    >
       i
+      {open ? (
+        <span ref={pop} className="info-pop" style={place} aria-hidden="true">
+          {text}
+        </span>
+      ) : null}
     </span>
   );
 }

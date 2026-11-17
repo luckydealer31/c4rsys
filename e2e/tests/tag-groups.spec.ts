@@ -16,6 +16,17 @@ test("a group of tags names its makers and where its tags are offered", async ({
   await page.goto(`${s.base}/company/tags`);
   await page.getByRole("button", { name: t("tags.group_new"), exact: true }).click();
   await dialog.getByLabel(t("tags.group_name")).fill("Категории запчастей");
+  // The explanation under «i» is seen whole: inside the screen, not cut by the window.
+  await dialog.getByRole("note").first().hover();
+  const pop = dialog.locator(".info-pop");
+  await expect(pop).toHaveText(t("tags.group_kinds_hint"));
+  const box = await pop.boundingBox();
+  const screen = page.viewportSize()!;
+  expect(box!.x).toBeGreaterThanOrEqual(0);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(screen.width);
+  expect(box!.y + box!.height).toBeLessThanOrEqual(screen.height);
+  await page.mouse.move(0, 0);
+  await expect(pop).toHaveCount(0);
   await dialog.getByRole("checkbox", { name: t("search.kind_item"), exact: true }).check();
   await dialog.getByRole("checkbox", { name: /Петрова/ }).check();
   await save();

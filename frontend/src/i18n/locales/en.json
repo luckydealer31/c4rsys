@@ -6542,6 +6542,7 @@
     "system_where_storage_places": "Offered at the warehouse: the place of a unit or a lot.",
     "place_add": "Add a place",
     "place_remove": "Remove «{{name}}»",
-    "place_unknown": "There is no place «{{name}}» in the list. New places are made by the employees named in the group «Storage places»."
+    "place_unknown": "There is no place «{{name}}» in the list. New places are made by the employees named in the group «Storage places».",
+    "add_first": "Add a tag"
   }
 }

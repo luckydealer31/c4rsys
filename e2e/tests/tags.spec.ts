@@ -49,6 +49,8 @@ test("tags of the company and personal tags are put on records and find them tog
   await choose(page, ["VIP"]);
   await expect(page.locator(".tags-line .tag-chip")).toHaveText(["VIP"]);
   await page.goto(`${s.base}/vehicles/${s.vehicle}`);
+  // While a record has no tag, the button says in full what it does.
+  await expect(page.getByRole("button", { name: t("tags.change"), exact: true })).toHaveText(t("tags.add_first"));
   await choose(page, ["VIP", "Проверить"]);
   await expect(page.locator(".tags-line .tag-chip")).toHaveText(["VIP", "Проверить"]);
 
@@ -58,6 +60,12 @@ test("tags of the company and personal tags are put on records and find them tog
   const group = (kind: string) => page.locator("section.card", { has: page.getByRole("heading", { name: t(`search.kind_${kind}`), exact: true }) });
   await expect(group("client").getByRole("link")).toHaveCount(1);
   await expect(group("vehicle").getByRole("link", { name: "Toyota Yaris" })).toBeVisible();
+
+  // The tags are seen in the lists of vehicles too: in the park and in the garage.
+  await page.goto(`${s.base}/rentals?tab=park`);
+  await expect(page.locator("table tbody tr .row-tags .tag-chip")).toHaveText(["VIP", "Проверить"]);
+  await page.goto(`${s.base}/vehicles`);
+  await expect(page.locator("table tbody tr .row-tags .tag-chip")).toHaveText(["VIP", "Проверить"]);
 
   // The search inside a section finds by the tag too: in the garage — the vehicle it is put on.
   await page.goto(`${s.base}/vehicles`);

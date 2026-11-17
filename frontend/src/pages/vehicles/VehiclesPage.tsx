@@ -24,7 +24,7 @@ import { OwnerRequestCard } from "./OwnerRequestCard";
 import { VehicleDocumentsList, VehicleDocumentsSettings } from "./VehicleDocuments";
 import { DraftsPanel } from "../inspections/OfflineDrafts";
 import { VehiclePhotos } from "./VehiclePhotos";
-import { TagsLine } from "../tags/Tags";
+import { RowTags, TagsLine, useTagsOf } from "../tags/Tags";
 import { useScope } from "../../offline/hooks";
 import { VehicleMoves } from "./VehicleMoves";
 import { VehicleDamagesCard, VehicleInspectionsCard } from "../inspections/Blocks";
@@ -107,6 +107,7 @@ export function VehiclesPage() {
   const vehicles = only ? filtered : q ? found : all;
   const locations = useLocations();
   const rentals = useRentals(can("rental.view"));
+  const tagsOf = useTagsOf("vehicle");
   // Links of the earlier tabs (?tab=managed, ?tab=client) keep working.
   const tab = params.get("tab");
   const wanted = params.get("view");
@@ -252,7 +253,8 @@ export function VehiclesPage() {
                               {/* One list for own and managed: the managed ones are marked. */}
                               {view !== "client" && vehicle.relation === "managed" ? (
                                 <span className="badge">{t("vehicles.relation_managed")}</span>
-                              ) : null}
+                              ) : null}{" "}
+                              <RowTags tags={tagsOf(vehicle.id)} />
                               <div className="muted small">{vehicle.vehicle_id}</div>
                               </div>
                             </td>

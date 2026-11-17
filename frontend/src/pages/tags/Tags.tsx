@@ -78,6 +78,35 @@ export function useTagMatch(kind: TagKind) {
   };
 }
 
+/** The tags of the records of a kind, for a list (customer's decision of 18.11.2026: a tag must
+ * be seen in the list, not only in the card). Returns the tags of a record by its id — of the
+ * company and the user's own. */
+export function useTagsOf(kind: TagKind) {
+  const company = useCompany();
+  const tags = useTags();
+  const links = useApi<{ links: Record<string, string[]> }>(
+    ["tag-links", company.public_id, kind],
+    `/c/${company.public_id}/tag-links?type=${kind}`,
+  );
+  const byId = new Map((tags.data?.tags ?? []).filter((tag) => !tag.archived).map((tag) => [tag.id, tag]));
+  return (id: string): Tag[] =>
+    (links.data?.links[id] ?? [])
+      .flatMap((tag) => byId.get(tag) ?? [])
+      .sort((a, b) => Number(a.personal) - Number(b.personal) || a.name.localeCompare(b.name));
+}
+
+/** The tags of a row of a list: small marks that lead to the page of the tag. */
+export function RowTags({ tags }: { tags: Tag[] }) {
+  if (!tags.length) return null;
+  return (
+    <span className="row-tags">
+      {tags.map((tag) => (
+        <TagChip key={tag.id} tag={tag} link />
+      ))}
+    </span>
+  );
+}
+
 /** The group of the storage places of the warehouse. */
 export const STORAGE = "storage_places";
 
@@ -303,8 +332,10 @@ export function TagsLine({ kind, id }: { kind: TagKind; id: string }) {
       {tags.map((tag) => (
         <TagChip key={tag.id} tag={tag} link />
       ))}
-      <button type="button" className="tag-add" aria-label={t("tags.change")} title={t("tags.change")} onClick={() => setChoosing(true)}>
-        <Icon name="plus" size={12} /> {t("tags.add")}
+      {/* Easy to see (the customer did not find a pale one, 18.11.2026): in the colour of the
+          actions, and said in full while the record has no tag yet. */}
+      <button type="button" className="tag-add bright" aria-label={t("tags.change")} title={t("tags.change")} onClick={() => setChoosing(true)}>
+        <Icon name="plus" size={12} /> {t(tags.length ? "tags.add" : "tags.add_first")}
       </button>
       {choosing ? (
         <Modal title={t("tags.title")} onClose={() => setChoosing(false)}>

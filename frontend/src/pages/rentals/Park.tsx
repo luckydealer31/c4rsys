@@ -8,6 +8,7 @@ import { VehicleTypeIcon } from "../../components/VehicleTypeIcon";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { formatMoment } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
+import { RowTags, useTagsOf } from "../tags/Tags";
 import { useRentals, useVehicles } from "../vehicles/VehiclesPage";
 
 type Status = "free" | "rented" | "booked";
@@ -30,6 +31,7 @@ export function Park() {
   const locations = useLocations().data?.locations ?? [];
   const rentals = useRentals(can("rental.view")).data?.rentals ?? [];
   const [status, setStatus] = useState<Filter | "">("");
+  const tagsOf = useTagsOf("vehicle");
   const [shown, setShown] = useState<Set<string>>(new Set(FLEET));
   // Both switches are on at first; the last one that is on stays on.
   const toggle = (key: (typeof FLEET)[number]) => {
@@ -148,7 +150,8 @@ export function Park() {
                             <Link to={companyPath(company, `/vehicles/${vehicle.id}`)}>{vehicle.name}</Link>{" "}
                             {vehicle.relation === "managed" ? (
                               <span className="badge">{t("vehicles.relation_managed")}</span>
-                            ) : null}
+                            ) : null}{" "}
+                            <RowTags tags={tagsOf(vehicle.id)} />
                             <div className="muted small">{vehicle.vehicle_id}</div>
                           </div>
                         </td>
