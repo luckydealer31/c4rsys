@@ -668,6 +668,11 @@ a.tag-chip:hover { border-color: var(--tag); }
 .place-tags .tag-chip button { padding: 0 0 0 2px; min-height: 0 !important; background: none; border: 0;
   color: inherit; font-size: 1rem; line-height: 1; cursor: pointer; }
 .place-refused { flex: 1 1 100%; color: var(--danger); }
+/* The price ranges: two narrow fields in a line, the mark of a wrong end. */
+.ranges-table { width: auto; }
+.ranges-table td, .ranges-table th { border-bottom: 0; padding: 4px 8px 4px 0; }
+.ranges-table input { width: 160px; }
+.ranges-table input[aria-invalid="true"] { border-color: var(--danger); }
 /* A choice under a choice: the ways of counting a day under «by the day». */
 .sub-choice { border: 0; border-left: 2px solid var(--border); margin: 0 0 0 8px; padding: 2px 0 2px 16px;
   display: flex; flex-direction: column; gap: 8px; }

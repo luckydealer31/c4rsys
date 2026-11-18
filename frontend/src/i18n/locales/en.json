@@ -2232,7 +2232,7 @@
     "range_closed": "{{from}}–{{to}} {{unit}}: {{rate}}",
     "range_open": "from {{from}} {{unit}}: {{rate}}",
     "ranges": "Price ranges",
-    "ranges_hint": "The first range starts at 1, the next right after the «to» of the previous one, the last has no upper bound; in units of the tariff. The rate of the range applies to all billable units.",
+    "ranges_hint": "Type where a range ends — the next one appears by itself, from that value plus one. The last range has no upper bound. The rate of a range applies to all paid units.",
     "rate": "Rate per unit ({{unit}})",
     "restore": "Restore from archive",
     "state_active": "Active",
@@ -2258,7 +2258,8 @@
     "billing_day": "By the day",
     "billing_month": "By the month",
     "day_from_issue": "A day is 24 hours from the issue",
-    "day_fixed_boundary": "A day runs to a set time"
+    "day_fixed_boundary": "A day runs to a set time",
+    "remove_range": "Remove the range"
   },
   "terms": {
     "assign": "Save terms",

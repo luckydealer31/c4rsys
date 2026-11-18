@@ -8,7 +8,7 @@ import { useApi } from "../../api/queries";
 import { api, type ApiError } from "../../api/client";
 import type { Tariff, TariffRange, VehicleTerms } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { Card, ErrorMessage, Field, Loading, UnconfiguredConfirm } from "../../components/ui";
+import { Card, ErrorMessage, Field, Info, Loading, UnconfiguredConfirm } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { currencies } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
@@ -68,8 +68,27 @@ function toRows(ranges: TariffRange[]): RangeRow[] {
   return ranges.map((r) => ({ from: String(r.from), to: r.to === null ? "" : String(r.to), rate: "" }));
 }
 
-/** Range rows; the next «from» follows the previous «to» (§ 13.2.8). The server checks the
- * structure. */
+/** Each range begins right after the one before it: the first with 1, the next with the «to» of
+ * the previous plus one (§ 13.2.8). */
+function chained(rows: RangeRow[]): RangeRow[] {
+  return rows.map((row, i) => {
+    const before = rows[i - 1]?.to ?? "";
+    return { ...row, from: i === 0 ? "1" : /^\d+$/.test(before) ? String(Number(before) + 1) : "" };
+  });
+}
+
+/** Whether the ranges may be saved: every range but the last ends, and not before it begins; the
+ * last one has no upper bound. */
+export function rangesValid(rows: RangeRow[]): boolean {
+  return chained(rows).every((row, i) =>
+    i === rows.length - 1 ? row.to.trim() === "" : /^\d+$/.test(row.to) && Number(row.to) >= Number(row.from),
+  );
+}
+
+/** The price ranges (§ 13.2.8; customer's decision of 18.11.2026). Only «to» is typed: «from»
+ * follows by itself, and a range that got its «to» is followed by the next one at once — from
+ * that value plus one, without an upper bound. Emptied, the last «to» takes the range added
+ * after it away again. There is no button to add a range. The server checks the structure. */
 export function RangesEditor({
   rows,
   onChange,
@@ -80,62 +99,68 @@ export function RangesEditor({
   unit: string;
 }) {
   const { t } = useTranslation();
-  function set(index: number, key: keyof RangeRow, value: string) {
-    const next = rows.map((row, i) => (i === index ? { ...row, [key]: value } : row));
-    const following = next[index + 1];
-    if (key === "to" && following && /^\d+$/.test(value)) {
-      next[index + 1] = { ...following, from: String(Number(value) + 1) };
-    }
-    onChange(next);
+  const shown = chained(rows);
+  function setTo(index: number, value: string) {
+    const to = value.replace(/\D/g, "");
+    let next = rows.map((row, i) => (i === index ? { ...row, to } : row));
+    const last = next.length - 1;
+    // The last range got its end: the next one begins after it, without an upper bound.
+    if (index === last && to !== "") next = [...next, { from: "", to: "", rate: "" }];
+    // The end is taken back: the untouched range added after it goes with it.
+    if (index === last - 1 && to === "" && next[last]?.to === "") next = next.slice(0, -1);
+    onChange(chained(next));
   }
   return (
     <div className="stack">
-      <table>
+      <table className="ranges-table">
         <thead>
           <tr>
             <th>{t("tariffs.from", { unit: unitShort(unit, t) })}</th>
-            <th>{t("tariffs.to", { unit: unitShort(unit, t) })}</th>
+            <th>
+              {t("tariffs.to", { unit: unitShort(unit, t) })}
+              <Info text={t("tariffs.ranges_hint")} />
+            </th>
             <th />
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, index) => (
-            <tr key={index}>
-              <td>
-                <input value={row.from} inputMode="numeric" onChange={(e) => set(index, "from", e.target.value)} />
-              </td>
-              <td>
-                <input
-                  value={row.to}
-                  inputMode="numeric"
-                  placeholder={index === rows.length - 1 ? t("tariffs.no_limit") : ""}
-                  onChange={(e) => set(index, "to", e.target.value)}
-                />
-              </td>
-              <td>
-                {rows.length > 1 ? (
-                  <button type="button" className="secondary" onClick={() => onChange(rows.filter((_, i) => i !== index))}>
-                    ×
-                  </button>
-                ) : null}
-              </td>
-            </tr>
-          ))}
+          {shown.map((row, index) => {
+            const last = index === shown.length - 1;
+            const wrong = !last && row.to !== "" && Number(row.to) < Number(row.from);
+            return (
+              <tr key={index}>
+                <td>
+                  <input value={row.from} readOnly disabled aria-label={t("tariffs.from", { unit: unitShort(unit, t) })} />
+                </td>
+                <td>
+                  <input
+                    value={row.to}
+                    inputMode="numeric"
+                    aria-label={t("tariffs.to", { unit: unitShort(unit, t) })}
+                    aria-invalid={wrong || undefined}
+                    placeholder={last ? t("tariffs.no_limit") : ""}
+                    onChange={(e) => setTo(index, e.target.value)}
+                  />
+                </td>
+                <td>
+                  {/* The last range goes when the «to» before it is emptied. */}
+                  {!last && shown.length > 2 ? (
+                    <button
+                      type="button"
+                      className="icon-button"
+                      aria-label={t("tariffs.remove_range")}
+                      title={t("tariffs.remove_range")}
+                      onClick={() => onChange(chained(rows.filter((_, i) => i !== index)))}
+                    >
+                      ×
+                    </button>
+                  ) : null}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
-      <p className="muted small">{t("tariffs.ranges_hint")}</p>
-      <div className="actions" style={{ marginTop: 0 }}>
-        <button
-          type="button"
-          className="secondary"
-          onClick={() => {
-            const last = rows[rows.length - 1];
-            onChange([...rows, { from: last?.to ? String(Number(last.to) + 1) : "", to: "", rate: "" }]);
-          }}
-        >
-          {t("tariffs.add_range")}
-        </button>
-      </div>
     </div>
   );
 }

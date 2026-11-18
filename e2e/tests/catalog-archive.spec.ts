@@ -66,4 +66,39 @@ test("archived tariffs are listed only when switched on", async ({ page }) => {
   await page.mouse.move(0, 0);
   await page.getByRole("radio", { name: t("tariffs.billing_month"), exact: true }).check();
   await expect(page.getByRole("radio", { name: t("tariffs.day_from_issue"), exact: true })).toHaveCount(0);
+
+  // The price ranges (customer's decision of 18.11.2026): only «to» is typed; a range that got
+  // its end is followed by the next one at once, from that value plus one and without an upper
+  // bound. There is no button to add a range.
+  await page.getByRole("radio", { name: t("tariffs.billing_minute"), exact: true }).check();
+  await next.click();
+  await expect(page.getByRole("heading", { name: t("tariffs.ranges"), exact: true })).toBeVisible();
+  const from = page.getByRole("textbox", { name: t("tariffs.from", { unit: t("tariffs.short_minute") }), exact: true });
+  const to = page.getByRole("textbox", { name: t("tariffs.to", { unit: t("tariffs.short_minute") }), exact: true });
+  await expect(page.getByRole("button", { name: t("tariffs.add_range"), exact: true })).toHaveCount(0);
+  await expect(from).toHaveCount(1);
+  await expect(from.first()).toHaveValue("1");
+  await expect(from.first()).toBeDisabled();
+  await expect(to.first()).toHaveAttribute("placeholder", t("tariffs.no_limit"));
+  await to.first().fill("60");
+  await expect(from).toHaveCount(2);
+  await expect(from.nth(1)).toHaveValue("61");
+  await to.nth(1).fill("93");
+  await expect(from.nth(2)).toHaveValue("94");
+  await expect(to.nth(2)).toHaveValue("");
+  await expect(next).toBeEnabled();
+  // A new end of the first range moves the beginning of the second.
+  await to.first().fill("45");
+  await expect(from.nth(1)).toHaveValue("46");
+  // A range that ends before it begins is marked, and the next step does not open.
+  await to.nth(1).fill("40");
+  await expect(to.nth(1)).toHaveAttribute("aria-invalid", "true");
+  await expect(next).toBeDisabled();
+  await to.nth(1).fill("93");
+  // The end taken back, the range added after it goes with it.
+  await to.nth(1).fill("");
+  await expect(from).toHaveCount(2);
+  await to.first().fill("");
+  await expect(from).toHaveCount(1);
+  await expect(next).toBeEnabled();
 });

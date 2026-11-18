@@ -14,6 +14,7 @@ import {
   fromRows,
   kindBody,
   RangesEditor,
+  rangesValid,
   unitShort,
   useTariffs,
   type Kind,
@@ -179,7 +180,7 @@ export function NewTariffPage() {
     step === "currency"
       ? currency !== ""
       : step === "ranges"
-        ? rows.every((row, i) => row.from.trim() !== "" && (i === rows.length - 1 || row.to.trim() !== ""))
+        ? rangesValid(rows)
         : step === "scope"
           ? scope === "all" || scope.length > 0
           : step === "name"
