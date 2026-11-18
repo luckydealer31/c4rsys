@@ -2079,7 +2079,10 @@
     "park_rental_from": "rental from {{when}}",
     "park_book": "Book",
     "park_issue": "Issue",
-    "park_limited": "Restricted"
+    "park_limited": "Restricted",
+    "catalog_archived": "Archived",
+    "catalog_no_active_tariffs": "No active tariffs.",
+    "catalog_no_active_services": "No active services."
   },
   "rights": {
     "add": "Add rights",

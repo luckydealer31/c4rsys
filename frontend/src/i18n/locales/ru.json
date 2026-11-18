@@ -2079,7 +2079,10 @@
     "park_rental_from": "аренда с {{when}}",
     "park_book": "Забронировать",
     "park_issue": "Выдать",
-    "park_limited": "Ограничено"
+    "park_limited": "Ограничено",
+    "catalog_archived": "Архивные",
+    "catalog_no_active_tariffs": "Действующих тарифов нет.",
+    "catalog_no_active_services": "Действующих услуг нет."
   },
   "rights": {
     "add": "Добавить права",

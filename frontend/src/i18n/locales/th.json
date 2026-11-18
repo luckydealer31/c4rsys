@@ -2079,7 +2079,10 @@
     "park_rental_from": "การเช่าตั้งแต่ {{when}}",
     "park_book": "จอง",
     "park_issue": "ส่งมอบ",
-    "park_limited": "ถูกจำกัด"
+    "park_limited": "ถูกจำกัด",
+    "catalog_archived": "ที่เก็บถาวร",
+    "catalog_no_active_tariffs": "ไม่มีอัตราค่าเช่าที่ใช้งานอยู่",
+    "catalog_no_active_services": "ไม่มีบริการที่ใช้งานอยู่"
   },
   "rights": {
     "add": "Add rights",

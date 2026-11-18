@@ -310,12 +310,28 @@ function Catalog() {
     ["extra-services", company.public_id],
     `/c/${company.public_id}/extra-services`,
   );
+  // The archived tariffs and services are not listed until they are switched on (customer's
+  // decision of 18.11.2026): with time there are many of them, and they are rarely needed.
+  const [archived, setArchived] = useState(false);
+  const allTariffs = tariffs.data?.tariffs ?? [];
+  const allServices = services.data?.services ?? [];
+  const shownTariffs = allTariffs.filter((x) => archived || x.state !== "archived");
+  const shownServices = allServices.filter((x) => archived || x.state !== "archived");
+  const hasArchived = [...allTariffs, ...allServices].some((x) => x.state === "archived");
   return (
     <>
+      {hasArchived ? (
+        <div className="list-bar">
+          <Switch name={t("rentals.catalog_archived")} checked={archived} onChange={setArchived}>
+            {t("rentals.catalog_archived")}
+          </Switch>
+        </div>
+      ) : null}
       <Card title={t("settings.tariffs")}>
         {tariffs.isLoading ? <Loading /> : null}
-        {tariffs.data?.tariffs.length === 0 ? <p className="muted">{t("tariffs.none")}</p> : null}
-        {(tariffs.data?.tariffs ?? []).map((tariff) => (
+        {tariffs.data && allTariffs.length === 0 ? <p className="muted">{t("tariffs.none")}</p> : null}
+        {allTariffs.length > 0 && shownTariffs.length === 0 ? <p className="muted">{t("rentals.catalog_no_active_tariffs")}</p> : null}
+        {shownTariffs.map((tariff) => (
           <Link key={tariff.id} className="list-link" to={companyPath(company, `/rentals/tariffs/${tariff.id}`)}>
             <strong>{tariff.name}</strong>{" "}
             {tariff.state === "archived" ? <span className="badge">{t("tariffs.archived")}</span> : null}
@@ -327,8 +343,9 @@ function Catalog() {
       </Card>
       <Card title={t("services.catalog")}>
         {services.isLoading ? <Loading /> : null}
-        {services.data?.services.length === 0 ? <p className="muted">{t("services.none")}</p> : null}
-        {(services.data?.services ?? []).map((service) => (
+        {services.data && allServices.length === 0 ? <p className="muted">{t("services.none")}</p> : null}
+        {allServices.length > 0 && shownServices.length === 0 ? <p className="muted">{t("rentals.catalog_no_active_services")}</p> : null}
+        {shownServices.map((service) => (
           <Link key={service.id} className="list-link" to={companyPath(company, `/rentals/services/${service.id}`)}>
             <strong>{service.name}</strong>{" "}
             {service.state === "archived" ? <span className="badge">{t("tariffs.archived")}</span> : null}
