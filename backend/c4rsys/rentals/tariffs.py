@@ -408,10 +408,13 @@ def parse_amount(value: Any, field: str) -> Decimal:
     return _decimal(value, field, RATE_PLACES)
 
 
-def parse_rates(tariff: Tariff, value: Any) -> tuple[tuple[int, Decimal], ...]:
+def parse_rates(
+    tariff: Tariff, value: Any, bounds: list[TariffBounds] | None = None
+) -> tuple[tuple[int, Decimal], ...]:
     """The prices of a vehicle: one for every range of the tariff, none for another range. Not
-    given at all — the prices proposed by the ranges, when every range proposes one."""
-    ranges = list(tariff.ranges.order_by("from_units"))
+    given at all — the prices proposed by the ranges, when every range proposes one. `bounds` —
+    the ranges the tariff is getting in the same command, in place of those it has."""
+    ranges: list[Any] = list(tariff.ranges.order_by("from_units")) if bounds is None else bounds
     if value is None:
         if any(r.rate is None for r in ranges):
             raise errors.validation_error("rates", code="RATES_REQUIRED")
@@ -431,12 +434,14 @@ def parse_rates(tariff: Tariff, value: Any) -> tuple[tuple[int, Decimal], ...]:
     return tuple(sorted(given.items()))
 
 
-def parse_vehicle_terms(tariff: Tariff, data: dict[str, Any]) -> VehicleTerms:
+def parse_vehicle_terms(
+    tariff: Tariff, data: dict[str, Any], bounds: list[TariffBounds] | None = None
+) -> VehicleTerms:
     """The prices of the vehicle in the ranges of the tariff; mileage «unlimited» or «included»
     with the included distance per tariff unit and the price of each unit over; deposit «not
     required» or «required» with a fixed amount and an optional hold term in days (decision
     22.10.2026). Both choices are explicit."""
-    rates = parse_rates(tariff, data.get("rates"))
+    rates = parse_rates(tariff, data.get("rates"), bounds)
     mileage = data.get("mileage")
     deposit = data.get("deposit")
     if not isinstance(mileage, dict) or mileage.get("mode") not in (
@@ -602,6 +607,55 @@ def remove_vehicle_terms(ctx: CommandContext, tariff: Tariff, card: VehicleCard)
     ctx.audit(
         "tariff.vehicle_terms_removed", object_type="tariff", object_id=tariff.id, before=before
     )
+
+
+def same_terms(record: TariffVehicleTerms | None, card: VehicleCard, terms: VehicleTerms) -> bool:
+    """Whether the vehicle already has exactly these terms (nothing to write)."""
+    return (
+        record is not None
+        and record.mileage_unit == card.odometer_unit
+        and terms_of(record) == terms
+    )
+
+
+@dataclass(frozen=True)
+class Setup:
+    """The whole tariff saved at once (customer's decision of 19.11.2026): its name, its
+    availability and its ranges, the terms of the marked vehicles and the vehicles taken off.
+    Only what differs from the tariff as it is is given."""
+
+    changes: TariffChanges
+    vehicles: tuple[tuple[VehicleCard, VehicleTerms], ...]
+    removed: tuple[VehicleCard, ...]
+
+
+def setup_differs(tariff: Tariff, setup: Setup) -> bool:
+    if setup.changes != TariffChanges():
+        return True
+    assigned = {t.vehicle_card_id: t for t in tariff.vehicle_terms.all()}
+    if any(card.id in assigned for card in setup.removed):
+        return True
+    return any(not same_terms(assigned.get(card.id), card, terms) for card, terms in setup.vehicles)
+
+
+def apply_setup(ctx: CommandContext, tariff: Tariff, setup: Setup) -> Tariff:
+    """One command: the tariff, then the terms of its vehicles. A vehicle that keeps the tariff
+    must have a price in every range it ends with, or nothing is saved."""
+    if setup.changes != TariffChanges():
+        tariff = change_tariff(ctx, tariff, setup.changes)
+    for card, terms in setup.vehicles:
+        if not same_terms(vehicle_terms(tariff, card), card, terms):
+            set_vehicle_terms(ctx, tariff, card, terms)
+    for card in setup.removed:
+        if vehicle_terms(tariff, card) is not None:
+            remove_vehicle_terms(ctx, tariff, card)
+    lowers = set(tariff.ranges.values_list("from_units", flat=True))
+    for record in tariff.vehicle_terms.all():
+        if set(record.rates.values_list("from_units", flat=True)) != lowers:
+            raise errors.validation_error(
+                "vehicles", code="RATES_REQUIRED", vehicle_card_id=str(record.vehicle_card_id)
+            )
+    return tariff
 
 
 def vehicle_terms(tariff: Tariff, card: VehicleCard) -> TariffVehicleTerms | None:

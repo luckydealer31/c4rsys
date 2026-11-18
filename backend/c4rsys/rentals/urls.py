@@ -34,6 +34,7 @@ urlpatterns = [
     path("c/<str:cmp>/tariffs", views.tariff_list),
     path("c/<str:cmp>/tariffs/<uuid:tariff_id>", views.tariff_detail),
     path("c/<str:cmp>/tariffs/<uuid:tariff_id>/archive", views.tariff_archive),
+    path("c/<str:cmp>/tariffs/<uuid:tariff_id>/setup", views.tariff_setup),
     path("c/<str:cmp>/tariffs/<uuid:tariff_id>/restore", views.tariff_restore),
     path("c/<str:cmp>/tariffs/<uuid:tariff_id>/vehicles", views.tariff_vehicles),
     path(

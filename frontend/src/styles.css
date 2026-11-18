@@ -500,6 +500,15 @@ label.check { display: inline-flex; gap: 6px; align-items: center; margin-right:
   border: 0; outline: none; background: transparent; flex: 1 1 0; width: 0; min-width: 0; padding-right: 0;
 }
 .unit-field .unit-suffix { color: var(--muted); font-size: 0.875rem; }
+.unit-field.invalid { border-color: var(--danger); }
+/* The header of a range column in one line: «from 61 to [600 min] ×» (customer's remark of
+   19.11.2026). The columns are wider then, all of one width still. */
+.prices-table.editing th:not(:first-child), .prices-table.editing td:not(:first-child):not([colspan]) { width: 190px; min-width: 190px; }
+.prices-table th.range-head { vertical-align: middle; font-weight: 400; }
+.range-edit { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.range-begin { font-size: 0.875rem; color: var(--text); min-width: 66px; text-align: right; }
+.range-edit .unit-field { flex: 1 1 0; min-width: 0; }
+.range-edit .icon-button { margin-left: -4px; }
 .error-text { color: var(--danger); }
 /* Characteristics of a card in two columns by meaning on a wide screen (decision of
    11.11.2026). */

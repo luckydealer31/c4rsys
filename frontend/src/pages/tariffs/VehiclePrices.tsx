@@ -6,7 +6,8 @@ import type { Vehicle, VehicleTerms } from "../../api/types";
 
 /** What is entered for one vehicle of a tariff (customer's decision of 11.11.2026): its price of
  * a unit in every range; the mileage included in a unit and the price over it — empty means no
- * limit of mileage; the deposit and the days it is held — empty means no deposit. */
+ * limit of mileage; the deposit and the days it is held — empty means no deposit. The prices are
+ * kept by the column of the range, so they stay in their column when a bound moves. */
 export type VehicleRow = {
   checked: boolean;
   rates: Record<number, string>;
@@ -22,10 +23,14 @@ export const EMPTY_ROW: VehicleRow = { checked: false, rates: {}, included: "", 
 
 const number = (value: string) => value.trim().replace(",", ".");
 
-export function rowOf(terms: VehicleTerms): VehicleRow {
+export function rowOf(terms: VehicleTerms, ranges: Bounds[]): VehicleRow {
   return {
     checked: true,
-    rates: Object.fromEntries(terms.rates.map((r) => [r.from, String(Number(r.rate))])),
+    rates: Object.fromEntries(
+      terms.rates
+        .map((r) => [ranges.findIndex((b) => b.from === r.from), String(Number(r.rate))] as const)
+        .filter(([index]) => index >= 0),
+    ),
     included: terms.mileage.included_per_unit ? String(Number(terms.mileage.included_per_unit)) : "",
     overage: terms.mileage.overage_price ? String(Number(terms.mileage.overage_price)) : "",
     deposit: terms.deposit.amount ? String(Number(terms.deposit.amount)) : "",
@@ -38,7 +43,7 @@ export function rowOf(terms: VehicleTerms): VehicleRow {
  * need a deposit. */
 export function rowProblem(row: VehicleRow, ranges: Bounds[]): string | null {
   if (!row.checked) return null;
-  if (ranges.some((r) => !(Number(number(row.rates[r.from] ?? "")) > 0))) return "terms.problem_rates";
+  if (ranges.some((_, i) => !(Number(number(row.rates[i] ?? "")) > 0))) return "terms.problem_rates";
   if (Boolean(row.included.trim()) !== Boolean(row.overage.trim())) return "terms.problem_mileage";
   if (row.hold.trim() && !row.deposit.trim()) return "terms.problem_hold";
   return null;
@@ -48,7 +53,7 @@ export function rowBody(row: VehicleRow, ranges: Bounds[]): Record<string, unkno
   const included = Boolean(row.included.trim());
   const deposit = Boolean(row.deposit.trim());
   return {
-    rates: ranges.map((r) => ({ from: r.from, rate: number(row.rates[r.from] ?? "") })),
+    rates: ranges.map((r, i) => ({ from: r.from, rate: number(row.rates[i] ?? "") })),
     mileage: included
       ? { mode: "included", included_per_unit: number(row.included), overage_price: number(row.overage) }
       : { mode: "unlimited" },
@@ -57,6 +62,15 @@ export function rowBody(row: VehicleRow, ranges: Bounds[]): Record<string, unkno
       : { required: false },
   };
 }
+
+/** The ranges edited in the header of the table (customer's decision of 19.11.2026): the end
+ * of each range is typed in the header of its column; the end typed for the last column adds a
+ * new one after it; × takes a column away. `tos` — the ends as typed, the last one empty. */
+export type RangesEdit = {
+  tos: string[];
+  onTo: (index: number, value: string) => void;
+  onRemove: (index: number) => void;
+};
 
 /** The vehicles of the company with a mark and, for the marked ones, their prices and terms. */
 export function VehiclePricesTable({
@@ -67,6 +81,7 @@ export function VehiclePricesTable({
   unit,
   currency = "",
   disabled = false,
+  edit,
 }: {
   vehicles: Vehicle[];
   ranges: Bounds[];
@@ -75,6 +90,7 @@ export function VehiclePricesTable({
   unit: string;
   currency?: string;
   disabled?: boolean;
+  edit?: RangesEdit;
 }) {
   const { t, i18n } = useTranslation();
   const row = (id: string) => rows[id] ?? EMPTY_ROW;
@@ -104,10 +120,51 @@ export function VehiclePricesTable({
     const count = Number(number(value)) || 0;
     return t(`terms.mi_${new Intl.PluralRules(i18n.language).select(count)}`);
   };
-  if (vehicles.length === 0) return <p className="muted">{t("terms.no_vehicles")}</p>;
+  if (vehicles.length === 0 && !edit) return <p className="muted">{t("terms.no_vehicles")}</p>;
+  const begin = (r: Bounds) => (Number.isFinite(r.from) ? r.from : "…");
+  /** The header of a range: its beginning, the field of its end with the unit inside, ×. */
+  const head = (r: Bounds, i: number) => {
+    if (!edit) {
+      return r.to === null ? t("terms.range_from", { from: r.from, unit }) : t("terms.range", { from: r.from, to: r.to, unit });
+    }
+    const last = i === ranges.length - 1;
+    const to = edit.tos[i] ?? "";
+    const wrong = !last && !(/^\d+$/.test(to) && Number.isFinite(r.from) && Number(to) >= r.from);
+    return (
+      <div className="range-edit">
+        <span className="range-begin">{t("terms.range_begin", { from: begin(r) })}</span>
+          <label className={`unit-field${wrong ? " invalid" : ""}`}>
+            <input
+              inputMode="numeric"
+              value={to}
+              disabled={disabled}
+              placeholder={last ? t("terms.open_end") : ""}
+              aria-label={t("terms.range_to", { from: begin(r) })}
+              aria-invalid={wrong || undefined}
+              onChange={(e) => edit.onTo(i, e.target.value.replace(/\D/g, ""))}
+            />
+            <span className="unit-suffix" aria-hidden="true">
+              {unit}
+            </span>
+          </label>
+          {ranges.length > 1 ? (
+            <button
+              type="button"
+              className="icon-button"
+              disabled={disabled}
+              aria-label={t("terms.range_remove", { from: begin(r) })}
+              title={t("tariffs.remove_range")}
+              onClick={() => edit.onRemove(i)}
+            >
+              ×
+            </button>
+          ) : null}
+      </div>
+    );
+  };
   return (
     <div className="table-scroll">
-      <table className="prices-table">
+      <table className={`prices-table${edit ? " editing" : ""}`}>
         <thead>
           <tr>
             <th>
@@ -122,11 +179,11 @@ export function VehiclePricesTable({
                 />{" "}
                 {t("terms.select_all")}
               </label>
-              <Info text={t("terms.select_hint")} />
+              <Info text={t(edit ? "terms.select_hint_edit" : "terms.select_hint")} />
             </th>
-            {ranges.map((r) => (
-              <th key={r.from}>
-                {r.to === null ? t("terms.range_from", { from: r.from, unit }) : t("terms.range", { from: r.from, to: r.to, unit })}
+            {ranges.map((r, i) => (
+              <th key={i} className={edit ? "range-head" : undefined}>
+                {head(r, i)}
               </th>
             ))}
             {/* That the mileage is counted for one unit of the tariff is said under «i»; in what it
@@ -148,6 +205,13 @@ export function VehiclePricesTable({
           </tr>
         </thead>
         <tbody>
+          {vehicles.length === 0 ? (
+            <tr>
+              <td colSpan={ranges.length + 5} className="muted">
+                {t("terms.no_vehicles")}
+              </td>
+            </tr>
+          ) : null}
           {vehicles.map((v) => {
             const current = row(v.id);
             const problem = rowProblem(current, ranges);
@@ -167,14 +231,14 @@ export function VehiclePricesTable({
                 </td>
                 {current.checked ? (
                   <>
-                    {ranges.map((r) => (
-                      <td key={r.from}>
+                    {ranges.map((r, i) => (
+                      <td key={i}>
                         <input
                           inputMode="decimal"
                           disabled={disabled}
-                          aria-label={`${v.name}: ${t("terms.price")} ${r.from}`}
-                          value={current.rates[r.from] ?? ""}
-                          onChange={(e) => set(v.id, { rates: { ...current.rates, [r.from]: e.target.value } })}
+                          aria-label={`${v.name}: ${t("terms.price")} ${begin(r)}`}
+                          value={current.rates[i] ?? ""}
+                          onChange={(e) => set(v.id, { rates: { ...current.rates, [i]: e.target.value } })}
                         />
                       </td>
                     ))}

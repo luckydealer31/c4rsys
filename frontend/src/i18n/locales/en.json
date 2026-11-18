@@ -1363,7 +1363,8 @@
     "tag_group_member_unknown": "Choose employees of the company.",
     "tag_not_for_kind": "The group of this tag is not for such records.",
     "place_tag_unknown": "There is no storage place «{{name}}» in the list. New places are made by the employees named in the group «Storage places».",
-    "tag_group_of_system": "This group is kept by the system and is not removed."
+    "tag_group_of_system": "This group is kept by the system and is not removed.",
+    "vehicle_repeated": "A vehicle is given twice."
   },
   "history": {
     "action": "Action",
@@ -2302,7 +2303,12 @@
     "mi_one": "mile",
     "mi_few": "miles",
     "mi_many": "miles",
-    "mi_other": "miles"
+    "mi_other": "miles",
+    "range_begin": "from {{from}} to",
+    "range_to": "End of the range from {{from}}",
+    "range_remove": "Remove the range from {{from}}",
+    "open_end": "∞",
+    "select_hint_edit": "Mark the vehicles of the tariff and give the price of a unit in each range. The columns are the price ranges: type where a range ends in the header of its column — the next one begins right after it; × removes a column, and its units go to the next one; the end typed for the last column adds a new column after it with the same prices."
   },
   "timezones": {
     "Africa/Cairo": "Cairo",

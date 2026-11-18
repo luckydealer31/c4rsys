@@ -1,19 +1,25 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Navigate, useParams } from "react-router";
 
 import { useApi } from "../../api/queries";
-import { api, type ApiError } from "../../api/client";
 import type { Tariff, TariffRange, VehicleTerms } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Info, Loading, UnconfiguredConfirm } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
-import { currencies } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
 import { useVehicles } from "../vehicles/VehiclesPage";
-import { EMPTY_ROW, rowBody, rowOf, rowProblem, VehiclePricesTable, type VehicleRow } from "./VehiclePrices";
+import {
+  EMPTY_ROW,
+  rowBody,
+  rowOf,
+  rowProblem,
+  VehiclePricesTable,
+  type Bounds,
+  type VehicleRow,
+} from "./VehiclePrices";
 
 export function useTariffs() {
   const company = useCompany();
@@ -63,10 +69,6 @@ export function kindBody(kind: Kind, boundary: string): Record<string, unknown> 
 }
 
 export type RangeRow = { from: string; to: string; rate: string };
-
-function toRows(ranges: TariffRange[]): RangeRow[] {
-  return ranges.map((r) => ({ from: String(r.from), to: r.to === null ? "" : String(r.to), rate: "" }));
-}
 
 /** Each range begins right after the one before it: the first with 1, the next with the «to» of
  * the previous plus one (§ 13.2.8). */
@@ -170,121 +172,185 @@ export function fromRows(rows: RangeRow[]) {
   return rows.map((row) => ({ from: Number(row.from), to: row.to.trim() === "" ? null : Number(row.to) }));
 }
 
-function TariffForm({ tariff }: { tariff?: Tariff }) {
+/** One tariff (customer's decision of 19.11.2026): its name and availability, and the table of
+ * its vehicles whose columns are the price ranges — the end of a range is edited in the header of
+ * its column, × takes a column away, the end typed for the last column adds a new one with the
+ * same prices. Everything is saved with one button, in one command. An archived tariff is only
+ * shown. */
+function TariffEditor({ tariff, onSaved }: { tariff: Tariff; onSaved: () => void }) {
   const { t } = useTranslation();
   const company = useCompany();
+  const can = useCan();
   const client = useQueryClient();
   const locations = useLocations();
-  const [name, setName] = useState(tariff?.name ?? "");
-  const [currency, setCurrency] = useState(tariff?.currency ?? company.main_currency ?? "");
-  const [rows, setRows] = useState<RangeRow[]>(tariff ? toRows(tariff.ranges) : [{ from: "1", to: "", rate: "" }]);
-  const [scope, setScope] = useState<string[] | "all">(
-    tariff && !tariff.all_locations ? tariff.locations : "all",
+  const terms = useApi<{ vehicles: VehicleTerms[] }>(
+    ["tariff-vehicles", company.public_id, tariff.id],
+    `/c/${company.public_id}/tariffs/${tariff.id}/vehicles`,
   );
-  const [saved, setSaved] = useState(false);
-  const [kind, setKind] = useState<Kind>("from_issue");
-  const [boundary, setBoundary] = useState("12:00");
+  const vehicles = useVehicles();
+  const editable = can("tariff.edit") && tariff.state === "active";
+  const [name, setName] = useState(tariff.name);
+  const [scope, setScope] = useState<string[] | "all">(tariff.all_locations ? "all" : tariff.locations);
+  const [tos, setTos] = useState<string[]>(tariff.ranges.map((r) => (r.to === null ? "" : String(r.to))));
+  const [edited, setEdited] = useState<Record<string, VehicleRow> | null>(null);
+  const [dirty, setDirty] = useState(false);
   const save = useCommand<Record<string, unknown>, { tariff: Tariff }>(
-    tariff ? `/c/${company.public_id}/tariffs/${tariff.id}` : `/c/${company.public_id}/tariffs`,
-    tariff ? "PATCH" : "POST",
+    `/c/${company.public_id}/tariffs/${tariff.id}/setup`,
+    "PUT",
   );
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    setSaved(false);
-    const body: Record<string, unknown> = { name, ranges: fromRows(rows), locations: scope };
-    if (tariff) body.expected_version = tariff.version;
-    else {
-      Object.assign(body, kindBody(kind, boundary));
-      if (currency) body.currency = currency;
+  const assigned = new Map((terms.data?.vehicles ?? []).map((item) => [item.vehicle_card_id, item]));
+  // The own and managed vehicles of the rental, and every vehicle that has the tariff.
+  const list = (vehicles.data?.vehicles ?? []).filter(
+    (v) =>
+      assigned.has(v.id) ||
+      ((v.relation === "own" || v.relation === "managed") && v.storage === null && v.state !== "archived"),
+  );
+  const rows = edited ?? Object.fromEntries([...assigned].map(([id, item]) => [id, rowOf(item, tariff.ranges)]));
+  const last = tos.length - 1;
+  const bounds: Bounds[] = tos.map((to, i) => ({
+    from: i === 0 ? 1 : /^\d+$/.test(tos[i - 1] ?? "") ? Number(tos[i - 1]) + 1 : NaN,
+    to: i === last ? null : /^\d+$/.test(to) ? Number(to) : NaN,
+  }));
+  const rangesOk = bounds.every((b, i) => (i === last ? tos[i] === "" : Number(b.to) >= b.from));
+  const problem = list.some((v) => rowProblem(rows[v.id] ?? EMPTY_ROW, bounds));
+
+  function change(next: Record<string, VehicleRow>) {
+    setEdited(next);
+    setDirty(true);
+  }
+  /** Every row with its prices moved: `price(rates)` gives the new prices of a row. */
+  const moved = (price: (rates: Record<number, string>) => Record<number, string>) =>
+    Object.fromEntries(Object.entries(rows).map(([id, row]) => [id, { ...row, rates: price(row.rates) }]));
+  function onTo(index: number, value: string) {
+    setDirty(true);
+    if (index === last && value !== "") {
+      // The last range got its end: a new one follows it, with the same prices.
+      setTos([...tos.slice(0, -1), value, ""]);
+      change(moved((rates) => ({ ...rates, [index + 1]: rates[index] ?? "" })));
+      return;
     }
-    const result = await save.run(body);
+    setTos(tos.map((to, i) => (i === index ? value : to)));
+  }
+  function onRemove(index: number) {
+    const next = tos.filter((_, i) => i !== index);
+    next[next.length - 1] = "";
+    setTos(next);
+    // The prices of the columns after the removed one move one column to the left.
+    change(
+      moved((rates) =>
+        Object.fromEntries(
+          Object.entries(rates)
+            .filter(([key]) => Number(key) !== index)
+            .map(([key, rate]) => [Number(key) > index ? Number(key) - 1 : Number(key), rate]),
+        ),
+      ),
+    );
+  }
+
+  async function submit() {
+    const marked = list.filter((v) => rows[v.id]?.checked);
+    const result = await save.run({
+      expected_version: tariff.version,
+      name,
+      locations: scope,
+      ranges: bounds.map((b) => ({ from: b.from, to: b.to })),
+      vehicles: marked.map((v) => ({ vehicle_card_id: v.id, ...rowBody(rows[v.id] ?? EMPTY_ROW, bounds) })),
+      removed: list.filter((v) => assigned.has(v.id) && !rows[v.id]?.checked).map((v) => v.id),
+    });
     if (result) {
-      setSaved(true);
-      if (!tariff) {
-        setName("");
-        setRows([{ from: "1", to: "", rate: "" }]);
-      }
-      await client.invalidateQueries({ queryKey: ["tariffs", company.public_id] });
-      await client.invalidateQueries({ queryKey: ["tariff", company.public_id] });
-      await client.invalidateQueries({ queryKey: ["readiness", company.public_id] });
+      await Promise.all(
+        ["tariff", "tariffs", "tariff-vehicles", "readiness"].map((key) =>
+          client.invalidateQueries({ queryKey: [key, company.public_id] }),
+        ),
+      );
+      onSaved();
     }
   }
 
   return (
-    <Card title={tariff ? t("tariffs.edit_title") : t("tariffs.create_title")}>
-      <form className="stack" onSubmit={submit}>
-        <div className="row">
-          <Field label={t("tariffs.name")}>
-            <input value={name} onChange={(e) => setName(e.target.value)} />
-          </Field>
-          <Field label={t("cash.currency")} hint={tariff ? t("tariffs.currency_fixed") : t("cash.currency_hint")}>
-            <select value={currency} disabled={Boolean(tariff)} onChange={(e) => setCurrency(e.target.value)}>
-              <option value="">—</option>
-              {currencies().map((code) => (
-                <option key={code} value={code}>
-                  {code}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label={t("tariffs.billing")} hint={tariff ? t("tariffs.unit_fixed") : undefined}>
-            {tariff ? (
-              <input value={unitText(tariff, t)} disabled />
-            ) : (
-              <select value={kind} onChange={(e) => setKind(e.target.value as Kind)}>
-                {KINDS.map((k) => (
-                  <option key={k} value={k}>
-                    {t(`tariffs.kind_${k}`, { time: "…" })}
-                  </option>
-                ))}
-              </select>
-            )}
-          </Field>
-          {!tariff && kind === "fixed_boundary" ? (
-            <Field label={t("tariffs.day_boundary")} hint={t("tariffs.day_boundary_hint")}>
-              <input type="time" value={boundary} onChange={(e) => setBoundary(e.target.value)} />
+    <>
+      <Card title={t("tariffs.edit_title")}>
+        <div className="stack">
+          <div className="row">
+            <Field label={t("tariffs.name")}>
+              <input
+                value={name}
+                disabled={!editable}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  setDirty(true);
+                }}
+              />
             </Field>
-          ) : null}
+            <Field label={t("cash.currency")} info={t("tariffs.currency_fixed")}>
+              <input value={tariff.currency} disabled />
+            </Field>
+            <Field label={t("tariffs.billing")} info={t("tariffs.unit_fixed")}>
+              <input value={unitText(tariff, t)} disabled />
+            </Field>
+          </div>
+          <div className="small">
+            {t("tariffs.availability")}:{" "}
+            <label>
+              <input
+                type="checkbox"
+                disabled={!editable}
+                checked={scope === "all"}
+                onChange={() => {
+                  setScope(scope === "all" ? [] : "all");
+                  setDirty(true);
+                }}
+              />{" "}
+              {t("rights.whole_company")}
+            </label>
+            {scope !== "all"
+              ? (locations.data?.locations ?? []).map((location) => (
+                  <label key={location.id} style={{ marginLeft: 12 }}>
+                    <input
+                      type="checkbox"
+                      disabled={!editable}
+                      checked={scope.includes(location.id)}
+                      onChange={() => {
+                        setScope(
+                          scope.includes(location.id) ? scope.filter((x) => x !== location.id) : [...scope, location.id],
+                        );
+                        setDirty(true);
+                      }}
+                    />{" "}
+                    {location.name}
+                  </label>
+                ))
+              : null}
+          </div>
         </div>
-        <h3>{t("tariffs.ranges")}</h3>
-        <RangesEditor
+      </Card>
+      <Card title={t("terms.vehicles_title", { currency: tariff.currency })}>
+        {terms.isLoading || vehicles.isLoading ? <Loading /> : null}
+        <VehiclePricesTable
+          vehicles={list}
+          ranges={bounds}
           rows={rows}
-          onChange={setRows}
-          unit={tariff ? tariff.unit : kind === "from_issue" || kind === "fixed_boundary" ? "day" : kind}
+          onChange={change}
+          unit={unitShort(tariff.unit, t)}
+          currency={tariff.currency}
+          disabled={!editable}
+          edit={editable ? { tos, onTo, onRemove } : undefined}
         />
-        <div className="small">
-          {t("tariffs.availability")}:{" "}
-          <label>
-            <input type="checkbox" checked={scope === "all"} onChange={() => setScope(scope === "all" ? [] : "all")} />{" "}
-            {t("rights.whole_company")}
-          </label>
-          {scope !== "all"
-            ? (locations.data?.locations ?? []).map((location) => (
-                <label key={location.id} style={{ marginLeft: 12 }}>
-                  <input
-                    type="checkbox"
-                    checked={scope.includes(location.id)}
-                    onChange={() =>
-                      setScope(
-                        scope.includes(location.id) ? scope.filter((x) => x !== location.id) : [...scope, location.id],
-                      )
-                    }
-                  />{" "}
-                  {location.name}
-                </label>
-              ))
-            : null}
-        </div>
         <ErrorMessage error={save.error} />
-        {saved ? <div className="alert ok">{t("common.saved")}</div> : null}
-        <div className="actions">
-          <button type="submit" disabled={!name.trim() || save.pending}>
-            {tariff ? t("common.save") : t("tariffs.create")}
-          </button>
-        </div>
-      </form>
-    </Card>
+        {editable ? (
+          <div className="actions">
+            <button
+              type="button"
+              disabled={!dirty || !name.trim() || !rangesOk || problem || save.pending}
+              onClick={() => void submit()}
+            >
+              {t("common.save")}
+            </button>
+          </div>
+        ) : null}
+      </Card>
+    </>
   );
 }
 
@@ -296,6 +362,7 @@ export function TariffPage() {
   const company = useCompany();
   const can = useCan();
   const client = useQueryClient();
+  const [saved, setSaved] = useState(false);
   const tariff = useApi<{ tariff: Tariff }>(["tariff", company.public_id, id], `/c/${company.public_id}/tariffs/${id}`);
   const archive = useCommand<Record<string, unknown>, unknown>(`/c/${company.public_id}/tariffs/${id}/archive`);
   const restore = useCommand<Record<string, unknown>, unknown>(`/c/${company.public_id}/tariffs/${id}/restore`);
@@ -320,7 +387,9 @@ export function TariffPage() {
         {data.name}{" "}
         <span className={`badge ${data.state === "active" ? "ok" : ""}`}>{t(`tariffs.state_${data.state}`)}</span>
       </h1>
-      {can("tariff.edit") ? <TariffForm key={data.version} tariff={data} /> : null}
+      {/* A new version of the tariff starts the editor afresh; the mark of saving stays. */}
+      <TariffEditor key={`${data.version}-${data.state}`} tariff={data} onSaved={() => setSaved(true)} />
+      {saved ? <div className="alert ok">{t("common.saved")}</div> : null}
       {can("tariff.archive") ? (
         <div className="actions" style={{ marginBottom: 16 }}>
           <UnconfiguredConfirm error={archive.error} pending={archive.pending} onConfirm={() => void toggle(true)} />
@@ -330,86 +399,6 @@ export function TariffPage() {
           <ErrorMessage error={archive.error ?? restore.error} />
         </div>
       ) : null}
-      <TariffVehicles tariff={data} />
     </div>
-  );
-}
-
-/** The vehicles of the tariff (customer's decision of 11.11.2026): all own and managed
- * vehicles of the company with a mark; a marked vehicle has its own price in every range, its
- * mileage included and the price over it, its deposit. Saving sets the terms of the marked
- * vehicles and takes the tariff off the unmarked ones. A tariff limited to locations applies to
- * a vehicle only while the vehicle is in one of them. */
-function TariffVehicles({ tariff }: { tariff: Tariff }) {
-  const { t } = useTranslation();
-  const company = useCompany();
-  const can = useCan();
-  const client = useQueryClient();
-  const terms = useApi<{ vehicles: VehicleTerms[] }>(
-    ["tariff-vehicles", company.public_id, tariff.id],
-    `/c/${company.public_id}/tariffs/${tariff.id}/vehicles`,
-  );
-  const vehicles = useVehicles();
-  const [edited, setEdited] = useState<Record<string, VehicleRow> | null>(null);
-  const [error, setError] = useState<ApiError | null>(null);
-  const [pending, setPending] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const assigned = new Map((terms.data?.vehicles ?? []).map((item) => [item.vehicle_card_id, item]));
-  const list = (vehicles.data?.vehicles ?? []).filter(
-    (v) => (v.relation === "own" || v.relation === "managed") && v.storage === null && (v.state !== "archived" || assigned.has(v.id)),
-  );
-  const rows = edited ?? Object.fromEntries([...assigned].map(([id, item]) => [id, rowOf(item)]));
-  const problem = list.some((v) => rowProblem(rows[v.id] ?? EMPTY_ROW, tariff.ranges));
-  const editable = can("tariff.edit") && tariff.state === "active";
-
-  async function save() {
-    setPending(true);
-    setError(null);
-    setSaved(false);
-    try {
-      for (const vehicle of list) {
-        const row = rows[vehicle.id] ?? EMPTY_ROW;
-        const path = `/c/${company.public_id}/tariffs/${tariff.id}/vehicles/${vehicle.id}`;
-        if (row.checked) {
-          await api(path, { method: "PUT", body: rowBody(row, tariff.ranges), idempotencyKey: crypto.randomUUID() });
-        } else if (assigned.has(vehicle.id)) {
-          await api(path, { method: "DELETE", body: {}, idempotencyKey: crypto.randomUUID() });
-        }
-      }
-      setSaved(true);
-      setEdited(null);
-    } catch (caught) {
-      setError(caught as ApiError);
-    }
-    setPending(false);
-    await client.invalidateQueries({ queryKey: ["tariff-vehicles", company.public_id, tariff.id] });
-    await client.invalidateQueries({ queryKey: ["readiness", company.public_id] });
-  }
-
-  return (
-    <Card title={t("terms.vehicles_title", { currency: tariff.currency })}>
-      {terms.isLoading || vehicles.isLoading ? <Loading /> : null}
-      <VehiclePricesTable
-        vehicles={list}
-        ranges={tariff.ranges}
-        rows={rows}
-        onChange={(next) => {
-          setSaved(false);
-          setEdited(next);
-        }}
-        unit={unitShort(tariff.unit, t)}
-        currency={tariff.currency}
-        disabled={!editable}
-      />
-      <ErrorMessage error={error} />
-      {saved ? <div className="alert ok">{t("common.saved")}</div> : null}
-      {editable ? (
-        <div className="actions">
-          <button type="button" disabled={pending || problem || edited === null} onClick={() => void save()}>
-            {t("terms.assign")}
-          </button>
-        </div>
-      ) : null}
-    </Card>
   );
 }

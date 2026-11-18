@@ -202,6 +202,85 @@ def tariff_restore(request: HttpRequest, cmp: str, tariff_id: UUID) -> JsonRespo
     return _set_archived(request, cmp, tariff_id, archived=False)
 
 
+@require_http_methods(["PUT"])
+def tariff_setup(request: HttpRequest, cmp: str, tariff_id: UUID) -> JsonResponse:
+    """The page of a tariff saved with one button (customer's decision of 19.11.2026): name,
+    availability, ranges and the terms of the vehicles in one command. `vehicles` — the marked
+    vehicles with their terms in the ranges given; `removed` — the vehicles taken off the
+    tariff. Currency and unit do not change (decision 22.10.2026)."""
+    context, actor = _actor(request, cmp)
+    tariff = _get_visible(context, actor, tariff_id)
+    data = parse_json(request)
+    expected_version = get_int(data, "expected_version")
+    if {"currency", "unit", "day_mode", "day_boundary"} & data.keys():
+        raise errors.validation_error("currency", code="TARIFF_FIELD_IMMUTABLE")
+    name = get_str(data, "name", max_length=NAME_MAX)
+    ranges = tariffs.parse_ranges(data.get("ranges"))
+    availability = _availability(data)
+    tariffs.validate_locations(context.company.id, availability.location_ids)
+    _require(actor, "tariff.edit", availability)
+    current = tariffs.availability_of(tariff)
+    same_ranges = [(r.from_units, r.to_units) for r in ranges] == list(
+        tariff.ranges.order_by("from_units").values_list("from_units", "to_units")
+    )
+    changes = tariffs.TariffChanges(
+        name=None if name == tariff.name else name,
+        ranges=None if same_ranges else ranges,
+        all_locations=None if availability == current else availability.all_locations,
+        location_ids=None if availability == current else availability.location_ids,
+    )
+    items = data.get("vehicles", [])
+    gone = data.get("removed", [])
+    if not isinstance(items, list) or not isinstance(gone, list):
+        raise errors.validation_error("vehicles")
+    vehicles = []
+    for index, item in enumerate(items):
+        if not isinstance(item, dict):
+            raise errors.validation_error(f"vehicles[{index}]")
+        try:
+            card_id = UUID(str(item.get("vehicle_card_id")))
+        except ValueError as exc:
+            raise errors.validation_error(f"vehicles[{index}].vehicle_card_id") from exc
+        card = fleet.get_card(context.company.id, card_id)
+        vehicles.append((card, tariffs.parse_vehicle_terms(tariff, item, ranges)))
+    removed = []
+    for index, value in enumerate(gone):
+        try:
+            removed.append(fleet.get_card(context.company.id, UUID(str(value))))
+        except ValueError as exc:
+            raise errors.validation_error(f"removed[{index}]") from exc
+    if len({card.id for card, _ in vehicles} | {card.id for card in removed}) != len(
+        vehicles
+    ) + len(removed):
+        raise errors.validation_error("vehicles", code="VEHICLE_REPEATED")
+    setup = tariffs.Setup(changes, tuple(vehicles), tuple(removed))
+    if tariff.version != expected_version:
+        raise errors.version_conflict()
+    # Nothing differs: the tariff stays as it is and no command is run.
+    if not tariffs.setup_differs(tariff, setup):
+        return JsonResponse({"tariff": _payload(tariff)})
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        locked = tariffs.locked_tariff(context.company.id, tariff_id, expected_version)
+        _require(actor, "tariff.edit", tariffs.availability_of(locked))
+        return CommandResult(200, {"tariff": _payload(tariffs.apply_setup(ctx, locked, setup))})
+
+    payload: dict[str, Any] = {
+        "tariff_id": str(tariff_id),
+        "expected_version": expected_version,
+        "name": name,
+        "ranges": [r.as_dict() for r in ranges],
+        "locations": "all"
+        if availability.all_locations
+        else sorted(map(str, availability.location_ids)),
+        "vehicles": [
+            {"vehicle_card_id": str(card.id), **terms.as_dict()} for card, terms in vehicles
+        ],
+        "removed": [str(card.id) for card in removed],
+    }
+    return run_and_respond(request, "tariff.setup", actor, payload, handler)
+
+
 # --- Terms for vehicles (§ 13.1.2, § 13.1.6, § 13.4.1) ----------------------------------------
 
 
