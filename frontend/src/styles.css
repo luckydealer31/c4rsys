@@ -512,7 +512,17 @@ th.num, td.num { text-align: right; white-space: nowrap; }
   :root:not([data-theme="light"]) .vehicle-type-icon.picture { filter: invert(1); mix-blend-mode: screen; }
 }
 :root[data-theme="dark"] .vehicle-type-icon.picture { filter: invert(1); mix-blend-mode: screen; }
-td.vehicle-cell { display: flex; align-items: center; gap: 12px; }
+/* The picture and the name of a vehicle in its cell. The cell itself stays a cell of the table:
+   as a flexible box it stood apart from its row, and the line under the row broke. */
+.vehicle-cell { display: flex; align-items: center; gap: 12px; }
+/* The lists of vehicles — one table for a location (the park, the garage). The widths of the
+   columns are set, not left to what a table holds: else the same column stood in a different
+   vertical in every location (customer's remark of 18.11.2026). The name takes what is left. */
+.fleet-table { table-layout: fixed; min-width: 660px; }
+.fleet-table .col-state { width: 240px; }
+.fleet-table .col-odometer { width: 150px; }
+.fleet-table .col-actions { width: 240px; }
+.fleet-table td { overflow-wrap: anywhere; }
 /* The actions of a row: small buttons at its right end. */
 .row-actions { display: flex; gap: 6px; justify-content: flex-end; }
 .row-actions .small-button { margin-left: 0; white-space: nowrap; }

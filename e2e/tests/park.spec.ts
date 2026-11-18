@@ -156,4 +156,23 @@ test("the park is filtered by the occupancy and begins a booking; the card shows
   await expect(photos.getByRole("button", { name: t("inspections.position_front"), exact: true })).toBeVisible();
   await photos.getByRole("link", { name: new RegExp(`^${t("vehicles.photos_from", { when: "" })}`) }).click();
   await expect(page).toHaveURL(new RegExp(`/inspections/${inspection}$`));
+
+  // The columns of every location stand in one vertical, whatever the rows hold (customer's
+  // remark of 18.11.2026): a second location, with a vehicle of a long name and no marks.
+  const other = ((await ok(page, "POST", `/c/${s.cmp}/locations`, { name: "Чалонг" })).location as { id: string }).id;
+  await ok(page, "POST", `/c/${s.cmp}/locations/${other}/contexts`, { type: "rental" });
+  await ok(page, "POST", `/c/${s.cmp}/vehicles`, {
+    name: "Mitsubishi Pajero Sport Elite Edition 2024",
+    location_id: other,
+    odometer_unit: "km",
+  });
+  for (const path of ["/rentals?tab=park", "/vehicles"]) {
+    await page.goto(`${s.base}${path}`);
+    await expect(page.locator("section.card table")).toHaveCount(2);
+    const lefts = (index: number) =>
+      page.locator("section.card table").nth(index).locator("thead th").evaluateAll((cells) => cells.map((c) => Math.round(c.getBoundingClientRect().left)));
+    expect(await lefts(1)).toEqual(await lefts(0));
+  }
+  await page.goto(`${s.base}/rentals?tab=park`);
+  await expect(rows).toHaveCount(4);
 });

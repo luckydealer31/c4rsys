@@ -124,7 +124,14 @@ export function Park() {
         return (
           <Card key={group.id} title={group.name}>
             <div className="table-scroll">
-              <table>
+              {/* The columns are of one width in every location, so they stand in one vertical. */}
+              <table className="fleet-table">
+                <colgroup>
+                  <col />
+                  <col className="col-state" />
+                  <col className="col-odometer" />
+                  <col className="col-actions" />
+                </colgroup>
                 <thead>
                   <tr>
                     <th>{t("vehicles.name")}</th>
@@ -141,18 +148,20 @@ export function Park() {
                     const restricted = limited(vehicle);
                     return (
                       <tr key={vehicle.id} className={restricted ? "limited" : undefined}>
-                        <td className="vehicle-cell">
-                          <VehicleTypeIcon
-                            type={vehicle.characteristics.vehicle_type}
-                            body={vehicle.characteristics.body_type}
-                          />
-                          <div>
-                            <Link to={companyPath(company, `/vehicles/${vehicle.id}`)}>{vehicle.name}</Link>{" "}
-                            {vehicle.relation === "managed" ? (
-                              <span className="badge">{t("vehicles.relation_managed")}</span>
-                            ) : null}{" "}
-                            <RowTags tags={tagsOf(vehicle.id)} />
-                            <div className="muted small">{vehicle.vehicle_id}</div>
+                        <td>
+                          <div className="vehicle-cell">
+                            <VehicleTypeIcon
+                              type={vehicle.characteristics.vehicle_type}
+                              body={vehicle.characteristics.body_type}
+                            />
+                            <div>
+                              <Link to={companyPath(company, `/vehicles/${vehicle.id}`)}>{vehicle.name}</Link>{" "}
+                              {vehicle.relation === "managed" ? (
+                                <span className="badge">{t("vehicles.relation_managed")}</span>
+                              ) : null}{" "}
+                              <RowTags tags={tagsOf(vehicle.id)} />
+                              <div className="muted small">{vehicle.vehicle_id}</div>
+                            </div>
                           </div>
                         </td>
                         <td>
