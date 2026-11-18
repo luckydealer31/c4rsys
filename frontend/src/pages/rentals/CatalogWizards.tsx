@@ -304,6 +304,7 @@ export function NewTariffPage() {
           rows={prices}
           onChange={setPrices}
           unit={unitShort(unitName, t)}
+          currency={currency}
           disabled={created !== null && saving}
         />
       ) : null}

@@ -1,5 +1,7 @@
 import { useTranslation } from "react-i18next";
 
+import { Info } from "../../components/ui";
+
 import type { Vehicle, VehicleTerms } from "../../api/types";
 
 /** What is entered for one vehicle of a tariff (customer's decision of 11.11.2026): its price of
@@ -63,6 +65,7 @@ export function VehiclePricesTable({
   rows,
   onChange,
   unit,
+  currency = "",
   disabled = false,
 }: {
   vehicles: Vehicle[];
@@ -70,9 +73,10 @@ export function VehiclePricesTable({
   rows: Record<string, VehicleRow>;
   onChange: (rows: Record<string, VehicleRow>) => void;
   unit: string;
+  currency?: string;
   disabled?: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const row = (id: string) => rows[id] ?? EMPTY_ROW;
   const set = (id: string, changes: Partial<VehicleRow>) => onChange({ ...rows, [id]: { ...row(id), ...changes } });
   const all = vehicles.length > 0 && vehicles.every((v) => row(v.id).checked);
@@ -85,6 +89,21 @@ export function VehiclePricesTable({
       onChange={(e) => set(id, { [key]: e.target.value })}
     />
   );
+  /** A field with what its number is measured in written inside its box, after the number. */
+  const measured = (id: string, key: "included" | "overage", label: string, suffix: string) => (
+    <label className="unit-field">
+      {input(id, key, label)}
+      <span className="unit-suffix" aria-hidden="true">
+        {suffix}
+      </span>
+    </label>
+  );
+  /** «км», or the mile in the form the number asks for: 1 миля, 2 мили, 5 миль. */
+  const distance = (odometer: string, value: string) => {
+    if (odometer !== "mi") return t("terms.km");
+    const count = Number(number(value)) || 0;
+    return t(`terms.mi_${new Intl.PluralRules(i18n.language).select(count)}`);
+  };
   if (vehicles.length === 0) return <p className="muted">{t("terms.no_vehicles")}</p>;
   return (
     <div className="table-scroll">
@@ -103,15 +122,28 @@ export function VehiclePricesTable({
                 />{" "}
                 {t("terms.select_all")}
               </label>
+              <Info text={t("terms.select_hint")} />
             </th>
             {ranges.map((r) => (
               <th key={r.from}>
                 {r.to === null ? t("terms.range_from", { from: r.from, unit }) : t("terms.range", { from: r.from, to: r.to, unit })}
               </th>
             ))}
-            <th>{t("terms.included_short")}</th>
-            <th>{t("terms.overage_short")}</th>
-            <th>{t("terms.deposit")}</th>
+            {/* That the mileage is counted for one unit of the tariff is said under «i»; in what it
+                is measured — inside the field of each vehicle, by its odometer (customer's
+                remarks of 18.11.2026). */}
+            <th>
+              {t("terms.included_short")}
+              <Info text={t("terms.included_hint", { unit })} />
+            </th>
+            <th>
+              {t("terms.overage_short")}
+              <Info text={t("terms.overage_hint")} />
+            </th>
+            <th>
+              {t("terms.deposit")}
+              <Info text={t("terms.deposit_hint")} />
+            </th>
             <th>{t("terms.hold_short")}</th>
           </tr>
         </thead>
@@ -146,8 +178,22 @@ export function VehiclePricesTable({
                         />
                       </td>
                     ))}
-                    <td>{input(v.id, "included", `${v.name}: ${t("terms.included_short")}`)}</td>
-                    <td>{input(v.id, "overage", `${v.name}: ${t("terms.overage_short")}`)}</td>
+                    <td>
+                      {measured(
+                        v.id,
+                        "included",
+                        `${v.name}: ${t("terms.included_short")}`,
+                        distance(v.odometer_unit, current.included),
+                      )}
+                    </td>
+                    <td>
+                      {measured(
+                        v.id,
+                        "overage",
+                        `${v.name}: ${t("terms.overage_short")}`,
+                        t(`terms.per_${v.odometer_unit}`, { currency }).trim(),
+                      )}
+                    </td>
                     <td>{input(v.id, "deposit", `${v.name}: ${t("terms.deposit")}`)}</td>
                     <td>{input(v.id, "hold", `${v.name}: ${t("terms.hold_short")}`)}</td>
                   </>
@@ -161,7 +207,6 @@ export function VehiclePricesTable({
           })}
         </tbody>
       </table>
-      <p className="muted small">{t("terms.table_hint")}</p>
     </div>
   );
 }

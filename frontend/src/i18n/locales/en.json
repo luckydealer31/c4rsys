@@ -2283,7 +2283,7 @@
     "range": "{{from}}–{{to}} {{unit}}",
     "range_from": "from {{from}} {{unit}}",
     "price": "price for",
-    "included_short": "Mileage included per unit",
+    "included_short": "Mileage included",
     "overage_short": "Price over the mileage",
     "hold_short": "Deposit held, days",
     "not_marked": "Not on this tariff",
@@ -2291,7 +2291,18 @@
     "table_hint": "Mark the vehicles of the tariff and enter the price of a unit in every range. Mileage empty — no limit; filled — the included mileage and the price of each unit over it. Deposit empty — not required; the days of holding are optional.",
     "problem_rates": "Enter the price in every range.",
     "problem_mileage": "The included mileage and the price over it go together.",
-    "problem_hold": "The days of holding need a deposit."
+    "problem_hold": "The days of holding need a deposit.",
+    "included_hint": "How much mileage the price of one unit of the tariff covers — per 1 {{unit}}. It is counted in the units of the odometer of each vehicle: kilometres or miles. Empty — no limit.",
+    "overage_hint": "The price of each kilometre or mile above the included mileage, in the currency of the tariff. It is given together with the included mileage.",
+    "deposit_hint": "Empty — no deposit is required. The term of holding is optional.",
+    "select_hint": "Mark the vehicles of the tariff and give the price of a unit in each range.",
+    "per_km": "{{currency}} per km",
+    "per_mi": "{{currency}} per mile",
+    "km": "km",
+    "mi_one": "mile",
+    "mi_few": "miles",
+    "mi_many": "miles",
+    "mi_other": "miles"
   },
   "timezones": {
     "Africa/Cairo": "Cairo",

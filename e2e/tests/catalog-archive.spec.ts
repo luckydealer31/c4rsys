@@ -101,4 +101,37 @@ test("archived tariffs are listed only when switched on", async ({ page }) => {
   await to.first().fill("");
   await expect(from).toHaveCount(1);
   await expect(next).toBeEnabled();
+
+  // The vehicles and their prices (customer's remarks of 18.11.2026): the header says only
+  // «Mileage included», the unit of the tariff is under «i»; inside the field of each vehicle
+  // stands what its odometer counts in, the mile declined by the number, and inside the field of
+  // the overage — the currency of the tariff per kilometre or mile.
+  await ok(page, "POST", `/c/${s.cmp}/vehicles`, { name: "Ford Mustang", location_id: s.location, odometer_unit: "mi" });
+  await page.reload();
+  await page.getByRole("textbox").last().fill("Месячный");
+  await next.click();
+  await page.getByRole("combobox").last().selectOption("THB");
+  await next.click();
+  await page.getByRole("radio", { name: t("tariffs.billing_minute"), exact: true }).check();
+  await next.click();
+  await next.click();
+  await next.click();
+  const prices = page.locator("table.prices-table");
+  const minute = t("tariffs.short_minute");
+  await expect(prices.locator("thead")).toContainText(t("terms.included_short"));
+  await expect(prices.locator("th", { hasText: t("terms.included_short") })).not.toContainText(minute);
+  await page.getByRole("checkbox", { name: "Toyota Yaris" }).check();
+  await page.getByRole("checkbox", { name: "Ford Mustang" }).check();
+  const line = (name: string) => prices.locator("tbody tr", { hasText: name });
+  await expect(line("Toyota Yaris").locator(".unit-field").first()).toHaveText(t("terms.km"));
+  await expect(line("Toyota Yaris")).toContainText(t("terms.per_km", { currency: "THB" }));
+  const miles = line("Ford Mustang").locator(".unit-field").first();
+  await miles.locator("input").fill("300");
+  await expect(miles).toHaveText(t("terms.mi_many"));
+  await miles.locator("input").fill("2");
+  await expect(miles).toHaveText(t("terms.mi_few"));
+  await miles.locator("input").fill("1");
+  await expect(miles).toHaveText(t("terms.mi_one"));
+  await expect(line("Ford Mustang")).toContainText(t("terms.per_mi", { currency: "THB" }));
+  await expect(page.getByText(t("terms.included_hint"))).toHaveCount(0);
 });

@@ -398,6 +398,7 @@ function TariffVehicles({ tariff }: { tariff: Tariff }) {
           setEdited(next);
         }}
         unit={unitShort(tariff.unit, t)}
+        currency={tariff.currency}
         disabled={!editable}
       />
       <ErrorMessage error={error} />
