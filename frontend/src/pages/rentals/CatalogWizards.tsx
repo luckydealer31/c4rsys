@@ -151,7 +151,11 @@ export function NewTariffPage() {
   const navigate = useNavigate();
   const client = useQueryClient();
   const [index, setIndex] = useState(0);
-  const [kind, setKind] = useState<Kind>("from_issue");
+  // Nothing is chosen beforehand (customer's remark of 18.11.2026): the billing is chosen by
+  // hand — and, by the day, the way of counting a day too — before the next step opens.
+  const [billing, setBilling] = useState<(typeof BILLING)[number] | "">("");
+  const [way, setWay] = useState<"from_issue" | "fixed_boundary" | "">("");
+  const kind: Kind | null = billing === "day" ? way || null : billing || null;
   const [boundary, setBoundary] = useState("12:00");
   const [currency, setCurrency] = useState(company.main_currency ?? "");
   const [rows, setRows] = useState<RangeRow[]>([{ from: "1", to: "", rate: "" }]);
@@ -182,7 +186,7 @@ export function NewTariffPage() {
             ? name.trim() !== ""
             : step === "vehicles"
               ? !vehicles.some((v) => rowProblem(prices[v.id] ?? EMPTY_ROW, bounds))
-              : true;
+              : kind !== null;
 
   async function next() {
     if (index < steps.length - 1) return setIndex(index + 1);
@@ -192,7 +196,8 @@ export function NewTariffPage() {
     // refusal goes on with the tariff already made.
     const tariff =
       created ??
-      (await create.run({ name, ranges: bounds, locations: scope, currency, ...kindBody(kind, boundary) }))?.tariff ??
+      (await create.run({ name, ranges: bounds, locations: scope, currency, ...kindBody(kind ?? "from_issue", boundary) }))
+        ?.tariff ??
       null;
     if (tariff) {
       setCreated(tariff);
@@ -216,8 +221,8 @@ export function NewTariffPage() {
     setSaving(false);
   }
 
-  const daily = kind === "from_issue" || kind === "fixed_boundary";
-  const unitName = daily ? "day" : kind;
+  const daily = billing === "day";
+  const unitName = billing || "day";
   const titles = {
     unit: t("tariffs.billing"),
     currency: t("cash.currency"),
@@ -251,8 +256,8 @@ export function NewTariffPage() {
                 <input
                   type="radio"
                   name="billing"
-                  checked={(daily ? "day" : kind) === b}
-                  onChange={() => setKind(b === "day" ? (daily ? kind : "from_issue") : b)}
+                  checked={billing === b}
+                  onChange={() => setBilling(b)}
                 />{" "}
                 {t(`tariffs.billing_${b}`)}
               </label>
@@ -260,19 +265,19 @@ export function NewTariffPage() {
                 <fieldset className="sub-choice">
                   <legend className="sr-only">{t("tariffs.billing_day")}</legend>
                   <label>
-                    <input type="radio" name="day" checked={kind === "from_issue"} onChange={() => setKind("from_issue")} />{" "}
+                    <input type="radio" name="day" checked={way === "from_issue"} onChange={() => setWay("from_issue")} />{" "}
                     {t("tariffs.day_from_issue")}
                   </label>
                   <label>
                     <input
                       type="radio"
                       name="day"
-                      checked={kind === "fixed_boundary"}
-                      onChange={() => setKind("fixed_boundary")}
+                      checked={way === "fixed_boundary"}
+                      onChange={() => setWay("fixed_boundary")}
                     />{" "}
                     {t("tariffs.day_fixed_boundary")}
                   </label>
-                  {kind === "fixed_boundary" ? (
+                  {way === "fixed_boundary" ? (
                     <Field label={t("tariffs.day_boundary")} info={t("tariffs.day_boundary_hint")}>
                       <input type="time" value={boundary} onChange={(e) => setBoundary(e.target.value)} />
                     </Field>

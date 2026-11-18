@@ -167,6 +167,9 @@ test("base example from registration to closing survives a restart", async ({ pa
   await onward.click();
   await page.getByRole("combobox", { name: t("cash.currency") }).selectOption("THB");
   await onward.click();
+  // The billing is chosen by hand: by the day, a day of 24 hours from the issue.
+  await page.getByRole("radio", { name: t("tariffs.billing_day"), exact: true }).check();
+  await page.getByRole("radio", { name: t("tariffs.day_from_issue"), exact: true }).check();
   await onward.click();
   await onward.click();
   await onward.click();

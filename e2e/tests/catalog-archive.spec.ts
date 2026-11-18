@@ -40,9 +40,22 @@ test("archived tariffs are listed only when switched on", async ({ page }) => {
   const kinds = ["minute", "hour", "day", "month"].map((k) => t(`tariffs.billing_${k}`));
   await expect(page.locator("input[name=billing]")).toHaveCount(4);
   for (const kind of kinds) await expect(page.getByRole("radio", { name: kind, exact: true })).toBeVisible();
-  // By the day: 24 hours from the issue by itself; a set time is asked only for the other way.
+  // Nothing is chosen beforehand, and the next step does not open until something is.
+  for (const kind of kinds) await expect(page.getByRole("radio", { name: kind, exact: true })).not.toBeChecked();
+  await expect(next).toBeDisabled();
+  await page.getByRole("radio", { name: t("tariffs.billing_hour"), exact: true }).check();
+  await expect(next).toBeEnabled();
+  // A pressed mark has no square frame of a field around it.
+  const hour = page.getByRole("radio", { name: t("tariffs.billing_hour"), exact: true });
+  expect(await hour.evaluate((e) => getComputedStyle(e).outlineStyle)).toBe("none");
+  // By the day: one of the two ways of counting a day is chosen by hand too; a set time is
+  // asked only for the second one.
   await page.getByRole("radio", { name: t("tariffs.billing_day"), exact: true }).check();
-  await expect(page.getByRole("radio", { name: t("tariffs.day_from_issue"), exact: true })).toBeChecked();
+  const ways = ["day_from_issue", "day_fixed_boundary"].map((k) => page.getByRole("radio", { name: t(`tariffs.${k}`), exact: true }));
+  for (const way of ways) await expect(way).not.toBeChecked();
+  await expect(next).toBeDisabled();
+  await ways[0]!.check();
+  await expect(next).toBeEnabled();
   await expect(page.getByLabel(t("tariffs.day_boundary"))).toHaveCount(0);
   await page.getByRole("radio", { name: t("tariffs.day_fixed_boundary"), exact: true }).check();
   await expect(page.getByLabel(t("tariffs.day_boundary"))).toHaveValue("12:00");
