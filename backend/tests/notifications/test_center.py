@@ -128,3 +128,18 @@ def test_read_all_and_filters(owner: Client, s: Scenario) -> None:
     post(mechanic, "/api/notifications/read", {"all": True, "company": s.cmp}, key())
     assert _unread(mechanic) == 0
     assert _mine(mechanic, "unread=1") == []
+
+
+def test_an_unread_done_notification_stays_in_the_default_list(owner: Client, s: Scenario) -> None:
+    # Customer's decision of 20.11.2026: whatever the mark in the header counts is in the list —
+    # the active ones and every unread one, also a done one.
+    mechanic, mechanic_id = hire(
+        owner, s.cmp, "m@example.com", [{"type": "set", "set": "mechanic"}]
+    )
+    t = _ok(_create(owner, s, assign=mechanic_id), 201)
+    _ok(_do(mechanic, s, t, "start"))
+    assert _unread(mechanic) == 1 and _mine(mechanic, "state=active") == []
+    pending = _mine(mechanic, "state=pending")
+    assert [(x["state"], x["read"]) for x in pending] == [("done", False)]
+    post(mechanic, "/api/notifications/read", {"ids": [pending[0]["id"]]}, key())
+    assert _unread(mechanic) == 0 and _mine(mechanic, "state=pending") == []

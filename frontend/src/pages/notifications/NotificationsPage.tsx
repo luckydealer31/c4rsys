@@ -73,7 +73,8 @@ export function NotificationBell() {
   // counts the unread of every company, so nothing is missed.
   const { pathname } = useLocation();
   const inside = /^\/c\/([^/]+)/.exec(pathname)?.[1] ?? "";
-  const query = `state=active${inside ? `&company=${inside}` : ""}`;
+  // The active ones and every unread one: what the number counts is in the list.
+  const query = `state=pending${inside ? `&company=${inside}` : ""}`;
   const latest = useApi<{ notifications: CentreNotification[] }>(
     ["notifications", "popup", query],
     `/notifications?${query}`,
@@ -149,7 +150,7 @@ export function NotificationsPage({ current = "" }: { current?: string }) {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const [kind, setKind] = useState("");
-  const [state, setState] = useState("active");
+  const [state, setState] = useState("pending");
   const [scope, setScope] = useState<"this" | "all">(current ? "this" : "all");
   const [chosenCompany, setCompany] = useState("");
   const company = scope === "this" ? current : chosenCompany;
@@ -213,6 +214,7 @@ export function NotificationsPage({ current = "" }: { current?: string }) {
         <Field label={t("notifications.state")}>
           <select value={state} onChange={(e) => setState(e.target.value)}>
             <option value="">{t("notifications.all")}</option>
+            <option value="pending">{t("notifications.state_pending")}</option>
             <option value="active">{t("notifications.state_active")}</option>
             <option value="done">{t("notifications.state_done")}</option>
           </select>

@@ -9,7 +9,7 @@ from typing import Any
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from django.db.models import QuerySet
+from django.db.models import Q, QuerySet
 from django.http import HttpRequest, JsonResponse
 from django.views.decorators.http import require_GET, require_POST
 
@@ -82,7 +82,10 @@ def _day(value: str, key: str, end: bool) -> datetime:
 
 @require_GET
 def notification_list(request: HttpRequest) -> JsonResponse:
-    """Filters: `kind`, `state` (active | done), `company` (public id), `location`, `context`
+    """Filters: `kind`, `state` (active | done | pending — the active ones and every unread
+    one, so that whatever the mark in the header counts is in the list: an instant event is done
+    at once and stays unread; customer's decision of 20.11.2026), `company` (public id),
+    `location`, `context`
     (id) or `context_type` (rental | service | warehouse), `from`, `to` (dates of the last
     occurrence), `unread=1` (§ 20.1.5)."""
     user, _session = require_user(request)
@@ -90,7 +93,11 @@ def notification_list(request: HttpRequest) -> JsonResponse:
     query = _mine(user.id)
     if params.get("kind") in Notification.Kind.values:
         query = query.filter(notification__kind=params["kind"])
-    if params.get("state") in Notification.State.values:
+    if params.get("state") == "pending":
+        query = query.filter(
+            Q(notification__state=Notification.State.ACTIVE) | Q(read_at__isnull=True)
+        )
+    elif params.get("state") in Notification.State.values:
         query = query.filter(notification__state=params["state"])
     if params.get("company"):
         query = query.filter(notification__company__public_id=params["company"])

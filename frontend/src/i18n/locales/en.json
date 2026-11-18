@@ -4584,7 +4584,8 @@
     "scope_all": "All companies",
     "read_all_here": "Mark all of this company as read",
     "other_company": "another company: {{name}}",
-    "open_all": "Open all"
+    "open_all": "Open all",
+    "state_pending": "Active and unread"
   },
   "reports": {
     "metric_rental_issues_today": "Issues expected today",
