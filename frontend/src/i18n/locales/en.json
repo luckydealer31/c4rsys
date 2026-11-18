@@ -2251,7 +2251,14 @@
     "short_month": "mo.",
     "day_boundary": "Day boundary",
     "day_boundary_hint": "Local time of the issue location; a part of a settlement day counts as a whole day.",
-    "unit_fixed": "The unit does not change after creation."
+    "unit_fixed": "The unit does not change after creation.",
+    "billing": "Billing",
+    "billing_minute": "By the minute",
+    "billing_hour": "By the hour",
+    "billing_day": "By the day",
+    "billing_month": "By the month",
+    "day_from_issue": "A day is 24 hours from the issue",
+    "day_fixed_boundary": "A day runs to a set time"
   },
   "terms": {
     "assign": "Save terms",

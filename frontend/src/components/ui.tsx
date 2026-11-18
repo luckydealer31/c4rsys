@@ -26,16 +26,23 @@ export function Field({
   children,
   hint,
   hintTitle,
+  info,
 }: {
   label: string;
   children: ReactNode;
   hint?: string;
   /** Shown when the pointer is over the hint: the full name behind a short record. */
   hintTitle?: string;
+  /** An explanation under the «i» beside the label, instead of a note always printed
+   * (decision of 16.11.2026). */
+  info?: string;
 }) {
   return (
     <label className="field">
-      <span>{label}</span>
+      <span>
+        {label}
+        {info ? <Info text={info} /> : null}
+      </span>
       {children}
       {hint ? (
         <small className="muted" title={hintTitle}>

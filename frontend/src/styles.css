@@ -20,6 +20,11 @@
   font-size: 15px;
   line-height: 1.45;
 }
+/* The marks of choice, the fields of dates and the scroll bars are drawn by the browser by the
+   colour scheme: with a light theme chosen in the profile on a dark device they were drawn dark
+   — every mark of choice looked filled (found on 18.11.2026). They follow the chosen theme. */
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #12161c;
@@ -656,6 +661,10 @@ a.tag-chip:hover { border-color: var(--tag); }
 .place-tags .tag-chip button { padding: 0 0 0 2px; min-height: 0 !important; background: none; border: 0;
   color: inherit; font-size: 1rem; line-height: 1; cursor: pointer; }
 .place-refused { flex: 1 1 100%; color: var(--danger); }
+/* A choice under a choice: the ways of counting a day under «by the day». */
+.sub-choice { border: 0; border-left: 2px solid var(--border); margin: 0 0 0 8px; padding: 2px 0 2px 16px;
+  display: flex; flex-direction: column; gap: 8px; }
+.sub-choice input[type="time"] { display: block; width: auto; min-width: 140px; }
 /* A group of tags: its name, the button of a new tag and the pencil of the group in one line. */
 .tag-group-head { display: flex; align-items: center; gap: 10px; }
 .tag-group-head h2 { margin: 0; }

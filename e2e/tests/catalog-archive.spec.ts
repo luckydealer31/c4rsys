@@ -27,4 +27,30 @@ test("archived tariffs are listed only when switched on", async ({ page }) => {
   await expect(tariffs.locator("a.list-link", { hasText: "Старый" })).toContainText(t("tariffs.archived"));
   await archived.uncheck();
   await expect(tariffs.locator("a.list-link")).toHaveCount(1);
+
+  // The wizard of a tariff asks what it is counted by: the minute, the hour, the day, the month;
+  // the two ways of counting a day stand under «by the day» (customer's remark of 18.11.2026).
+  await page.goto(`${s.base}/rentals/tariffs/new`);
+  const next = page.getByRole("button", { name: t("wizard.next"), exact: true });
+  await page.getByRole("textbox").last().fill("Месячный");
+  await next.click();
+  await page.getByRole("combobox").last().selectOption("THB");
+  await next.click();
+  await expect(page.getByRole("heading", { name: t("tariffs.billing"), exact: true })).toBeVisible();
+  const kinds = ["minute", "hour", "day", "month"].map((k) => t(`tariffs.billing_${k}`));
+  await expect(page.locator("input[name=billing]")).toHaveCount(4);
+  for (const kind of kinds) await expect(page.getByRole("radio", { name: kind, exact: true })).toBeVisible();
+  // By the day: 24 hours from the issue by itself; a set time is asked only for the other way.
+  await page.getByRole("radio", { name: t("tariffs.billing_day"), exact: true }).check();
+  await expect(page.getByRole("radio", { name: t("tariffs.day_from_issue"), exact: true })).toBeChecked();
+  await expect(page.getByLabel(t("tariffs.day_boundary"))).toHaveCount(0);
+  await page.getByRole("radio", { name: t("tariffs.day_fixed_boundary"), exact: true }).check();
+  await expect(page.getByLabel(t("tariffs.day_boundary"))).toHaveValue("12:00");
+  // The explanation of the boundary stands under «i», not printed all the time.
+  await expect(page.getByText(t("tariffs.day_boundary_hint"))).toHaveCount(0);
+  await page.locator(".sub-choice").getByRole("note").hover();
+  await expect(page.locator(".info-pop")).toHaveText(t("tariffs.day_boundary_hint"));
+  await page.mouse.move(0, 0);
+  await page.getByRole("radio", { name: t("tariffs.billing_month"), exact: true }).check();
+  await expect(page.getByRole("radio", { name: t("tariffs.day_from_issue"), exact: true })).toHaveCount(0);
 });

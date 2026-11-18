@@ -133,7 +133,7 @@ test("base example from registration to closing survives a restart", async ({ pa
   await page.getByRole("link", { name: t("cash.create_button") }).click();
   await page.getByRole("radio", { name: t("cash.type_cash") }).check();
   await page.getByRole("button", { name: t("wizard.next"), exact: true }).click();
-  await page.getByLabel(t("cash.currency")).selectOption("THB");
+  await page.getByRole("combobox", { name: t("cash.currency") }).selectOption("THB");
   await page.getByRole("button", { name: t("wizard.next"), exact: true }).click();
   await page.getByRole("textbox", { name: t("cash.name"), exact: true }).fill("Касса Пхукет");
   await page.getByRole("button", { name: t("cash.create"), exact: true }).click();
@@ -165,7 +165,7 @@ test("base example from registration to closing survives a restart", async ({ pa
   const onward = page.getByRole("button", { name: t("wizard.next"), exact: true });
   await page.getByRole("textbox", { name: t("tariffs.name"), exact: true }).fill("Сутки");
   await onward.click();
-  await page.getByLabel(t("cash.currency")).selectOption("THB");
+  await page.getByRole("combobox", { name: t("cash.currency") }).selectOption("THB");
   await onward.click();
   await onward.click();
   await onward.click();

@@ -13,7 +13,6 @@ import { useLocations } from "../settings/LocationsPage";
 import {
   fromRows,
   kindBody,
-  KINDS,
   RangesEditor,
   unitShort,
   useTariffs,
@@ -23,6 +22,9 @@ import {
 import { useVehicles } from "../vehicles/VehiclesPage";
 import { EquipmentPicker } from "./Services";
 import { EMPTY_ROW, rowBody, rowProblem, VehiclePricesTable, type VehicleRow } from "../tariffs/VehiclePrices";
+
+// What a tariff is counted by, as it is chosen: the day has two ways of counting under it.
+const BILLING = ["minute", "hour", "day", "month"] as const;
 
 /** The frame of a step-by-step creation in the rental section: a question per screen, «Back»,
  * «Skip» where the step is optional, «Next», and the creating button at the last step. */
@@ -126,7 +128,7 @@ function Scope({ scope, onChange }: { scope: string[] | "all"; onChange: (scope:
 function CurrencyStep({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   const { t } = useTranslation();
   return (
-    <Field label={t("cash.currency")} hint={t("cash.currency_hint")}>
+    <Field label={t("cash.currency")} info={t("cash.currency_hint")}>
       <select autoFocus value={value} onChange={(e) => onChange(e.target.value)}>
         <option value="">—</option>
         {currencies().map((code) => (
@@ -214,9 +216,10 @@ export function NewTariffPage() {
     setSaving(false);
   }
 
-  const unitName = kind === "from_issue" || kind === "fixed_boundary" ? "day" : kind;
+  const daily = kind === "from_issue" || kind === "fixed_boundary";
+  const unitName = daily ? "day" : kind;
   const titles = {
-    unit: t("tariffs.unit"),
+    unit: t("tariffs.billing"),
     currency: t("cash.currency"),
     ranges: t("tariffs.ranges"),
     scope: t("tariffs.availability"),
@@ -239,17 +242,45 @@ export function NewTariffPage() {
     >
       {step === "unit" ? (
         <div className="stack">
-          {KINDS.map((k) => (
-            <label key={k} style={{ display: "block" }}>
-              <input type="radio" name="kind" checked={kind === k} onChange={() => setKind(k)} />{" "}
-              {t(`tariffs.kind_${k}`, { time: "…" })}
-            </label>
+          {/* By the minute, the hour, the day or the month (customer's remark of 18.11.2026): the
+              two ways of counting a day — 24 hours from the issue, or to a set time — are one
+              choice «by the day», told apart under it. */}
+          {BILLING.map((b) => (
+            <div key={b} className="stack">
+              <label style={{ display: "block" }}>
+                <input
+                  type="radio"
+                  name="billing"
+                  checked={(daily ? "day" : kind) === b}
+                  onChange={() => setKind(b === "day" ? (daily ? kind : "from_issue") : b)}
+                />{" "}
+                {t(`tariffs.billing_${b}`)}
+              </label>
+              {b === "day" && daily ? (
+                <fieldset className="sub-choice">
+                  <legend className="sr-only">{t("tariffs.billing_day")}</legend>
+                  <label>
+                    <input type="radio" name="day" checked={kind === "from_issue"} onChange={() => setKind("from_issue")} />{" "}
+                    {t("tariffs.day_from_issue")}
+                  </label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="day"
+                      checked={kind === "fixed_boundary"}
+                      onChange={() => setKind("fixed_boundary")}
+                    />{" "}
+                    {t("tariffs.day_fixed_boundary")}
+                  </label>
+                  {kind === "fixed_boundary" ? (
+                    <Field label={t("tariffs.day_boundary")} info={t("tariffs.day_boundary_hint")}>
+                      <input type="time" value={boundary} onChange={(e) => setBoundary(e.target.value)} />
+                    </Field>
+                  ) : null}
+                </fieldset>
+              ) : null}
+            </div>
           ))}
-          {kind === "fixed_boundary" ? (
-            <Field label={t("tariffs.day_boundary")} hint={t("tariffs.day_boundary_hint")}>
-              <input type="time" value={boundary} onChange={(e) => setBoundary(e.target.value)} />
-            </Field>
-          ) : null}
         </div>
       ) : null}
       {step === "currency" ? <CurrencyStep value={currency} onChange={setCurrency} /> : null}

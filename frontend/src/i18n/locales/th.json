@@ -2251,7 +2251,14 @@
     "short_month": "เดือน",
     "day_boundary": "เวลาเปลี่ยนวัน",
     "day_boundary_hint": "เวลาท้องถิ่นของสถานที่ส่งมอบ วันที่ไม่เต็มนับเป็นวันเต็ม",
-    "unit_fixed": "หน่วยเปลี่ยนไม่ได้หลังสร้าง"
+    "unit_fixed": "หน่วยเปลี่ยนไม่ได้หลังสร้าง",
+    "billing": "การคิดค่าเช่า",
+    "billing_minute": "รายนาที",
+    "billing_hour": "รายชั่วโมง",
+    "billing_day": "รายวัน",
+    "billing_month": "รายเดือน",
+    "day_from_issue": "หนึ่งวันคือ 24 ชั่วโมงนับจากเวลาส่งมอบ",
+    "day_fixed_boundary": "หนึ่งวันนับถึงเวลาที่กำหนด"
   },
   "terms": {
     "assign": "Save terms",

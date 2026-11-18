@@ -203,7 +203,7 @@ function TariffForm({ tariff }: { tariff?: Tariff }) {
               ))}
             </select>
           </Field>
-          <Field label={t("tariffs.unit")} hint={tariff ? t("tariffs.unit_fixed") : undefined}>
+          <Field label={t("tariffs.billing")} hint={tariff ? t("tariffs.unit_fixed") : undefined}>
             {tariff ? (
               <input value={unitText(tariff, t)} disabled />
             ) : (
