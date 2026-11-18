@@ -484,17 +484,20 @@ label.check { display: inline-flex; gap: 6px; align-items: center; margin-right:
 .modal::backdrop { background: rgb(0 0 0 / 0.4); }
 .modal-body { padding: 20px; }
 @media (pointer: coarse), (max-width: 760px) { .icon-button { min-width: 44px; justify-content: center; } }
-.prices-table input:not([type="checkbox"]) { min-width: 84px; }
+/* Every field of the table is of one width, whatever is written inside it: the columns of
+   the fields are given one width, the column of the names takes what is left. */
+.prices-table th:not(:first-child), .prices-table td:not(:first-child):not([colspan]) { width: 150px; min-width: 150px; }
+.prices-table input:not([type="checkbox"]), .prices-table .unit-field { width: 100%; min-width: 0; }
 .prices-table td:first-child { white-space: nowrap; }
 /* A field with what its number is measured in written inside its box, after the number:
    the box carries the frame and the focus ring, the input inside has none. */
 .unit-field {
-  display: flex; width: 100%; min-width: 130px; align-items: center; gap: 4px; white-space: nowrap;
+  display: flex; width: 100%; align-items: center; gap: 4px; white-space: nowrap;
   border: 1px solid var(--border); border-radius: 6px; background: var(--surface); padding-right: 10px;
 }
 .unit-field:focus-within { outline: 2px solid var(--accent); }
 .unit-field input, .prices-table .unit-field input:not([type="checkbox"]) {
-  border: 0; outline: none; background: transparent; flex: 1 1 auto; width: auto; min-width: 48px; padding-right: 0;
+  border: 0; outline: none; background: transparent; flex: 1 1 0; width: 0; min-width: 0; padding-right: 0;
 }
 .unit-field .unit-suffix { color: var(--muted); font-size: 0.875rem; }
 .error-text { color: var(--danger); }
@@ -546,6 +549,25 @@ th.num, td.num { text-align: right; white-space: nowrap; }
 .fleet-table .col-odometer { width: 150px; }
 .fleet-table .col-actions { width: 240px; }
 .fleet-table td { overflow-wrap: anywhere; }
+.fleet-table .badge { white-space: nowrap; }
+/* On a narrow screen a row of the park and of the garage is a block of its own: the vehicle on
+   top across the whole width, under it the occupancy and the mileage with their names, then the
+   buttons (customer's remark of 18.11.2026: the columns of fixed width left the name a few
+   pixels on an iPhone). */
+@media (max-width: 760px) {
+  .fleet-table { min-width: 0; table-layout: auto; }
+  .fleet-table colgroup, .fleet-table thead { display: none; }
+  .fleet-table, .fleet-table tbody, .fleet-table tr, .fleet-table td { display: block; width: auto; }
+  .fleet-table tr { border-bottom: 1px solid var(--border); padding: 10px 0; }
+  .fleet-table tr:last-child { border-bottom: 0; }
+  .fleet-table td { border-bottom: 0; padding: 3px 0; overflow-wrap: normal; }
+  .fleet-table td[data-label] { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 2px 8px; align-items: baseline; }
+  .fleet-table td[data-label]::before { content: attr(data-label); color: var(--muted); font-size: 0.85rem; }
+  .fleet-table td[data-label] > * { grid-column: 2; justify-self: start; }
+  .fleet-table .row-actions { justify-content: flex-start; flex-wrap: wrap; gap: 8px; padding-top: 4px; }
+  .fleet-table .actions-cell:has(.row-actions:empty) { display: none; }
+  .fleet-table .vehicle-type-icon { width: 56px; height: auto; }
+}
 /* The actions of a row: small buttons at its right end. */
 .row-actions { display: flex; gap: 6px; justify-content: flex-end; }
 .row-actions .small-button { margin-left: 0; white-space: nowrap; }

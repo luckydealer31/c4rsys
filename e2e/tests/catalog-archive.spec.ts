@@ -133,5 +133,15 @@ test("archived tariffs are listed only when switched on", async ({ page }) => {
   await miles.locator("input").fill("1");
   await expect(miles).toHaveText(t("terms.mi_one"));
   await expect(line("Ford Mustang")).toContainText(t("terms.per_mi", { currency: "THB" }));
+  // Every field of the table is of one width (customer's remark of 18.11.2026).
+  const widths = await prices
+    .locator("tbody tr")
+    .first()
+    .evaluate((tr) =>
+      [...tr.querySelectorAll("td:not(:first-child)")].map((td) =>
+        Math.round((td.querySelector(".unit-field") ?? td.querySelector("input"))!.getBoundingClientRect().width),
+      ),
+    );
+  expect(new Set(widths).size, widths.join(",")).toBe(1);
   await expect(page.getByText(t("terms.included_hint"))).toHaveCount(0);
 });

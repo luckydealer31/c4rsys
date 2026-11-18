@@ -164,7 +164,7 @@ export function Park() {
                             </div>
                           </div>
                         </td>
-                        <td>
+                        <td data-label={t("vehicles.occupancy")}>
                           {restricted && state === "free" ? (
                             <span className="muted">—</span>
                           ) : (
@@ -192,8 +192,10 @@ export function Park() {
                             </div>
                           ) : null}
                         </td>
-                        <td>{vehicle.odometer ? `${Number(vehicle.odometer.value)} ${vehicle.odometer.unit}` : "—"}</td>
-                        <td>
+                        <td data-label={t("vehicles.odometer")}>
+                          {vehicle.odometer ? `${Number(vehicle.odometer.value)} ${vehicle.odometer.unit}` : "—"}
+                        </td>
+                        <td className="actions-cell">
                           <div className="row-actions">
                             {/* In place of the buttons: the mark, the reason under the pointer. */}
                             {restricted ? (

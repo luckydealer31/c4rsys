@@ -268,7 +268,7 @@ export function VehiclesPage() {
                               </div>
                             </td>
                             {view === "client" ? null : (
-                              <td>
+                              <td data-label={t("vehicles.occupancy")}>
                                 {busy.has(vehicle.id) ? (
                                   <span className="badge warn">{t("vehicles.in_rental")}</span>
                                 ) : (
@@ -276,7 +276,7 @@ export function VehiclesPage() {
                                 )}
                               </td>
                             )}
-                            <td>
+                            <td data-label={t("vehicles.odometer")}>
                               {vehicle.odometer ? `${Number(vehicle.odometer.value)} ${vehicle.odometer.unit}` : "—"}
                             </td>
                           </tr>
