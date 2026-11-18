@@ -2308,7 +2308,8 @@
     "range_to": "End of the range from {{from}}",
     "range_remove": "Remove the range from {{from}}",
     "open_end": "∞",
-    "select_hint_edit": "Mark the vehicles of the tariff and give the price of a unit in each range. The columns are the price ranges: type where a range ends in the header of its column — the next one begins right after it; × removes a column, and its units go to the next one; the end typed for the last column adds a new column after it with the same prices."
+    "select_hint_edit": "Mark the vehicles of the tariff and give the price of a unit in each range. The columns are the price ranges: type where a range ends in the header of its column — the next one begins right after it; × removes a column, and its units go to the next one; the end typed for the last column adds a new column after it with the same prices.",
+    "prices_toggle": "prices and terms"
   },
   "timezones": {
     "Africa/Cairo": "Cairo",

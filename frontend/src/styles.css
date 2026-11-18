@@ -759,6 +759,30 @@ tr.limited > td:not(:last-child) { opacity: 0.5; }
 .actions.end { justify-content: flex-end; align-items: center; }
 /* The main action at the left, a secondary one at the right, in one line. */
 .actions.apart { justify-content: space-between; align-items: center; }
+/* The prices of a tariff on a phone: the ranges as a list, every vehicle as a block. */
+.price-cards h3 { margin: 0 0 8px; font-size: 1rem; }
+.price-ranges { padding-bottom: 12px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+.price-ranges .range-edit { margin-bottom: 8px; }
+.price-ranges .range-begin { min-width: 84px; text-align: left; font-size: 1rem; }
+.price-ranges .icon-button { margin-left: 0; }
+.price-all { display: block; padding: 10px 0 2px; font-size: 0.9rem; color: var(--muted); }
+.price-card { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.price-card:last-child { border-bottom: 0; padding-bottom: 0; }
+.price-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.price-card-head label { font-weight: 600; overflow-wrap: anywhere; }
+.price-card > .small { margin-top: 4px; }
+.price-lines { margin-top: 10px; display: grid; gap: 8px; }
+.price-line { display: grid; grid-template-columns: minmax(0, 1fr) 140px; gap: 8px; align-items: center; }
+.price-terms { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border);
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px 8px; align-items: end; }
+.price-label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 4px; }
+.price-cards .unit-field { width: 100%; }
+.price-cards .unit-field input { flex: 1 1 0; width: 0; min-width: 0; }
+/* The mark of a block that opens: an angle down, up when it is opened. */
+.icon-button.chevron { min-width: 44px; min-height: 36px; justify-content: center; }
+.icon-button.chevron::before { content: ""; width: 9px; height: 9px; border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor; transform: rotate(45deg) translate(-2px, -2px); }
+.icon-button.chevron.up::before { transform: rotate(-135deg) translate(-2px, -2px); }
 
 /* A switch: the knob to the right and green when on (decision of 16.11.2026). The checkbox
    itself lies over the track, unseen, so a click and the keyboard reach it. */

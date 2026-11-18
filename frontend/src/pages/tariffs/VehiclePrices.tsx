@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Info } from "../../components/ui";
+import { useNarrow } from "../../layout/useNarrow";
 
 import type { Vehicle, VehicleTerms } from "../../api/types";
 
@@ -93,6 +95,9 @@ export function VehiclePricesTable({
   edit?: RangesEdit;
 }) {
   const { t, i18n } = useTranslation();
+  const narrow = useNarrow();
+  // On a phone: the vehicles whose prices are opened.
+  const [open, setOpen] = useState<Set<string>>(new Set());
   const row = (id: string) => rows[id] ?? EMPTY_ROW;
   const set = (id: string, changes: Partial<VehicleRow>) => onChange({ ...rows, [id]: { ...row(id), ...changes } });
   const all = vehicles.length > 0 && vehicles.every((v) => row(v.id).checked);
@@ -162,6 +167,148 @@ export function VehiclePricesTable({
       </div>
     );
   };
+  if (narrow) {
+    // On a phone there is no table (customer's decision of 20.11.2026): the ranges are a list
+    // of their own, every vehicle is a block — closed, it shows its prices in one line; opened,
+    // a price of each range in a line, then the mileage and the deposit.
+    const toggle = (id: string) => {
+      const next = new Set(open);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      setOpen(next);
+    };
+    const title = (r: Bounds) =>
+      r.to === null
+        ? t("terms.range_from", { from: begin(r), unit })
+        : t("terms.range", { from: begin(r), to: Number.isFinite(r.to) ? r.to : "…", unit });
+    const summary = (v: Vehicle, current: VehicleRow) =>
+      [
+        `${ranges.map((_, i) => current.rates[i] || "—").join(" · ")} ${currency}`.trim(),
+        current.included.trim() ? `${current.included} ${distance(v.odometer_unit, current.included)}` : "",
+        current.deposit.trim() ? `${t("terms.deposit")} ${current.deposit}` : "",
+      ]
+        .filter(Boolean)
+        .join(" · ");
+    return (
+      <div className="price-cards">
+        {edit ? (
+          <section className="price-ranges" aria-label={t("tariffs.ranges")}>
+            <h3>
+              {t("tariffs.ranges")} <Info text={t("tariffs.ranges_hint")} />
+            </h3>
+            {ranges.map((r, i) => (
+              <div key={i}>{head(r, i)}</div>
+            ))}
+          </section>
+        ) : null}
+        {vehicles.length === 0 ? <p className="muted">{t("terms.no_vehicles")}</p> : null}
+        {vehicles.length > 1 ? (
+          <label className="price-all">
+            <input
+              type="checkbox"
+              disabled={disabled}
+              checked={all}
+              onChange={() => onChange(Object.fromEntries(vehicles.map((v) => [v.id, { ...row(v.id), checked: !all }])))}
+            />{" "}
+            {t("terms.select_all")} <Info text={t("terms.select_hint")} />
+          </label>
+        ) : null}
+        {vehicles.map((v) => {
+          const current = row(v.id);
+          const problem = rowProblem(current, ranges);
+          const shown = current.checked && open.has(v.id);
+          return (
+            <section key={v.id} className="price-card" aria-label={v.name}>
+              <div className="price-card-head">
+                <label>
+                  <input
+                    type="checkbox"
+                    disabled={disabled}
+                    checked={current.checked}
+                    onChange={() => {
+                      set(v.id, { checked: !current.checked });
+                      // A vehicle just marked is opened at once: its prices are to be given.
+                      if (!current.checked) setOpen(new Set(open).add(v.id));
+                    }}
+                  />{" "}
+                  {v.name}
+                </label>
+                {current.checked ? (
+                  <button
+                    type="button"
+                    className={`icon-button chevron${shown ? " up" : ""}`}
+                    aria-expanded={shown}
+                    aria-label={`${v.name}: ${t("terms.prices_toggle")}`}
+                    onClick={() => toggle(v.id)}
+                  />
+                ) : null}
+              </div>
+              {problem ? <div className="small error-text">{t(problem)}</div> : null}
+              {!current.checked ? <div className="muted small">{t("terms.not_marked")}</div> : null}
+              {current.checked && !shown ? <div className="muted small">{summary(v, current)}</div> : null}
+              {shown ? (
+                <>
+                  <div className="price-lines">
+                    {ranges.map((r, i) => (
+                      <div key={i} className="price-line">
+                        <span>{title(r)}</span>
+                        <label className="unit-field">
+                          <input
+                            inputMode="decimal"
+                            disabled={disabled}
+                            aria-label={`${v.name}: ${t("terms.price")} ${begin(r)}`}
+                            value={current.rates[i] ?? ""}
+                            onChange={(e) => set(v.id, { rates: { ...current.rates, [i]: e.target.value } })}
+                          />
+                          <span className="unit-suffix" aria-hidden="true">
+                            {currency}
+                          </span>
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="price-terms">
+                    <div>
+                      <span className="price-label">
+                        {t("terms.included_short")} <Info text={t("terms.included_hint", { unit })} />
+                      </span>
+                      {measured(
+                        v.id,
+                        "included",
+                        `${v.name}: ${t("terms.included_short")}`,
+                        distance(v.odometer_unit, current.included),
+                      )}
+                    </div>
+                    <div>
+                      <span className="price-label">
+                        {t("terms.overage_short")} <Info text={t("terms.overage_hint")} />
+                      </span>
+                      {measured(
+                        v.id,
+                        "overage",
+                        `${v.name}: ${t("terms.overage_short")}`,
+                        t(`terms.per_${v.odometer_unit}`, { currency }).trim(),
+                      )}
+                    </div>
+                    <div>
+                      <span className="price-label">
+                        {t("terms.deposit")} <Info text={t("terms.deposit_hint")} />
+                      </span>
+                      {input(v.id, "deposit", `${v.name}: ${t("terms.deposit")}`)}
+                    </div>
+                    <div>
+                      <span className="price-label">{t("terms.hold_short")}</span>
+                      {input(v.id, "hold", `${v.name}: ${t("terms.hold_short")}`)}
+                    </div>
+                  </div>
+                </>
+              ) : null}
+            </section>
+          );
+        })}
+      </div>
+    );
+  }
   return (
     <div className="table-scroll">
       <table className={`prices-table${edit ? " editing" : ""}`}>
