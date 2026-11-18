@@ -1,8 +1,8 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Navigate, useParams } from "react-router";
+import { Link, Navigate, useParams } from "react-router";
 
 import { useApi } from "../../api/queries";
 import type { Tariff, TariffRange, VehicleTerms } from "../../api/types";
@@ -177,7 +177,7 @@ export function fromRows(rows: RangeRow[]) {
  * its column, × takes a column away, the end typed for the last column adds a new one with the
  * same prices. Everything is saved with one button, in one command. An archived tariff is only
  * shown. */
-function TariffEditor({ tariff, onSaved }: { tariff: Tariff; onSaved: () => void }) {
+function TariffEditor({ tariff, onSaved, aside }: { tariff: Tariff; onSaved: () => void; aside?: ReactNode }) {
   const { t } = useTranslation();
   const company = useCompany();
   const can = useCan();
@@ -338,8 +338,10 @@ function TariffEditor({ tariff, onSaved }: { tariff: Tariff; onSaved: () => void
           edit={editable ? { tos, onTo, onRemove } : undefined}
         />
         <ErrorMessage error={save.error} />
-        {editable ? (
-          <div className="actions">
+        {/* «Save» at the left, the archive at the right, in one line (customer's remark of
+            19.11.2026). */}
+        <div className="actions apart">
+          {editable ? (
             <button
               type="button"
               disabled={!dirty || !name.trim() || !rangesOk || problem || save.pending}
@@ -347,8 +349,11 @@ function TariffEditor({ tariff, onSaved }: { tariff: Tariff; onSaved: () => void
             >
               {t("common.save")}
             </button>
-          </div>
-        ) : null}
+          ) : (
+            <span />
+          )}
+          {aside}
+        </div>
       </Card>
     </>
   );
@@ -381,24 +386,33 @@ export function TariffPage() {
     }
   }
 
+  // The whole width of the screen: more ranges are seen at once (customer's remark of
+  // 19.11.2026); the way back leads to the list of tariffs and services.
   return (
-    <div className="page">
+    <div className="page full">
+      <p>
+        <Link to={companyPath(company, "/rentals?tab=catalog")}>← {t("rentals.tab_catalog")}</Link>
+      </p>
       <h1>
         {data.name}{" "}
         <span className={`badge ${data.state === "active" ? "ok" : ""}`}>{t(`tariffs.state_${data.state}`)}</span>
       </h1>
       {/* A new version of the tariff starts the editor afresh; the mark of saving stays. */}
-      <TariffEditor key={`${data.version}-${data.state}`} tariff={data} onSaved={() => setSaved(true)} />
+      <TariffEditor
+        key={`${data.version}-${data.state}`}
+        tariff={data}
+        onSaved={() => setSaved(true)}
+        aside={
+          can("tariff.archive") ? (
+            <button type="button" className="secondary" onClick={() => void toggle()}>
+              {data.state === "active" ? t("tariffs.archive") : t("tariffs.restore")}
+            </button>
+          ) : null
+        }
+      />
       {saved ? <div className="alert ok">{t("common.saved")}</div> : null}
-      {can("tariff.archive") ? (
-        <div className="actions" style={{ marginBottom: 16 }}>
-          <UnconfiguredConfirm error={archive.error} pending={archive.pending} onConfirm={() => void toggle(true)} />
-          <button type="button" className="secondary" onClick={() => void toggle()}>
-            {data.state === "active" ? t("tariffs.archive") : t("tariffs.restore")}
-          </button>
-          <ErrorMessage error={archive.error ?? restore.error} />
-        </div>
-      ) : null}
+      <UnconfiguredConfirm error={archive.error} pending={archive.pending} onConfirm={() => void toggle(true)} />
+      <ErrorMessage error={archive.error ?? restore.error} />
     </div>
   );
 }

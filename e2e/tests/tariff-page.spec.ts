@@ -96,4 +96,16 @@ test("the ranges of a tariff are edited in the columns of its price table", asyn
     [1, 20],
     [91, 15],
   ]);
+
+  // Customer's remarks of 19.11.2026: a five-digit end is seen whole in its field; «Save» and
+  // the archive stand in one line, at the left and at the right; the way back leads to the list.
+  await end(1).fill("10000");
+  expect(await end(1).evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true);
+  const archive = page.getByRole("button", { name: t("tariffs.archive"), exact: true });
+  const [left, right] = [(await save.boundingBox())!, (await archive.boundingBox())!];
+  expect(Math.abs(left.y - right.y)).toBeLessThan(4);
+  expect(right.x).toBeGreaterThan(left.x + 300);
+  expect(left.width).toBeLessThan(200);
+  await page.getByRole("link", { name: `← ${t("rentals.tab_catalog")}` }).click();
+  await expect(page).toHaveURL(/tab=catalog/);
 });

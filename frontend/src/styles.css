@@ -503,11 +503,11 @@ label.check { display: inline-flex; gap: 6px; align-items: center; margin-right:
 .unit-field.invalid { border-color: var(--danger); }
 /* The header of a range column in one line: «from 61 to [600 min] ×» (customer's remark of
    19.11.2026). The columns are wider then, all of one width still. */
-.prices-table.editing th:not(:first-child), .prices-table.editing td:not(:first-child):not([colspan]) { width: 190px; min-width: 190px; }
+.prices-table.editing th:not(:first-child), .prices-table.editing td:not(:first-child):not([colspan]) { width: 220px; min-width: 220px; }
 .prices-table th.range-head { vertical-align: middle; font-weight: 400; }
 .range-edit { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
 .range-begin { font-size: 0.875rem; color: var(--text); min-width: 66px; text-align: right; }
-.range-edit .unit-field { flex: 1 1 0; min-width: 0; }
+.range-edit .unit-field { flex: 1 1 0; min-width: 104px; }
 .range-edit .icon-button { margin-left: -4px; }
 .error-text { color: var(--danger); }
 /* Characteristics of a card in two columns by meaning on a wide screen (decision of
@@ -757,6 +757,8 @@ tr.limited > td:not(:last-child) { opacity: 0.5; }
 
 /* The main action of a block stands at its right edge. */
 .actions.end { justify-content: flex-end; align-items: center; }
+/* The main action at the left, a secondary one at the right, in one line. */
+.actions.apart { justify-content: space-between; align-items: center; }
 
 /* A switch: the knob to the right and green when on (decision of 16.11.2026). The checkbox
    itself lies over the track, unseen, so a click and the keyboard reach it. */
