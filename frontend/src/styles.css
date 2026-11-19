@@ -506,6 +506,17 @@ label.check { display: inline-flex; gap: 6px; align-items: center; margin-right:
 .schedule-bar .segmented { border-radius: 6px; margin-right: 0; border-color: var(--accent); }
 .schedule-bar .segmented button { border-radius: 4px; }
 .schedule-bar .schedule-nav { align-items: stretch; }
+/* What the colours of the strip mean: in a line under the bar, in a column beside the buttons. */
+.schedule-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 10px; color: var(--muted); }
+.schedule-mark { display: inline-block; width: 10px; height: 10px; margin-right: 5px; border-radius: 2px; }
+.side-actions .schedule-legend { margin-top: 2px; display: grid; grid-template-columns: auto auto; justify-content: start; gap: 2px 14px; font-size: 0.8rem; }
+.schedule-legend > span { white-space: nowrap; }
+/* A joined pair where what is chosen is outlined, not filled; both chosen stand in one outline. */
+.schedule-bar .segmented.outlined { border-color: transparent; padding: 0; }
+.schedule-bar .segmented.outlined button { border: 1px solid transparent; border-radius: 6px; color: var(--text); padding: 5px 12px; }
+.schedule-bar .segmented.outlined button[aria-pressed="true"] { background: transparent; color: var(--accent); border-color: var(--accent); }
+.schedule-bar .segmented.outlined button[aria-pressed="true"]:has(+ button[aria-pressed="true"]) { border-radius: 6px 0 0 6px; border-right-color: transparent; }
+.schedule-bar .segmented.outlined button[aria-pressed="true"] + button[aria-pressed="true"] { border-radius: 0 6px 6px 0; border-left-color: transparent; }
 /* The kinds of vehicles in the same bar and of the same shape. */
 .schedule-filters { display: flex; gap: 8px; align-items: stretch; margin-right: auto; }
 .schedule-bar { gap: 8px 12px; }

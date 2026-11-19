@@ -61,7 +61,22 @@ export function SchedulePage() {
 
 /** The schedule as a tab of «Rental» or «Service»: own and managed vehicles, each switched on
  * and off as in the garage; the last one that is on stays on. */
-export function ScheduleTab() {
+/** What the colours of the strip mean. */
+export function ScheduleLegend() {
+  const { t } = useTranslation();
+  return (
+    <div className="schedule-legend small" role="note" aria-label={t("schedule.legend")}>
+      {(Object.keys(COLORS) as Item["kind"][]).map((k) => (
+        <span key={k}>
+          <span className="schedule-mark" style={{ background: COLORS[k] }} />
+          {t(`schedule.kind_${k}`)}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+export function ScheduleTab({ legend = true }: { legend?: boolean }) {
   const { t } = useTranslation();
   const [shown, setShown] = useState<Set<string>>(new Set(["own", "managed"]));
   const toggle = (key: string) => {
@@ -76,9 +91,10 @@ export function ScheduleTab() {
   return (
     <ScheduleView
       relations={shown}
+      legend={legend}
       filters={
-        // One joined pair without marks: what is highlighted is shown.
-        <div className="segmented" role="group" aria-label={t("schedule.kinds")}>
+        // One joined pair without marks: what is outlined is shown — both, in one outline.
+        <div className="segmented outlined" role="group" aria-label={t("schedule.kinds")}>
           {["own", "managed"].map((key) => (
             <button key={key} type="button" aria-pressed={shown.has(key)} onClick={() => toggle(key)}>
               {t(`vehicles.tab_${key}`)}
@@ -93,7 +109,16 @@ export function ScheduleTab() {
 /** The schedule of vehicles (decisions Б3, В-4): a row per vehicle with its bookings, rentals,
  * service and moves over a day, a week or a month; a click opens the record. Only the vehicles
  * of the chosen relations are shown, grouped by location as in the list of the garage. */
-export function ScheduleView({ relations, filters }: { relations: Set<string>; filters?: ReactNode }) {
+export function ScheduleView({
+  relations,
+  filters,
+  legend = true,
+}: {
+  relations: Set<string>;
+  filters?: ReactNode;
+  /** Whether the colours are explained under the bar; a page may show them elsewhere. */
+  legend?: boolean;
+}) {
   const { t, i18n } = useTranslation();
   const company = useCompany();
   const locations = useLocations();
@@ -276,17 +301,9 @@ export function ScheduleView({ relations, filters }: { relations: Set<string>; f
           </div>
           </div>
         </div>
-        <p className="muted small">
-          {when(from.toISOString())} — {when(to.toISOString())}
-        </p>
-        <div className="small" style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 8 }}>
-          {(Object.keys(COLORS) as Item["kind"][]).map((k) => (
-            <span key={k}>
-              <span style={{ display: "inline-block", width: 10, height: 10, background: COLORS[k], marginRight: 4 }} />
-              {t(`schedule.kind_${k}`)}
-            </span>
-          ))}
-        </div>
+        {/* The dates are read from the strip itself; the colours are explained beside the
+            buttons of the section when the page has them (customer's remarks of 20.11.2026). */}
+        {legend ? <ScheduleLegend /> : null}
       </Card>
       {schedule.isLoading ? <Loading /> : null}
       <ErrorMessage error={schedule.error as never} />

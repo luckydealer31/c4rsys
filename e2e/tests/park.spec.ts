@@ -279,6 +279,10 @@ test("the park is filtered by the occupancy and begins a booking; the card shows
   // turn a day, a week or a month; the chosen span pressed again brings today back.
   await page.goto(`${s.base}/rentals?tab=schedule`);
   const go = page.getByRole("button", { name: t("schedule.go_to"), exact: true });
+  // The colours are explained beside the buttons of the section; the bar is one line and does
+  // not repeat the dates the strip shows.
+  await expect(page.locator(".side-actions").getByRole("note", { name: t("schedule.legend") })).toContainText(t("schedule.kind_booking"));
+  await expect(page.locator(".schedule-bar ~ *")).toHaveCount(0);
   const span = (key: string) => page.getByRole("button", { name: t(`schedule.span_${key}`), exact: true });
   const turn = (key: string) => page.getByRole("button", { name: t(`schedule.${key}`), exact: true });
   await expect(span("week")).toHaveAttribute("aria-pressed", "true");

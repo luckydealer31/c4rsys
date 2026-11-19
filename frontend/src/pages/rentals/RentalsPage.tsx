@@ -20,7 +20,7 @@ import { rangesText, unitText, useTariffs } from "../tariffs/TariffsPage";
 import { Park } from "./Park";
 import { serviceTerms } from "./Services";
 import { mayTrips, TripsView } from "../trips/TripsPage";
-import { ScheduleTab } from "../vehicles/SchedulePage";
+import { ScheduleLegend, ScheduleTab } from "../vehicles/SchedulePage";
 import { useRentals, useVehicles } from "../vehicles/VehiclesPage";
 
 // The lists of the section — rentals with bookings, and the ordered services — are filtered the
@@ -188,7 +188,7 @@ export function RentalsPage() {
             tabs={TABS.map((key) => ({ key, text: t(`rentals.tab_${key}`) }))}
             onSelect={(key) => setParams({ tab: key })}
           />
-          {tab === "schedule" ? <ScheduleTab /> : null}
+          {tab === "schedule" ? <ScheduleTab legend={false} /> : null}
           {tab === "trips" ? <TripsView /> : null}
           {tab === "rentals" ? <RentalsList lines={lines.data?.lines ?? []} /> : null}
           {tab === "services" ? <OrderedServices lines={lines.data?.lines ?? []} loading={lines.isLoading} /> : null}
@@ -202,6 +202,8 @@ export function RentalsPage() {
                 <Icon name="plus" size={16} /> {label}
               </Link>
             ))}
+            {/* The colours of the schedule are explained here, under the buttons. */}
+            {tab === "schedule" ? <ScheduleLegend /> : null}
           </aside>
         ) : null}
       </div>

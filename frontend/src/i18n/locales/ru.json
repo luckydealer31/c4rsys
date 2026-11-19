@@ -5146,7 +5146,8 @@
     "forward": "Вперёд",
     "all_locations": "Все локации",
     "locations_count": "Локаций: {{count}}",
-    "kinds": "Какие ТС показывать"
+    "kinds": "Какие ТС показывать",
+    "legend": "Обозначения"
   },
   "inspections": {
     "title": "Осмотры",

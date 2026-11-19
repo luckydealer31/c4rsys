@@ -5146,7 +5146,8 @@
     "forward": "Forward",
     "all_locations": "All locations",
     "locations_count": "Locations: {{count}}",
-    "kinds": "Vehicles shown"
+    "kinds": "Vehicles shown",
+    "legend": "Colours"
   },
   "inspections": {
     "title": "Inspections",

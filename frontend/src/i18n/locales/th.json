@@ -5146,7 +5146,8 @@
     "forward": "ถัดไป",
     "all_locations": "ทุกสาขา",
     "locations_count": "สาขา: {{count}}",
-    "kinds": "แสดงรถประเภทใด"
+    "kinds": "แสดงรถประเภทใด",
+    "legend": "ความหมายของสี"
   },
   "inspections": {
     "title": "การตรวจสภาพ",
