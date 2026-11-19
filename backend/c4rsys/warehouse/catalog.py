@@ -41,6 +41,8 @@ TEXT_FIELDS = {
     "model_characteristic": 200,
     # The country of manufacture, ISO 3166-1 alpha-2 (customer's decision of 20.11.2026).
     "country": 2,
+    # A country the list does not have, typed by hand (customer's decision of 20.11.2026).
+    "country_other": 100,
     "photo_url": 500,
     "comment": 2000,
     "external_id": 100,
@@ -91,7 +93,7 @@ def items_of(company_id: UUID) -> QuerySet[Item]:
     return (
         Item.objects.filter(company_id=company_id)
         .select_related("manufacturer", "part_category", "part_subcategory")
-        .prefetch_related("packagings", "barcodes", "applicability__make")
+        .prefetch_related("packagings", "barcodes", "applicability__make", "applicability__model")
         .order_by("name", "created_at")
     )
 
@@ -194,6 +196,8 @@ def _apply(item: Item, data: ItemData) -> None:
     item.country = item.country.upper()
     if item.country and not (len(item.country) == 2 and item.country.isalpha()):
         raise errors.validation_error("country", code="COUNTRY_INVALID")
+    # One of the two: a country of the list leaves no room for a typed one.
+    item.country_other = "" if item.country else item.country_other.strip()
     item.photo_id = data.photo_id
     item.part_category_id, item.part_subcategory_id = part_catalog.validate(
         data.part_category_id, data.part_subcategory_id

@@ -51,11 +51,32 @@ test("storage places are tags of their group", async ({ page }) => {
   // The form of the item: no note of the category, and applicability asks for the type of the
   // vehicle before the make.
   await expect(page.getByText(t("warehouse.category"), { exact: true })).toHaveCount(0);
-  await page.getByRole("button", { name: t("warehouse.add_applicability") }).click();
+  const adding = page
+    .locator("section.card")
+    .filter({ hasText: t("warehouse.section_parts") })
+    .getByRole("button", { name: t("warehouse.add_applicability"), exact: true });
+  await adding.click();
   const make = page.getByRole("combobox", { name: t("vehicles.make"), exact: true });
   await expect(make).toBeDisabled();
   await page.getByRole("combobox", { name: t("warehouse.vehicle_type") }).selectOption("passenger_car");
   await expect(make).toBeEnabled();
+  // OK adds the row as text, the cross drops the one being added.
+  await make.selectOption("TOYOTA");
+  await page.getByRole("button", { name: t("calendar.ok"), exact: true }).click();
+  await expect(page.locator(".applies-row")).toHaveText(/Toyota/);
+  await adding.click();
+  await page.getByRole("button", { name: t("common.cancel"), exact: true }).click();
+  await expect(make).toHaveCount(0);
+  await expect(page.locator(".applies-row")).toHaveCount(1);
+  // A country the list does not have is typed by hand.
+  await page.locator('select:has(option[value="TH"])').selectOption("__other");
+  await page.getByLabel(t("warehouse.country_other"), { exact: true }).fill("Абхазия");
+  const patched = page.waitForResponse((r) => r.request().method() === "PATCH" && r.url().includes("/warehouse/items/"));
+  await page.getByRole("button", { name: t("common.save"), exact: true }).click();
+  expect((await patched).status()).toBe(200);
+  await page.reload();
+  await expect(page.getByLabel(t("warehouse.country_other"), { exact: true })).toHaveValue("Абхазия");
+  await expect(page.locator(".applies-row")).toHaveText(/Toyota/);
   await page.getByRole("button", { name: t("stock.edit_tags"), exact: true }).first().click();
   const add = page.getByRole("combobox", { name: t("tags.place_add") });
   await add.fill("Стеллаж 2");

@@ -98,6 +98,7 @@ def test_unit_is_immutable_and_other_data_change(owner: Client, cmp: str) -> Non
     assert len(body["applicability"]) == 2
     # the type of the vehicle goes with every row: the form asks for it first
     assert {a["type"] for a in body["applicability"]} == {"passenger_car"}
+    assert {a["make_name"] for a in body["applicability"]} == {"Toyota"}
     event = AuditEvent.objects.get(action="warehouse.item_changed")
     assert "unit" not in (event.after or {})
 

@@ -138,6 +138,9 @@ class Item(models.Model):
     # Where the item is made (customer's decision of 20.11.2026): one brand has factories in
     # several countries. ISO 3166-1 alpha-2.
     country = models.CharField(max_length=2, blank=True, default="")
+    # A country that the list does not have, typed by hand (customer's decision of
+    # 20.11.2026); empty when the country is taken from the list.
+    country_other = models.CharField(max_length=100, blank=True, default="")
     photo = models.ForeignKey(
         StoredFile, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )

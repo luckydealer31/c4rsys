@@ -2862,11 +2862,11 @@
     "action_error": "Skip (error)",
     "action_link": "Link to existing",
     "action_skip": "Skip",
-    "add_applicability": "Add make",
+    "add_applicability": "เพิ่ม",
     "add_barcode": "Add barcode",
     "add_packaging": "Add packaging",
     "all_models": "All models",
-    "applicability": "ยี่ห้อและรุ่น",
+    "applicability": "ความเข้ากันได้",
     "archive": "Archive",
     "article": "Article",
     "attr_condition": "Condition",
@@ -2979,7 +2979,9 @@
     "tab_reserves": "การจอง",
     "country": "ประเทศผู้ผลิต",
     "photo_url_hint": "ที่อยู่รูปภาพบนอินเทอร์เน็ต เมื่อไม่ได้อัปโหลดรูป",
-    "vehicle_type": "ประเภทยานพาหนะ"
+    "vehicle_type": "ประเภทยานพาหนะ",
+    "country_other_option": "อื่น ๆ — พิมพ์เอง",
+    "country_other": "ชื่อประเทศ"
   },
   "warnings": {
     "client_has_debt": "The client has a debt: {{amounts}}.",

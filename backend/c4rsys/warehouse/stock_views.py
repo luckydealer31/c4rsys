@@ -672,6 +672,7 @@ def stock_list(request: HttpRequest, cmp: str) -> JsonResponse:
                     if item.manufacturer
                     else item.manufacturer_other,
                     "country": item.country,
+                    "country_other": item.country_other,
                     "part_category": str(item.part_category_id) if item.part_category_id else None,
                     "part_subcategory": str(item.part_subcategory_id)
                     if item.part_subcategory_id

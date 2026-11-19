@@ -41,6 +41,12 @@ def test_the_country_of_manufacture_is_a_code(owner: Client, cmp: str) -> None: 
     assert made.status_code == 201, made.content
     assert made.json()["item"]["country"] == "VN"
 
+    # A country the list does not have is typed by hand; a country of the list drops it.
+    typed = _item(owner, cmp, name="Hoses", country_other=" Abkhazia ")
+    assert typed.json()["item"]["country"] == ""
+    assert typed.json()["item"]["country_other"] == "Abkhazia"
+    both = _item(owner, cmp, name="Belts", country="TH", country_other="Abkhazia")
+    assert both.json()["item"]["country_other"] == ""
     wrong = _item(owner, cmp, name="Discs", country="1!")
     assert wrong.status_code == 400
     assert wrong.json()["error"]["code"] == "COUNTRY_INVALID"

@@ -907,3 +907,24 @@ tr.limited > td:not(:last-child) { opacity: 0.5; }
 .switch-line { display: flex; align-items: center; gap: 2px; }
 /* In a line of fields the switch stands level with the middle of their boxes. */
 .row.compact > .beside-field.switch-line { margin-top: 30px; }
+
+/* Compatibility of an item: chosen rows as text with a cross, the row being added below. */
+.applies-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+.applies-row button.link,
+.applies-draft button.link {
+  font-size: 18px;
+  line-height: 1;
+  text-decoration: none;
+}
+.applies-draft {
+  align-items: center;
+  margin-bottom: 8px;
+}
+.applies-draft > button {
+  flex: 0 0 auto;
+}

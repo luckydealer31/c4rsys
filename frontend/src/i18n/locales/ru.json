@@ -2862,11 +2862,11 @@
     "action_error": "Пропустить (ошибка)",
     "action_link": "Связать с существующей",
     "action_skip": "Пропустить",
-    "add_applicability": "Добавить марку",
+    "add_applicability": "Добавить",
     "add_barcode": "Добавить штрихкод",
     "add_packaging": "Добавить фасовку",
     "all_models": "Все модели",
-    "applicability": "Марки и модели",
+    "applicability": "Совместимость",
     "archive": "В архив",
     "article": "Артикул",
     "attr_condition": "Состояние",
@@ -2979,7 +2979,9 @@
     "tab_reserves": "Резервы",
     "country": "Страна производства",
     "photo_url_hint": "Адрес картинки в интернете, если фото не загружено файлом.",
-    "vehicle_type": "Тип ТС"
+    "vehicle_type": "Тип ТС",
+    "country_other_option": "Другая — ввести вручную",
+    "country_other": "Название страны"
   },
   "warnings": {
     "client_has_debt": "У клиента есть долг: {{amounts}}.",

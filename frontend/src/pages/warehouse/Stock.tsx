@@ -127,7 +127,11 @@ export function StockList() {
               </td>
               <td>{row.item.article || "—"}</td>
               <td>{row.item.manufacturer_name || "—"}</td>
-              <td>{row.item.country ? (regions.of(row.item.country) ?? row.item.country) : "—"}</td>
+              <td>
+                {row.item.country
+                  ? (regions.of(row.item.country) ?? row.item.country)
+                  : row.item.country_other || "—"}
+              </td>
               <td className="small">{categoryLabel(row.item.part_category, row.item.part_subcategory) || "—"}</td>
               <td className="nowrap">
                 {quantity(row.quantity, row.item.unit)}

@@ -1479,6 +1479,7 @@ export type WarehouseItem = {
   model_characteristic: string;
   /** The country of manufacture, ISO 3166-1 alpha-2. */
   country: string;
+  country_other: string;
   photo: string | null;
   photo_url: string;
   comment: string;
@@ -1486,7 +1487,7 @@ export type WarehouseItem = {
   possible_duplicate: boolean;
   import_operation: string | null;
   state: "active" | "archived";
-  applicability: { type: string; make: string; model: string | null }[];
+  applicability: { type: string; make: string; model: string | null; make_name: string; model_name: string }[];
   packagings: { id: string; name: string; quantity: string; state: string }[];
   barcodes: { id: string; code: string; packaging_id: string | null }[];
   extra_attributes: Record<string, string[]>;
@@ -1689,6 +1690,7 @@ export type StockRow = {
   item: ItemBrief & {
     manufacturer_name: string;
     country: string;
+    country_other: string;
     part_category: string | null;
     part_subcategory: string | null;
     originality: string;

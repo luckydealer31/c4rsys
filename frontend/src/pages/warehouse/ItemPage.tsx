@@ -17,7 +17,8 @@ import { TagsLine } from "../tags/Tags";
 
 const OTHER = "__other";
 
-type Applies = { type: string; make: string; model: string };
+type Applies = { type: string; make: string; model: string; make_name: string; model_name: string };
+const EMPTY: Applies = { type: "", make: "", model: "", make_name: "", model_name: "" };
 
 type PairKey = "side" | "longitudinal" | "vertical" | "placement";
 type ChoiceKey = "originality" | "condition";
@@ -33,7 +34,16 @@ const CHOICES: [ChoiceKey, string, string][] = [
   ["originality", "original", "analog"],
   ["condition", "new", "used"],
 ];
-const TEXTS = ["article", "category", "model_characteristic", "country", "photo_url", "comment", "external_id"] as const;
+const TEXTS = [
+  "article",
+  "category",
+  "model_characteristic",
+  "country",
+  "country_other",
+  "photo_url",
+  "comment",
+  "external_id",
+] as const;
 
 type Form = {
   name: string;
@@ -64,12 +74,14 @@ function formOf(item?: WarehouseItem): Form {
     article: item?.article ?? "",
     category: item?.category ?? "",
     model_characteristic: item?.model_characteristic ?? "",
-    country: item?.country ?? "",
+    // A country typed by hand opens the form on «other».
+    country: item?.country_other ? OTHER : (item?.country ?? ""),
+    country_other: item?.country_other ?? "",
     photo_url: item?.photo_url ?? "",
     comment: item?.comment ?? "",
     external_id: item?.external_id ?? "",
     photo: item?.photo ?? null,
-    applicability: (item?.applicability ?? []).map((a) => ({ type: a.type, make: a.make, model: a.model ?? "" })),
+    applicability: (item?.applicability ?? []).map((a) => ({ ...a, model: a.model ?? "" })),
     extra_attributes: item?.extra_attributes ?? {},
   };
 }
@@ -167,6 +179,7 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
   const vehicles = useApi<VehicleOptions>(["vehicle-options"], "/catalog/vehicle-options");
   const [form, setForm] = useState<Form>(formOf(item));
   const [saved, setSaved] = useState(false);
+  const [draft, setDraft] = useState<Applies | null>(null);
   const save = useCommand<Record<string, unknown>, { item: WarehouseItem }>(
     item ? `/c/${company.public_id}/warehouse/items/${item.id}` : `/c/${company.public_id}/warehouse/items`,
     item ? "PATCH" : "POST",
@@ -192,6 +205,8 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
     for (const [key] of CHOICES) body[key] = form[key];
     body.extra_attributes = form.extra_attributes;
     for (const key of TEXTS) body[key] = form[key];
+    body.country = form.country === OTHER ? "" : form.country;
+    body.country_other = form.country === OTHER ? form.country_other : "";
     if (item) body.expected_version = item.version;
     else body.unit = form.unit;
     const result = await save.run(body);
@@ -278,8 +293,10 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
                     {c.name}
                   </option>
                 ))}
+                <option value={OTHER}>{t("warehouse.country_other_option")}</option>
               </select>
             </Field>
+            {form.country === OTHER ? text("country_other") : null}
             {text("article")}
             {text("model_characteristic")}
           </div>
@@ -350,27 +367,42 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
           </div>
           <div className="field" style={{ marginTop: 12 }}>
             <span>{t("warehouse.applicability")}</span>
+            {/* Compatibility (customer's decision of 20.11.2026): a chosen row is text with a cross;
+                «Add» opens a row of type, make and model that OK adds and the cross drops. */}
             {form.applicability.map((row, index) => (
-              <ApplicabilityRow
-                key={index}
-                row={row}
-                types={vehicles.data?.vehicle_types ?? []}
-                disabled={!editable}
-                locale={i18n.language}
-                onChange={(next) => {
-                  const rows = [...form.applicability];
-                  rows[index] = next;
-                  set({ applicability: rows });
-                }}
-                onRemove={() => set({ applicability: form.applicability.filter((_, i) => i !== index) })}
-              />
+              <div key={index} className="applies-row">
+                <span>
+                  {[t(`vehicles.type_${row.type}`), row.make_name, row.model_name || t("warehouse.all_models")].join(
+                    " · ",
+                  )}
+                </span>
+                {editable ? (
+                  <button
+                    type="button"
+                    className="link"
+                    aria-label={t("rights.remove")}
+                    onClick={() => set({ applicability: form.applicability.filter((_, i) => i !== index) })}
+                  >
+                    ×
+                  </button>
+                ) : null}
+              </div>
             ))}
-            {editable ? (
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => set({ applicability: [...form.applicability, { type: "", make: "", model: "" }] })}
-              >
+            {draft ? (
+              <ApplicabilityRow
+                row={draft}
+                types={vehicles.data?.vehicle_types ?? []}
+                locale={i18n.language}
+                onChange={setDraft}
+                onOk={() => {
+                  const same = form.applicability.some((a) => a.make === draft.make && a.model === draft.model);
+                  if (!same) set({ applicability: [...form.applicability, draft] });
+                  setDraft(null);
+                }}
+                onCancel={() => setDraft(null)}
+              />
+            ) : editable ? (
+              <button type="button" className="secondary" onClick={() => setDraft(EMPTY)}>
                 {t("warehouse.add_applicability")}
               </button>
             ) : null}
@@ -411,17 +443,17 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
 function ApplicabilityRow({
   row,
   types,
-  disabled,
   locale,
   onChange,
-  onRemove,
+  onOk,
+  onCancel,
 }: {
   row: Applies;
   types: string[];
-  disabled: boolean;
   locale: string;
   onChange: (row: Applies) => void;
-  onRemove: () => void;
+  onOk: () => void;
+  onCancel: () => void;
 }) {
   const { t } = useTranslation();
   // The type of the vehicle comes first (customer's decision of 19.11.2026): the makes shown
@@ -438,13 +470,14 @@ function ApplicabilityRow({
   );
   const label = (m: CatalogMake) =>
     locale === "ru" && m.name_cyrillic && m.name_cyrillic !== m.name ? `${m.name} (${m.name_cyrillic})` : m.name;
+  const nameOf = (list: { code: string; name: string }[] | undefined, code: string) =>
+    list?.find((x) => x.code === code)?.name ?? "";
   return (
-    <div className="row" style={{ marginBottom: 8 }}>
+    <div className="row applies-draft">
       <select
         value={row.type}
         aria-label={t("warehouse.vehicle_type")}
-        disabled={disabled}
-        onChange={(e) => onChange({ type: e.target.value, make: "", model: "" })}
+        onChange={(e) => onChange({ ...EMPTY, type: e.target.value })}
       >
         <option value="">{t("warehouse.vehicle_type")}</option>
         {types.map((code) => (
@@ -456,8 +489,15 @@ function ApplicabilityRow({
       <select
         value={row.make}
         aria-label={t("vehicles.make")}
-        disabled={disabled || !row.type}
-        onChange={(e) => onChange({ ...row, make: e.target.value, model: "" })}
+        disabled={!row.type}
+        onChange={(e) =>
+          onChange({
+            ...EMPTY,
+            type: row.type,
+            make: e.target.value,
+            make_name: nameOf(makes.data?.makes, e.target.value),
+          })
+        }
       >
         <option value="">{t("vehicles.make")}</option>
         {(makes.data?.makes ?? []).map((m) => (
@@ -469,8 +509,10 @@ function ApplicabilityRow({
       <select
         value={row.model}
         aria-label={t("vehicles.model")}
-        disabled={disabled || !row.make}
-        onChange={(e) => onChange({ ...row, model: e.target.value })}
+        disabled={!row.make}
+        onChange={(e) =>
+          onChange({ ...row, model: e.target.value, model_name: nameOf(models.data?.models, e.target.value) })
+        }
       >
         <option value="">{t("warehouse.all_models")}</option>
         {(models.data?.models ?? []).map((m) => (
@@ -479,11 +521,12 @@ function ApplicabilityRow({
           </option>
         ))}
       </select>
-      {!disabled ? (
-        <button type="button" className="secondary" onClick={onRemove}>
-          {t("rights.remove")}
-        </button>
-      ) : null}
+      <button type="button" disabled={!row.make} onClick={onOk}>
+        {t("calendar.ok")}
+      </button>
+      <button type="button" className="link" aria-label={t("common.cancel")} onClick={onCancel}>
+        ×
+      </button>
     </div>
   );
 }

@@ -2862,11 +2862,11 @@
     "action_error": "Skip (error)",
     "action_link": "Link to existing",
     "action_skip": "Skip",
-    "add_applicability": "Add make",
+    "add_applicability": "Add",
     "add_barcode": "Add barcode",
     "add_packaging": "Add packaging",
     "all_models": "All models",
-    "applicability": "Makes and models",
+    "applicability": "Compatibility",
     "archive": "Archive",
     "article": "Article",
     "attr_condition": "Condition",
@@ -2979,7 +2979,9 @@
     "tab_reserves": "Reserves",
     "country": "Country of manufacture",
     "photo_url_hint": "An address of a picture on the internet, when the photo is not uploaded.",
-    "vehicle_type": "Vehicle type"
+    "vehicle_type": "Vehicle type",
+    "country_other_option": "Other — type it in",
+    "country_other": "Name of the country"
   },
   "warnings": {
     "client_has_debt": "The client has a debt: {{amounts}}.",
