@@ -392,4 +392,30 @@ test("the park is filtered by the occupancy and begins a booking; the card shows
   await expect(go).toHaveAttribute("data-from", plus(2));
   await span("week").click();
   await expect(go).toHaveAttribute("data-from", today);
+
+  // The trips (customer's decision of 20.11.2026): one list — all, mine or the free ones are a
+  // choice over it; the finished ones are switched on apart; the buttons of the trips stand at
+  // the right, with those of the other tabs.
+  await ok(page, "POST", `/c/${s.cmp}/deliveries`, {
+    vehicle_card_id: closed.id,
+    to: { kind: "location", location_id: other },
+    planned_start: bangkokIso(1, "10:00"),
+    planned_end: bangkokIso(1, "12:00"),
+  });
+  await page.goto(`${s.base}/rentals?tab=trips`);
+  const trips = page.locator("table tbody tr");
+  const which = (key: string) => page.getByRole("button", { name: t(`trips.kind_${key}`), exact: true });
+  await expect(which("all")).toHaveAttribute("aria-pressed", "true");
+  await expect(trips).toHaveCount(1);
+  await expect(page.locator("section.card")).toHaveCount(1);
+  await expect(page.locator(".side-actions").getByRole("link", { name: t("trips.new") })).toBeVisible();
+  await expect(page.locator(".side-actions").getByRole("link", { name: t("trips.catalog") })).toBeVisible();
+  // Nobody drives it yet: it is free and not mine.
+  await which("mine").click();
+  await expect(trips).toHaveCount(0);
+  await which("free").click();
+  await expect(trips).toHaveCount(1);
+  await expect(page.getByRole("switch", { name: t("trips.finished") })).toHaveCount(0);
+  await which("all").click();
+  await expect(page.getByRole("switch", { name: t("trips.finished") })).toBeVisible();
 });

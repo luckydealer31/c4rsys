@@ -8,7 +8,7 @@ import { useApi } from "../../api/queries";
 import type { Delivery, DeliveryPoint, Location } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { PeriodControl, useStoredDates } from "../../components/PeriodControl";
-import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
+import { Card, ErrorMessage, Field, Loading, Switch } from "../../components/ui";
 import { OrderLeft, OrderOffer, useOrderOffer } from "../orders/CancelWith";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { workHome } from "../../layout/CompanyTabs";
@@ -71,15 +71,30 @@ export function mayTrips(can: (permission: string) => boolean): boolean {
   return TRIP_RIGHTS.some(can);
 }
 
-export function TripsView() {
+type TripKind = "all" | "mine" | "free";
+
+/** The trips in one list (customer's decision of 20.11.2026): all of them, mine or the free ones
+ * — those without a driver — are a choice over the same list, not blocks of their own; the
+ * finished ones are switched on apart; the days of the planned start are chosen in the calendar.
+ * `actions` — the buttons of the trips above the list; a page that has them elsewhere says no. */
+export function TripsView({ actions = true }: { actions?: boolean }) {
   const { t } = useTranslation();
   const company = useCompany();
   const can = useCan();
-  const [all, setAll] = useState(false);
-  const mine = useTrips("mine=1&active=1", can("delivery.drive") || can("delivery.take"));
-  const free = useTrips("free=1", can("delivery.take"));
-  const list = useTrips(all ? "" : "active=1", can("delivery.view"));
-  // The days of the planned start (customer's decision of 20.11.2026): all by default.
+  // What the employee may look at: every trip, the own ones, the ones waiting for a driver.
+  const kinds: TripKind[] = [
+    ...(can("delivery.view") ? (["all"] as TripKind[]) : []),
+    ...(can("delivery.drive") || can("delivery.take") ? (["mine"] as TripKind[]) : []),
+    ...(can("delivery.take") ? (["free"] as TripKind[]) : []),
+  ];
+  const [chosen, setChosen] = useState<TripKind | null>(null);
+  const kind = chosen && kinds.includes(chosen) ? chosen : (kinds[0] ?? "all");
+  const [finished, setFinished] = useState(false);
+  // A free trip is a planned one: there are no finished ones among them.
+  const query = [kind === "mine" ? "mine=1" : kind === "free" ? "free=1" : "", finished || kind === "free" ? "" : "active=1"]
+    .filter(Boolean)
+    .join("&");
+  const list = useTrips(query, kinds.length > 0);
   const zone = company.timezone ?? "UTC";
   const [from, to, setDates] = useStoredDates(`c4r.dates.${company.public_id}.trips`);
   const today = toLocalInput(new Date(), zone).slice(0, 10);
@@ -92,40 +107,38 @@ export function TripsView() {
   });
   return (
     <div>
-      <div className="actions" style={{ marginBottom: 16, marginTop: 0 }}>
-        {can("delivery.create") ? (
-          <Link className="button" to={companyPath(company, "/trips/new")}>
-            {t("trips.new")}
-          </Link>
-        ) : null}
-        {can("delivery.catalog") || can("delivery.view") ? (
-          <Link className="button secondary" to={companyPath(company, "/trips/services")}>
-            {t("trips.catalog")}
-          </Link>
-        ) : null}
-      </div>
-      {can("delivery.drive") || can("delivery.take") ? (
-        <Card title={t("trips.mine")}>
-          <TripTable items={mine.data?.deliveries ?? []} loading={mine.isLoading} />
-        </Card>
+      {actions ? (
+        <div className="actions" style={{ marginBottom: 16, marginTop: 0 }}>
+          {can("delivery.create") ? (
+            <Link className="button" to={companyPath(company, "/trips/new")}>
+              {t("trips.new")}
+            </Link>
+          ) : null}
+          {can("delivery.catalog") || can("delivery.view") ? (
+            <Link className="button secondary" to={companyPath(company, "/trips/services")}>
+              {t("trips.catalog")}
+            </Link>
+          ) : null}
+        </div>
       ) : null}
-      {can("delivery.take") ? (
-        <Card title={t("trips.free")}>
-          <TripTable items={free.data?.deliveries ?? []} loading={free.isLoading} />
-        </Card>
-      ) : null}
-      {can("delivery.view") ? (
-        <Card title={t("trips.all")}>
+      {kinds.length ? (
+        <Card>
           <div className="list-bar">
-            <label className="small">
-              <input type="checkbox" checked={all} onChange={() => setAll(!all)} /> {t("trips.show_finished")}
-            </label>
-            <PeriodControl
-              from={from}
-              to={to}
-              today={today}
-              onDates={setDates}
-            />
+            {kinds.length > 1 ? (
+              <div className="segmented" role="group" aria-label={t("trips.kinds")}>
+                {kinds.map((key) => (
+                  <button key={key} type="button" aria-pressed={kind === key} onClick={() => setChosen(key)}>
+                    {t(`trips.kind_${key}`)}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            {kind === "free" ? null : (
+              <Switch name={t("trips.finished")} checked={finished} onChange={setFinished}>
+                {t("trips.finished")}
+              </Switch>
+            )}
+            <PeriodControl from={from} to={to} today={today} onDates={setDates} />
           </div>
           <TripTable items={shown} loading={list.isLoading} />
         </Card>

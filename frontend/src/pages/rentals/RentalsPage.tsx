@@ -163,7 +163,11 @@ export function RentalsPage() {
     tab === "rentals" || tab === "schedule"
       ? [[can("rental.issue"), "/rentals/new", t("vehicles.action_rental")], booking]
       : tab === "trips"
-        ? []
+        ? [
+            // The buttons of the trips stand with those of the other tabs, at the right.
+            [can("delivery.create"), "/trips/new", t("trips.new")],
+            [can("delivery.catalog") || can("delivery.view"), "/trips/services", t("trips.catalog")],
+          ]
       : tab === "park"
         ? [[can("vehicle.create"), "/vehicles/new?relation=own", t("vehicles.create_button")]]
       : tab === "services"
@@ -189,7 +193,7 @@ export function RentalsPage() {
             onSelect={(key) => setParams({ tab: key })}
           />
           {tab === "schedule" ? <ScheduleTab legend={false} /> : null}
-          {tab === "trips" ? <TripsView /> : null}
+          {tab === "trips" ? <TripsView actions={false} /> : null}
           {tab === "rentals" ? <RentalsList lines={lines.data?.lines ?? []} /> : null}
           {tab === "services" ? <OrderedServices lines={lines.data?.lines ?? []} loading={lines.isLoading} /> : null}
           {tab === "park" ? <Park /> : null}

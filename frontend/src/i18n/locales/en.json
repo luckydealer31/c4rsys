@@ -3988,10 +3988,6 @@
   "trips": {
     "new": "New trip",
     "new_delivery": "New delivery",
-    "mine": "My trips",
-    "free": "Free to take",
-    "all": "All trips",
-    "show_finished": "Show finished",
     "none": "No trips.",
     "no_driver": "No driver",
     "state_planned": "Planned",
@@ -4063,7 +4059,12 @@
     "later_operations": "Operations began on the vehicle after this trip; annul or correct them first:",
     "charged": "Charged to the client: {{amount}} {{currency}}",
     "correct_button": "Correct",
-    "annul_button": "Annul the trip"
+    "annul_button": "Annul the trip",
+    "kinds": "Which trips",
+    "kind_all": "All",
+    "kind_mine": "Mine",
+    "kind_free": "Free",
+    "finished": "Finished"
   },
   "documents": {
     "show": "Show",
