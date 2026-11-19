@@ -304,18 +304,31 @@ test("the park is filtered by the occupancy and begins a booking; the card shows
   // The span and the date stand side by side, in one line.
   const [spans, nav] = [(await span("day").boundingBox())!, (await go.boundingBox())!];
   expect(Math.abs(spans.y + spans.height / 2 - (nav.y + nav.height / 2))).toBeLessThan(8);
-  // The locations are switched on and off one by one; the last one that is on stays on.
-  const place = (name: string) => page.locator(".schedule-places").getByRole("button", { name: new RegExp(name) });
+  // The locations are a list at the left of the same line — all, one or several; the last one
+  // that is on stays on. The span and the date stand at the right.
+  const places = page.getByRole("button", { name: t("schedule.location"), exact: true });
+  const choice = page.getByRole("dialog", { name: t("schedule.location") });
+  const left = (await places.boundingBox())!;
+  expect(left.x).toBeLessThan(spans.x - 100);
+  expect(Math.abs(left.y + left.height / 2 - (spans.y + spans.height / 2))).toBeLessThan(8);
+  await expect(places).toContainText(t("schedule.all_locations"));
+  // One shape in the line: the span is as high as the date and the list of locations.
+  const frame = (await page.getByRole("group", { name: t("schedule.span") }).boundingBox())!;
+  expect(Math.abs(frame.height - nav.height)).toBeLessThan(3);
+  expect(Math.abs(frame.height - left.height)).toBeLessThan(3);
   const pajero = page.getByRole("link", { name: /Mitsubishi Pajero/ });
   await expect(pajero).toBeVisible();
-  await place("Чалонг").click();
-  await expect(place("Чалонг")).toHaveAttribute("aria-pressed", "false");
+  await places.click();
+  await choice.getByLabel("Чалонг").uncheck();
   await expect(pajero).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Honda Civic" })).toBeVisible();
-  await place("Пхукет").click();
-  await expect(place("Пхукет")).toHaveAttribute("aria-pressed", "true");
-  await place("Чалонг").click();
+  await expect(places).toContainText("Пхукет");
+  await choice.getByLabel("Пхукет").click();
+  await expect(choice.getByLabel("Пхукет")).toBeChecked();
+  await choice.getByLabel(t("schedule.all_locations")).check();
   await expect(pajero).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(choice).toHaveCount(0);
 
   // The calendar of the schedule: one date is the day; two dates are a period of its own, of
   // any length — more than a month is scrolled sideways, and the arrows turn it by its length.

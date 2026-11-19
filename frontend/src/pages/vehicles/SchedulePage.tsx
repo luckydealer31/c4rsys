@@ -5,7 +5,7 @@ import { Link, Navigate } from "react-router";
 import { useApi } from "../../api/queries";
 import { Calendar } from "../../components/Calendar";
 import { Icon } from "../../components/icons";
-import { Card, ErrorMessage, Info, Loading } from "../../components/ui";
+import { Card, ErrorMessage, Loading } from "../../components/ui";
 import { useDismiss } from "../../components/useDismiss";
 import { companyPath, useCompany } from "../../layout/CompanyShell";
 import { workHome } from "../../layout/CompanyTabs";
@@ -106,6 +106,10 @@ export function ScheduleView({ relations }: { relations: Set<string> }) {
   useDismiss(picking, closePicker, picker);
   // The locations switched off; none at first.
   const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const [choosing, setChoosing] = useState(false);
+  const places = useRef<HTMLDivElement>(null);
+  const closePlaces = useCallback(() => setChoosing(false), []);
+  useDismiss(choosing, closePlaces, places);
   const from = own ? own.from : span === "day" ? day : span === "week" ? addDays(day, -3) : new Date(day.getFullYear(), day.getMonth(), 1);
   const to = own
     ? own.to
@@ -175,11 +179,35 @@ export function ScheduleView({ relations }: { relations: Set<string> }) {
   return (
     <>
       <Card>
+        {/* One line (customer's remarks of 20.11.2026): the locations in a list at the left —
+            all, one or several, there may be dozens of them; the span and the date with its
+            arrows at the right. */}
         <div className="schedule-bar">
-          <div className="field">
-            <span>
-              {t("schedule.span")} <Info text={t("schedule.span_hint")} />
-            </span>
+          {known.length > 1 ? (
+            <div className="schedule-places" ref={places}>
+              <button type="button" className="secondary places-button" aria-expanded={choosing} aria-label={t("schedule.location")} onClick={() => setChoosing(!choosing)}>
+                {hidden.size === 0
+                  ? t("schedule.all_locations")
+                  : known.length - hidden.size === 1
+                    ? (known.find((l) => !hidden.has(l.id))?.name ?? "")
+                    : t("schedule.locations_count", { count: known.length - hidden.size })}
+                <span aria-hidden="true">▾</span>
+              </button>
+              {choosing ? (
+                <div className="popup places-pop" role="dialog" aria-label={t("schedule.location")}>
+                  <label className="check">
+                    <input type="checkbox" checked={hidden.size === 0} onChange={() => setHidden(new Set())} /> {t("schedule.all_locations")}
+                  </label>
+                  {known.map((l) => (
+                    <label key={l.id} className="check">
+                      <input type="checkbox" checked={!hidden.has(l.id)} onChange={() => togglePlace(l.id)} /> {l.name}
+                    </label>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          <div className="schedule-right">
             <div className="segmented" role="group" aria-label={t("schedule.span")}>
               {(Object.keys(SPANS) as Span[]).map((s) => (
                 <button
@@ -197,7 +225,6 @@ export function ScheduleView({ relations }: { relations: Set<string> }) {
                 </button>
               ))}
             </div>
-          </div>
           <div className="actions schedule-nav">
             <button type="button" className="secondary" aria-label={t("schedule.back")} onClick={() => shift(-1)}>
               ←
@@ -241,18 +268,8 @@ export function ScheduleView({ relations }: { relations: Set<string> }) {
               →
             </button>
           </div>
-        </div>
-        {/* The locations are switched on and off one by one (customer's decision of 20.11.2026):
-            all at first; the last one that is on stays on. */}
-        {known.length > 1 ? (
-          <div className="list-bar schedule-places" role="group" aria-label={t("schedule.location")}>
-            {known.map((l) => (
-              <button key={l.id} type="button" className="toggle-chip" aria-pressed={!hidden.has(l.id)} onClick={() => togglePlace(l.id)}>
-                {l.name}
-              </button>
-            ))}
           </div>
-        ) : null}
+        </div>
         <p className="muted small">
           {when(from.toISOString())} — {when(to.toISOString())}
         </p>
