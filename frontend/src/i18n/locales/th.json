@@ -5145,7 +5145,8 @@
     "back": "ก่อนหน้า",
     "forward": "ถัดไป",
     "all_locations": "ทุกสาขา",
-    "locations_count": "สาขา: {{count}}"
+    "locations_count": "สาขา: {{count}}",
+    "kinds": "แสดงรถประเภทใด"
   },
   "inspections": {
     "title": "การตรวจสภาพ",

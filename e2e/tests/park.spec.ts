@@ -200,6 +200,13 @@ test("the park is filtered by the occupancy and begins a booking; the card shows
   const okay = (scope: import("@playwright/test").Locator) => scope.getByRole("button", { name: t("calendar.ok"), exact: true });
   await expect(calendar).toHaveAttribute("data-from", "");
   await expect(arrow("forward")).toHaveCount(0);
+  // The search keeps its place whatever is chosen (customer's remark of 20.11.2026): the control
+  // of the days stands right before it and grows to the left.
+  const search = page.getByRole("search").last().locator("input");
+  const searchAt = async () => Math.round((await search.boundingBox())!.x);
+  const still = await searchAt();
+  const gap = async () => Math.round((await search.boundingBox())!.x - ((await calendar.boundingBox())!.x + (await calendar.boundingBox())!.width));
+  expect(await gap()).toBeLessThan(60);
   // The calendar opens with today chosen: «OK» at once is today, and the arrows turn it day
   // by day.
   await calendar.click();
@@ -239,6 +246,7 @@ test("the park is filtered by the occupancy and begins a booking; the card shows
   await expect(window.locator(".calendar-day.marked")).toHaveCount(2);
   await okay(window).click();
   await expect(booking).toHaveCount(1);
+  expect(await searchAt()).toBe(still);
   await arrow("forward").click();
   await expect(calendar).toHaveAttribute("data-from", date(3));
   await expect(calendar).toHaveAttribute("data-to", date(4));
@@ -312,6 +320,24 @@ test("the park is filtered by the occupancy and begins a booking; the card shows
   expect(left.x).toBeLessThan(spans.x - 100);
   expect(Math.abs(left.y + left.height / 2 - (spans.y + spans.height / 2))).toBeLessThan(8);
   await expect(places).toContainText(t("schedule.all_locations"));
+  // The kinds of vehicles are switched in the same bar; the strip takes the whole width of the
+  // page, to the right edge of the buttons of the section.
+  const kind = page.locator(".schedule-bar").getByRole("button", { name: t("vehicles.tab_own"), exact: true });
+  await expect(kind).toHaveAttribute("aria-pressed", "true");
+  // A joined pair without marks: pressed, a kind is hidden; the last one that is on stays on.
+  const managed = page.locator(".schedule-bar").getByRole("button", { name: t("vehicles.tab_managed"), exact: true });
+  await managed.click();
+  await expect(managed).toHaveAttribute("aria-pressed", "false");
+  await kind.click();
+  await expect(kind).toHaveAttribute("aria-pressed", "true");
+  await managed.click();
+  await expect(managed).toHaveAttribute("aria-pressed", "true");
+  const pair = (await page.getByRole("group", { name: t("schedule.kinds") }).boundingBox())!;
+  expect(Math.abs(pair.height - left.height)).toBeLessThan(3);
+  const wide = (await page.locator(".schedule-strip").boundingBox())!;
+  const side = (await page.locator(".side-actions").boundingBox())!;
+  expect(Math.abs(wide.x + wide.width - (side.x + side.width))).toBeLessThan(4);
+  expect(wide.y).toBeGreaterThan(side.y + side.height);
   // One shape in the line: the span is as high as the date and the list of locations.
   const frame = (await page.getByRole("group", { name: t("schedule.span") }).boundingBox())!;
   expect(Math.abs(frame.height - nav.height)).toBeLessThan(3);

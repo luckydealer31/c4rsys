@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, Navigate } from "react-router";
 
@@ -71,24 +71,29 @@ export function ScheduleTab() {
     else next.add(key);
     setShown(next);
   };
+  // The switches stand in the bar of the schedule, with its other controls (customer's remark
+  // of 20.11.2026).
   return (
-    <>
-      <div className="list-bar">
-        {["own", "managed"].map((key) => (
-          <button key={key} type="button" className="toggle-chip" aria-pressed={shown.has(key)} onClick={() => toggle(key)}>
-            {t(`vehicles.tab_${key}`)}
-          </button>
-        ))}
-      </div>
-      <ScheduleView relations={shown} />
-    </>
+    <ScheduleView
+      relations={shown}
+      filters={
+        // One joined pair without marks: what is highlighted is shown.
+        <div className="segmented" role="group" aria-label={t("schedule.kinds")}>
+          {["own", "managed"].map((key) => (
+            <button key={key} type="button" aria-pressed={shown.has(key)} onClick={() => toggle(key)}>
+              {t(`vehicles.tab_${key}`)}
+            </button>
+          ))}
+        </div>
+      }
+    />
   );
 }
 
 /** The schedule of vehicles (decisions Б3, В-4): a row per vehicle with its bookings, rentals,
  * service and moves over a day, a week or a month; a click opens the record. Only the vehicles
  * of the chosen relations are shown, grouped by location as in the list of the garage. */
-export function ScheduleView({ relations }: { relations: Set<string> }) {
+export function ScheduleView({ relations, filters }: { relations: Set<string>; filters?: ReactNode }) {
   const { t, i18n } = useTranslation();
   const company = useCompany();
   const locations = useLocations();
@@ -207,6 +212,7 @@ export function ScheduleView({ relations }: { relations: Set<string> }) {
               ) : null}
             </div>
           ) : null}
+          {filters ? <div className="schedule-filters">{filters}</div> : null}
           <div className="schedule-right">
             <div className="segmented" role="group" aria-label={t("schedule.span")}>
               {(Object.keys(SPANS) as Span[]).map((s) => (
@@ -285,7 +291,7 @@ export function ScheduleView({ relations }: { relations: Set<string> }) {
       {schedule.isLoading ? <Loading /> : null}
       <ErrorMessage error={schedule.error as never} />
       {schedule.data ? (
-        <div className="card" style={{ overflowX: "auto" }}>
+        <div className="card schedule-strip" style={{ overflowX: "auto" }}>
           {/* A month fills the width; a longer period is as much wider and is scrolled. */}
           <div style={{ minWidth: 760, paddingRight: 24, width: days > 31 ? `calc(200px + (100% - 224px) * ${days / 31})` : undefined }}>
             <div style={{ display: "flex", marginLeft: 200, position: "relative" }}>

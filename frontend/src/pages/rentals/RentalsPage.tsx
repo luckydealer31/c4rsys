@@ -100,16 +100,15 @@ function ListBar({ f, both, main }: { f: ListFilters; both: string; main: string
           ))}
         </select>
       ) : null}
-      <SectionSearch compact value={f.q} onSearch={f.setQ} />
-      {/* The days of the start in one control at the right end (customer's decision of
-          20.11.2026): the calendar alone while everything is shown; a date or a period chosen
-          in it stands beside it with the arrows. */}
-      <PeriodControl
-        from={f.from}
-        to={f.to}
-        today={today}
-        onDates={f.setDates}
-      />
+      {/* The days of the start in one control (customer's decisions of 20.11.2026): the calendar
+          alone while everything is shown; a date or a period chosen in it stands beside it with
+          the arrows. The search keeps the right end and its place: the control stands right
+          before it and grows to the left, so nothing jumps and no gap is left between them;
+          on a narrower screen the two go to the next line together. */}
+      <div className="bar-end">
+        <PeriodControl from={f.from} to={f.to} today={today} onDates={f.setDates} />
+        <SectionSearch compact value={f.q} onSearch={f.setQ} />
+      </div>
     </div>
   );
 }
@@ -180,7 +179,8 @@ export function RentalsPage() {
   return (
     <div className="page full">
       <h1 className="sr-only">{t("nav.rentals")}</h1>
-      <div className={allowed.length ? "split" : ""}>
+      {/* Under the schedule the strip takes the whole width of the page, below the buttons. */}
+      <div className={allowed.length ? `split${tab === "schedule" ? " wide-below" : ""}` : ""}>
         <div>
           <SectionTabs
             section="rentals"

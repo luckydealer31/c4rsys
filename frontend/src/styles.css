@@ -474,6 +474,11 @@ label.check { display: inline-flex; gap: 6px; align-items: center; margin-right:
 .toggle-chip.plain::before { content: none; }
 /* The period of a list in one control at the right end of the filter line: its name, its
    dates, the calendar that opens a small window. */
+/* The days and the search at the right end of a filter line, kept together: the search keeps
+   the end, the control before it grows to the left. */
+.bar-end { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.bar-end .period-control, .bar-end .section-search.compact { margin-left: 0; }
+@media (max-width: 900px) { .bar-end { flex-wrap: wrap; width: 100%; margin-left: 0; } }
 .period-control { position: relative; margin-left: auto; display: inline-flex; align-items: stretch;
   border: 1px solid var(--accent); border-radius: 8px; background: var(--surface); font-size: 0.9rem; }
 .period-control.empty { border-color: var(--border); }
@@ -493,13 +498,24 @@ label.check { display: inline-flex; gap: 6px; align-items: center; margin-right:
 .schedule-nav { flex-wrap: nowrap; }
 /* The schedule bar in one line: the list of locations at the left, the span and the date with
    its arrows at the right. */
-.schedule-bar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
+.schedule-bar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: stretch; justify-content: space-between; }
+.schedule-places .places-button { height: 100%; }
 .schedule-right { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: stretch; margin-left: auto; }
 /* One shape in the line (customer's remark of 20.11.2026): the span has the corners and the
    height of the arrows, the date and the list of locations. */
 .schedule-bar .segmented { border-radius: 6px; margin-right: 0; border-color: var(--accent); }
 .schedule-bar .segmented button { border-radius: 4px; }
 .schedule-bar .schedule-nav { align-items: stretch; }
+/* The kinds of vehicles in the same bar and of the same shape. */
+.schedule-filters { display: flex; gap: 8px; align-items: stretch; margin-right: auto; }
+.schedule-bar { gap: 8px 12px; }
+.schedule-bar .places-button { padding: 8px 12px; }
+/* The strip of the schedule takes the whole width of the page, under the buttons of the section:
+   they stay at the top then. */
+@media (min-width: 901px) {
+  .split.wide-below .schedule-strip { margin-right: -220px; }
+  .split.wide-below .side-actions { position: static; }
+}
 .schedule-bar .schedule-nav { margin-top: 0; }
 .schedule-places { position: relative; }
 .places-button { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }

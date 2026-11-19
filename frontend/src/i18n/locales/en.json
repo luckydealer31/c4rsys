@@ -5145,7 +5145,8 @@
     "back": "Back",
     "forward": "Forward",
     "all_locations": "All locations",
-    "locations_count": "Locations: {{count}}"
+    "locations_count": "Locations: {{count}}",
+    "kinds": "Vehicles shown"
   },
   "inspections": {
     "title": "Inspections",
