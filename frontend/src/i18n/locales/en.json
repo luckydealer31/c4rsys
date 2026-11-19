@@ -3127,7 +3127,10 @@
     "retail": "Retail",
     "category": "Category",
     "units": "Units or lots",
-    "more": "Details"
+    "more_columns": "More columns",
+    "less_columns": "Fewer columns",
+    "warehouses_count": "Warehouses: {{count}}",
+    "empty_here": "Nothing lies on this warehouse."
   },
   "articles": {
     "title": "Supplier articles",

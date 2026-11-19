@@ -37,8 +37,9 @@ test("storage places are tags of their group", async ({ page }) => {
   await page.goto(`${s.base}/warehouse`);
   const rows = page.locator("table tbody tr");
   await expect(rows).toHaveCount(1);
-  // The place tags are among the details of a row (customer's decision of 20.11.2026).
-  await page.getByRole("switch", { name: t("stock.more") }).click();
+  // The place tags are among the columns the arrow of the heading opens (customer's decision
+  // of 20.11.2026).
+  await page.getByRole("button", { name: t("stock.more_columns"), exact: true }).click();
   await expect(rows).toContainText("Стеллаж 1");
   await page.getByLabel(t("warehouse.search")).fill("стеллаж 1");
   await expect(rows).toHaveCount(1);
@@ -77,36 +78,51 @@ test("storage places are tags of their group", async ({ page }) => {
   await page.getByRole("tab", { name: t("warehouse.tab_reserves"), exact: true }).click();
   await expect(side).toHaveCount(0);
 
-  // The stock is filtered by a warehouse (customer's decision of 20.11.2026): with two of them
-  // a list appears; on the warehouse where nothing lies the list is empty. The tab of the
-  // warehouses is «Settings» now and holds the settings only.
+  // The warehouses of the stock (customer's decisions of 20.11.2026): with two of them a list
+  // with marks appears — all, one or several. With all it is one list with the column of the
+  // warehouses; with some chosen the stock goes warehouse by warehouse, each under its name.
   const second = ((await ok(page, "POST", `/c/${s.cmp}/locations`, { name: "Чалонг" })).location as { id: string }).id;
   await ok(page, "POST", `/c/${s.cmp}/locations/${second}/contexts`, { type: "warehouse" });
   await page.goto(`${s.base}/warehouse?tab=stock`);
-  const where = page.getByRole("combobox", { name: t("stock.warehouse"), exact: true });
-  await expect(where).toBeVisible();
+  const where = page.getByRole("button", { name: t("stock.warehouse"), exact: true });
+  const choice = page.getByRole("dialog", { name: t("stock.warehouse") });
+  const head = (key: string) => page.locator("th").filter({ hasText: new RegExp(`^${t(key)}$`) });
   const lines = page.locator("table tbody tr");
+  await expect(where).toContainText(t("stock.all_warehouses"));
   await expect(lines).toHaveCount(1);
-  await where.selectOption({ label: "Чалонг" });
-  await expect(lines).toHaveCount(0);
-  await expect(page.getByText(t("stock.empty"))).toBeVisible();
-  await where.selectOption({ label: "Пхукет" });
-  await expect(lines).toHaveCount(1);
-  await expect(page.locator("th").filter({ hasText: new RegExp(`^${t("stock.warehouses")}$`) })).toHaveCount(0);
-  // The main columns stand first: the manufacturer, the country, the rest with its unit, the
-  // purchase cost; the only unit is named by its identifier. «Details» shows the rest of the
-  // attributes. The search stands at the right end of the line.
-  await where.selectOption({ index: 0 });
-  await expect(page.locator("th").filter({ hasText: new RegExp(`^${t("stock.warehouses")}$`) })).toBeVisible();
+  await expect(head("stock.warehouses")).toBeVisible();
+  // The main columns stand first; the only unit is named by its identifier.
   await expect(lines.first()).toContainText("AST-");
+  await expect(lines.first()).toContainText("Пхукет");
+  await expect(head("warehouse.country")).toBeVisible();
+  await expect(head("stock.category")).toBeVisible();
+  // The arrow at the end of the heading opens the rest of the columns and closes them.
+  await expect(head("stock.cost")).toHaveCount(0);
+  await page.getByRole("button", { name: t("stock.more_columns"), exact: true }).click();
+  await expect(head("stock.cost")).toBeVisible();
   await expect(lines.first()).toContainText("100 THB");
-  await expect(page.locator("th").filter({ hasText: new RegExp(`^${t("stock.category")}$`) })).toHaveCount(0);
+  await expect(head("warehouse.comment")).toBeVisible();
+  await page.getByRole("button", { name: t("stock.less_columns"), exact: true }).click();
+  await expect(head("stock.cost")).toHaveCount(0);
+  // The search stands at the right end of the line.
   const search = page.getByRole("textbox", { name: t("warehouse.search") });
   expect((await search.boundingBox())!.x).toBeGreaterThan((await where.boundingBox())!.x + 300);
-  await page.getByRole("switch", { name: t("stock.more") }).check();
-  await expect(page.locator("th").filter({ hasText: new RegExp(`^${t("stock.category")}$`) })).toBeVisible();
-  await expect(page.locator("th").filter({ hasText: new RegExp(`^${t("warehouse.comment")}$`) })).toBeVisible();
-  await page.getByRole("switch", { name: t("stock.more") }).uncheck();
+  // Both warehouses chosen one by one are «all» again; one — its own block without the column.
+  await where.click();
+  await choice.getByLabel("Чалонг").check();
+  await expect(where).toContainText("Чалонг");
+  const block = (name: string) => page.getByRole("region", { name });
+  await expect(block("Чалонг")).toContainText(t("stock.empty_here"));
+  await expect(block("Пхукет")).toHaveCount(0);
+  await expect(head("stock.warehouses")).toHaveCount(0);
+  await choice.getByLabel("Пхукет").click();
+  await expect(where).toContainText(t("stock.all_warehouses"));
+  await expect(choice.getByLabel(t("stock.all_warehouses"))).toBeChecked();
+  await expect(head("stock.warehouses")).toBeVisible();
+  await choice.getByLabel("Пхукет").click();
+  await expect(block("Пхукет").locator("tbody tr")).toHaveCount(1);
+  await expect(where).toContainText("Пхукет");
+  await page.keyboard.press("Escape");
   await page.getByRole("tab", { name: t("warehouse.tab_storages"), exact: true }).click();
   await expect(page.getByRole("heading", { name: t("operations.settings_title") })).toBeVisible();
   await expect(page.locator("section.card")).toHaveCount(1);

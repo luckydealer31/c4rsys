@@ -476,6 +476,18 @@ td.nowrap { white-space: nowrap; }
 /* The stock with every attribute shown is wider than the page and is scrolled sideways. */
 .stock-table.wide { min-width: 1500px; }
 .stock-table td:first-child .small { white-space: nowrap; }
+/* The arrow at the end of the heading opens the rest of the columns. */
+.stock-table .more-col { width: 44px; text-align: right; padding-left: 0; }
+.stock-table .more-col .icon-button { font-size: 1.3rem; line-height: 1; color: var(--accent); border-color: var(--accent);
+  min-width: 30px; min-height: 30px; justify-content: center; border-radius: 6px; }
+/* The stock of a chosen warehouse under its name. */
+.stock-block + .stock-block { margin-top: 20px; }
+.stock-block h3 { margin: 4px 0 6px; font-size: 1rem; }
+/* A list with marks: all, one or several. */
+.multi-pick { position: relative; }
+.multi-pick-button { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.multi-pick-pop { left: 0; top: calc(100% + 6px); width: 260px; max-height: 320px; overflow-y: auto; padding: 10px; gap: 6px; }
+.multi-pick-pop label.check { margin-right: 0; min-height: 28px; }
 .list-bar select, .list-bar input[type="date"], .list-bar input[type="datetime-local"] { width: auto; }
 .toggle-chip.plain::before { content: none; }
 /* The period of a list in one control at the right end of the filter line: its name, its

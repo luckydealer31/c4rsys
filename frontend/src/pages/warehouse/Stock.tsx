@@ -6,7 +6,8 @@ import { Link } from "react-router";
 import { useApi } from "../../api/queries";
 import type { Counterparty, ItemStock, StockRow, Storage, SupplierArticle, WarehouseItem } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { Card, ErrorMessage, Field, Loading, Switch } from "../../components/ui";
+import { MultiPick } from "../../components/MultiPick";
+import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { PlaceTags } from "../tags/Tags";
 import { useVehicles } from "../vehicles/VehiclesPage";
@@ -30,19 +31,21 @@ export function parseTags(text: string): string[] {
   return [...new Set(text.split(",").map((tag) => tag.trim()).filter(Boolean))];
 }
 
-/** Stock of the company: one row per item with the quantity by warehouse and the joint place
- * tags; the row opens the item with its assets and lots (§ 11.1.1, § 11.1.10). One warehouse
- * may be chosen (customer's decision of 20.11.2026): then the list is of what lies on it, with
- * its quantity and its tags. The vehicles put on a warehouse as stock stand below. */
+/** Stock of the company (§ 11.1.1, § 11.1.10; customer's decisions of 20.11.2026). With every
+ * warehouse it is one list: a row per item with its whole quantity and the warehouses it lies
+ * on. With one or several warehouses chosen the stock goes warehouse by warehouse, each with
+ * what lies on it. The main columns stand first; the arrow at the end of the heading opens the
+ * rest and the table is then scrolled sideways. The row opens the item with its units and lots.
+ * The vehicles put on a warehouse as stock stand below. */
 export function StockList() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const company = useCompany();
   const can = useCan();
   const quantity = useQuantity();
   const [query, setQuery] = useState("");
-  const [place, setPlace] = useState("");
+  // The warehouses chosen; none — all of them.
+  const [chosen, setChosen] = useState<Set<string>>(new Set());
   const [more, setMore] = useState(false);
-  const { i18n } = useTranslation();
   const categoryLabel = useCategoryLabel();
   const regions = new Intl.DisplayNames([i18n.language], { type: "region" });
   // «100 THB», or «100–150 THB» when the units differ; empty when nothing is known.
@@ -65,33 +68,118 @@ export function StockList() {
   const vehicles = useVehicles();
   if (!can("warehouse.view")) return <p className="muted">{t("warehouse.no_access")}</p>;
   const places = storages.data?.storages ?? [];
-  // On the chosen warehouse: the items that lie there, with its own quantity and tags.
-  const stock = (rows.data?.stock ?? []).flatMap((row) => {
-    if (!place) return [row];
-    const here = row.places.find((p) => p.context_id === place);
-    return here && Number(here.quantity) > 0 ? [{ ...row, quantity: here.quantity, tags: here.tags, places: [here] }] : [];
-  });
-  const stored = (vehicles.data?.vehicles ?? []).filter((v) => v.storage && (!place || v.storage.context_id === place));
+  const all = rows.data?.stock ?? [];
+  /** What lies on one warehouse: its own quantity and place tags. */
+  const on = (place: string) =>
+    all.flatMap((row) => {
+      const here = row.places.find((p) => p.context_id === place);
+      return here && Number(here.quantity) > 0 ? [{ ...row, quantity: here.quantity, tags: here.tags, places: [here] }] : [];
+    });
+  const stored = (vehicles.data?.vehicles ?? []).filter((v) => v.storage && (chosen.size === 0 || chosen.has(v.storage.context_id)));
   const placeName = (id: string) => places.find((p) => p.context_id === id)?.location_name ?? "";
+
+  const table = (stock: StockRow[], withPlaces: boolean) => (
+    <div className="table-scroll">
+      <table className={`stock-table${more ? " wide" : ""}`}>
+        <thead>
+          <tr>
+            <th>{t("warehouse.name")}</th>
+            <th>{t("warehouse.article")}</th>
+            <th>{t("warehouse.manufacturer")}</th>
+            <th>{t("warehouse.country")}</th>
+            <th>{t("stock.category")}</th>
+            <th>{t("stock.rest")}</th>
+            {withPlaces ? <th>{t("stock.warehouses")}</th> : null}
+            {more ? (
+              <>
+                <th>{t("stock.cost")}</th>
+                <th>{t("stock.retail")}</th>
+                <th>{t("warehouse.attr_originality")}</th>
+                <th>{t("warehouse.attr_condition")}</th>
+                <th>{t("warehouse.model_characteristic")}</th>
+                <th>{t("stock.tags")}</th>
+                <th>{t("stock.units")}</th>
+                <th>{t("warehouse.comment")}</th>
+              </>
+            ) : null}
+            {/* The rest of the columns are opened here, at the end of the heading. */}
+            <th className="more-col">
+              <button
+                type="button"
+                className="icon-button"
+                aria-expanded={more}
+                aria-label={t(more ? "stock.less_columns" : "stock.more_columns")}
+                title={t(more ? "stock.less_columns" : "stock.more_columns")}
+                onClick={() => setMore(!more)}
+              >
+                {more ? "‹" : "›"}
+              </button>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {stock.map((row) => (
+            <tr key={row.item.id}>
+              <td>
+                <Link to={companyPath(company, `/warehouse/items/${row.item.id}`)}>{row.item.name}</Link>
+                {/* The only unit or lot is named by its own identifier. */}
+                {row.unit_id ? <div className="muted small">{row.unit_id}</div> : null}
+              </td>
+              <td>{row.item.article || "—"}</td>
+              <td>{row.item.manufacturer_name || "—"}</td>
+              <td>{row.item.country ? (regions.of(row.item.country) ?? row.item.country) : "—"}</td>
+              <td className="small">{categoryLabel(row.item.part_category, row.item.part_subcategory) || "—"}</td>
+              <td className="nowrap">
+                {quantity(row.quantity, row.item.unit)}
+                {row.below_minimum ? (
+                  <span className="badge warn" style={{ marginLeft: 6 }}>
+                    {t("prices.below_minimum")}
+                  </span>
+                ) : null}
+              </td>
+              {withPlaces ? <td className="small">{row.places.map((p) => p.location_name).join(", ")}</td> : null}
+              {more ? (
+                <>
+                  <td className="nowrap">
+                    {range(row.cost_min, row.cost_max, row.currency) || (row.cost_unknown ? t("receipts.cost_not_given") : "—")}
+                  </td>
+                  <td className="nowrap">
+                    {row.price
+                      ? `${Number(row.price)} ${row.price_currency}`
+                      : range(row.unit_price_min, row.unit_price_max, row.currency) || "—"}
+                  </td>
+                  <td>{row.item.originality ? t(`warehouse.value_${row.item.originality}`) : "—"}</td>
+                  <td>{row.item.condition ? t(`warehouse.value_${row.item.condition}`) : "—"}</td>
+                  <td className="small">{row.item.model_characteristic || "—"}</td>
+                  <td className="small muted">{row.tags.join(", ") || "—"}</td>
+                  <td>{row.units}</td>
+                  <td className="small">{row.item.comment || "—"}</td>
+                </>
+              ) : null}
+              <td className="more-col" />
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  // The chosen warehouses in the order of their list, each with what lies on it.
+  const blocks = places.filter((p) => chosen.has(p.context_id)).map((p) => ({ place: p, stock: on(p.context_id) }));
   return (
     <>
       <Card>
         <div className="list-bar">
           {places.length > 1 ? (
-            <select value={place} aria-label={t("stock.warehouse")} onChange={(e) => setPlace(e.target.value)}>
-              <option value="">{t("stock.all_warehouses")}</option>
-              {places.map((p) => (
-                <option key={p.context_id} value={p.context_id}>
-                  {p.location_name}
-                </option>
-              ))}
-            </select>
+            <MultiPick
+              options={places.map((p) => ({ id: p.context_id, name: p.location_name }))}
+              chosen={chosen}
+              onChange={setChosen}
+              label={t("stock.warehouse")}
+              all={t("stock.all_warehouses")}
+              count={(n) => t("stock.warehouses_count", { count: n })}
+            />
           ) : null}
-          {/* The main columns stand first; the rest of the attributes are shown on demand and
-              the table is scrolled sideways (customer's decision of 20.11.2026). */}
-          <Switch name={t("stock.more")} checked={more} onChange={setMore}>
-            {t("stock.more")}
-          </Switch>
           <input
             className="list-search at-end"
             value={query}
@@ -101,74 +189,20 @@ export function StockList() {
           />
         </div>
         {rows.isLoading ? <Loading /> : null}
-        {rows.data && stock.length === 0 ? <p className="muted">{t("stock.empty")}</p> : null}
-        {stock.length ? (
-          <div className="table-scroll">
-            <table className={`stock-table${more ? " wide" : ""}`}>
-              <thead>
-                <tr>
-                  <th>{t("warehouse.name")}</th>
-                  <th>{t("warehouse.article")}</th>
-                  <th>{t("warehouse.manufacturer")}</th>
-                  <th>{t("warehouse.country")}</th>
-                  <th>{t("stock.rest")}</th>
-                  {place ? null : <th>{t("stock.warehouses")}</th>}
-                  <th>{t("stock.cost")}</th>
-                  <th>{t("stock.retail")}</th>
-                  {more ? (
-                    <>
-                      <th>{t("stock.category")}</th>
-                      <th>{t("warehouse.attr_originality")}</th>
-                      <th>{t("warehouse.attr_condition")}</th>
-                      <th>{t("warehouse.model_characteristic")}</th>
-                      <th>{t("stock.tags")}</th>
-                      <th>{t("stock.units")}</th>
-                      <th>{t("warehouse.comment")}</th>
-                    </>
-                  ) : null}
-                </tr>
-              </thead>
-              <tbody>
-                {stock.map((row) => (
-                  <tr key={row.item.id}>
-                    <td>
-                      <Link to={companyPath(company, `/warehouse/items/${row.item.id}`)}>{row.item.name}</Link>
-                      {/* The only unit or lot is named by its own identifier. */}
-                      {row.unit_id ? <div className="muted small">{row.unit_id}</div> : null}
-                    </td>
-                    <td>{row.item.article || "—"}</td>
-                    <td>{row.item.manufacturer_name || "—"}</td>
-                    <td>{row.item.country ? (regions.of(row.item.country) ?? row.item.country) : "—"}</td>
-                    <td className="nowrap">
-                      {quantity(row.quantity, row.item.unit)}
-                      {row.below_minimum ? (
-                        <span className="badge warn" style={{ marginLeft: 6 }}>
-                          {t("prices.below_minimum")}
-                        </span>
-                      ) : null}
-                    </td>
-                    {place ? null : <td className="small">{row.places.map((p) => p.location_name).join(", ")}</td>}
-                    <td className="nowrap">{range(row.cost_min, row.cost_max, row.currency) || (row.cost_unknown ? t("receipts.cost_not_given") : "—")}</td>
-                    <td className="nowrap">
-                      {row.price ? `${Number(row.price)} ${row.price_currency}` : range(row.unit_price_min, row.unit_price_max, row.currency) || "—"}
-                    </td>
-                    {more ? (
-                      <>
-                        <td className="small">{categoryLabel(row.item.part_category, row.item.part_subcategory) || "—"}</td>
-                        <td>{row.item.originality ? t(`warehouse.value_${row.item.originality}`) : "—"}</td>
-                        <td>{row.item.condition ? t(`warehouse.value_${row.item.condition}`) : "—"}</td>
-                        <td className="small">{row.item.model_characteristic || "—"}</td>
-                        <td className="small muted">{row.tags.join(", ") || "—"}</td>
-                        <td>{row.units}</td>
-                        <td className="small">{row.item.comment || "—"}</td>
-                      </>
-                    ) : null}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : null}
+        {chosen.size === 0 ? (
+          <>
+            {rows.data && all.length === 0 ? <p className="muted">{t("stock.empty")}</p> : null}
+            {all.length ? table(all, true) : null}
+          </>
+        ) : (
+          blocks.map(({ place, stock }) => (
+            <section key={place.context_id} className="stock-block" aria-label={place.location_name}>
+              <h3>{place.location_name}</h3>
+              {rows.data && stock.length === 0 ? <p className="muted">{t("stock.empty_here")}</p> : null}
+              {stock.length ? table(stock, false) : null}
+            </section>
+          ))
+        )}
       </Card>
       {stored.length ? (
         <Card title={t("vehicles.stored_title")}>
