@@ -125,7 +125,6 @@ export function TripsView() {
               <input type="checkbox" checked={all} onChange={() => setAll(!all)} /> {t("trips.show_finished")}
             </label>
             <PeriodControl
-              days
               modes={TRIP_PERIODS}
               mode={mode}
               onPick={(turn) => {
@@ -136,13 +135,11 @@ export function TripsView() {
               }}
               from={from}
               to={to}
-              onFrom={(value) => {
-                setMode(value || to ? "own" : "all");
-                setFrom(value);
-              }}
-              onTo={(value) => {
-                setMode(value || from ? "own" : "all");
-                setTo(value);
+              today={today}
+              onDates={(a, b) => {
+                setMode(a ? "own" : "all");
+                setFrom(a);
+                setTo(b);
               }}
             />
           </div>

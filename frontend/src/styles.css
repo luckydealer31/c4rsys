@@ -481,13 +481,37 @@ label.check { display: inline-flex; gap: 6px; align-items: center; margin-right:
 .period-dates { display: inline-flex; align-items: center; padding: 0 12px; color: var(--muted);
   border-left: 1px solid var(--border); white-space: nowrap; }
 .period-calendar { border-left: 1px solid var(--border) !important; display: inline-flex; align-items: center; }
-.period-pop { right: 0; top: calc(100% + 6px); width: 300px; padding: 12px; gap: 6px; }
+.period-pop { right: 0; top: calc(100% + 6px); width: 330px; padding: 12px; gap: 6px; }
 .period-ready { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 4px; }
 .period-ready .toggle-chip[aria-pressed="true"] { color: var(--accent); font-weight: 600; }
 .period-label { font-size: 0.85rem; color: var(--muted); }
 .period-pop .moment-field { display: grid; grid-template-columns: minmax(0, 1fr) 110px; }
 .period-pop .moment-field input { width: 100%; }
-.schedule-date { width: auto; }
+.schedule-date { width: auto; white-space: nowrap; }
+.schedule-picker { position: relative; }
+.schedule-nav { flex-wrap: nowrap; }
+.schedule-pop { left: 0; top: calc(100% + 6px); width: 330px; padding: 12px; }
+/* The names stay in sight while a long period is scrolled. */
+.schedule-name { position: sticky; left: 0; z-index: 2; background: var(--surface); align-self: stretch; display: flex; align-items: center; }
+/* Our calendar: the month and the year on top, the days in a grid, «OK» at the bottom. */
+.calendar { display: flex; flex-direction: column; gap: 8px; }
+.calendar-head { display: flex; align-items: center; gap: 2px; }
+.calendar-head strong { flex: 1; text-align: center; }
+.calendar-head .icon-button { font-size: 1.2rem; min-width: 34px; justify-content: center; }
+.calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px 0; }
+.calendar-weekday { text-align: center; font-size: 0.8rem; color: var(--muted); padding: 2px 0; }
+button.calendar-day { background: transparent; color: var(--text); border: 0; border-radius: 0; padding: 0; height: 36px;
+  min-height: 0; justify-content: center; font-size: 0.9rem; }
+button.calendar-day.outside { color: var(--muted); opacity: 0.6; }
+button.calendar-day.today { font-weight: 700; text-decoration: underline; }
+button.calendar-day.marked { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+button.calendar-day.edge { background: var(--accent); color: #fff; border-radius: 6px; opacity: 1; }
+button.calendar-day:hover:not(.edge) { background: color-mix(in srgb, var(--accent) 26%, transparent); }
+.calendar-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+@media (pointer: coarse), (max-width: 760px) {
+  button.calendar-day { height: 44px; }
+  .schedule-pop { max-width: calc(100vw - 32px); }
+}
 @media (max-width: 760px) { .period-control { margin-left: 0; } .period-pop { right: auto; left: 0; max-width: calc(100vw - 32px); } }
 /* A moment as a date and a time side by side. */
 .moment-field { display: inline-flex; gap: 4px; }

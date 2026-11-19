@@ -5143,7 +5143,7 @@
     "no_vehicles": "No vehicles.",
     "hint": "Own and managed vehicles in the garage. Planned ones are pale; the red line is now. Bookings and rentals, service and moves are shown by the rights to them in the vehicle's location.",
     "go_to": "Go to a date",
-    "span_hint": "A day shows the chosen date whole; a week has it in the middle — three days before and three after; a month is its calendar month. The arrows turn a day, a week or a month. Pressing the chosen span again brings today back.",
+    "span_hint": "A day shows the chosen date whole; a week has it in the middle — three days before and three after; a month is its calendar month. In the calendar one date is the day, and two dates are a period of your own, of any length: more than a month is scrolled sideways. The arrows turn a day, a week, a month or the period. Pressing the chosen span again brings today back.",
     "back": "Back",
     "forward": "Forward"
   },
@@ -6583,10 +6583,6 @@
   "period": {
     "title": "Period",
     "choose": "Choose the period",
-    "from": "from",
-    "to": "to",
-    "from_label": "Beginning of the period",
-    "to_label": "End of the period",
     "mode_now": "Now",
     "mode_all": "All time",
     "mode_today": "Today",
@@ -6595,5 +6591,13 @@
     "mode_week": "7 days",
     "mode_month": "Month",
     "mode_own": "Own"
+  },
+  "calendar": {
+    "prev_year": "Previous year",
+    "next_year": "Next year",
+    "prev_month": "Previous month",
+    "next_month": "Next month",
+    "pick": "Press a date; a second one makes a period",
+    "ok": "OK"
   }
 }

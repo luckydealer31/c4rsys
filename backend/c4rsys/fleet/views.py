@@ -653,7 +653,9 @@ SCHEDULE_RIGHTS = {
     "service": "service.view",
     "delivery": "delivery.view",
 }
-SCHEDULE_MAX_DAYS = 62
+# Any period may be asked for (customer's decision of 20.11.2026: a long one is scrolled);
+# ten years are a technical ceiling only.
+SCHEDULE_MAX_DAYS = 3660
 
 
 @require_http_methods(["GET"])

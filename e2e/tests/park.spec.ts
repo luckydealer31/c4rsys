@@ -199,52 +199,106 @@ test("the park is filtered by the occupancy and begins a booking; the card shows
   await expect(booking).toHaveCount(1);
   await page.getByRole("button", { name: t("period.choose"), exact: true }).click();
   const window = page.getByRole("dialog", { name: t("period.choose") });
-  await window.getByLabel(t("period.from_label")).fill(bangkok(3, "").slice(0, 10));
+  // Our calendar: a date and «OK» — one day; a date, another one and «OK» — a period. The
+  // month is turned by the single arrow when the day is not in the shown one.
+  const date = (days: number) => bangkok(days, "").slice(0, 10);
+  const press = async (scope: import("@playwright/test").Locator, day: string) => {
+    const cell = scope.locator(`[data-date="${day}"]:not(.outside)`);
+    if ((await cell.count()) === 0) await scope.getByRole("button", { name: t("calendar.next_month"), exact: true }).click();
+    await cell.click();
+  };
+  const okay = (scope: import("@playwright/test").Locator) => scope.getByRole("button", { name: t("calendar.ok"), exact: true });
+  await expect(okay(window)).toBeEnabled();
+  // One date: the day after the booking begins — nothing starts on it.
+  await press(window, date(3));
+  await okay(window).click();
+  await expect(window).toHaveCount(0);
   await expect(mode("own")).toBeVisible();
   await expect(list).toHaveCount(0);
-  await window.getByLabel(t("period.from_label")).fill(bangkok(2, "").slice(0, 10));
-  await window.getByLabel(t("period.to_label")).fill(bangkok(2, "").slice(0, 10));
-  await expect(list).toHaveCount(1);
+  // A period: from tomorrow to the day the booking begins.
+  await page.getByRole("button", { name: t("period.choose"), exact: true }).click();
+  await press(window, date(1));
+  await press(window, date(2));
+  await expect(window.locator(".calendar-day.marked")).toHaveCount(2);
+  await okay(window).click();
+  await expect(booking).toHaveCount(1);
+  // Closing without «OK» changes nothing; a ready period is chosen in the window as well.
+  await page.getByRole("button", { name: t("period.choose"), exact: true }).click();
+  await press(window, date(5));
+  await page.keyboard.press("Escape");
+  await expect(window).toHaveCount(0);
+  await expect(booking).toHaveCount(1);
+  await page.getByRole("button", { name: t("period.choose"), exact: true }).click();
   await window.getByRole("button", { name: t("period.mode_all"), exact: true }).click();
   await expect(mode("all")).toBeVisible();
   await page.keyboard.press("Escape");
-  await expect(window).toHaveCount(0);
   await expect(list).toHaveCount(2);
 
   // The schedule (customer's decisions of 20.11.2026): one calendar for every span — a day
   // shows the date whole, a week has it in the middle, a month is its calendar month; the arrows
   // turn a day, a week or a month; the chosen span pressed again brings today back.
   await page.goto(`${s.base}/rentals?tab=schedule`);
-  const go = page.getByLabel(t("schedule.go_to"));
+  const go = page.getByRole("button", { name: t("schedule.go_to"), exact: true });
   const span = (key: string) => page.getByRole("button", { name: t(`schedule.span_${key}`), exact: true });
   const turn = (key: string) => page.getByRole("button", { name: t(`schedule.${key}`), exact: true });
   await expect(span("week")).toHaveAttribute("aria-pressed", "true");
-  const today = await go.inputValue();
-  const plus = (days: number) => {
-    const moved = new Date(`${today}T12:00:00Z`);
+  const today = (await go.getAttribute("data-from"))!;
+  const plus = (days: number, base = today) => {
+    const moved = new Date(`${base}T12:00:00Z`);
     moved.setUTCDate(moved.getUTCDate() + days);
     return moved.toISOString().slice(0, 10);
   };
   await turn("forward").click();
-  await expect(go).toHaveValue(plus(7));
+  await expect(go).toHaveAttribute("data-from", plus(7));
   await span("week").click();
-  await expect(go).toHaveValue(today);
+  await expect(go).toHaveAttribute("data-from", today);
   await span("day").click();
   await turn("forward").click();
-  await expect(go).toHaveValue(plus(1));
+  await expect(go).toHaveAttribute("data-from", plus(1));
   await turn("back").click();
   await turn("back").click();
-  await expect(go).toHaveValue(plus(-1));
-  await go.fill(plus(40));
-  await expect(go).toHaveValue(plus(40));
+  await expect(go).toHaveAttribute("data-from", plus(-1));
   await span("day").click();
-  await expect(go).toHaveValue(today);
+  await expect(go).toHaveAttribute("data-from", today);
   await span("month").click();
   await turn("forward").click();
   const next = new Date(`${today}T12:00:00Z`);
   next.setUTCDate(1);
   next.setUTCMonth(next.getUTCMonth() + 1);
-  await expect(go).toHaveValue(next.toISOString().slice(0, 10));
+  await expect(go).toHaveAttribute("data-from", next.toISOString().slice(0, 10));
   await span("month").click();
-  await expect(go).toHaveValue(today);
+  await expect(go).toHaveAttribute("data-from", today);
+
+  // The calendar of the schedule: one date is the day; two dates are a period of its own, of
+  // any length — more than a month is scrolled sideways, and the arrows turn it by its length.
+  const picker = page.getByRole("dialog", { name: t("schedule.go_to") });
+  await go.click();
+  await press(picker, plus(2));
+  await okay(picker).click();
+  await expect(picker).toHaveCount(0);
+  await expect(go).toHaveAttribute("data-from", plus(2));
+  await expect(span("month")).toHaveAttribute("aria-pressed", "true");
+  await go.click();
+  await press(picker, plus(2));
+  // The double arrow turns a year, the single one a month: 80 days ahead is found by the months.
+  const far = plus(80);
+  for (let i = 0; i < 4 && (await picker.locator(`[data-date="${far}"]:not(.outside)`).count()) === 0; i += 1) {
+    await picker.getByRole("button", { name: t("calendar.next_month"), exact: true }).click();
+  }
+  await picker.locator(`[data-date="${far}"]:not(.outside)`).click();
+  await okay(picker).click();
+  await expect(go).toHaveAttribute("data-from", plus(2));
+  await expect(go).toHaveAttribute("data-to", far);
+  for (const key of ["day", "week", "month"]) await expect(span(key)).toHaveAttribute("aria-pressed", "false");
+  // The strip is wider than its frame and is scrolled.
+  const strip = page.locator(".card", { has: page.getByRole("link", { name: "Honda Civic" }) }).last();
+  await expect.poll(() => strip.evaluate((e) => e.scrollWidth > e.clientWidth + 100)).toBe(true);
+  await turn("forward").click();
+  await expect(go).toHaveAttribute("data-from", plus(1, far));
+  // A span takes the period away and keeps the chosen day; pressed again, it brings today back.
+  await span("week").click();
+  await expect(span("week")).toHaveAttribute("aria-pressed", "true");
+  await expect(go).toHaveAttribute("data-from", plus(2));
+  await span("week").click();
+  await expect(go).toHaveAttribute("data-from", today);
 });

@@ -107,7 +107,6 @@ function ListBar({ f, both, main }: { f: ListFilters; both: string; main: string
       {/* The days of the start in one control at the right end (customer's decision of
           20.11.2026): all, today, tomorrow, 7 days, a month, or own dates in the calendar. */}
       <PeriodControl
-        days
         modes={PERIODS}
         mode={mode}
         onPick={(turn) => {
@@ -118,13 +117,11 @@ function ListBar({ f, both, main }: { f: ListFilters; both: string; main: string
         }}
         from={f.from}
         to={f.to}
-        onFrom={(value) => {
-          setMode(value || f.to ? "own" : "all");
-          f.setFrom(value);
-        }}
-        onTo={(value) => {
-          setMode(value || f.from ? "own" : "all");
-          f.setTo(value);
+        today={today}
+        onDates={(a, b) => {
+          setMode(a ? "own" : "all");
+          f.setFrom(a);
+          f.setTo(b);
         }}
       />
     </div>
