@@ -149,8 +149,9 @@ export function BookingPage({ mode = "booking" }: { mode?: "booking" | "rental" 
   const location = (locations.data?.locations ?? []).find((l) => l.id === locationId);
   const zone = location?.timezone ?? company.timezone ?? "UTC";
   // The planned start opens on the current day and time (decision of 15.11.2026).
-  const [start, setStart] = useState(() => toLocalInput(new Date(), company.timezone ?? "UTC"));
-  const [end, setEnd] = useState("");
+  // The park gives the period it was asked about (decision of 20.11.2026).
+  const [start, setStart] = useState(() => params.get("from") || toLocalInput(new Date(), company.timezone ?? "UTC"));
+  const [end, setEnd] = useState(() => params.get("to") ?? "");
   const [units, setUnits] = useState("");
   const [newClient, setNewClient] = useState(false);
   const [noClient, setNoClient] = useState(false);

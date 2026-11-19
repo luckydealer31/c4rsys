@@ -2083,7 +2083,19 @@
     "park_limited": "Restricted",
     "catalog_archived": "Archived",
     "catalog_no_active_tariffs": "No active tariffs.",
-    "catalog_no_active_services": "No active services."
+    "catalog_no_active_services": "No active services.",
+    "park_period": "Period",
+    "park_from": "from",
+    "park_to": "to",
+    "park_from_label": "Beginning of the period",
+    "park_to_label": "End of the period",
+    "park_period_hint": "The button goes round the ready periods: now; today and tomorrow — a day from the beginning of the working day of that date; 7 days and a month from this moment. A period may also be chosen in the calendar: the time is set to the beginning of the working day. With a period a vehicle is free only when nothing takes it for the whole period; the booking begun from a row takes the period with it.",
+    "park_mode_now": "Now",
+    "park_mode_today": "Today",
+    "park_mode_tomorrow": "Tomorrow",
+    "park_mode_week": "7 days",
+    "park_mode_month": "Month",
+    "park_mode_own": "Own period"
   },
   "rights": {
     "add": "Add rights",
@@ -6574,5 +6586,9 @@
     "place_remove": "Remove «{{name}}»",
     "place_unknown": "There is no place «{{name}}» in the list. New places are made by the employees named in the group «Storage places».",
     "add_first": "Add a tag"
+  },
+  "moment": {
+    "date": "date",
+    "time": "time"
   }
 }

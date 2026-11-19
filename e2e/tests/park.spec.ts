@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { bangkokIso, createCompany, ok, registerUser, uniqueEmail, waitForServer, type Company } from "../lib/api";
+import { bangkok, bangkokIso, createCompany, ok, registerUser, uniqueEmail, waitForServer, type Company } from "../lib/api";
 import { t } from "../lib/i18n";
 import { issueRental, startIssueInspection } from "../lib/mobile";
 
@@ -108,6 +108,71 @@ test("the park is filtered by the occupancy and begins a booking; the card shows
   await expect(rows).toContainText("Mazda 3");
   await filter("all").click();
   await expect(rows).toHaveCount(3);
+
+  // The occupancy for a period (customer's decisions of 20.11.2026). The booking of Honda Civic
+  // lasts from the day after tomorrow 10:00 for a day: inside it the vehicle is booked, after it
+  // — free; the issue, which is of this moment, is not offered for a period; the booking begun
+  // from the row takes the period with it.
+  const field = (key: string, part: string) => page.getByLabel(`${t(`rentals.park_${key}_label`)}: ${t(`moment.${part}`)}`);
+  const moment = async (key: string) => `${await field(key, "date").inputValue()}T${await field(key, "time").inputValue()}`;
+  const set = async (key: string, value: string) => {
+    await field(key, "date").fill(value.slice(0, 10));
+    await field(key, "time").fill(value.slice(11));
+  };
+  await set("from", bangkok(2, "12:00"));
+  await set("to", bangkok(2, "18:00"));
+  await expect(row("Honda Civic")).toContainText(t("rentals.park_booked"));
+  await expect(page.getByRole("link", { name: t("rentals.park_issue"), exact: true })).toHaveCount(0);
+  await set("from", bangkok(5, "10:00"));
+  await set("to", bangkok(6, "10:00"));
+  await expect(row("Honda Civic")).toContainText(t("rentals.park_free"));
+  await expect(row("Honda Civic")).not.toContainText(t("rentals.park_booked"));
+  await expect(row("Honda Civic").getByRole("link", { name: t("rentals.park_book"), exact: true })).toHaveAttribute(
+    "href",
+    new RegExp(`from=${bangkok(5, "10:00")}&to=${bangkok(6, "10:00")}`),
+  );
+
+  // One button goes round the ready periods: now, today, tomorrow, 7 days, a month. A period
+  // typed by hand is «own», and the next press is «now». The location works from 9:00, so
+  // «tomorrow» begins at 9:00 and a date chosen in the calendar takes that time.
+  const places = (await ok(page, "GET", `/c/${s.cmp}/locations`)) as { locations: { id: string; schedule: { version: number } }[] };
+  const day = [{ from: "09:00", to: "18:00" }];
+  await ok(page, "PUT", `/c/${s.cmp}/locations/${s.location}/schedule`, {
+    weekly: Object.fromEntries(["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map((name) => [name, day])),
+    exceptions: [],
+    expected_version: places.locations.find((l) => l.id === s.location)!.schedule.version,
+  });
+  await page.reload();
+  const mode = (key: string) =>
+    page.getByRole("button", { name: `${t("rentals.park_period")}: ${t(`rentals.park_mode_${key}`)}`, exact: true });
+  await expect(mode("now")).toBeVisible();
+  await expect(field("from", "date")).toHaveValue("");
+  await mode("now").click();
+  await expect(mode("today")).toBeVisible();
+  expect(await moment("from")).toBe(bangkok(0, "09:00"));
+  expect(await moment("to")).toBe(bangkok(1, "09:00"));
+  await mode("today").click();
+  expect(await moment("from")).toBe(bangkok(1, "09:00"));
+  expect(await moment("to")).toBe(bangkok(2, "09:00"));
+  await mode("tomorrow").click();
+  // 7 days and a month are counted from this moment, not from the working day.
+  expect((await moment("from")).slice(0, 10)).toBe(bangkok(0, "").slice(0, 10));
+  expect((await moment("to")).slice(0, 10)).toBe(bangkok(7, "").slice(0, 10));
+  expect((await moment("to")).slice(11)).toBe((await moment("from")).slice(11));
+  await expect(row("Honda Civic")).toContainText(t("rentals.park_booked"));
+  await mode("week").click();
+  await expect(mode("month")).toBeVisible();
+  expect((await moment("to")).slice(11)).toBe((await moment("from")).slice(11));
+  await mode("month").click();
+  await expect(mode("now")).toBeVisible();
+  await expect(field("from", "date")).toHaveValue("");
+  await expect(row("Honda Civic").getByRole("link", { name: t("rentals.park_issue"), exact: true })).toBeVisible();
+  // A date chosen in the calendar takes the beginning of the working day.
+  await field("from", "date").fill(bangkok(3, "").slice(0, 10));
+  await expect(field("from", "time")).toHaveValue("09:00");
+  await expect(mode("own")).toBeVisible();
+  await mode("own").click();
+  await expect(mode("now")).toBeVisible();
 
   // A restricted vehicle is greyed, but its card is still opened from its name.
   await row("Mazda 3").getByRole("link", { name: "Mazda 3", exact: true }).click();

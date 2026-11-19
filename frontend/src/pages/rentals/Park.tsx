@@ -3,10 +3,11 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 
 import type { RentalSummary, Vehicle } from "../../api/types";
-import { Card, Loading } from "../../components/ui";
+import { Card, Info, Loading } from "../../components/ui";
+import { MomentField, openingTime } from "../../components/MomentField";
 import { VehicleTypeIcon } from "../../components/VehicleTypeIcon";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
-import { formatMoment } from "../../time";
+import { formatMoment, fromLocalInput, toLocalInput } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
 import { RowTags, useTagsOf } from "../tags/Tags";
 import { useRentals, useVehicles } from "../vehicles/VehiclesPage";
@@ -16,13 +17,22 @@ type Status = "free" | "rented" | "booked";
 type Filter = Status | "limited";
 const FILTERS: Filter[] = ["free", "rented", "booked", "limited"];
 const FLEET = ["own", "managed"] as const;
+// The ready periods the button goes round; «own» — a period typed by hand.
+const MODES = ["now", "today", "tomorrow", "week", "month"] as const;
+type Mode = (typeof MODES)[number] | "own";
 
 /** The park of the rental (customer's decisions of 17.11.2026): the own and the managed vehicles
  * — those a rental and a booking are made of; the client ones are in the garage only. A vehicle
  * on a warehouse is a stock item and is not shown. The list is filtered by the occupancy — free,
  * in a rental, booked. A vehicle whose rental is restricted stays in the list, greyed: in place
  * of the buttons of its row stands the red mark «Restricted» with the reason under the pointer,
- * and it is not counted as free. A booking and a rental are begun from the row. */
+ * and it is not counted as free. A booking and a rental are begun from the row.
+ *
+ * The occupancy for a period (customer's decisions of 20.11.2026): with «from» and «to» given
+ * the list answers for the whole period — a vehicle taken for a part of it is not free; a rental
+ * without a planned end, or whose planned end has passed, holds the vehicle on; a restriction
+ * counts when it overlaps the period. The booking begun from a row takes the period with it, and
+ * the issue, which is of this moment, is not offered. Without a period the list is of now. */
 export function Park() {
   const { t, i18n } = useTranslation();
   const company = useCompany();
@@ -31,6 +41,49 @@ export function Park() {
   const locations = useLocations().data?.locations ?? [];
   const rentals = useRentals(can("rental.view")).data?.rentals ?? [];
   const [status, setStatus] = useState<Filter | "">("");
+  // The period as typed, in the time of the company; empty — now.
+  const zone = company.timezone ?? "UTC";
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const period = from || to;
+  const begin = new Date(from ? fromLocalInput(from, zone) : Date.now()).getTime();
+  const finish = Math.max(begin, new Date(to ? fromLocalInput(to, zone) : begin).getTime());
+  /** Whether what lasts from `start` to `end` (null — no end) falls into the period. */
+  const within = (start: string | null | undefined, end: string | null | undefined) =>
+    new Date(start ?? 0).getTime() <= finish && (!end || new Date(end).getTime() >= begin);
+  // One button goes round the ready periods (customer's decision of 20.11.2026): now, today and
+  // tomorrow — a day from the beginning of the working day of that date, 7 days and a month
+  // from this moment. A period typed by hand is «own»; the next press is «now».
+  const [mode, setMode] = useState<Mode>("now");
+  const opening = (date: string) => openingTime(locations, "rental", date);
+  const ahead = (days: number) => toLocalInput(new Date(Date.now() + days * 86_400_000), zone);
+  function next() {
+    const turn = MODES[(MODES.indexOf(mode as (typeof MODES)[number]) + 1) % MODES.length] ?? "now";
+    setMode(turn);
+    if (turn === "now") {
+      setFrom("");
+      setTo("");
+      return;
+    }
+    if (turn === "today" || turn === "tomorrow") {
+      // A day from the beginning of the working day — of today or of tomorrow.
+      const shift = turn === "today" ? 0 : 1;
+      const day = ahead(shift).slice(0, 10);
+      const time = opening(day);
+      setFrom(`${day}T${time}`);
+      setTo(`${ahead(shift + 1).slice(0, 10)}T${time}`);
+      return;
+    }
+    // 7 days and a month — from this moment.
+    const month = new Date();
+    month.setMonth(month.getMonth() + 1);
+    setFrom(ahead(0));
+    setTo(turn === "week" ? ahead(7) : toLocalInput(month, zone));
+  }
+  const typed = (set: (value: string) => void) => (value: string) => {
+    set(value);
+    setMode(value || (set === setFrom ? to : from) ? "own" : "now");
+  };
   const tagsOf = useTagsOf("vehicle");
   const [shown, setShown] = useState<Set<string>>(new Set(FLEET));
   // Both switches are on at first; the last one that is on stays on.
@@ -46,8 +99,12 @@ export function Park() {
   const active = new Map<string, RentalSummary>();
   const booked = new Map<string, RentalSummary[]>();
   for (const rental of rentals) {
-    if (rental.state === "active") active.set(rental.vehicle_card_id, rental);
-    if (rental.state === "booked" && rental.booking) {
+    // A rental going on holds the vehicle till its planned end, and on when that has passed.
+    const held = !rental.planned_end || new Date(rental.planned_end).getTime() < Date.now() ? null : rental.planned_end;
+    if (rental.state === "active" && (!period || within(rental.actual_start, held))) {
+      active.set(rental.vehicle_card_id, rental);
+    }
+    if (rental.state === "booked" && rental.booking && (!period || within(rental.booking.planned_start, rental.planned_end))) {
       booked.set(rental.vehicle_card_id, [...(booked.get(rental.vehicle_card_id) ?? []), rental]);
     }
   }
@@ -57,8 +114,13 @@ export function Park() {
   // One state for a vehicle: a rental going on comes before a booking waiting.
   const statusOf = (v: Vehicle): Status => (active.has(v.id) ? "rented" : booked.has(v.id) ? "booked" : "free");
   /** Restricted: not admitted to the rental, or under a manual restriction forbidding the issue. */
-  const limited = (v: Vehicle) =>
-    !v.rental_readiness.ready || (v.restriction?.state === "active" && v.restriction.forbid_rental_issue);
+  const forbids = (v: Vehicle) => {
+    const r = v.restriction;
+    if (!r || !r.forbid_rental_issue) return false;
+    if (!period) return r.state === "active";
+    return (r.state === "active" || r.state === "planned") && within(r.starts_at, r.ends_at);
+  };
+  const limited = (v: Vehicle) => !v.rental_readiness.ready || forbids(v);
   // A restricted vehicle is not free, though nothing holds it.
   const passes = (v: Vehicle) =>
     !status || (status === "limited" ? limited(v) : statusOf(v) === status && !(status === "free" && limited(v)));
@@ -83,7 +145,7 @@ export function Park() {
       ...(v.rental_readiness.ready
         ? []
         : [`${t("rentals.park_not_admitted")}: ${v.rental_readiness.missing.map((code) => t(`vehicles.missing_${code}`)).join(", ")}`]),
-      ...(r && r.state === "active" && r.forbid_rental_issue
+      ...(r && forbids(v)
         ? [
             `${r.custom_reason ? r.custom_reason.name : t(`vehicles.restriction_reason_${r.reason}`)}${
               r.ends_at ? ` · ${t("rentals.park_until", { when: formatMoment(r.ends_at, zone, i18n.language) })}` : ""
@@ -111,6 +173,18 @@ export function Park() {
             {t(`vehicles.tab_${key}`)}
           </button>
         ))}
+      </div>
+      <div className="list-bar period-bar" role="group" aria-label={t("rentals.park_period")}>
+        <button type="button" className="toggle-chip plain period-mode" aria-label={`${t("rentals.park_period")}: ${t(`rentals.park_mode_${mode}`)}`} onClick={next}>
+          {t(`rentals.park_mode_${mode}`)}
+        </button>
+        <span className="period-part">
+          {t("rentals.park_from")} <MomentField value={from} onChange={typed(setFrom)} opening={opening} label={t("rentals.park_from_label")} />
+        </span>
+        <span className="period-part">
+          {t("rentals.park_to")} <MomentField value={to} onChange={typed(setTo)} opening={opening} label={t("rentals.park_to_label")} />
+        </span>
+        <Info text={t("rentals.park_period_hint")} />
       </div>
       {vehicles.isLoading ? <Loading /> : null}
       {vehicles.data && list.length === 0 ? (
@@ -212,12 +286,15 @@ export function Park() {
                             {!restricted && can("rental.book") ? (
                               <Link
                                 className="button secondary small-button"
-                                to={companyPath(company, `/rentals/book?vehicle=${vehicle.id}`)}
+                                to={companyPath(
+                                  company,
+                                  `/rentals/book?vehicle=${vehicle.id}${from ? `&from=${from}` : ""}${to ? `&to=${to}` : ""}`,
+                                )}
                               >
                                 {t("rentals.park_book")}
                               </Link>
                             ) : null}
-                            {!restricted && state !== "rented" && can("rental.issue") ? (
+                            {!restricted && !period && state !== "rented" && can("rental.issue") ? (
                               <Link
                                 className="button secondary small-button"
                                 to={companyPath(company, `/rentals/new?vehicle=${vehicle.id}`)}
