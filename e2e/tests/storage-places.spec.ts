@@ -54,4 +54,24 @@ test("storage places are tags of their group", async ({ page }) => {
   await expect(page.getByText("Стеллаж 1, Стеллаж 2")).toBeVisible();
   await page.goto(`${s.base}/company/tags`);
   await expect(group.locator(".tag-rows li")).toHaveText([/Стеллаж 1/, /Стеллаж 2/]);
+
+  // The section is laid out as the others are (customer's remarks of 20.11.2026): no heading
+  // on the screen, the tabs at the left, the buttons of the open tab in a column at the right.
+  await page.goto(`${s.base}/warehouse?tab=stock`);
+  const side = page.locator(".side-actions");
+  await expect(side.getByRole("link", { name: t("receipts.create") })).toBeVisible();
+  await expect(side.getByRole("link", { name: t("sales.sell") })).toBeVisible();
+  await expect(page.locator("main").getByRole("link", { name: t("receipts.create") })).toHaveCount(1);
+  const heading = page.getByRole("heading", { level: 1 });
+  await expect(heading).toHaveText(t("nav.warehouse"));
+  expect((await heading.boundingBox())!.width).toBeLessThan(3);
+  const first = (await page.getByRole("tab").first().boundingBox())!;
+  expect(first.x).toBeLessThan(200);
+  expect((await side.boundingBox())!.x).toBeGreaterThan(first.x + 600);
+  await page.getByRole("tab", { name: t("warehouse.tab_operations"), exact: true }).click();
+  await expect(side.getByRole("link", { name: t("operations.new_move") })).toBeVisible();
+  await page.getByRole("tab", { name: t("warehouse.tab_items"), exact: true }).click();
+  await expect(side.getByRole("link", { name: t("warehouse.create_item") })).toBeVisible();
+  await page.getByRole("tab", { name: t("warehouse.tab_reserves"), exact: true }).click();
+  await expect(side).toHaveCount(0);
 });

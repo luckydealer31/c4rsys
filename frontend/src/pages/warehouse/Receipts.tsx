@@ -37,13 +37,6 @@ export function ReceiptsList() {
   if (!can("warehouse.view")) return <p className="muted">{t("warehouse.no_access")}</p>;
   return (
     <>
-      {can("warehouse.receive") ? (
-        <div className="actions" style={{ marginTop: 0, marginBottom: 16 }}>
-          <Link className="button" to={companyPath(company, "/warehouse/receipts/new")}>
-            {t("receipts.create")}
-          </Link>
-        </div>
-      ) : null}
       <Card>
         {list.isLoading ? <Loading /> : null}
         {list.data?.receipts.length === 0 ? <p className="muted">{t("receipts.none")}</p> : null}

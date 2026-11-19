@@ -19,9 +19,9 @@ import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { ItemPicker } from "./Receipts";
 import { useMoney, useQuantity } from "./Stock";
 
-const NEW_KINDS = ["issue", "consume", "move", "write_off"] as const;
+export const NEW_KINDS = ["issue", "consume", "move", "write_off"] as const;
 type NewKind = (typeof NEW_KINDS)[number];
-const RIGHT: Record<NewKind, string> = {
+export const RIGHT: Record<NewKind, string> = {
   issue: "warehouse.issue",
   consume: "warehouse.issue",
   move: "warehouse.move",
@@ -70,13 +70,6 @@ export function OperationsList() {
   if (!can("warehouse.view")) return <p className="muted">{t("warehouse.no_access")}</p>;
   return (
     <>
-      <div className="actions" style={{ marginTop: 0, marginBottom: 16 }}>
-        {NEW_KINDS.filter((kind) => can(RIGHT[kind])).map((kind) => (
-          <Link key={kind} className="button secondary" to={companyPath(company, `/warehouse/operations/new?kind=${kind}`)}>
-            {t(`operations.new_${kind}`)}
-          </Link>
-        ))}
-      </div>
       <Card>
         <Field label={t("operations.filter")}>
           <select value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)}>

@@ -27,13 +27,6 @@ export function PurchasesList() {
   if (!allowed) return <p className="muted">{t("warehouse.no_access")}</p>;
   return (
     <>
-      {can("warehouse.purchase") ? (
-        <div className="actions" style={{ marginTop: 0, marginBottom: 16 }}>
-          <Link className="button" to={companyPath(company, "/warehouse/purchases/new")}>
-            {t("purchases.create")}
-          </Link>
-        </div>
-      ) : null}
       <Card>
         <p className="muted small">{t("purchases.hint")}</p>
         {list.isLoading ? <Loading /> : null}

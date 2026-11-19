@@ -12,7 +12,7 @@ import { useFirstTab } from "../../layout/tabOrder";
 import { useVehicles } from "../vehicles/VehiclesPage";
 import { useCategoryLabel } from "./Categories";
 import { InventoriesList } from "./Inventory";
-import { OperationsList, WarehouseSettingsCard } from "./Operations";
+import { NEW_KINDS, OperationsList, RIGHT, WarehouseSettingsCard } from "./Operations";
 import { VehiclePrice } from "./Prices";
 import { PurchasesList } from "./Purchases";
 import { ReceiptsList } from "./Receipts";
@@ -23,31 +23,68 @@ const TABS = ["stock", "items", "receipts", "operations", "reserves", "inventory
 type Tab = (typeof TABS)[number];
 
 /** Section «Warehouse» (ТЗ гл. 11): stock, the catalog, receipts, purchases and the warehouses
- * of locations. PROPOSAL: the stock is the first tab. */
+ * of locations. PROPOSAL: the stock is the first tab. The section is laid out as the others are
+ * (customer's remarks of 20.11.2026): no heading — the menu says where one is; the tabs at the
+ * left; the buttons of the open tab in a column at the right. */
 export function WarehousePage() {
   const { t } = useTranslation();
+  const company = useCompany();
+  const can = useCan();
   const [params, setParams] = useSearchParams();
   const wanted = params.get("tab") as Tab | null;
   const firstTab = useFirstTab("warehouse");
   const tab: Tab = wanted && TABS.includes(wanted) ? wanted : (firstTab(TABS) ?? "stock");
+  const receive: [boolean, string, string] = [can("warehouse.receive"), "/warehouse/receipts/new", t("receipts.create")];
+  const actions: [boolean, string, string][] =
+    tab === "stock"
+      ? [receive, [can("warehouse.receive") && can("warehouse.sell"), "/warehouse/sale", t("sales.sell")]]
+      : tab === "items"
+        ? [
+            [can("warehouse.catalog.manage"), "/warehouse/items/new", t("warehouse.create_item")],
+            [can("warehouse.catalog.manage") && can("import.run"), "/warehouse/import", t("warehouse.import")],
+          ]
+        : tab === "receipts"
+          ? [receive]
+          : tab === "operations"
+            ? NEW_KINDS.map((kind): [boolean, string, string] => [
+                can(RIGHT[kind]),
+                `/warehouse/operations/new?kind=${kind}`,
+                t(`operations.new_${kind}`),
+              ])
+            : tab === "purchases"
+              ? [[can("warehouse.purchase"), "/warehouse/purchases/new", t("purchases.create")]]
+              : [];
+  const allowed = can("warehouse.view") || tab === "purchases" ? actions.filter(([may]) => may) : [];
   return (
     <div className="page full">
-      <h1>{t("nav.warehouse")}</h1>
-      <SectionTabs
-        section="warehouse"
-        centered
-        current={tab}
-        tabs={TABS.map((key) => ({ key, text: t(`warehouse.tab_${key}`) }))}
-        onSelect={(key) => setParams({ tab: key })}
-      />
-      {tab === "stock" ? <StockList /> : null}
-      {tab === "items" ? <Items /> : null}
-      {tab === "receipts" ? <ReceiptsList /> : null}
-      {tab === "operations" ? <OperationsList /> : null}
-      {tab === "reserves" ? <ReservesList /> : null}
-      {tab === "inventory" ? <InventoriesList /> : null}
-      {tab === "purchases" ? <PurchasesList /> : null}
-      {tab === "storages" ? <Storages /> : null}
+      <h1 className="sr-only">{t("nav.warehouse")}</h1>
+      <div className={allowed.length ? "split" : ""}>
+        <div>
+          <SectionTabs
+            section="warehouse"
+            current={tab}
+            tabs={TABS.map((key) => ({ key, text: t(`warehouse.tab_${key}`) }))}
+            onSelect={(key) => setParams({ tab: key })}
+          />
+          {tab === "stock" ? <StockList /> : null}
+          {tab === "items" ? <Items /> : null}
+          {tab === "receipts" ? <ReceiptsList /> : null}
+          {tab === "operations" ? <OperationsList /> : null}
+          {tab === "reserves" ? <ReservesList /> : null}
+          {tab === "inventory" ? <InventoriesList /> : null}
+          {tab === "purchases" ? <PurchasesList /> : null}
+          {tab === "storages" ? <Storages /> : null}
+        </div>
+        {allowed.length ? (
+          <aside className="side-actions" aria-label={t("vehicles.actions_title")}>
+            {allowed.map(([, path, label]) => (
+              <Link key={path} className="button secondary" to={companyPath(company, path)}>
+                <Icon name="plus" size={16} /> {label}
+              </Link>
+            ))}
+          </aside>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -67,18 +104,6 @@ function Items() {
   if (!can("warehouse.view")) return <p className="muted">{t("warehouse.no_access")}</p>;
   return (
     <>
-      {can("warehouse.catalog.manage") ? (
-        <div className="actions" style={{ marginTop: 0, marginBottom: 16 }}>
-          <Link className="button" to={companyPath(company, "/warehouse/items/new")}>
-            <Icon name="plus" size={18} /> {t("warehouse.create_item")}
-          </Link>
-          {can("import.run") ? (
-            <Link className="button secondary" to={companyPath(company, "/warehouse/import")}>
-              {t("warehouse.import")}
-            </Link>
-          ) : null}
-        </div>
-      ) : null}
       <Card>
         <div className="row">
           <Field label={t("warehouse.search")}>

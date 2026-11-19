@@ -43,18 +43,6 @@ export function StockList() {
   if (!can("warehouse.view")) return <p className="muted">{t("warehouse.no_access")}</p>;
   return (
     <>
-      {can("warehouse.receive") ? (
-        <div className="actions" style={{ marginTop: 0, marginBottom: 16 }}>
-          <Link className="button" to={companyPath(company, "/warehouse/receipts/new")}>
-            {t("receipts.create")}
-          </Link>
-          {can("warehouse.sell") ? (
-            <Link className="button secondary" to={companyPath(company, "/warehouse/sale")}>
-              {t("sales.sell")}
-            </Link>
-          ) : null}
-        </div>
-      ) : null}
       <Card>
         <Field label={t("warehouse.search")}>
           <input value={query} onChange={(e) => setQuery(e.target.value)} />
