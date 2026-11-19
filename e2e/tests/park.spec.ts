@@ -216,6 +216,16 @@ test("the park is filtered by the occupancy and begins a booking; the card shows
   await expect(booking).toHaveCount(1);
   await arrow("back").click();
   await expect(calendar).toHaveAttribute("data-from", date(1));
+  // The control keeps its width whatever the digits of the date (customer's remark of
+  // 20.11.2026): thirty days turned one by one.
+  const widths = new Set<number>();
+  for (let i = 0; i < 30; i += 1) {
+    widths.add(Math.round((await calendar.boundingBox())!.width));
+    await arrow("forward").click();
+  }
+  expect([...widths].length, [...widths].join(",")).toBe(1);
+  for (let i = 0; i < 30; i += 1) await arrow("back").click();
+  await expect(calendar).toHaveAttribute("data-from", date(1));
   // One date in the calendar: the day after the booking begins — nothing starts on it.
   await calendar.click();
   await press(window, date(3));

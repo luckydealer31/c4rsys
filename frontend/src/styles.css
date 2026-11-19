@@ -477,6 +477,8 @@ label.check { display: inline-flex; gap: 6px; align-items: center; margin-right:
 .period-control { position: relative; margin-left: auto; display: inline-flex; align-items: stretch;
   border: 1px solid var(--accent); border-radius: 8px; background: var(--surface); font-size: 0.9rem; }
 .period-control.empty { border-color: var(--border); }
+/* Digits of one width: the control keeps its size while the dates are turned. */
+.period-control, .schedule-date, .calendar-chosen { font-variant-numeric: tabular-nums; }
 .period-control > button { background: transparent; border: 0; border-radius: 0; padding: 6px 10px; color: var(--accent);
   display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .period-control > button + button { border-left: 1px solid var(--border); }
