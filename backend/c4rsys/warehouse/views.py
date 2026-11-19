@@ -56,7 +56,8 @@ def _item_payload(item: Item) -> dict[str, Any]:
         if item.manufacturer
         else item.manufacturer_other,
         "applicability": [
-            {"make": a.make_id, "model": a.model_id} for a in item.applicability.all()
+            {"type": a.make.vehicle_type, "make": a.make_id, "model": a.model_id}
+            for a in item.applicability.all()
         ],
         "packagings": [
             {"id": str(p.id), "name": p.name, "quantity": str(p.quantity), "state": p.state}

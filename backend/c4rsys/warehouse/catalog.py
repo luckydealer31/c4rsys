@@ -91,7 +91,7 @@ def items_of(company_id: UUID) -> QuerySet[Item]:
     return (
         Item.objects.filter(company_id=company_id)
         .select_related("manufacturer", "part_category", "part_subcategory")
-        .prefetch_related("packagings", "barcodes", "applicability")
+        .prefetch_related("packagings", "barcodes", "applicability__make")
         .order_by("name", "created_at")
     )
 

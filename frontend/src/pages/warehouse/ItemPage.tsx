@@ -4,10 +4,10 @@ import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router";
 
 import { useApi } from "../../api/queries";
-import type { CatalogMake, CatalogModel, WarehouseItem, WarehouseOptions } from "../../api/types";
+import type { CatalogMake, CatalogModel, VehicleOptions, WarehouseItem, WarehouseOptions } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { ImagePicker } from "../../components/images";
-import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
+import { Card, ErrorMessage, Field, Info, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { countries } from "../settings/CompanyProfilePage";
 import { PartCategoryField } from "./Categories";
@@ -16,6 +16,8 @@ import { ItemStockCard, SupplierArticles } from "./Stock";
 import { TagsLine } from "../tags/Tags";
 
 const OTHER = "__other";
+
+type Applies = { type: string; make: string; model: string };
 
 type PairKey = "side" | "longitudinal" | "vertical" | "placement";
 type ChoiceKey = "originality" | "condition";
@@ -41,7 +43,7 @@ type Form = {
   manufacturer: string;
   manufacturer_other: string;
   photo: string | null;
-  applicability: { make: string; model: string }[];
+  applicability: Applies[];
   extra_attributes: Record<string, string[]>;
 } & Record<PairKey | ChoiceKey | (typeof TEXTS)[number], string>;
 
@@ -67,7 +69,7 @@ function formOf(item?: WarehouseItem): Form {
     comment: item?.comment ?? "",
     external_id: item?.external_id ?? "",
     photo: item?.photo ?? null,
-    applicability: (item?.applicability ?? []).map((a) => ({ make: a.make, model: a.model ?? "" })),
+    applicability: (item?.applicability ?? []).map((a) => ({ type: a.type, make: a.make, model: a.model ?? "" })),
     extra_attributes: item?.extra_attributes ?? {},
   };
 }
@@ -162,14 +164,7 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
     ["manufacturers"],
     "/catalog/manufacturers",
   );
-  const makes = useApi<{ makes: CatalogMake[] }>(
-    ["vehicle-makes", "passenger_car"],
-    "/catalog/vehicle-makes?type=passenger_car",
-  );
-  const categories = useApi<{ categories: string[] }>(
-    ["warehouse-categories", company.public_id],
-    `/c/${company.public_id}/warehouse/categories`,
-  );
+  const vehicles = useApi<VehicleOptions>(["vehicle-options"], "/catalog/vehicle-options");
   const [form, setForm] = useState<Form>(formOf(item));
   const [saved, setSaved] = useState(false);
   const save = useCommand<Record<string, unknown>, { item: WarehouseItem }>(
@@ -212,7 +207,6 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
       <input
         value={form[key]}
         disabled={!editable}
-        list={key === "category" ? "warehouse-categories" : undefined}
         onChange={(e) => set({ [key]: e.target.value })}
       />
     </Field>
@@ -250,15 +244,6 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
             onChange={(category, subcategory) => set({ part_category: category, part_subcategory: subcategory })}
           />
           <div className="row">
-            {text("article")}
-            {text("category", t("categories.note_hint"))}
-            <datalist id="warehouse-categories">
-              {(categories.data?.categories ?? []).map((c) => (
-                <option key={c} value={c} />
-              ))}
-            </datalist>
-          </div>
-          <div className="row">
             <Field label={t("warehouse.manufacturer")}>
               <select
                 value={form.manufacturer}
@@ -295,11 +280,16 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
                 ))}
               </select>
             </Field>
+            {text("article")}
             {text("model_characteristic")}
           </div>
         </Card>
-        <Card title={t("warehouse.section_parts")}>
-          <p className="muted small">{t("warehouse.toggles_hint")}</p>
+        {/* The note of the category is not asked for and the explanation went under «i»
+            (customer's decisions of 19.11.2026). */}
+        <section className="card">
+          <h2>
+            {t("warehouse.section_parts")} <Info text={t("warehouse.toggles_hint")} />
+          </h2>
           <div className="toggle-grid">
             {PAIRS.map(([key, a, b]) => (
               <div key={key} className="toggle-row">
@@ -364,7 +354,7 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
               <ApplicabilityRow
                 key={index}
                 row={row}
-                makes={makes.data?.makes ?? []}
+                types={vehicles.data?.vehicle_types ?? []}
                 disabled={!editable}
                 locale={i18n.language}
                 onChange={(next) => {
@@ -379,13 +369,13 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
               <button
                 type="button"
                 className="secondary"
-                onClick={() => set({ applicability: [...form.applicability, { make: "", model: "" }] })}
+                onClick={() => set({ applicability: [...form.applicability, { type: "", make: "", model: "" }] })}
               >
                 {t("warehouse.add_applicability")}
               </button>
             ) : null}
           </div>
-        </Card>
+        </section>
         <Card title={t("warehouse.section_more")}>
           <Field label={t("warehouse.photo")}>
             <ImagePicker
@@ -397,10 +387,9 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
               onChange={(photo) => set({ photo })}
             />
           </Field>
-          <div className="row">
-            {text("photo_url")}
-            {text("external_id", t("warehouse.external_id_hint"))}
-          </div>
+          {/* The outer ID is not asked for here (customer's decision of 20.11.2026): the article
+              names the item. The value an import has given stays and goes on matching it. */}
+          {text("photo_url", t("warehouse.photo_url_hint"))}
           <Field label={t("warehouse.comment")}>
             <textarea rows={3} value={form.comment} disabled={!editable} onChange={(e) => set({ comment: e.target.value })} />
           </Field>
@@ -421,20 +410,27 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
 
 function ApplicabilityRow({
   row,
-  makes,
+  types,
   disabled,
   locale,
   onChange,
   onRemove,
 }: {
-  row: { make: string; model: string };
-  makes: CatalogMake[];
+  row: Applies;
+  types: string[];
   disabled: boolean;
   locale: string;
-  onChange: (row: { make: string; model: string }) => void;
+  onChange: (row: Applies) => void;
   onRemove: () => void;
 }) {
   const { t } = useTranslation();
+  // The type of the vehicle comes first (customer's decision of 19.11.2026): the makes shown
+  // are the ones of the catalog for that type.
+  const makes = useApi<{ makes: CatalogMake[] }>(
+    ["vehicle-makes", row.type],
+    `/catalog/vehicle-makes?type=${row.type}`,
+    Boolean(row.type),
+  );
   const models = useApi<{ models: CatalogModel[] }>(
     ["vehicle-models", row.make],
     `/catalog/vehicle-makes/${encodeURIComponent(row.make)}/models`,
@@ -444,9 +440,27 @@ function ApplicabilityRow({
     locale === "ru" && m.name_cyrillic && m.name_cyrillic !== m.name ? `${m.name} (${m.name_cyrillic})` : m.name;
   return (
     <div className="row" style={{ marginBottom: 8 }}>
-      <select value={row.make} disabled={disabled} onChange={(e) => onChange({ make: e.target.value, model: "" })}>
+      <select
+        value={row.type}
+        aria-label={t("warehouse.vehicle_type")}
+        disabled={disabled}
+        onChange={(e) => onChange({ type: e.target.value, make: "", model: "" })}
+      >
+        <option value="">{t("warehouse.vehicle_type")}</option>
+        {types.map((code) => (
+          <option key={code} value={code}>
+            {t(`vehicles.type_${code}`)}
+          </option>
+        ))}
+      </select>
+      <select
+        value={row.make}
+        aria-label={t("vehicles.make")}
+        disabled={disabled || !row.type}
+        onChange={(e) => onChange({ ...row, make: e.target.value, model: "" })}
+      >
         <option value="">{t("vehicles.make")}</option>
-        {makes.map((m) => (
+        {(makes.data?.makes ?? []).map((m) => (
           <option key={m.code} value={m.code}>
             {label(m)}
           </option>
@@ -454,6 +468,7 @@ function ApplicabilityRow({
       </select>
       <select
         value={row.model}
+        aria-label={t("vehicles.model")}
         disabled={disabled || !row.make}
         onChange={(e) => onChange({ ...row, model: e.target.value })}
       >

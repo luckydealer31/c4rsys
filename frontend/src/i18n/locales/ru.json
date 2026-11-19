@@ -2866,7 +2866,7 @@
     "add_barcode": "Добавить штрихкод",
     "add_packaging": "Добавить фасовку",
     "all_models": "Все модели",
-    "applicability": "Применимость к маркам и моделям",
+    "applicability": "Марки и модели",
     "archive": "В архив",
     "article": "Артикул",
     "attr_condition": "Состояние",
@@ -2937,7 +2937,7 @@
     "search": "Поиск по названию, производителю или штрихкоду",
     "section_main": "Основное",
     "section_more": "Дополнительно",
-    "section_parts": "Признаки запчасти",
+    "section_parts": "Применимость",
     "show_archived": "Показать архив",
     "storage_warehouse": "Склад",
     "tab_items": "Номенклатура",
@@ -2977,7 +2977,9 @@
     "import_warning_corrected_file": "Исправленный файл: заново проверено строк — {{rows}}. Выберите действия и проведите.",
     "archived": "в архиве",
     "tab_reserves": "Резервы",
-    "country": "Страна производства"
+    "country": "Страна производства",
+    "photo_url_hint": "Адрес картинки в интернете, если фото не загружено файлом.",
+    "vehicle_type": "Тип ТС"
   },
   "warnings": {
     "client_has_debt": "У клиента есть долг: {{amounts}}.",

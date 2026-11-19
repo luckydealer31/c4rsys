@@ -1486,7 +1486,7 @@ export type WarehouseItem = {
   possible_duplicate: boolean;
   import_operation: string | null;
   state: "active" | "archived";
-  applicability: { make: string; model: string | null }[];
+  applicability: { type: string; make: string; model: string | null }[];
   packagings: { id: string; name: string; quantity: string; state: string }[];
   barcodes: { id: string; code: string; packaging_id: string | null }[];
   extra_attributes: Record<string, string[]>;

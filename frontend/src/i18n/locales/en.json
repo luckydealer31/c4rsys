@@ -2866,7 +2866,7 @@
     "add_barcode": "Add barcode",
     "add_packaging": "Add packaging",
     "all_models": "All models",
-    "applicability": "Applicability to makes and models",
+    "applicability": "Makes and models",
     "archive": "Archive",
     "article": "Article",
     "attr_condition": "Condition",
@@ -2937,7 +2937,7 @@
     "search": "Search by name, manufacturer or barcode",
     "section_main": "Main",
     "section_more": "More",
-    "section_parts": "Spare part attributes",
+    "section_parts": "Applicability",
     "show_archived": "Show archive",
     "storage_warehouse": "Warehouse",
     "tab_items": "Catalog",
@@ -2977,7 +2977,9 @@
     "import_warning_corrected_file": "Corrected file: {{rows}} rows checked again. Choose actions and post.",
     "archived": "archived",
     "tab_reserves": "Reserves",
-    "country": "Country of manufacture"
+    "country": "Country of manufacture",
+    "photo_url_hint": "An address of a picture on the internet, when the photo is not uploaded.",
+    "vehicle_type": "Vehicle type"
   },
   "warnings": {
     "client_has_debt": "The client has a debt: {{amounts}}.",

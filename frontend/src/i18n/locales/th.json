@@ -2866,7 +2866,7 @@
     "add_barcode": "Add barcode",
     "add_packaging": "Add packaging",
     "all_models": "All models",
-    "applicability": "Applicability to makes and models",
+    "applicability": "ยี่ห้อและรุ่น",
     "archive": "Archive",
     "article": "Article",
     "attr_condition": "Condition",
@@ -2937,7 +2937,7 @@
     "search": "Search by name, manufacturer or barcode",
     "section_main": "Main",
     "section_more": "More",
-    "section_parts": "Spare part attributes",
+    "section_parts": "การใช้งาน",
     "show_archived": "Show archive",
     "storage_warehouse": "Warehouse",
     "tab_items": "Catalog",
@@ -2977,7 +2977,9 @@
     "import_warning_corrected_file": "ไฟล์ที่แก้ไข: ตรวจใหม่ {{rows}} แถว",
     "archived": "เก็บถาวร",
     "tab_reserves": "การจอง",
-    "country": "ประเทศผู้ผลิต"
+    "country": "ประเทศผู้ผลิต",
+    "photo_url_hint": "ที่อยู่รูปภาพบนอินเทอร์เน็ต เมื่อไม่ได้อัปโหลดรูป",
+    "vehicle_type": "ประเภทยานพาหนะ"
   },
   "warnings": {
     "client_has_debt": "The client has a debt: {{amounts}}.",

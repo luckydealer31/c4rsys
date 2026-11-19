@@ -48,6 +48,14 @@ test("storage places are tags of their group", async ({ page }) => {
 
   // The places of a unit are chosen, not written: a new one is typed by whoever may make it.
   await page.goto(`${s.base}/warehouse/items/${item.id}`);
+  // The form of the item: no note of the category, and applicability asks for the type of the
+  // vehicle before the make.
+  await expect(page.getByText(t("warehouse.category"), { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: t("warehouse.add_applicability") }).click();
+  const make = page.getByRole("combobox", { name: t("vehicles.make"), exact: true });
+  await expect(make).toBeDisabled();
+  await page.getByRole("combobox", { name: t("warehouse.vehicle_type") }).selectOption("passenger_car");
+  await expect(make).toBeEnabled();
   await page.getByRole("button", { name: t("stock.edit_tags"), exact: true }).first().click();
   const add = page.getByRole("combobox", { name: t("tags.place_add") });
   await add.fill("Стеллаж 2");
