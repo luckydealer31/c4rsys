@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Link, Navigate } from "react-router";
 
 import { useApi } from "../../api/queries";
-import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
+import { Card, ErrorMessage, Field, Info, Loading } from "../../components/ui";
 import { companyPath, useCompany } from "../../layout/CompanyShell";
 import { workHome } from "../../layout/CompanyTabs";
 import { deviceTimeZone, formatMoment } from "../../time";
@@ -90,9 +90,14 @@ export function ScheduleView({ relations }: { relations: Set<string> }) {
   const company = useCompany();
   const locations = useLocations();
   const [span, setSpan] = useState<Span>("week");
-  const [from, setFrom] = useState(() => dayStart(new Date()));
+  // The chosen day (customer's decisions of 20.11.2026): a day shows it whole; a week has it in
+  // the middle — three days before and three after; a month is its calendar month. It is today
+  // at first, and pressing the chosen span again brings today back.
+  const [day, setDay] = useState(() => dayStart(new Date()));
   const [location, setLocation] = useState("");
-  const to = addDays(from, SPANS[span]);
+  const from = span === "day" ? day : span === "week" ? addDays(day, -3) : new Date(day.getFullYear(), day.getMonth(), 1);
+  const to =
+    span === "day" ? addDays(day, 1) : span === "week" ? addDays(day, 4) : new Date(day.getFullYear(), day.getMonth() + 1, 1);
   const query = `from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}${location ? `&location=${location}` : ""}`;
   const schedule = useApi<{ vehicles: { id: string; name: string }[]; items: Item[] }>(
     ["schedule", company.public_id, query],
@@ -101,7 +106,7 @@ export function ScheduleView({ relations }: { relations: Set<string> }) {
   const zone = deviceTimeZone();
   const when = (v: string) => formatMoment(v, zone, i18n.language);
   const total = to.getTime() - from.getTime();
-  const ticks = span === "day" ? 24 : SPANS[span];
+  const ticks = span === "day" ? 24 : Math.round(total / 86_400_000);
   const tickLabel = (index: number) => {
     const moment = span === "day" ? new Date(from.getTime() + (index * total) / ticks) : addDays(from, index);
     // A month shows the day of the month only: thirty columns leave no room for more.
@@ -111,7 +116,9 @@ export function ScheduleView({ relations }: { relations: Set<string> }) {
         ? String(moment.getDate())
         : new Intl.DateTimeFormat(i18n.language, { weekday: "short", day: "2-digit", month: "2-digit" }).format(moment);
   };
-  const shift = (direction: number) => setFrom(addDays(from, direction * SPANS[span]));
+  // The arrows turn a day, a week of seven days or a calendar month.
+  const shift = (direction: number) =>
+    setDay(span === "month" ? new Date(day.getFullYear(), day.getMonth() + direction, 1) : addDays(day, direction * SPANS[span]));
   const now = Date.now();
   // The relation and the location of a row come from the list of the garage.
   const cards = useVehicles();
@@ -134,15 +141,27 @@ export function ScheduleView({ relations }: { relations: Set<string> }) {
     <>
       <Card>
         <div className="row">
-          <Field label={t("schedule.span")}>
-            <select value={span} onChange={(e) => setSpan(e.target.value as Span)}>
+          <div className="field">
+            <span>
+              {t("schedule.span")} <Info text={t("schedule.span_hint")} />
+            </span>
+            <div className="segmented" role="group" aria-label={t("schedule.span")}>
               {(Object.keys(SPANS) as Span[]).map((s) => (
-                <option key={s} value={s}>
+                <button
+                  key={s}
+                  type="button"
+                  aria-pressed={span === s}
+                  onClick={() => {
+                    // The chosen span pressed again: back to today.
+                    if (span === s) setDay(dayStart(new Date()));
+                    setSpan(s);
+                  }}
+                >
                   {t(`schedule.span_${s}`)}
-                </option>
+                </button>
               ))}
-            </select>
-          </Field>
+            </div>
+          </div>
           <Field label={t("schedule.location")}>
             <select value={location} onChange={(e) => setLocation(e.target.value)}>
               <option value="">{t("schedule.all_locations")}</option>
@@ -154,13 +173,21 @@ export function ScheduleView({ relations }: { relations: Set<string> }) {
             </select>
           </Field>
           <div className="actions">
-            <button type="button" className="secondary" onClick={() => shift(-1)}>
+            <button type="button" className="secondary" aria-label={t("schedule.back")} onClick={() => shift(-1)}>
               ←
             </button>
-            <button type="button" className="secondary" onClick={() => setFrom(dayStart(new Date()))}>
-              {t("schedule.today")}
-            </button>
-            <button type="button" className="secondary" onClick={() => shift(1)}>
+            {/* One calendar for every span: the day itself, the middle of the week, the month. */}
+            <input
+              type="date"
+              className="schedule-date"
+              aria-label={t("schedule.go_to")}
+              title={t("schedule.go_to")}
+              value={`${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`}
+              onChange={(e) => {
+                if (e.target.value) setDay(dayStart(new Date(`${e.target.value}T00:00`)));
+              }}
+            />
+            <button type="button" className="secondary" aria-label={t("schedule.forward")} onClick={() => shift(1)}>
               →
             </button>
           </div>

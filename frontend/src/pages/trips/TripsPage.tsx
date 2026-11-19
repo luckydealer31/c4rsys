@@ -7,6 +7,7 @@ import { ApiError } from "../../api/client";
 import { useApi } from "../../api/queries";
 import type { Delivery, DeliveryPoint, Location } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
+import { daysAhead, PeriodControl } from "../../components/PeriodControl";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { OrderLeft, OrderOffer, useOrderOffer } from "../orders/CancelWith";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
@@ -70,6 +71,8 @@ export function mayTrips(can: (permission: string) => boolean): boolean {
   return TRIP_RIGHTS.some(can);
 }
 
+const TRIP_PERIODS = ["all", "today", "tomorrow", "week", "month"] as const;
+
 export function TripsView() {
   const { t } = useTranslation();
   const company = useCompany();
@@ -78,6 +81,19 @@ export function TripsView() {
   const mine = useTrips("mine=1&active=1", can("delivery.drive") || can("delivery.take"));
   const free = useTrips("free=1", can("delivery.take"));
   const list = useTrips(all ? "" : "active=1", can("delivery.view"));
+  // The days of the planned start (customer's decision of 20.11.2026): all by default.
+  const zone = company.timezone ?? "UTC";
+  const [mode, setMode] = useState<string>("all");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const today = toLocalInput(new Date(), zone).slice(0, 10);
+  const dayOf = (moment: string | null) =>
+    moment ? new Intl.DateTimeFormat("en-CA", { timeZone: zone }).format(new Date(moment)) : "";
+  const shown = (list.data?.deliveries ?? []).filter((d) => {
+    if (!from && !to) return true;
+    const day = dayOf(d.planned_start);
+    return day !== "" && (!from || day >= from) && (!to || day <= to);
+  });
   return (
     <div>
       <div className="actions" style={{ marginBottom: 16, marginTop: 0 }}>
@@ -104,10 +120,33 @@ export function TripsView() {
       ) : null}
       {can("delivery.view") ? (
         <Card title={t("trips.all")}>
-          <label className="small">
-            <input type="checkbox" checked={all} onChange={() => setAll(!all)} /> {t("trips.show_finished")}
-          </label>
-          <TripTable items={list.data?.deliveries ?? []} loading={list.isLoading} />
+          <div className="list-bar">
+            <label className="small">
+              <input type="checkbox" checked={all} onChange={() => setAll(!all)} /> {t("trips.show_finished")}
+            </label>
+            <PeriodControl
+              days
+              modes={TRIP_PERIODS}
+              mode={mode}
+              onPick={(turn) => {
+                const [a, b] = daysAhead(turn, today);
+                setMode(turn);
+                setFrom(a);
+                setTo(b);
+              }}
+              from={from}
+              to={to}
+              onFrom={(value) => {
+                setMode(value || to ? "own" : "all");
+                setFrom(value);
+              }}
+              onTo={(value) => {
+                setMode(value || from ? "own" : "all");
+                setTo(value);
+              }}
+            />
+          </div>
+          <TripTable items={shown} loading={list.isLoading} />
         </Card>
       ) : null}
     </div>

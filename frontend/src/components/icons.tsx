@@ -17,6 +17,12 @@ const PATHS: Record<string, ReactNode> = {
   restore: <path d="M4 12a8 8 0 1 0 2.6-5.9M4 4v5h5" />,
   trash: <path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" />,
   check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
+  calendar: (
+    <>
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M3 10h18M8 3v4M16 3v4" />
+    </>
+  ),
   close: <path d="M6 6l12 12M18 6L6 18" />,
   // A chain taken apart: to break the link of a service with its rental.
   unlink: (

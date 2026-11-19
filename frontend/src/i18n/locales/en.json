@@ -2064,8 +2064,6 @@
     "inspection_in_progress": "in progress",
     "filter_both": "Rentals and bookings",
     "filter_all_locations": "All locations",
-    "filter_from": "from",
-    "filter_to": "to",
     "none_found": "Nothing matches these conditions.",
     "filter_services_both": "Services and bookings",
     "tab_park": "Park",
@@ -2083,19 +2081,7 @@
     "park_limited": "Restricted",
     "catalog_archived": "Archived",
     "catalog_no_active_tariffs": "No active tariffs.",
-    "catalog_no_active_services": "No active services.",
-    "park_period": "Period",
-    "park_from": "from",
-    "park_to": "to",
-    "park_from_label": "Beginning of the period",
-    "park_to_label": "End of the period",
-    "park_period_hint": "The button goes round the ready periods: now; today and tomorrow — a day from the beginning of the working day of that date; 7 days and a month from this moment. A period may also be chosen in the calendar: the time is set to the beginning of the working day. With a period a vehicle is free only when nothing takes it for the whole period; the booking begun from a row takes the period with it.",
-    "park_mode_now": "Now",
-    "park_mode_today": "Today",
-    "park_mode_tomorrow": "Tomorrow",
-    "park_mode_week": "7 days",
-    "park_mode_month": "Month",
-    "park_mode_own": "Own period"
+    "catalog_no_active_services": "No active services."
   },
   "rights": {
     "add": "Add rights",
@@ -5150,13 +5136,16 @@
     "span_month": "Month",
     "location": "Location",
     "all_locations": "All locations",
-    "today": "Today",
     "kind_booking": "Booking",
     "kind_rental": "Rental",
     "kind_service": "Service",
     "kind_delivery": "Move",
     "no_vehicles": "No vehicles.",
-    "hint": "Own and managed vehicles in the garage. Planned ones are pale; the red line is now. Bookings and rentals, service and moves are shown by the rights to them in the vehicle's location."
+    "hint": "Own and managed vehicles in the garage. Planned ones are pale; the red line is now. Bookings and rentals, service and moves are shown by the rights to them in the vehicle's location.",
+    "go_to": "Go to a date",
+    "span_hint": "A day shows the chosen date whole; a week has it in the middle — three days before and three after; a month is its calendar month. The arrows turn a day, a week or a month. Pressing the chosen span again brings today back.",
+    "back": "Back",
+    "forward": "Forward"
   },
   "inspections": {
     "title": "Inspections",
@@ -6590,5 +6579,21 @@
   "moment": {
     "date": "date",
     "time": "time"
+  },
+  "period": {
+    "title": "Period",
+    "choose": "Choose the period",
+    "from": "from",
+    "to": "to",
+    "from_label": "Beginning of the period",
+    "to_label": "End of the period",
+    "mode_now": "Now",
+    "mode_all": "All time",
+    "mode_today": "Today",
+    "mode_yesterday": "Yesterday",
+    "mode_tomorrow": "Tomorrow",
+    "mode_week": "7 days",
+    "mode_month": "Month",
+    "mode_own": "Own"
   }
 }

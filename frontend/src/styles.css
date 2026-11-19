@@ -471,10 +471,24 @@ label.check { display: inline-flex; gap: 6px; align-items: center; margin-right:
 }
 .list-search { flex: 1 1 260px; max-width: 420px; border-radius: 999px; padding: 6px 12px; }
 .list-bar select, .list-bar input[type="date"], .list-bar input[type="datetime-local"] { width: auto; }
-/* The period of the park: «from» and «to» with the quick choices beside them. */
-.period-bar .period-part { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 0.9rem; }
 .toggle-chip.plain::before { content: none; }
-.toggle-chip.period-mode { min-width: 96px; justify-content: center; border-color: var(--accent); color: var(--accent); }
+/* The period of a list in one control at the right end of the filter line: its name, its
+   dates, the calendar that opens a small window. */
+.period-control { position: relative; margin-left: auto; display: inline-flex; align-items: stretch;
+  border: 1px solid var(--accent); border-radius: 8px; background: var(--surface); font-size: 0.9rem; }
+.period-control > button { background: transparent; border: 0; border-radius: 0; padding: 6px 12px; color: var(--accent); }
+.period-name { font-weight: 600; min-width: 84px; justify-content: center; }
+.period-dates { display: inline-flex; align-items: center; padding: 0 12px; color: var(--muted);
+  border-left: 1px solid var(--border); white-space: nowrap; }
+.period-calendar { border-left: 1px solid var(--border) !important; display: inline-flex; align-items: center; }
+.period-pop { right: 0; top: calc(100% + 6px); width: 300px; padding: 12px; gap: 6px; }
+.period-ready { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 4px; }
+.period-ready .toggle-chip[aria-pressed="true"] { color: var(--accent); font-weight: 600; }
+.period-label { font-size: 0.85rem; color: var(--muted); }
+.period-pop .moment-field { display: grid; grid-template-columns: minmax(0, 1fr) 110px; }
+.period-pop .moment-field input { width: 100%; }
+.schedule-date { width: auto; }
+@media (max-width: 760px) { .period-control { margin-left: 0; } .period-pop { right: auto; left: 0; max-width: calc(100vw - 32px); } }
 /* A moment as a date and a time side by side. */
 .moment-field { display: inline-flex; gap: 4px; }
 .moment-field input { width: auto; }

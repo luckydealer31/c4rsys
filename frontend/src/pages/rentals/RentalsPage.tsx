@@ -9,7 +9,8 @@ import { Card, Loading, Switch } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { SectionTabs } from "../../layout/SectionTabs";
 import { useFirstTab } from "../../layout/tabOrder";
-import { formatMoment } from "../../time";
+import { daysAhead, PeriodControl } from "../../components/PeriodControl";
+import { formatMoment, toLocalInput } from "../../time";
 import { clientName } from "../clients/ClientsPage";
 import { useOrders } from "../orders/OrdersPage";
 import { SectionSearch } from "../search/SearchPage";
@@ -67,9 +68,14 @@ function byOrder<T extends { id: string; order_id: string }>(rows: T[], numbers:
   });
 }
 
+const PERIODS = ["all", "today", "tomorrow", "week", "month"] as const;
+
 function ListBar({ f, both, main }: { f: ListFilters; both: string; main: string }) {
   const { t } = useTranslation();
+  const company = useCompany();
   const locations = useLocations().data?.locations ?? [];
+  const [mode, setMode] = useState<string>("all");
+  const today = toLocalInput(new Date(), company.timezone ?? "UTC").slice(0, 10);
   const kinds: [ListKind, string][] = [
     ["all", both],
     ["main", main],
@@ -97,15 +103,30 @@ function ListBar({ f, both, main }: { f: ListFilters; both: string; main: string
           ))}
         </select>
       ) : null}
-      <label className="inline-field">
-        {t("rentals.filter_from")}
-        <input type="date" value={f.from} max={f.to || undefined} onChange={(e) => f.setFrom(e.target.value)} />
-      </label>
-      <label className="inline-field">
-        {t("rentals.filter_to")}
-        <input type="date" value={f.to} min={f.from || undefined} onChange={(e) => f.setTo(e.target.value)} />
-      </label>
       <SectionSearch compact value={f.q} onSearch={f.setQ} />
+      {/* The days of the start in one control at the right end (customer's decision of
+          20.11.2026): all, today, tomorrow, 7 days, a month, or own dates in the calendar. */}
+      <PeriodControl
+        days
+        modes={PERIODS}
+        mode={mode}
+        onPick={(turn) => {
+          const [from, to] = daysAhead(turn, today);
+          setMode(turn);
+          f.setFrom(from);
+          f.setTo(to);
+        }}
+        from={f.from}
+        to={f.to}
+        onFrom={(value) => {
+          setMode(value || f.to ? "own" : "all");
+          f.setFrom(value);
+        }}
+        onTo={(value) => {
+          setMode(value || f.from ? "own" : "all");
+          f.setTo(value);
+        }}
+      />
     </div>
   );
 }
