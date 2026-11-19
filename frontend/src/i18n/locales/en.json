@@ -5135,7 +5135,6 @@
     "span_week": "Week",
     "span_month": "Month",
     "location": "Location",
-    "all_locations": "All locations",
     "kind_booking": "Booking",
     "kind_rental": "Rental",
     "kind_service": "Service",
@@ -6582,15 +6581,9 @@
   },
   "period": {
     "title": "Period",
-    "choose": "Choose the period",
-    "mode_now": "Now",
-    "mode_all": "All time",
-    "mode_today": "Today",
-    "mode_yesterday": "Yesterday",
-    "mode_tomorrow": "Tomorrow",
-    "mode_week": "7 days",
-    "mode_month": "Month",
-    "mode_own": "Own"
+    "choose": "Choose the dates",
+    "back": "Back",
+    "forward": "Forward"
   },
   "calendar": {
     "prev_year": "Previous year",
@@ -6598,6 +6591,7 @@
     "prev_month": "Previous month",
     "next_month": "Next month",
     "pick": "Press a date; a second one makes a period",
-    "ok": "OK"
+    "ok": "OK",
+    "reset": "Reset"
   }
 }

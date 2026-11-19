@@ -5135,7 +5135,6 @@
     "span_week": "สัปดาห์",
     "span_month": "เดือน",
     "location": "สถานที่",
-    "all_locations": "ทุกสถานที่",
     "kind_booking": "การจอง",
     "kind_rental": "การเช่า",
     "kind_service": "บริการ",
@@ -6582,15 +6581,9 @@
   },
   "period": {
     "title": "ช่วงเวลา",
-    "choose": "เลือกช่วงเวลา",
-    "mode_now": "ตอนนี้",
-    "mode_all": "ทั้งหมด",
-    "mode_today": "วันนี้",
-    "mode_yesterday": "เมื่อวาน",
-    "mode_tomorrow": "พรุ่งนี้",
-    "mode_week": "7 วัน",
-    "mode_month": "เดือน",
-    "mode_own": "กำหนดเอง"
+    "choose": "เลือกวันที่",
+    "back": "ก่อนหน้า",
+    "forward": "ถัดไป"
   },
   "calendar": {
     "prev_year": "ปีก่อนหน้า",
@@ -6598,6 +6591,7 @@
     "prev_month": "เดือนก่อนหน้า",
     "next_month": "เดือนถัดไป",
     "pick": "กดวันที่ กดวันที่สองเพื่อเลือกช่วง",
-    "ok": "ตกลง"
+    "ok": "ตกลง",
+    "reset": "ล้าง"
   }
 }

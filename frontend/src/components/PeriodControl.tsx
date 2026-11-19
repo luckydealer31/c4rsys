@@ -1,47 +1,50 @@
 import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Icon } from "./icons";
 import { Calendar } from "./Calendar";
+import { Icon } from "./icons";
 import { useDismiss } from "./useDismiss";
 
 const DAY = 86_400_000;
+const utc = (date: string) => new Date(`${date}T00:00:00Z`).getTime();
 const iso = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
-/** The days of a ready period ahead, as date fields give them (customer's decisions of
- * 20.11.2026): today, tomorrow; 7 days — today and the six days after it; a month — from today
- * to the day before the same date of the next month. `today` is «2026-11-20». */
-export function daysAhead(mode: string, today: string): [string, string] {
-  const start = new Date(`${today}T00:00:00Z`).getTime();
-  if (mode === "today") return [today, today];
-  if (mode === "tomorrow") return [iso(start + DAY), iso(start + DAY)];
-  if (mode === "week") return [today, iso(start + 6 * DAY)];
-  if (mode === "month") {
-    const [y = 0, m = 1, d = 1] = today.split("-").map(Number);
-    const last = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
-    return [today, iso(Date.UTC(y, m, Math.min(d, last)) - DAY)];
-  }
-  return ["", ""];
+/** The days chosen for a list, remembered in the browser under `key` (customer's decision of
+ * 20.11.2026: the next visit begins with the last choice). */
+export function useStoredDates(key: string): [string, string, (from: string, to: string) => void] {
+  const read = (): [string, string] => {
+    try {
+      const [from = "", to = ""] = (window.localStorage.getItem(key) ?? "").split("|");
+      return /^\d{4}-\d{2}-\d{2}$/.test(from) && /^\d{4}-\d{2}-\d{2}$/.test(to || from) ? [from, to || from] : ["", ""];
+    } catch {
+      return ["", ""];
+    }
+  };
+  const [dates, setDates] = useState<[string, string]>(read);
+  const set = (from: string, to: string) => {
+    setDates([from, to]);
+    try {
+      if (from) window.localStorage.setItem(key, `${from}|${to}`);
+      else window.localStorage.removeItem(key);
+    } catch {
+      // Without the storage the choice lives till the page is left.
+    }
+  };
+  return [dates[0], dates[1], set];
 }
 
-/** The period of a list in one compact control of the filter line (customer's decisions of
- * 20.11.2026): the name of the period — a press goes round the ready periods; its dates; the
- * calendar — a small window with the ready periods and our calendar, where one date or a period
- * of any length is chosen. `from` and `to` are days («2026-11-20»), empty — no period. What each
- * ready period means is decided by the page: `onPick` sets its dates. */
+/** The days of a list in one compact control of the filter line (customer's decisions of
+ * 20.11.2026). With no date it is the calendar alone and the list shows everything. The calendar
+ * opens our calendar with today chosen: «OK» is today, another date or a period of any length
+ * may be pressed, «Cancel» leaves things as they are and the small «Reset» takes the dates away.
+ * A chosen date or period is shown beside the calendar, with arrows that turn it back and
+ * forward by its own length. `from` and `to` are days («2026-11-20»); empty — all. */
 export function PeriodControl({
-  modes,
-  mode,
-  onPick,
   from,
   to,
   onDates,
   today,
 }: {
-  modes: readonly string[];
-  /** One of `modes`, or «own» for dates chosen in the calendar. */
-  mode: string;
-  onPick: (mode: string) => void;
   from: string;
   to: string;
   onDates: (from: string, to: string) => void;
@@ -52,48 +55,47 @@ export function PeriodControl({
   const root = useRef<HTMLDivElement>(null);
   const close = useCallback(() => setOpen(false), []);
   useDismiss(open, close, root);
-  const name = (key: string) => t(`period.mode_${key}`);
-  const next = modes[(modes.indexOf(mode) + 1) % modes.length] ?? modes[0] ?? "";
+  const last = to || from;
   const short = (value: string) =>
-    new Intl.DateTimeFormat(i18n.language, { day: "2-digit", month: "2-digit", timeZone: "UTC" }).format(
-      new Date(`${value}T00:00:00Z`),
-    );
-  const dates = from && to && from !== to ? `${short(from)} – ${short(to)}` : from || to ? short(from || to) : "";
+    new Intl.DateTimeFormat(i18n.language, { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" }).format(utc(value));
+  const dates = from ? (last !== from ? `${short(from)} – ${short(last)}` : short(from)) : "";
+  const turn = (direction: number) => {
+    const length = utc(last) - utc(from) + DAY;
+    onDates(iso(utc(from) + direction * length), iso(utc(last) + direction * length));
+  };
+  const pick = (a: string, b: string) => {
+    onDates(a, b);
+    close();
+  };
   return (
-    <div className="period-control" ref={root} role="group" aria-label={t("period.title")}>
-      <button type="button" className="period-name" aria-label={`${t("period.title")}: ${name(mode)}`} onClick={() => onPick(next)}>
-        {name(mode)}
-      </button>
-      {dates ? <span className="period-dates">{dates}</span> : null}
+    <div className={`period-control${from ? "" : " empty"}`} ref={root} role="group" aria-label={t("period.title")}>
+      {from ? (
+        <button type="button" aria-label={t("period.back")} onClick={() => turn(-1)}>
+          ←
+        </button>
+      ) : null}
       <button
         type="button"
         className="period-calendar"
         aria-label={t("period.choose")}
         aria-expanded={open}
-        data-tip={open ? undefined : t("period.choose")}
+        data-from={from}
+        data-to={from ? last : ""}
+        data-tip={open || from ? undefined : t("period.choose")}
         onClick={() => setOpen(!open)}
       >
         <Icon name="calendar" size={18} />
+        {dates ? <span>{dates}</span> : null}
       </button>
+      {from ? (
+        <button type="button" aria-label={t("period.forward")} onClick={() => turn(1)}>
+          →
+        </button>
+      ) : null}
       {open ? (
         <div className="popup period-pop" role="dialog" aria-label={t("period.choose")}>
-          <div className="period-ready">
-            {modes.map((key) => (
-              <button key={key} type="button" className="toggle-chip plain" aria-pressed={key === mode} onClick={() => onPick(key)}>
-                {name(key)}
-              </button>
-            ))}
-          </div>
-          <Calendar
-            key={`${from}-${to}`}
-            from={from}
-            to={to}
-            today={today}
-            onOk={(a, b) => {
-              onDates(a, b);
-              close();
-            }}
-          />
+          {/* The calendar offers today whatever is chosen now: «OK» is today at once. */}
+          <Calendar from={today} to={today} today={today} onOk={pick} onCancel={close} onReset={() => pick("", "")} />
         </div>
       ) : null}
     </div>

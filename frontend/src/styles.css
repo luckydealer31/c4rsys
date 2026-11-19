@@ -476,11 +476,10 @@ label.check { display: inline-flex; gap: 6px; align-items: center; margin-right:
    dates, the calendar that opens a small window. */
 .period-control { position: relative; margin-left: auto; display: inline-flex; align-items: stretch;
   border: 1px solid var(--accent); border-radius: 8px; background: var(--surface); font-size: 0.9rem; }
-.period-control > button { background: transparent; border: 0; border-radius: 0; padding: 6px 12px; color: var(--accent); }
-.period-name { font-weight: 600; min-width: 84px; justify-content: center; }
-.period-dates { display: inline-flex; align-items: center; padding: 0 12px; color: var(--muted);
-  border-left: 1px solid var(--border); white-space: nowrap; }
-.period-calendar { border-left: 1px solid var(--border) !important; display: inline-flex; align-items: center; }
+.period-control.empty { border-color: var(--border); }
+.period-control > button { background: transparent; border: 0; border-radius: 0; padding: 6px 10px; color: var(--accent);
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.period-control > button + button { border-left: 1px solid var(--border); }
 .period-pop { right: 0; top: calc(100% + 6px); width: 330px; padding: 12px; gap: 6px; }
 .period-ready { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 4px; }
 .period-ready .toggle-chip[aria-pressed="true"] { color: var(--accent); font-weight: 600; }
@@ -490,6 +489,10 @@ label.check { display: inline-flex; gap: 6px; align-items: center; margin-right:
 .schedule-date { width: auto; white-space: nowrap; }
 .schedule-picker { position: relative; }
 .schedule-nav { flex-wrap: nowrap; }
+/* The span and the date with its arrows side by side; the locations in a line of their own. */
+.schedule-bar { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: flex-end; }
+.schedule-bar .schedule-nav { margin-top: 0; }
+.schedule-places { margin: 12px 0 0; }
 .schedule-pop { left: 0; top: calc(100% + 6px); width: 330px; padding: 12px; }
 /* The names stay in sight while a long period is scrolled. */
 .schedule-name { position: sticky; left: 0; z-index: 2; background: var(--surface); align-self: stretch; display: flex; align-items: center; }
@@ -508,6 +511,8 @@ button.calendar-day.marked { background: color-mix(in srgb, var(--accent) 16%, t
 button.calendar-day.edge { background: var(--accent); color: #fff; border-radius: 6px; opacity: 1; }
 button.calendar-day:hover:not(.edge) { background: color-mix(in srgb, var(--accent) 26%, transparent); }
 .calendar-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.calendar-buttons { display: inline-flex; gap: 8px; }
+.calendar-chosen { min-height: 1.3em; }
 @media (pointer: coarse), (max-width: 760px) {
   button.calendar-day { height: 44px; }
   .schedule-pop { max-width: calc(100vw - 32px); }

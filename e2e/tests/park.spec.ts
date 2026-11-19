@@ -178,29 +178,19 @@ test("the park is filtered by the occupancy and begins a booking; the card shows
   // The park has no period (customer's decision of 20.11.2026): the occupancy is of now.
   await expect(page.getByRole("button", { name: t("period.choose"), exact: true })).toHaveCount(0);
 
-  // The period of a list is one compact control at the right end of the filter line: its name
-  // goes round the ready periods — all, today, tomorrow, 7 days, a month; the calendar opens a
-  // small window with own dates. The booking of Honda Civic begins in two days.
+  // The days of a list (customer's decisions of 20.11.2026): the calendar alone while everything
+  // is shown; its window is our calendar with today chosen — «OK» is today, a date and «OK» is
+  // one day, a date, another one and «OK» a period, «Cancel» leaves things as they are, the
+  // small «Reset» takes the dates away; the chosen dates stand beside the calendar with the
+  // arrows that turn them by their own length, and are remembered for the next visit. There
+  // are no ready periods. The booking of Honda Civic begins in two days.
   await page.goto(`${s.base}/rentals?tab=rentals`);
   const list = page.locator("table tbody tr");
   await expect(list).toHaveCount(2);
-  const mode = (key: string) =>
-    page.getByRole("button", { name: `${t("period.title")}: ${t(`period.mode_${key}`)}`, exact: true });
   const booking = list.filter({ hasText: "Honda Civic" });
-  await mode("all").click();
-  await expect(mode("today")).toBeVisible();
-  await expect(booking).toHaveCount(0);
-  await mode("today").click();
-  await expect(list).toHaveCount(0);
-  await mode("tomorrow").click();
-  await expect(mode("week")).toBeVisible();
-  await expect(booking).toHaveCount(1);
-  await mode("week").click();
-  await expect(booking).toHaveCount(1);
-  await page.getByRole("button", { name: t("period.choose"), exact: true }).click();
+  const calendar = page.getByRole("button", { name: t("period.choose"), exact: true });
   const window = page.getByRole("dialog", { name: t("period.choose") });
-  // Our calendar: a date and «OK» — one day; a date, another one and «OK» — a period. The
-  // month is turned by the single arrow when the day is not in the shown one.
+  const arrow = (key: string) => page.getByRole("button", { name: t(`period.${key}`), exact: true });
   const date = (days: number) => bangkok(days, "").slice(0, 10);
   const press = async (scope: import("@playwright/test").Locator, day: string) => {
     const cell = scope.locator(`[data-date="${day}"]:not(.outside)`);
@@ -208,31 +198,63 @@ test("the park is filtered by the occupancy and begins a booking; the card shows
     await cell.click();
   };
   const okay = (scope: import("@playwright/test").Locator) => scope.getByRole("button", { name: t("calendar.ok"), exact: true });
-  await expect(okay(window)).toBeEnabled();
-  // One date: the day after the booking begins — nothing starts on it.
+  await expect(calendar).toHaveAttribute("data-from", "");
+  await expect(arrow("forward")).toHaveCount(0);
+  // The calendar opens with today chosen: «OK» at once is today, and the arrows turn it day
+  // by day.
+  await calendar.click();
+  await expect(window.locator(`[data-date="${date(0)}"]`)).toHaveAttribute("aria-pressed", "true");
+  await expect(window.getByRole("button")).toHaveCount((await window.locator(".calendar-day").count()) + 7);
+  await okay(window).click();
+  await expect(window).toHaveCount(0);
+  await expect(calendar).toHaveAttribute("data-from", date(0));
+  await expect(booking).toHaveCount(0);
+  await arrow("forward").click();
+  await expect(list).toHaveCount(0);
+  await arrow("forward").click();
+  await expect(calendar).toHaveAttribute("data-from", date(2));
+  await expect(booking).toHaveCount(1);
+  await arrow("back").click();
+  await expect(calendar).toHaveAttribute("data-from", date(1));
+  // One date in the calendar: the day after the booking begins — nothing starts on it.
+  await calendar.click();
   await press(window, date(3));
   await okay(window).click();
   await expect(window).toHaveCount(0);
-  await expect(mode("own")).toBeVisible();
   await expect(list).toHaveCount(0);
-  // A period: from tomorrow to the day the booking begins.
-  await page.getByRole("button", { name: t("period.choose"), exact: true }).click();
+  // A period: from tomorrow to the day the booking begins; the arrows turn it by two days.
+  await calendar.click();
   await press(window, date(1));
   await press(window, date(2));
   await expect(window.locator(".calendar-day.marked")).toHaveCount(2);
   await okay(window).click();
   await expect(booking).toHaveCount(1);
-  // Closing without «OK» changes nothing; a ready period is chosen in the window as well.
-  await page.getByRole("button", { name: t("period.choose"), exact: true }).click();
+  await arrow("forward").click();
+  await expect(calendar).toHaveAttribute("data-from", date(3));
+  await expect(calendar).toHaveAttribute("data-to", date(4));
+  await expect(booking).toHaveCount(0);
+  await arrow("back").click();
+  // «Cancel» changes nothing, though the calendar offered today again.
+  await calendar.click();
+  await expect(window.locator(`[data-date="${date(0)}"]`)).toHaveAttribute("aria-pressed", "true");
   await press(window, date(5));
-  await page.keyboard.press("Escape");
+  await window.getByRole("button", { name: t("common.cancel"), exact: true }).click();
   await expect(window).toHaveCount(0);
+  await expect(calendar).toHaveAttribute("data-from", date(1));
+  // The choice is remembered: the next visit begins with it.
+  await page.reload();
+  await expect(calendar).toHaveAttribute("data-from", date(1));
+  await expect(calendar).toHaveAttribute("data-to", date(2));
   await expect(booking).toHaveCount(1);
-  await page.getByRole("button", { name: t("period.choose"), exact: true }).click();
-  await window.getByRole("button", { name: t("period.mode_all"), exact: true }).click();
-  await expect(mode("all")).toBeVisible();
-  await page.keyboard.press("Escape");
+  // «Reset» takes the dates away: everything is shown again, and that is remembered too.
+  await calendar.click();
+  await window.getByRole("button", { name: t("calendar.reset"), exact: true }).click();
+  await expect(calendar).toHaveAttribute("data-from", "");
+  await expect(arrow("forward")).toHaveCount(0);
   await expect(list).toHaveCount(2);
+  // The ordered services are filtered by the same control.
+  await page.goto(`${s.base}/rentals?tab=services`);
+  await expect(page.getByRole("button", { name: t("period.choose"), exact: true })).toBeVisible();
 
   // The schedule (customer's decisions of 20.11.2026): one calendar for every span — a day
   // shows the date whole, a week has it in the middle, a month is its calendar month; the arrows
@@ -268,6 +290,22 @@ test("the park is filtered by the occupancy and begins a booking; the card shows
   await expect(go).toHaveAttribute("data-from", next.toISOString().slice(0, 10));
   await span("month").click();
   await expect(go).toHaveAttribute("data-from", today);
+
+  // The span and the date stand side by side, in one line.
+  const [spans, nav] = [(await span("day").boundingBox())!, (await go.boundingBox())!];
+  expect(Math.abs(spans.y + spans.height / 2 - (nav.y + nav.height / 2))).toBeLessThan(8);
+  // The locations are switched on and off one by one; the last one that is on stays on.
+  const place = (name: string) => page.locator(".schedule-places").getByRole("button", { name: new RegExp(name) });
+  const pajero = page.getByRole("link", { name: /Mitsubishi Pajero/ });
+  await expect(pajero).toBeVisible();
+  await place("Чалонг").click();
+  await expect(place("Чалонг")).toHaveAttribute("aria-pressed", "false");
+  await expect(pajero).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Honda Civic" })).toBeVisible();
+  await place("Пхукет").click();
+  await expect(place("Пхукет")).toHaveAttribute("aria-pressed", "true");
+  await place("Чалонг").click();
+  await expect(pajero).toBeVisible();
 
   // The calendar of the schedule: one date is the day; two dates are a period of its own, of
   // any length — more than a month is scrolled sideways, and the arrows turn it by its length.

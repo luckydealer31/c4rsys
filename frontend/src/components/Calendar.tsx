@@ -16,6 +16,8 @@ export function Calendar({
   to,
   today,
   onOk,
+  onCancel,
+  onReset,
   single = false,
 }: {
   from: string;
@@ -23,6 +25,9 @@ export function Calendar({
   /** The day that is today for the reader, marked in the grid. */
   today: string;
   onOk: (from: string, to: string) => void;
+  onCancel: () => void;
+  /** «Reset» in small letters: no dates at all. Not offered without it. */
+  onReset?: () => void;
   /** Only one date may be chosen. */
   single?: boolean;
 }) {
@@ -128,11 +133,23 @@ export function Calendar({
           );
         })}
       </div>
+      <div className="muted small calendar-chosen">{chosen || t("calendar.pick")}</div>
       <div className="calendar-foot">
-        <span className="muted small">{chosen || t("calendar.pick")}</span>
-        <button type="button" disabled={!first} onClick={() => onOk(first, last || first)}>
-          {t("calendar.ok")}
-        </button>
+        {onReset ? (
+          <button type="button" className="link small" onClick={onReset}>
+            {t("calendar.reset")}
+          </button>
+        ) : (
+          <span />
+        )}
+        <span className="calendar-buttons">
+          <button type="button" className="secondary" onClick={onCancel}>
+            {t("common.cancel")}
+          </button>
+          <button type="button" disabled={!first} onClick={() => onOk(first, last || first)}>
+            {t("calendar.ok")}
+          </button>
+        </span>
       </div>
     </div>
   );

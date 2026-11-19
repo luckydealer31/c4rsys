@@ -7,7 +7,7 @@ import { ApiError } from "../../api/client";
 import { useApi } from "../../api/queries";
 import type { Delivery, DeliveryPoint, Location } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { daysAhead, PeriodControl } from "../../components/PeriodControl";
+import { PeriodControl, useStoredDates } from "../../components/PeriodControl";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { OrderLeft, OrderOffer, useOrderOffer } from "../orders/CancelWith";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
@@ -71,8 +71,6 @@ export function mayTrips(can: (permission: string) => boolean): boolean {
   return TRIP_RIGHTS.some(can);
 }
 
-const TRIP_PERIODS = ["all", "today", "tomorrow", "week", "month"] as const;
-
 export function TripsView() {
   const { t } = useTranslation();
   const company = useCompany();
@@ -83,9 +81,7 @@ export function TripsView() {
   const list = useTrips(all ? "" : "active=1", can("delivery.view"));
   // The days of the planned start (customer's decision of 20.11.2026): all by default.
   const zone = company.timezone ?? "UTC";
-  const [mode, setMode] = useState<string>("all");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  const [from, to, setDates] = useStoredDates(`c4r.dates.${company.public_id}.trips`);
   const today = toLocalInput(new Date(), zone).slice(0, 10);
   const dayOf = (moment: string | null) =>
     moment ? new Intl.DateTimeFormat("en-CA", { timeZone: zone }).format(new Date(moment)) : "";
@@ -125,22 +121,10 @@ export function TripsView() {
               <input type="checkbox" checked={all} onChange={() => setAll(!all)} /> {t("trips.show_finished")}
             </label>
             <PeriodControl
-              modes={TRIP_PERIODS}
-              mode={mode}
-              onPick={(turn) => {
-                const [a, b] = daysAhead(turn, today);
-                setMode(turn);
-                setFrom(a);
-                setTo(b);
-              }}
               from={from}
               to={to}
               today={today}
-              onDates={(a, b) => {
-                setMode(a ? "own" : "all");
-                setFrom(a);
-                setTo(b);
-              }}
+              onDates={setDates}
             />
           </div>
           <TripTable items={shown} loading={list.isLoading} />

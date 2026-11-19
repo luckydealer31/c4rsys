@@ -5,7 +5,7 @@ import { Link, Navigate } from "react-router";
 import { useApi } from "../../api/queries";
 import { Calendar } from "../../components/Calendar";
 import { Icon } from "../../components/icons";
-import { Card, ErrorMessage, Field, Info, Loading } from "../../components/ui";
+import { Card, ErrorMessage, Info, Loading } from "../../components/ui";
 import { useDismiss } from "../../components/useDismiss";
 import { companyPath, useCompany } from "../../layout/CompanyShell";
 import { workHome } from "../../layout/CompanyTabs";
@@ -104,7 +104,8 @@ export function ScheduleView({ relations }: { relations: Set<string> }) {
   const picker = useRef<HTMLDivElement>(null);
   const closePicker = useCallback(() => setPicking(false), []);
   useDismiss(picking, closePicker, picker);
-  const [location, setLocation] = useState("");
+  // The locations switched off; none at first.
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
   const from = own ? own.from : span === "day" ? day : span === "week" ? addDays(day, -3) : new Date(day.getFullYear(), day.getMonth(), 1);
   const to = own
     ? own.to
@@ -120,7 +121,7 @@ export function ScheduleView({ relations }: { relations: Set<string> }) {
     `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
   const dayText = (value: Date) =>
     new Intl.DateTimeFormat(i18n.language, { day: "2-digit", month: "2-digit", year: "numeric" }).format(value);
-  const query = `from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}${location ? `&location=${location}` : ""}`;
+  const query = `from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`;
   const schedule = useApi<{ vehicles: { id: string; name: string }[]; items: Item[] }>(
     ["schedule", company.public_id, query],
     `/c/${company.public_id}/vehicles/schedule?${query}`,
@@ -154,18 +155,27 @@ export function ScheduleView({ relations }: { relations: Set<string> }) {
   });
   const known = locations.data?.locations ?? [];
   const groups = [
-    ...known.map((l) => ({ id: l.id, name: l.name, rows: rows.filter((v) => info.get(v.id)?.location_id === l.id) })),
+    ...known
+      .filter((l) => !hidden.has(l.id))
+      .map((l) => ({ id: l.id, name: l.name, rows: rows.filter((v) => info.get(v.id)?.location_id === l.id) })),
     {
       id: "none",
       name: t("vehicles.no_location"),
-      rows: rows.filter((v) => !known.some((l) => l.id === info.get(v.id)?.location_id)),
+      // The vehicles of no location are shown while every location is.
+      rows: hidden.size ? [] : rows.filter((v) => !known.some((l) => l.id === info.get(v.id)?.location_id)),
     },
   ].filter((group) => group.rows.length > 0);
+  const togglePlace = (id: string) => {
+    const next = new Set(hidden);
+    if (next.has(id)) next.delete(id);
+    else if (next.size < known.length - 1) next.add(id);
+    setHidden(next);
+  };
 
   return (
     <>
       <Card>
-        <div className="row">
+        <div className="schedule-bar">
           <div className="field">
             <span>
               {t("schedule.span")} <Info text={t("schedule.span_hint")} />
@@ -188,16 +198,6 @@ export function ScheduleView({ relations }: { relations: Set<string> }) {
               ))}
             </div>
           </div>
-          <Field label={t("schedule.location")}>
-            <select value={location} onChange={(e) => setLocation(e.target.value)}>
-              <option value="">{t("schedule.all_locations")}</option>
-              {(locations.data?.locations ?? []).map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.name}
-                </option>
-              ))}
-            </select>
-          </Field>
           <div className="actions schedule-nav">
             <button type="button" className="secondary" aria-label={t("schedule.back")} onClick={() => shift(-1)}>
               ←
@@ -222,6 +222,7 @@ export function ScheduleView({ relations }: { relations: Set<string> }) {
                     from={local(own ? own.from : day)}
                     to={own ? local(addDays(own.to, -1)) : ""}
                     today={local(new Date())}
+                    onCancel={closePicker}
                     onOk={(a, b) => {
                       const first = dayStart(new Date(`${a}T00:00`));
                       if (a === b) {
@@ -241,6 +242,17 @@ export function ScheduleView({ relations }: { relations: Set<string> }) {
             </button>
           </div>
         </div>
+        {/* The locations are switched on and off one by one (customer's decision of 20.11.2026):
+            all at first; the last one that is on stays on. */}
+        {known.length > 1 ? (
+          <div className="list-bar schedule-places" role="group" aria-label={t("schedule.location")}>
+            {known.map((l) => (
+              <button key={l.id} type="button" className="toggle-chip" aria-pressed={!hidden.has(l.id)} onClick={() => togglePlace(l.id)}>
+                {l.name}
+              </button>
+            ))}
+          </div>
+        ) : null}
         <p className="muted small">
           {when(from.toISOString())} — {when(to.toISOString())}
         </p>

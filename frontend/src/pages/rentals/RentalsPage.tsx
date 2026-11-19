@@ -9,7 +9,7 @@ import { Card, Loading, Switch } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { SectionTabs } from "../../layout/SectionTabs";
 import { useFirstTab } from "../../layout/tabOrder";
-import { daysAhead, PeriodControl } from "../../components/PeriodControl";
+import { PeriodControl, useStoredDates } from "../../components/PeriodControl";
 import { formatMoment, toLocalInput } from "../../time";
 import { clientName } from "../clients/ClientsPage";
 import { useOrders } from "../orders/OrdersPage";
@@ -29,16 +29,16 @@ import { useRentals, useVehicles } from "../vehicles/VehiclesPage";
 // start; put by the number of the order, the newest first, turned over from the heading.
 type ListKind = "all" | "main" | "bookings";
 
-function useListFilters() {
+function useListFilters(name: string) {
+  const company = useCompany();
   const [kind, setKind] = useState<ListKind>("all");
   const [cancelled, setCancelled] = useState(false);
   const [locationId, setLocationId] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  const [from, to, setDates] = useStoredDates(`c4r.dates.${company.public_id}.${name}`);
   const [desc, setDesc] = useState(true);
   // The search of the list (customer's decision of 17.11.2026): by what a row shows and by a tag.
   const [q, setQ] = useState("");
-  return { kind, setKind, cancelled, setCancelled, locationId, setLocationId, from, setFrom, to, setTo, desc, setDesc, q, setQ };
+  return { kind, setKind, cancelled, setCancelled, locationId, setLocationId, from, to, setDates, desc, setDesc, q, setQ };
 }
 type ListFilters = ReturnType<typeof useListFilters>;
 
@@ -68,13 +68,10 @@ function byOrder<T extends { id: string; order_id: string }>(rows: T[], numbers:
   });
 }
 
-const PERIODS = ["all", "today", "tomorrow", "week", "month"] as const;
-
 function ListBar({ f, both, main }: { f: ListFilters; both: string; main: string }) {
   const { t } = useTranslation();
   const company = useCompany();
   const locations = useLocations().data?.locations ?? [];
-  const [mode, setMode] = useState<string>("all");
   const today = toLocalInput(new Date(), company.timezone ?? "UTC").slice(0, 10);
   const kinds: [ListKind, string][] = [
     ["all", both],
@@ -105,24 +102,13 @@ function ListBar({ f, both, main }: { f: ListFilters; both: string; main: string
       ) : null}
       <SectionSearch compact value={f.q} onSearch={f.setQ} />
       {/* The days of the start in one control at the right end (customer's decision of
-          20.11.2026): all, today, tomorrow, 7 days, a month, or own dates in the calendar. */}
+          20.11.2026): the calendar alone while everything is shown; a date or a period chosen
+          in it stands beside it with the arrows. */}
       <PeriodControl
-        modes={PERIODS}
-        mode={mode}
-        onPick={(turn) => {
-          const [from, to] = daysAhead(turn, today);
-          setMode(turn);
-          f.setFrom(from);
-          f.setTo(to);
-        }}
         from={f.from}
         to={f.to}
         today={today}
-        onDates={(a, b) => {
-          setMode(a ? "own" : "all");
-          f.setFrom(a);
-          f.setTo(b);
-        }}
+        onDates={f.setDates}
       />
     </div>
   );
@@ -234,7 +220,7 @@ function OrderedServices({ lines, loading }: { lines: ServiceLine[]; loading: bo
   const rentalVehicle = new Map((rentals.data?.rentals ?? []).map((r) => [r.id, vehicleName.get(r.vehicle_card_id) ?? ""]));
   // Filtered as the rentals are (decision of 17.11.2026). A service not started yet is a
   // booking, and stays one when it is cancelled before its start.
-  const f = useListFilters();
+  const f = useListFilters("services");
   const orders = useOrders();
   const orderNumber = new Map((orders.data?.orders ?? []).map((o) => [o.id, o.number]));
   const all = lines;
@@ -400,7 +386,7 @@ function RentalsList({ lines }: { lines: ServiceLine[] }) {
   const pending = all.filter((r) => r.issue_exception?.state === "pending");
   // What is listed (decision of 16.11.2026): rentals and bookings, rentals alone or bookings
   // alone; the cancelled ones of either are switched on apart, off by itself.
-  const f = useListFilters();
+  const f = useListFilters("rentals");
   // A rental created ahead of its issue is a rental, not a booking (decision of 15.11.2026).
   const awaiting = (r: { state: string; booking?: Booking | null }) => r.state === "booked" && Boolean(r.booking?.direct);
   // A booking stays a booking when it is cancelled; the same for a rental.

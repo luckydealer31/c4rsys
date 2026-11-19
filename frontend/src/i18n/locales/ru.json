@@ -5135,7 +5135,6 @@
     "span_week": "Неделя",
     "span_month": "Месяц",
     "location": "Локация",
-    "all_locations": "Все локации",
     "kind_booking": "Бронь",
     "kind_rental": "Аренда",
     "kind_service": "Сервис",
@@ -6582,15 +6581,9 @@
   },
   "period": {
     "title": "Период",
-    "choose": "Выбрать период",
-    "mode_now": "Сейчас",
-    "mode_all": "Всё время",
-    "mode_today": "Сегодня",
-    "mode_yesterday": "Вчера",
-    "mode_tomorrow": "Завтра",
-    "mode_week": "7 дней",
-    "mode_month": "Месяц",
-    "mode_own": "Свой"
+    "choose": "Выбрать даты",
+    "back": "Назад",
+    "forward": "Вперёд"
   },
   "calendar": {
     "prev_year": "Предыдущий год",
@@ -6598,6 +6591,7 @@
     "prev_month": "Предыдущий месяц",
     "next_month": "Следующий месяц",
     "pick": "Нажмите дату; вторая дата — интервал",
-    "ok": "ОК"
+    "ok": "ОК",
+    "reset": "Сбросить"
   }
 }
