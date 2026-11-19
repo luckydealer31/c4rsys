@@ -9,6 +9,7 @@ import { useCommand } from "../../api/useCommand";
 import { ImagePicker } from "../../components/images";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
+import { countries } from "../settings/CompanyProfilePage";
 import { PartCategoryField } from "./Categories";
 import { MinimumsCard, PricesCard } from "./Prices";
 import { ItemStockCard, SupplierArticles } from "./Stock";
@@ -30,7 +31,7 @@ const CHOICES: [ChoiceKey, string, string][] = [
   ["originality", "original", "analog"],
   ["condition", "new", "used"],
 ];
-const TEXTS = ["article", "category", "model_characteristic", "photo_url", "comment", "external_id"] as const;
+const TEXTS = ["article", "category", "model_characteristic", "country", "photo_url", "comment", "external_id"] as const;
 
 type Form = {
   name: string;
@@ -61,6 +62,7 @@ function formOf(item?: WarehouseItem): Form {
     article: item?.article ?? "",
     category: item?.category ?? "",
     model_characteristic: item?.model_characteristic ?? "",
+    country: item?.country ?? "",
     photo_url: item?.photo_url ?? "",
     comment: item?.comment ?? "",
     external_id: item?.external_id ?? "",
@@ -281,6 +283,18 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
                 />
               </Field>
             ) : null}
+            {/* Where it is made (customer's decision of 20.11.2026): one brand has factories in
+                several countries. */}
+            <Field label={t("warehouse.country")}>
+              <select value={form.country} disabled={!editable} onChange={(e) => set({ country: e.target.value })}>
+                <option value="">—</option>
+                {countries(i18n.language).map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
             {text("model_characteristic")}
           </div>
         </Card>

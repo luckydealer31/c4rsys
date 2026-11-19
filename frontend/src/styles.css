@@ -470,6 +470,12 @@ label.check { display: inline-flex; gap: 6px; align-items: center; margin-right:
   .section-search.compact input, .section-search.compact input:focus { width: 100%; }
 }
 .list-search { flex: 1 1 260px; max-width: 420px; border-radius: 999px; padding: 6px 12px; }
+/* The search of a list at the right end of its filter line. */
+.list-search.at-end { margin-left: auto; flex: 0 1 320px; }
+td.nowrap { white-space: nowrap; }
+/* The stock with every attribute shown is wider than the page and is scrolled sideways. */
+.stock-table.wide { min-width: 1500px; }
+.stock-table td:first-child .small { white-space: nowrap; }
 .list-bar select, .list-bar input[type="date"], .list-bar input[type="datetime-local"] { width: auto; }
 .toggle-chip.plain::before { content: none; }
 /* The period of a list in one control at the right end of the filter line: its name, its

@@ -25,7 +25,7 @@ from c4rsys.platform.http import get_int, get_str, parse_json
 from c4rsys.tags import services as tags
 from c4rsys.warehouse import catalog, operations, prices, reserves, stock
 from c4rsys.warehouse import places as storage
-from c4rsys.warehouse.models import Item, LotLayer, PurchaseOrder, Receipt
+from c4rsys.warehouse.models import Item, LotLayer, PurchaseOrder, Receipt, SalePrice
 
 LIST_LIMIT = 200
 COMMENT_MAX = 2000
@@ -642,8 +642,19 @@ def stock_list(request: HttpRequest, cmp: str) -> JsonResponse:
     also |= storage.item_ids_by_text(context.company.id, text)
     items = catalog.search(context.company.id, text, "", also).filter(pk__in=found)
     held = reserves.reserved_totals(context.company.id, set(visible))
+    shown = list(items.select_related("manufacturer")[:LIST_LIMIT])
+    more = stock.details(context.company.id, {item.id for item in shown}, set(visible))
+    retail = {
+        price.item_id: price
+        for price in SalePrice.objects.filter(
+            company_id=context.company.id,
+            item_id__in=[item.id for item in shown],
+            lot__isnull=True,
+            packaging__isnull=True,
+        )
+    }
     rows = []
-    for item in items[:LIST_LIMIT]:
+    for item in shown:
         places = found[item.id]
         quantity = sum((p["quantity"] for p in places.values()), stock.ZERO)
         # § 11.7.8: the threshold is compared with the available quantity — less the reserves.
@@ -654,7 +665,26 @@ def stock_list(request: HttpRequest, cmp: str) -> JsonResponse:
         )
         rows.append(
             {
-                "item": _item_brief(item),
+                "item": {
+                    **_item_brief(item),
+                    # The attributes of the card a list of the stock may show.
+                    "manufacturer_name": item.manufacturer.name
+                    if item.manufacturer
+                    else item.manufacturer_other,
+                    "country": item.country,
+                    "part_category": str(item.part_category_id) if item.part_category_id else None,
+                    "part_subcategory": str(item.part_subcategory_id)
+                    if item.part_subcategory_id
+                    else None,
+                    "originality": item.originality,
+                    "condition": item.condition,
+                    "model_characteristic": item.model_characteristic,
+                    "comment": item.comment,
+                },
+                **more[item.id],
+                "currency": context.company.main_currency_id or "",
+                "price": str(retail[item.id].amount) if item.id in retail else None,
+                "price_currency": retail[item.id].currency if item.id in retail else "",
                 "quantity": str(quantity),
                 "tags": sorted({t for p in places.values() for t in p["tags"]}),
                 "below_minimum": below,

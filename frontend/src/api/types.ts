@@ -1477,6 +1477,8 @@ export type WarehouseItem = {
   part_category: string | null;
   part_subcategory: string | null;
   model_characteristic: string;
+  /** The country of manufacture, ISO 3166-1 alpha-2. */
+  country: string;
   photo: string | null;
   photo_url: string;
   comment: string;
@@ -1684,7 +1686,29 @@ export type Purchase = {
 
 /** A row of the stock: an item with its quantity by warehouse and joint tags (§ 11.1.10). */
 export type StockRow = {
-  item: ItemBrief;
+  item: ItemBrief & {
+    manufacturer_name: string;
+    country: string;
+    part_category: string | null;
+    part_subcategory: string | null;
+    originality: string;
+    condition: string;
+    model_characteristic: string;
+    comment: string;
+  };
+  /** How many units or lots lie on the warehouses, and the identifier of the only one. */
+  units: number;
+  unit_id: string | null;
+  /** The lowest and the highest purchase cost of what is left, in the currency of the company. */
+  cost_min: string | null;
+  cost_max: string | null;
+  cost_unknown: boolean;
+  currency: string;
+  /** The sale price of the item, and the own prices of its units. */
+  price: string | null;
+  price_currency: string;
+  unit_price_min: string | null;
+  unit_price_max: string | null;
   quantity: string;
   tags: string[];
   below_minimum: boolean;

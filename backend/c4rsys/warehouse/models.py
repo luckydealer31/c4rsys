@@ -135,6 +135,9 @@ class Item(models.Model):
         PartSubcategory, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
     model_characteristic = models.CharField(max_length=200, blank=True, default="")
+    # Where the item is made (customer's decision of 20.11.2026): one brand has factories in
+    # several countries. ISO 3166-1 alpha-2.
+    country = models.CharField(max_length=2, blank=True, default="")
     photo = models.ForeignKey(
         StoredFile, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )

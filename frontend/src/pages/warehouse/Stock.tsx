@@ -6,10 +6,11 @@ import { Link } from "react-router";
 import { useApi } from "../../api/queries";
 import type { Counterparty, ItemStock, StockRow, Storage, SupplierArticle, WarehouseItem } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
+import { Card, ErrorMessage, Field, Loading, Switch } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { PlaceTags } from "../tags/Tags";
 import { useVehicles } from "../vehicles/VehiclesPage";
+import { useCategoryLabel } from "./Categories";
 import { VehiclePrice } from "./Prices";
 
 /** A quantity with the short unit; trailing zeros of hundredths are dropped. */
@@ -40,6 +41,17 @@ export function StockList() {
   const quantity = useQuantity();
   const [query, setQuery] = useState("");
   const [place, setPlace] = useState("");
+  const [more, setMore] = useState(false);
+  const { i18n } = useTranslation();
+  const categoryLabel = useCategoryLabel();
+  const regions = new Intl.DisplayNames([i18n.language], { type: "region" });
+  // «100 THB», or «100–150 THB» when the units differ; empty when nothing is known.
+  const range = (low: string | null, high: string | null, currency: string) =>
+    low === null || high === null
+      ? ""
+      : Number(low) === Number(high)
+        ? `${Number(low)} ${currency}`
+        : `${Number(low)}–${Number(high)} ${currency}`;
   const rows = useApi<{ stock: StockRow[] }>(
     ["warehouse-stock", company.public_id, query],
     `/c/${company.public_id}/warehouse/stock?q=${encodeURIComponent(query)}`,
@@ -75,53 +87,87 @@ export function StockList() {
               ))}
             </select>
           ) : null}
-          <input className="list-search" value={query} placeholder={t("warehouse.search")} aria-label={t("warehouse.search")} onChange={(e) => setQuery(e.target.value)} />
+          {/* The main columns stand first; the rest of the attributes are shown on demand and
+              the table is scrolled sideways (customer's decision of 20.11.2026). */}
+          <Switch name={t("stock.more")} checked={more} onChange={setMore}>
+            {t("stock.more")}
+          </Switch>
+          <input
+            className="list-search at-end"
+            value={query}
+            placeholder={t("warehouse.search")}
+            aria-label={t("warehouse.search")}
+            onChange={(e) => setQuery(e.target.value)}
+          />
         </div>
         {rows.isLoading ? <Loading /> : null}
         {rows.data && stock.length === 0 ? <p className="muted">{t("stock.empty")}</p> : null}
         {stock.length ? (
-          <table>
-            <thead>
-              <tr>
-                <th>{t("warehouse.name")}</th>
-                <th>{t("warehouse.article")}</th>
-                <th>{t("stock.total")}</th>
-                {place ? null : <th>{t("stock.by_warehouse")}</th>}
-                <th>{t("stock.tags")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {stock.map((row) => (
-                <tr key={row.item.id}>
-                  <td>
-                    <Link to={companyPath(company, `/warehouse/items/${row.item.id}`)}>{row.item.name}</Link>
-                  </td>
-                  <td>{row.item.article || "—"}</td>
-                  <td>
-                    {quantity(row.quantity, row.item.unit)}
-                    {row.below_minimum ? (
-                      <span className="badge warn" style={{ marginLeft: 6 }}>
-                        {t("prices.below_minimum")}
-                      </span>
-                    ) : null}
-                  </td>
-                  {place ? null : (
-                  <td className="small">
-                    {row.places
-                      .map(
-                        (p) =>
-                          `${p.location_name}: ${quantity(p.quantity, row.item.unit)}${
-                            p.minimum ? ` (${t("prices.minimum_short", { value: quantity(p.minimum, row.item.unit) })})` : ""
-                          }`,
-                      )
-                      .join("; ")}
-                  </td>
-                  )}
-                  <td className="small muted">{row.tags.join(", ") || "—"}</td>
+          <div className="table-scroll">
+            <table className={`stock-table${more ? " wide" : ""}`}>
+              <thead>
+                <tr>
+                  <th>{t("warehouse.name")}</th>
+                  <th>{t("warehouse.article")}</th>
+                  <th>{t("warehouse.manufacturer")}</th>
+                  <th>{t("warehouse.country")}</th>
+                  <th>{t("stock.rest")}</th>
+                  {place ? null : <th>{t("stock.warehouses")}</th>}
+                  <th>{t("stock.cost")}</th>
+                  <th>{t("stock.retail")}</th>
+                  {more ? (
+                    <>
+                      <th>{t("stock.category")}</th>
+                      <th>{t("warehouse.attr_originality")}</th>
+                      <th>{t("warehouse.attr_condition")}</th>
+                      <th>{t("warehouse.model_characteristic")}</th>
+                      <th>{t("stock.tags")}</th>
+                      <th>{t("stock.units")}</th>
+                      <th>{t("warehouse.comment")}</th>
+                    </>
+                  ) : null}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {stock.map((row) => (
+                  <tr key={row.item.id}>
+                    <td>
+                      <Link to={companyPath(company, `/warehouse/items/${row.item.id}`)}>{row.item.name}</Link>
+                      {/* The only unit or lot is named by its own identifier. */}
+                      {row.unit_id ? <div className="muted small">{row.unit_id}</div> : null}
+                    </td>
+                    <td>{row.item.article || "—"}</td>
+                    <td>{row.item.manufacturer_name || "—"}</td>
+                    <td>{row.item.country ? (regions.of(row.item.country) ?? row.item.country) : "—"}</td>
+                    <td className="nowrap">
+                      {quantity(row.quantity, row.item.unit)}
+                      {row.below_minimum ? (
+                        <span className="badge warn" style={{ marginLeft: 6 }}>
+                          {t("prices.below_minimum")}
+                        </span>
+                      ) : null}
+                    </td>
+                    {place ? null : <td className="small">{row.places.map((p) => p.location_name).join(", ")}</td>}
+                    <td className="nowrap">{range(row.cost_min, row.cost_max, row.currency) || (row.cost_unknown ? t("receipts.cost_not_given") : "—")}</td>
+                    <td className="nowrap">
+                      {row.price ? `${Number(row.price)} ${row.price_currency}` : range(row.unit_price_min, row.unit_price_max, row.currency) || "—"}
+                    </td>
+                    {more ? (
+                      <>
+                        <td className="small">{categoryLabel(row.item.part_category, row.item.part_subcategory) || "—"}</td>
+                        <td>{row.item.originality ? t(`warehouse.value_${row.item.originality}`) : "—"}</td>
+                        <td>{row.item.condition ? t(`warehouse.value_${row.item.condition}`) : "—"}</td>
+                        <td className="small">{row.item.model_characteristic || "—"}</td>
+                        <td className="small muted">{row.tags.join(", ") || "—"}</td>
+                        <td>{row.units}</td>
+                        <td className="small">{row.item.comment || "—"}</td>
+                      </>
+                    ) : null}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : null}
       </Card>
       {stored.length ? (

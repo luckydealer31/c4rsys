@@ -39,6 +39,8 @@ TEXT_FIELDS = {
     "article": 100,
     "category": 100,
     "model_characteristic": 200,
+    # The country of manufacture, ISO 3166-1 alpha-2 (customer's decision of 20.11.2026).
+    "country": 2,
     "photo_url": 500,
     "comment": 2000,
     "external_id": 100,
@@ -189,6 +191,9 @@ def _apply(item: Item, data: ItemData) -> None:
         setattr(item, key, data.attributes.get(key, ""))
     for key in TEXT_FIELDS:
         setattr(item, key, data.texts.get(key, ""))
+    item.country = item.country.upper()
+    if item.country and not (len(item.country) == 2 and item.country.isalpha()):
+        raise errors.validation_error("country", code="COUNTRY_INVALID")
     item.photo_id = data.photo_id
     item.part_category_id, item.part_subcategory_id = part_catalog.validate(
         data.part_category_id, data.part_subcategory_id

@@ -2976,7 +2976,8 @@
     "import_warning_row_already_posted": "แถว {{number}} ({{row}}) โหลดแล้ว",
     "import_warning_corrected_file": "ไฟล์ที่แก้ไข: ตรวจใหม่ {{rows}} แถว",
     "archived": "เก็บถาวร",
-    "tab_reserves": "การจอง"
+    "tab_reserves": "การจอง",
+    "country": "ประเทศผู้ผลิต"
   },
   "warnings": {
     "client_has_debt": "The client has a debt: {{amounts}}.",
@@ -3099,8 +3100,6 @@
     "title": "สต็อก",
     "empty": "ไม่มีสต็อก เพิ่มได้ผ่าน «รับสินค้าใหม่»",
     "item_empty": "ไม่มีรายการนี้ในคลัง",
-    "total": "รวม",
-    "by_warehouse": "ตามคลัง",
     "tags": "ป้ายตำแหน่ง",
     "edit_tags": "แก้ไข",
     "asset_id": "ID ชิ้น",
@@ -3121,7 +3120,14 @@
     "state_returned": "คืนผู้จำหน่ายแล้ว",
     "warehouse": "คลังสินค้า",
     "all_warehouses": "ทุกคลัง",
-    "sale_price": "ราคาขาย"
+    "sale_price": "ราคาขาย",
+    "rest": "คงเหลือ",
+    "warehouses": "คลังสินค้า",
+    "cost": "ราคาซื้อ",
+    "retail": "ราคาขาย",
+    "category": "หมวดหมู่",
+    "units": "หน่วยหรือล็อต",
+    "more": "รายละเอียด"
   },
   "articles": {
     "title": "รหัสสินค้าของผู้จำหน่าย",

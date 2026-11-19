@@ -1356,6 +1356,66 @@ def expired(lot: Lot, today: date | None = None) -> bool:
     return lot.expiry_date < (today or local_today(lot.context))
 
 
+def details(
+    company_id: UUID, item_ids: set[UUID], context_ids: set[UUID]
+) -> dict[UUID, dict[str, Any]]:
+    """What lies behind the stock of each item on the warehouses (customer's decision of
+    20.11.2026): how many units or lots there are and the identifier of the only one; the lowest
+    and the highest purchase cost of what is left; the lowest and the highest own sale price of
+    the units. Costs are in the currency of the company."""
+    found: dict[UUID, dict[str, Any]] = {
+        item_id: {"units": 0, "ids": [], "costs": [], "prices": [], "unknown_cost": False}
+        for item_id in item_ids
+    }
+    for asset in Asset.objects.filter(
+        company_id=company_id,
+        item_id__in=item_ids,
+        context_id__in=context_ids,
+        state=Asset.State.IN_STOCK,
+    ).only("item_id", "public_id", "purchase_cost", "sale_price"):
+        entry = found[asset.item_id]
+        entry["units"] += 1
+        entry["ids"].append(asset.public_id)
+        if asset.purchase_cost is None:
+            entry["unknown_cost"] = True
+        else:
+            entry["costs"].append(asset.purchase_cost)
+        if asset.sale_price is not None:
+            entry["prices"].append(asset.sale_price)
+    lots = {
+        lot.id: lot
+        for lot in Lot.objects.filter(
+            company_id=company_id, item_id__in=item_ids, context_id__in=context_ids
+        ).only("id", "item_id", "public_id")
+    }
+    left: set[UUID] = set()
+    for layer in LotLayer.objects.filter(lot_id__in=lots, remaining__gt=0).only(
+        "lot_id", "unit_cost"
+    ):
+        entry = found[lots[layer.lot_id].item_id]
+        left.add(layer.lot_id)
+        if layer.unit_cost is None:
+            entry["unknown_cost"] = True
+        else:
+            entry["costs"].append(layer.unit_cost)
+    for lot_id in left:
+        entry = found[lots[lot_id].item_id]
+        entry["units"] += 1
+        entry["ids"].append(lots[lot_id].public_id)
+    return {
+        item_id: {
+            "units": entry["units"],
+            "unit_id": entry["ids"][0] if len(entry["ids"]) == 1 else None,
+            "cost_min": str(min(entry["costs"])) if entry["costs"] else None,
+            "cost_max": str(max(entry["costs"])) if entry["costs"] else None,
+            "cost_unknown": entry["unknown_cost"],
+            "unit_price_min": str(min(entry["prices"])) if entry["prices"] else None,
+            "unit_price_max": str(max(entry["prices"])) if entry["prices"] else None,
+        }
+        for item_id, entry in found.items()
+    }
+
+
 def totals(company_id: UUID, context_ids: set[UUID]) -> dict[UUID, dict[UUID, dict[str, Any]]]:
     """item -> warehouse -> quantity and tags: assets in stock count as units, lots by their
     physical stock. A tag is a hint and does not make a stock of its own (§ 11.1.10)."""

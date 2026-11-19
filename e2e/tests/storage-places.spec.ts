@@ -37,6 +37,8 @@ test("storage places are tags of their group", async ({ page }) => {
   await page.goto(`${s.base}/warehouse`);
   const rows = page.locator("table tbody tr");
   await expect(rows).toHaveCount(1);
+  // The place tags are among the details of a row (customer's decision of 20.11.2026).
+  await page.getByRole("switch", { name: t("stock.more") }).click();
   await expect(rows).toContainText("Стеллаж 1");
   await page.getByLabel(t("warehouse.search")).fill("стеллаж 1");
   await expect(rows).toHaveCount(1);
@@ -90,7 +92,21 @@ test("storage places are tags of their group", async ({ page }) => {
   await expect(page.getByText(t("stock.empty"))).toBeVisible();
   await where.selectOption({ label: "Пхукет" });
   await expect(lines).toHaveCount(1);
-  await expect(page.getByRole("columnheader", { name: t("stock.by_warehouse") })).toHaveCount(0);
+  await expect(page.locator("th").filter({ hasText: new RegExp(`^${t("stock.warehouses")}$`) })).toHaveCount(0);
+  // The main columns stand first: the manufacturer, the country, the rest with its unit, the
+  // purchase cost; the only unit is named by its identifier. «Details» shows the rest of the
+  // attributes. The search stands at the right end of the line.
+  await where.selectOption({ index: 0 });
+  await expect(page.locator("th").filter({ hasText: new RegExp(`^${t("stock.warehouses")}$`) })).toBeVisible();
+  await expect(lines.first()).toContainText("AST-");
+  await expect(lines.first()).toContainText("100 THB");
+  await expect(page.locator("th").filter({ hasText: new RegExp(`^${t("stock.category")}$`) })).toHaveCount(0);
+  const search = page.getByRole("textbox", { name: t("warehouse.search") });
+  expect((await search.boundingBox())!.x).toBeGreaterThan((await where.boundingBox())!.x + 300);
+  await page.getByRole("switch", { name: t("stock.more") }).check();
+  await expect(page.locator("th").filter({ hasText: new RegExp(`^${t("stock.category")}$`) })).toBeVisible();
+  await expect(page.locator("th").filter({ hasText: new RegExp(`^${t("warehouse.comment")}$`) })).toBeVisible();
+  await page.getByRole("switch", { name: t("stock.more") }).uncheck();
   await page.getByRole("tab", { name: t("warehouse.tab_storages"), exact: true }).click();
   await expect(page.getByRole("heading", { name: t("operations.settings_title") })).toBeVisible();
   await expect(page.locator("section.card")).toHaveCount(1);

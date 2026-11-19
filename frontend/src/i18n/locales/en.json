@@ -2976,7 +2976,8 @@
     "import_warning_row_already_posted": "Row {{number}} ({{row}}) is already loaded and stays as it was.",
     "import_warning_corrected_file": "Corrected file: {{rows}} rows checked again. Choose actions and post.",
     "archived": "archived",
-    "tab_reserves": "Reserves"
+    "tab_reserves": "Reserves",
+    "country": "Country of manufacture"
   },
   "warnings": {
     "client_has_debt": "The client has a debt: {{amounts}}.",
@@ -3099,8 +3100,6 @@
     "title": "Stock",
     "empty": "No stock. Add it with «New receipt».",
     "item_empty": "This item is not in stock.",
-    "total": "Total",
-    "by_warehouse": "By warehouse",
     "tags": "Place marks",
     "edit_tags": "change",
     "asset_id": "Unit ID",
@@ -3121,7 +3120,14 @@
     "state_returned": "returned to the supplier",
     "warehouse": "Warehouse",
     "all_warehouses": "All warehouses",
-    "sale_price": "Sale price"
+    "sale_price": "Sale price",
+    "rest": "Stock",
+    "warehouses": "Warehouses",
+    "cost": "Purchase",
+    "retail": "Retail",
+    "category": "Category",
+    "units": "Units or lots",
+    "more": "Details"
   },
   "articles": {
     "title": "Supplier articles",
