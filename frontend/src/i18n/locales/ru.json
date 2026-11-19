@@ -2941,7 +2941,7 @@
     "show_archived": "Показать архив",
     "storage_warehouse": "Склад",
     "tab_items": "Номенклатура",
-    "tab_storages": "Склады",
+    "tab_storages": "Настройки",
     "toggles_hint": "Нажаты обе — подходит для обеих (универсально); не нажата ни одна — не указано.",
     "unit": "Единица",
     "unit_hint": "После создания единицу изменить нельзя.",
@@ -3118,7 +3118,10 @@
     "state_written_off": "списан",
     "state_cancelled": "исключён исправлением",
     "state_sold": "продан",
-    "state_returned": "возвращён поставщику"
+    "state_returned": "возвращён поставщику",
+    "warehouse": "Склад",
+    "all_warehouses": "Все склады",
+    "sale_price": "Цена продажи"
   },
   "articles": {
     "title": "Артикулы поставщиков",

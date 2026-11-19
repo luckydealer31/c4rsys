@@ -3,17 +3,15 @@ import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router";
 
 import { useApi } from "../../api/queries";
-import type { Storage, Vehicle, WarehouseItem } from "../../api/types";
+import type { WarehouseItem } from "../../api/types";
 import { Icon } from "../../components/icons";
 import { Card, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { SectionTabs } from "../../layout/SectionTabs";
 import { useFirstTab } from "../../layout/tabOrder";
-import { useVehicles } from "../vehicles/VehiclesPage";
 import { useCategoryLabel } from "./Categories";
 import { InventoriesList } from "./Inventory";
 import { NEW_KINDS, OperationsList, RIGHT, WarehouseSettingsCard } from "./Operations";
-import { VehiclePrice } from "./Prices";
 import { PurchasesList } from "./Purchases";
 import { ReceiptsList } from "./Receipts";
 import { ReservesList } from "./Reserves";
@@ -163,68 +161,9 @@ function Items() {
 }
 
 /** Warehouses of locations, each with its own stock (§ 11.1.1); a location has one at most. */
+/** The settings of the warehouse (customer's decision of 20.11.2026): what to do with expired
+ * goods, how parts are reserved for works, the reasons of a write-off. Warehouses themselves are
+ * made in the settings of a location; what lies on them — vehicles too — is in the stock. */
 function Storages() {
-  const { t } = useTranslation();
-  const company = useCompany();
-  const storages = useApi<{ storages: Storage[] }>(
-    ["warehouse-storages", company.public_id],
-    `/c/${company.public_id}/warehouse/storages`,
-  );
-  const vehicles = useVehicles();
-  return (
-    <>
-      <WarehouseSettingsCard />
-      {storages.isLoading ? <Loading /> : null}
-      {storages.data?.storages.length === 0 ? (
-        <Card>
-          <p className="muted">{t("warehouse.no_storages")}</p>
-        </Card>
-      ) : null}
-      {(storages.data?.storages ?? []).map((storage) => (
-        <Card
-          key={storage.context_id}
-          title={`${t("warehouse.storage_warehouse")} — ${storage.location_name}`}
-        >
-          {storage.state !== "enabled" || storage.location_deactivated ? (
-            <span className="badge warn">{t("locations.context_disabled")}</span>
-          ) : null}
-          <StoredVehicles
-            items={(vehicles.data?.vehicles ?? []).filter((v) => v.storage?.context_id === storage.context_id)}
-            path={(id) => companyPath(company, `/vehicles/${id}`)}
-          />
-        </Card>
-      ))}
-    </>
-  );
-}
-
-/** Vehicles transferred to this warehouse as stock items (§ 8.1.5). */
-function StoredVehicles({ items, path }: { items: Vehicle[]; path: (id: string) => string }) {
-  const { t } = useTranslation();
-  const company = useCompany();
-  const prices = useApi<{ prices: Record<string, string | null> }>(
-    ["warehouse-vehicle-prices", company.public_id],
-    `/c/${company.public_id}/warehouse/vehicle-prices`,
-    items.length > 0,
-  );
-  if (items.length === 0) return null;
-  return (
-    <>
-      <h3 style={{ marginTop: 12 }}>{t("vehicles.stored_title")}</h3>
-      <table>
-        <tbody>
-          {items.map((v) => (
-            <tr key={v.id}>
-              <td>
-                <Link to={path(v.id)}>{v.name}</Link> <span className="muted small">{v.vehicle_id}</span>
-              </td>
-              <td>
-                <VehiclePrice vehicleId={v.id} value={prices.data?.prices[v.id] ?? ""} />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </>
-  );
+  return <WarehouseSettingsCard />;
 }

@@ -4,11 +4,13 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 
 import { useApi } from "../../api/queries";
-import type { Counterparty, ItemStock, StockRow, SupplierArticle, WarehouseItem } from "../../api/types";
+import type { Counterparty, ItemStock, StockRow, Storage, SupplierArticle, WarehouseItem } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { PlaceTags } from "../tags/Tags";
+import { useVehicles } from "../vehicles/VehiclesPage";
+import { VehiclePrice } from "./Prices";
 
 /** A quantity with the short unit; trailing zeros of hundredths are dropped. */
 export function useQuantity() {
@@ -28,40 +30,68 @@ export function parseTags(text: string): string[] {
 }
 
 /** Stock of the company: one row per item with the quantity by warehouse and the joint place
- * tags; the row opens the item with its assets and lots (§ 11.1.1, § 11.1.10). */
+ * tags; the row opens the item with its assets and lots (§ 11.1.1, § 11.1.10). One warehouse
+ * may be chosen (customer's decision of 20.11.2026): then the list is of what lies on it, with
+ * its quantity and its tags. The vehicles put on a warehouse as stock stand below. */
 export function StockList() {
   const { t } = useTranslation();
   const company = useCompany();
   const can = useCan();
   const quantity = useQuantity();
   const [query, setQuery] = useState("");
+  const [place, setPlace] = useState("");
   const rows = useApi<{ stock: StockRow[] }>(
     ["warehouse-stock", company.public_id, query],
     `/c/${company.public_id}/warehouse/stock?q=${encodeURIComponent(query)}`,
     can("warehouse.view"),
   );
+  const storages = useApi<{ storages: Storage[] }>(
+    ["warehouse-storages", company.public_id],
+    `/c/${company.public_id}/warehouse/storages`,
+    can("warehouse.view"),
+  );
+  const vehicles = useVehicles();
   if (!can("warehouse.view")) return <p className="muted">{t("warehouse.no_access")}</p>;
+  const places = storages.data?.storages ?? [];
+  // On the chosen warehouse: the items that lie there, with its own quantity and tags.
+  const stock = (rows.data?.stock ?? []).flatMap((row) => {
+    if (!place) return [row];
+    const here = row.places.find((p) => p.context_id === place);
+    return here && Number(here.quantity) > 0 ? [{ ...row, quantity: here.quantity, tags: here.tags, places: [here] }] : [];
+  });
+  const stored = (vehicles.data?.vehicles ?? []).filter((v) => v.storage && (!place || v.storage.context_id === place));
+  const placeName = (id: string) => places.find((p) => p.context_id === id)?.location_name ?? "";
   return (
     <>
       <Card>
-        <Field label={t("warehouse.search")}>
-          <input value={query} onChange={(e) => setQuery(e.target.value)} />
-        </Field>
+        <div className="list-bar">
+          {places.length > 1 ? (
+            <select value={place} aria-label={t("stock.warehouse")} onChange={(e) => setPlace(e.target.value)}>
+              <option value="">{t("stock.all_warehouses")}</option>
+              {places.map((p) => (
+                <option key={p.context_id} value={p.context_id}>
+                  {p.location_name}
+                </option>
+              ))}
+            </select>
+          ) : null}
+          <input className="list-search" value={query} placeholder={t("warehouse.search")} aria-label={t("warehouse.search")} onChange={(e) => setQuery(e.target.value)} />
+        </div>
         {rows.isLoading ? <Loading /> : null}
-        {rows.data?.stock.length === 0 ? <p className="muted">{t("stock.empty")}</p> : null}
-        {rows.data?.stock.length ? (
+        {rows.data && stock.length === 0 ? <p className="muted">{t("stock.empty")}</p> : null}
+        {stock.length ? (
           <table>
             <thead>
               <tr>
                 <th>{t("warehouse.name")}</th>
                 <th>{t("warehouse.article")}</th>
                 <th>{t("stock.total")}</th>
-                <th>{t("stock.by_warehouse")}</th>
+                {place ? null : <th>{t("stock.by_warehouse")}</th>}
                 <th>{t("stock.tags")}</th>
               </tr>
             </thead>
             <tbody>
-              {rows.data.stock.map((row) => (
+              {stock.map((row) => (
                 <tr key={row.item.id}>
                   <td>
                     <Link to={companyPath(company, `/warehouse/items/${row.item.id}`)}>{row.item.name}</Link>
@@ -75,6 +105,7 @@ export function StockList() {
                       </span>
                     ) : null}
                   </td>
+                  {place ? null : (
                   <td className="small">
                     {row.places
                       .map(
@@ -85,6 +116,7 @@ export function StockList() {
                       )
                       .join("; ")}
                   </td>
+                  )}
                   <td className="small muted">{row.tags.join(", ") || "—"}</td>
                 </tr>
               ))}
@@ -92,8 +124,45 @@ export function StockList() {
           </table>
         ) : null}
       </Card>
+      {stored.length ? (
+        <Card title={t("vehicles.stored_title")}>
+          <table>
+            <thead>
+              <tr>
+                <th>{t("warehouse.name")}</th>
+                <th>{t("stock.warehouse")}</th>
+                <th>{t("stock.sale_price")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stored.map((v) => (
+                <tr key={v.id}>
+                  <td>
+                    <Link to={companyPath(company, `/vehicles/${v.id}`)}>{v.name}</Link>{" "}
+                    <span className="muted small">{v.vehicle_id}</span>
+                  </td>
+                  <td>{placeName(v.storage?.context_id ?? "")}</td>
+                  <td>
+                    <StoredPrice vehicleId={v.id} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      ) : null}
     </>
   );
+}
+
+/** The sale price of a vehicle that lies on a warehouse as stock (§ 8.1.5). */
+function StoredPrice({ vehicleId }: { vehicleId: string }) {
+  const company = useCompany();
+  const prices = useApi<{ prices: Record<string, string | null> }>(
+    ["warehouse-vehicle-prices", company.public_id],
+    `/c/${company.public_id}/warehouse/vehicle-prices`,
+  );
+  return <VehiclePrice vehicleId={vehicleId} value={prices.data?.prices[vehicleId] ?? ""} />;
 }
 
 /** The expanded stock of an item: assets or lots with their quantities by packaging, own tags

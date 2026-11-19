@@ -2941,7 +2941,7 @@
     "show_archived": "Show archive",
     "storage_warehouse": "Warehouse",
     "tab_items": "Catalog",
-    "tab_storages": "คลังสินค้า",
+    "tab_storages": "การตั้งค่า",
     "toggles_hint": "Both pressed — fits both (universal); none pressed — not given.",
     "unit": "Unit",
     "unit_hint": "The unit cannot be changed after creation.",
@@ -3118,7 +3118,10 @@
     "state_written_off": "ตัดจำหน่ายแล้ว",
     "state_cancelled": "ถูกนำออกโดยการแก้ไข",
     "state_sold": "ขายแล้ว",
-    "state_returned": "คืนผู้จำหน่ายแล้ว"
+    "state_returned": "คืนผู้จำหน่ายแล้ว",
+    "warehouse": "คลังสินค้า",
+    "all_warehouses": "ทุกคลัง",
+    "sale_price": "ราคาขาย"
   },
   "articles": {
     "title": "รหัสสินค้าของผู้จำหน่าย",

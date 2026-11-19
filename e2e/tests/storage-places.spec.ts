@@ -74,4 +74,24 @@ test("storage places are tags of their group", async ({ page }) => {
   await expect(side.getByRole("link", { name: t("warehouse.create_item") })).toBeVisible();
   await page.getByRole("tab", { name: t("warehouse.tab_reserves"), exact: true }).click();
   await expect(side).toHaveCount(0);
+
+  // The stock is filtered by a warehouse (customer's decision of 20.11.2026): with two of them
+  // a list appears; on the warehouse where nothing lies the list is empty. The tab of the
+  // warehouses is «Settings» now and holds the settings only.
+  const second = ((await ok(page, "POST", `/c/${s.cmp}/locations`, { name: "Чалонг" })).location as { id: string }).id;
+  await ok(page, "POST", `/c/${s.cmp}/locations/${second}/contexts`, { type: "warehouse" });
+  await page.goto(`${s.base}/warehouse?tab=stock`);
+  const where = page.getByRole("combobox", { name: t("stock.warehouse"), exact: true });
+  await expect(where).toBeVisible();
+  const lines = page.locator("table tbody tr");
+  await expect(lines).toHaveCount(1);
+  await where.selectOption({ label: "Чалонг" });
+  await expect(lines).toHaveCount(0);
+  await expect(page.getByText(t("stock.empty"))).toBeVisible();
+  await where.selectOption({ label: "Пхукет" });
+  await expect(lines).toHaveCount(1);
+  await expect(page.getByRole("columnheader", { name: t("stock.by_warehouse") })).toHaveCount(0);
+  await page.getByRole("tab", { name: t("warehouse.tab_storages"), exact: true }).click();
+  await expect(page.getByRole("heading", { name: t("operations.settings_title") })).toBeVisible();
+  await expect(page.locator("section.card")).toHaveCount(1);
 });

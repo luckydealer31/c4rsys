@@ -2941,7 +2941,7 @@
     "show_archived": "Show archive",
     "storage_warehouse": "Warehouse",
     "tab_items": "Catalog",
-    "tab_storages": "Warehouses",
+    "tab_storages": "Settings",
     "toggles_hint": "Both pressed — fits both (universal); none pressed — not given.",
     "unit": "Unit",
     "unit_hint": "The unit cannot be changed after creation.",
@@ -3118,7 +3118,10 @@
     "state_written_off": "written off",
     "state_cancelled": "removed by a correction",
     "state_sold": "sold",
-    "state_returned": "returned to the supplier"
+    "state_returned": "returned to the supplier",
+    "warehouse": "Warehouse",
+    "all_warehouses": "All warehouses",
+    "sale_price": "Sale price"
   },
   "articles": {
     "title": "Supplier articles",
