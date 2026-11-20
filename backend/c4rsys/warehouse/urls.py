@@ -45,6 +45,7 @@ urlpatterns = [
     path("c/<str:cmp>/warehouse/assets/<uuid:asset_id>/tags", stock_views.asset_tags),
     path("c/<str:cmp>/warehouse/lots/<uuid:lot_id>/tags", stock_views.lot_tags),
     path("c/<str:cmp>/warehouse/receipts", stock_views.receipt_list),
+    path("c/<str:cmp>/warehouse/receipts/recognize", stock_views.receipt_recognize),
     path("c/<str:cmp>/warehouse/receipts/<uuid:receipt_id>", stock_views.receipt_detail),
     path("c/<str:cmp>/warehouse/receipts/<uuid:receipt_id>/post", stock_views.receipt_post),
     path(

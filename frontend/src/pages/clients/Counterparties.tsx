@@ -123,11 +123,18 @@ export function CounterpartiesList() {
 
 /** A new counterparty: person — first and last name and a contact; company — name and a contact
  * (§ 6.2.7–6.2.8). Also used right at a receipt (§ 11.2.8). */
-export function CounterpartyForm({ onCreated }: { onCreated?: (card: Counterparty) => void }) {
+export function CounterpartyForm({
+  onCreated,
+  name = "",
+}: {
+  onCreated?: (card: Counterparty) => void;
+  /** The name of the company to start with: a supplier read from its document. */
+  name?: string;
+}) {
   const { t } = useTranslation();
   const company = useCompany();
   const client = useQueryClient();
-  const [draft, setDraft] = useState<Draft>(EMPTY);
+  const [draft, setDraft] = useState<Draft>({ ...EMPTY, company_name: name });
   const create = useCommand<Record<string, unknown>, { counterparty: Counterparty }>(
     `/c/${company.public_id}/counterparties`,
   );

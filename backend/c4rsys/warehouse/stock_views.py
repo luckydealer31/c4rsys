@@ -18,12 +18,14 @@ from c4rsys.companies import access, locations
 from c4rsys.companies import services as companies
 from c4rsys.companies.models import ActivityContext
 from c4rsys.companies.views import run_and_respond
+from c4rsys.files import services as files
+from c4rsys.files.models import StoredFile
 from c4rsys.parties import counterparties
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
 from c4rsys.tags import services as tags
-from c4rsys.warehouse import catalog, operations, prices, reserves, stock
+from c4rsys.warehouse import catalog, operations, prices, recognition, reserves, stock
 from c4rsys.warehouse import places as storage
 from c4rsys.warehouse.models import Item, LotLayer, PurchaseOrder, Receipt, SalePrice
 
@@ -617,6 +619,55 @@ def purchase_cancel_rest(request: HttpRequest, cmp: str, purchase_id: UUID) -> J
 
 
 # --- Stock -------------------------------------------------------------------------------------
+
+
+@require_POST
+def receipt_recognize(request: HttpRequest, cmp: str) -> JsonResponse:
+    """What an outer service has read from a document of a supplier, with every line compared
+    with the catalog (customer's decision of 20.11.2026): an item found by its article or, without
+    one, by its exact name is offered to be added; for the rest the likely items are named and a
+    new one may be made. Nothing is written: the employee accepts the offer in the receipt."""
+    context, actor = _actor(request, cmp)
+    _require(actor, "warehouse.receive")
+    file_id = _uuid(parse_json(request).get("document_id"), "document_id")
+    item = files.readable(actor.user_id, file_id) if file_id else None
+    if (
+        item is None
+        or item.purpose != StoredFile.Purpose.WAREHOUSE_DOCUMENT
+        or item.company_id not in (None, context.company.id)
+    ):
+        raise errors.validation_error("document_id", code="FILE_NOT_USABLE")
+    content, content_type = files.content(item), item.content_type
+    document = recognition.read(content, content_type)
+    active = catalog.items_of(context.company.id).filter(state=Item.State.ACTIVE)
+    lines = []
+    for line in document.lines:
+        same = (
+            active.filter(article__iexact=line.article)
+            if line.article
+            else active.filter(name__iexact=line.name)
+        )
+        found = same.first()
+        likely = [] if found else list(catalog.search(context.company.id, line.name)[:5])
+        lines.append(
+            {
+                "name": line.name,
+                "article": line.article,
+                "quantity": _decimal(line.quantity),
+                "unit_cost": _decimal(line.unit_cost),
+                "item": _item_brief(found) if found else None,
+                "candidates": [_item_brief(i) for i in likely],
+            }
+        )
+    return JsonResponse(
+        {
+            "supplier_name": document.supplier_name,
+            "document_date": document.document_date.isoformat() if document.document_date else None,
+            "document_number": document.document_number,
+            "currency": document.currency,
+            "lines": lines,
+        }
+    )
 
 
 @require_GET

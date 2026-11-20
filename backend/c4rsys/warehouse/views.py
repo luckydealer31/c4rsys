@@ -14,7 +14,7 @@ from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
 from c4rsys.tags import services as tags
-from c4rsys.warehouse import catalog, dictionaries
+from c4rsys.warehouse import catalog, dictionaries, recognition
 from c4rsys.warehouse import categories as part_catalog
 from c4rsys.warehouse.models import Item, Manufacturer
 
@@ -358,6 +358,8 @@ def options(request: HttpRequest) -> JsonResponse:
                 {"code": u, "accounting": catalog.accounting_for(u)} for u in Item.Unit.values
             ],
             "attributes": catalog.ATTRIBUTES,
+            # Whether a document of a supplier can be read into a receipt.
+            "invoice_recognition": recognition.configured(),
             # System attributes of the platform administrator (§ 11.1.13).
             "extra_attributes": [
                 dictionaries.attribute_payload(a) for a in dictionaries.attributes()

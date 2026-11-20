@@ -1364,7 +1364,9 @@
     "tag_not_for_kind": "The group of this tag is not for such records.",
     "place_tag_unknown": "There is no storage place «{{name}}» in the list. New places are made by the employees named in the group «Storage places».",
     "tag_group_of_system": "This group is kept by the system and is not removed.",
-    "vehicle_repeated": "A vehicle is given twice."
+    "vehicle_repeated": "A vehicle is given twice.",
+    "recognition_not_configured": "The service that reads documents is not connected.",
+    "recognition_failed": "The document could not be read. Try again or enter the lines by hand."
   },
   "history": {
     "action": "Action",
@@ -3015,7 +3017,7 @@
     "supplier": "Supplier",
     "supplier_unknown": "Not given",
     "supplier_hint": "May stay «Not given»; add the supplier if it is not in the list.",
-    "new_supplier": "Add supplier",
+    "new_supplier": "New supplier…",
     "initial_hint": "Initial stock: no supplier is needed.",
     "by_purchase": "By purchase No. {{number}}",
     "document": "Invoice, receipt or other document",
@@ -3077,7 +3079,8 @@
     "sale_price_per": "Selling price per {{unit}}",
     "sale_price_pack": "Selling price per package",
     "sale_price_hint": "Optional; saved at posting for the item or, in the lot mode, for its lot",
-    "sale_price_value": "selling price {{price}}"
+    "sale_price_value": "selling price {{price}}",
+    "new_supplier_title": "New supplier"
   },
   "purchases": {
     "create": "New purchase",
@@ -6621,5 +6624,29 @@
     "pick": "Press a date; a second one makes a period",
     "ok": "OK",
     "reset": "Reset"
+  },
+  "recognition": {
+    "run": "Read the document",
+    "running": "Reading the document…",
+    "again": "Read again",
+    "title": "Read from the document",
+    "supplier_pick": "Choose",
+    "supplier_absent": "not in the list of suppliers",
+    "date": "Date of the document",
+    "date_use": "Use as the date of receipt",
+    "number": "Number",
+    "quantity": "Quantity",
+    "price": "Price",
+    "item": "Item of the catalog",
+    "not_found": "Not in the catalog",
+    "choose": "Choose a likely one",
+    "add": "Add",
+    "added": "Added",
+    "create": "Create the item",
+    "add_all": "Add all found",
+    "empty": "No lines of goods were read.",
+    "supplier_chosen": "chosen: {{name}}",
+    "supplier_alike": "Choose one alike",
+    "supplier_create": "Create the supplier"
   }
 }

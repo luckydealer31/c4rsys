@@ -6,7 +6,7 @@ import { Link, useNavigate, useParams } from "react-router";
 import { useApi } from "../../api/queries";
 import type { Counterparty, ItemBrief, Purchase } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
+import { Card, ErrorMessage, Field, Loading, Modal } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { CounterpartyForm } from "../clients/Counterparties";
 import { ItemPicker } from "./Receipts";
@@ -106,32 +106,38 @@ export function NewPurchasePage() {
       <Card>
         <div className="row">
           <Field label={t("receipts.supplier")} hint={t("receipts.supplier_hint")}>
-            <select value={supplier} onChange={(e) => setSupplier(e.target.value)}>
+            <select
+                  value={supplier}
+                  onChange={(e) => {
+                    // «New supplier» stands in the list itself and opens a window (customer's
+                    // decision of 20.11.2026); the choice made before stays until it is created.
+                    if (e.target.value === "__new") setNewSupplier(true);
+                    else setSupplier(e.target.value);
+                  }}
+                >
               <option value="">{t("receipts.supplier_unknown")}</option>
               {(suppliers.data?.counterparties ?? []).map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
               ))}
-            </select>
+            {can("counterparty.create") ? <option value="__new">{t("receipts.new_supplier")}</option> : null}
+                </select>
           </Field>
-          {can("counterparty.create") ? (
-            <button type="button" className="secondary" style={{ alignSelf: "end", flex: "0 0 auto" }} onClick={() => setNewSupplier(!newSupplier)}>
-              {t("receipts.new_supplier")}
-            </button>
-          ) : null}
           <Field label={t("warehouse.comment")}>
             <input value={comment} onChange={(e) => setComment(e.target.value)} />
           </Field>
         </div>
       </Card>
       {newSupplier ? (
-        <CounterpartyForm
-          onCreated={(card) => {
-            setSupplier(card.id);
-            setNewSupplier(false);
-          }}
-        />
+        <Modal title={t("receipts.new_supplier_title")} onClose={() => setNewSupplier(false)} roomy>
+          <CounterpartyForm
+            onCreated={(card) => {
+              setSupplier(card.id);
+              setNewSupplier(false);
+            }}
+          />
+        </Modal>
       ) : null}
       <Card title={t("receipts.lines")}>
         {lines.map((line, index) => {

@@ -186,6 +186,9 @@ ANYMAIL = {
     "AMAZON_SES_CLIENT_PARAMS": {"region_name": os.environ.get("AWS_SES_REGION", "ap-southeast-2")},
 }
 # Address of the interface in invitation messages.
+# The outer service that reads the documents of suppliers (warehouse/recognition.py); empty —
+# the feature is off. Which service it is has not been decided (20.11.2026).
+C4R_INVOICE_RECOGNITION = os.environ.get("C4R_INVOICE_RECOGNITION", "")
 C4R_PUBLIC_URL = os.environ.get("C4R_PUBLIC_URL", "http://localhost:5173")
 # The personal cabinet works on its own domain (customer's decisions of 30.10.2026; the test one
 # is system4rent.com). Requests of companies to a person lead there.

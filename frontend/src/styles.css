@@ -935,3 +935,9 @@ tr.limited > td:not(:last-child) { opacity: 0.5; }
 .multi-pick.wide .multi-pick-button { max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
 .multi-pick-pop:focus { outline: none; }
 .multi-pick-typed { position: sticky; top: 0; background: var(--surface, #fff); font-weight: 600; padding: 2px 0 4px; border-bottom: 1px solid var(--border); }
+
+/* The lines read from a document of a supplier: compact controls inside the cells. */
+.read-lines select { width: auto; max-width: 240px; min-height: 32px; padding: 2px 8px; }
+.read-lines td { vertical-align: middle; }
+.read-lines td > .muted.small { display: block; }
+.read-supplier { width: auto; max-width: 260px; min-height: 30px; padding: 2px 8px; }

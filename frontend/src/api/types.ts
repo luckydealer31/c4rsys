@@ -1510,6 +1510,8 @@ export type WarehouseOptions = {
     string[]
   >;
   extra_attributes: PartAttribute[];
+  /** Whether a document of a supplier can be read into a receipt (a service is connected). */
+  invoice_recognition?: boolean;
 };
 
 /** The warehouse of a location — the only place stock is kept (decision of 25.10.2026). */

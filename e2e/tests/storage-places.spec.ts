@@ -191,4 +191,61 @@ test("storage places are tags of their group", async ({ page }) => {
   await page.getByRole("tab", { name: t("warehouse.tab_storages"), exact: true }).click();
   await expect(page.getByRole("heading", { name: t("operations.settings_title") })).toBeVisible();
   await expect(page.locator("section.card")).toHaveCount(1);
+  // A new supplier is made from the list of suppliers itself, in a window (customer's decision
+  // of 20.11.2026); there is no separate button.
+  await page.goto(`${s.base}/warehouse/receipts/new`);
+  await page.locator('select:has(option[value="purchase"])').selectOption("purchase");
+  await expect(page.getByRole("button", { name: t("receipts.new_supplier"), exact: true })).toHaveCount(0);
+  await page.locator('select:has(option[value="__new"])').selectOption("__new");
+  await expect(page.getByRole("dialog", { name: t("receipts.new_supplier_title") })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: t("receipts.new_supplier_title") })).toHaveCount(0);
+
+  // A document of a supplier is read into offers (customer's decision of 20.11.2026). The outer
+  // service is not chosen yet, so its answer is put here in place of the server's.
+  await page.route("**/api/catalog/warehouse-options", async (route) => {
+    const answer = await route.fetch();
+    await route.fulfill({ response: answer, json: { ...(await answer.json()), invoice_recognition: true } });
+  });
+  await page.route("**/warehouse/receipts/recognize", (route) =>
+    route.fulfill({
+      json: {
+        supplier_name: "Phuket Parts",
+        document_date: "2026-11-12",
+        document_number: "INV-77",
+        currency: "THB",
+        lines: [
+          { name: "Brake pads", article: "BP-1", quantity: "2", unit_cost: "1250.50", item: { id: item.id, name: "Колодки", unit: "piece", accounting: "individual", article: "" }, candidates: [] },
+          { name: "Oil filter W712", article: "W712", quantity: "4", unit_cost: "180", item: null, candidates: [] },
+        ],
+      },
+    }),
+  );
+  await page.reload();
+  const run = page.getByRole("button", { name: t("recognition.run"), exact: true });
+  await expect(run).toHaveCount(0); // no document yet
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "note.png",
+    mimeType: "image/png",
+    buffer: Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(64)]),
+  });
+  await run.click();
+  const reading = page.locator("section.card").filter({ hasText: t("recognition.title") });
+  await expect(reading).toContainText("Phuket Parts");
+  // The supplier read is a counterparty: none alike here, so a new one starts with the name read
+  // and, once made, is the supplier of the receipt.
+  await reading.getByRole("button", { name: t("recognition.supplier_create"), exact: true }).click();
+  const window = page.getByRole("dialog", { name: t("receipts.new_supplier_title") });
+  await expect(window.locator('input[value="Phuket Parts"]')).toHaveCount(1);
+  await window.locator('input[type="email"]').fill("parts@example.com");
+  await window.locator('button[type="submit"]').click();
+  await expect(window).toHaveCount(0);
+  await expect(reading).toContainText(t("recognition.supplier_chosen", { name: "Phuket Parts" }));
+  await expect(reading).toContainText("12.11.2026");
+  await expect(reading.locator("tbody tr")).toHaveCount(2);
+  // The found item is added by a press; the unknown one is made and added.
+  await reading.getByRole("button", { name: t("recognition.add"), exact: true }).click();
+  await reading.getByRole("button", { name: t("recognition.create"), exact: true }).click();
+  await expect(reading.getByText(t("recognition.added"))).toHaveCount(2);
+  await expect(page.locator('input[value="1250.50"]')).toHaveCount(1);
 });
