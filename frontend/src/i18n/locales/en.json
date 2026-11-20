@@ -2981,7 +2981,8 @@
     "photo_url_hint": "An address of a picture on the internet, when the photo is not uploaded.",
     "vehicle_type": "Vehicle type",
     "country_other_option": "Other — type it in",
-    "country_other": "Name of the country"
+    "country_other": "Name of the country",
+    "applicability_offers": "Named in the name:"
   },
   "warnings": {
     "client_has_debt": "The client has a debt: {{amounts}}.",

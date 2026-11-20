@@ -1,8 +1,9 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router";
 
+import { api } from "../../api/client";
 import { useApi } from "../../api/queries";
 import type { CatalogMake, CatalogModel, VehicleOptions, WarehouseItem, WarehouseOptions } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
@@ -18,6 +19,7 @@ import { TagsLine } from "../tags/Tags";
 const OTHER = "__other";
 
 type Applies = { type: string; make: string; model: string; make_name: string; model_name: string };
+type Offer = Omit<Applies, "model"> & { model: string | null };
 const EMPTY: Applies = { type: "", make: "", model: "", make_name: "", model_name: "" };
 
 type PairKey = "side" | "longitudinal" | "vertical" | "placement";
@@ -186,6 +188,22 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
   );
   const editable = can("warehouse.catalog.manage");
   const set = (changes: Partial<Form>) => setForm((prev) => ({ ...prev, ...changes }));
+  // Makes and models named in the name are offered as compatibility (customer's decision of
+  // 20.11.2026); nothing is added until the offer is pressed.
+  const [offers, setOffers] = useState<Applies[]>([]);
+  const firstName = useRef(form.name);
+  useEffect(() => {
+    if (!editable || form.name === firstName.current) return;
+    const timer = window.setTimeout(async () => {
+      const found = form.name.trim()
+        ? (await api<{ matches: Offer[] }>(`/catalog/vehicle-match?text=${encodeURIComponent(form.name)}`)).matches
+        : [];
+      setOffers(found.map((m) => ({ ...m, model: m.model ?? "" })));
+    }, 350);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reacts to the name only
+  }, [form.name]);
+  const fresh = offers.filter((o) => !form.applicability.some((a) => a.make === o.make && a.model === o.model));
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -388,6 +406,22 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
                 ) : null}
               </div>
             ))}
+            {editable && fresh.length ? (
+              <p className="small">
+                {t("warehouse.applicability_offers")}{" "}
+                {fresh.map((o) => (
+                  <button
+                    key={`${o.make}/${o.model}`}
+                    type="button"
+                    className="link"
+                    style={{ marginRight: 10 }}
+                    onClick={() => set({ applicability: [...form.applicability, o] })}
+                  >
+                    {[o.make_name, o.model_name || t("warehouse.all_models")].join(" ")}
+                  </button>
+                ))}
+              </p>
+            ) : null}
             {draft ? (
               <ApplicabilityRow
                 row={draft}

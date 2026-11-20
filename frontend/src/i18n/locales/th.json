@@ -2981,7 +2981,8 @@
     "photo_url_hint": "ที่อยู่รูปภาพบนอินเทอร์เน็ต เมื่อไม่ได้อัปโหลดรูป",
     "vehicle_type": "ประเภทยานพาหนะ",
     "country_other_option": "อื่น ๆ — พิมพ์เอง",
-    "country_other": "ชื่อประเทศ"
+    "country_other": "ชื่อประเทศ",
+    "applicability_offers": "ตรงกับชื่อ:"
   },
   "warnings": {
     "client_has_debt": "The client has a debt: {{amounts}}.",

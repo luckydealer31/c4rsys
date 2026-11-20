@@ -2981,7 +2981,8 @@
     "photo_url_hint": "Адрес картинки в интернете, если фото не загружено файлом.",
     "vehicle_type": "Тип ТС",
     "country_other_option": "Другая — ввести вручную",
-    "country_other": "Название страны"
+    "country_other": "Название страны",
+    "applicability_offers": "По названию подходит:"
   },
   "warnings": {
     "client_has_debt": "У клиента есть долг: {{amounts}}.",

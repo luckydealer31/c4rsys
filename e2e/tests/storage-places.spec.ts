@@ -77,6 +77,12 @@ test("storage places are tags of their group", async ({ page }) => {
   await page.reload();
   await expect(page.getByLabel(t("warehouse.country_other"), { exact: true })).toHaveValue("Абхазия");
   await expect(page.locator(".applies-row")).toHaveText(/Toyota/);
+  // A make and a model named in the name are offered; pressing the offer adds them.
+  await page.locator("label.field").filter({ hasText: new RegExp(`^${t("warehouse.name")}$`) }).locator("input").fill("Колодки ford focus");
+  const offer = page.getByRole("button", { name: "Ford Focus", exact: true });
+  await offer.click();
+  await expect(page.locator(".applies-row")).toHaveCount(2);
+  await expect(offer).toHaveCount(0);
   await page.getByRole("button", { name: t("stock.edit_tags"), exact: true }).first().click();
   const add = page.getByRole("combobox", { name: t("tags.place_add") });
   await add.fill("Стеллаж 2");

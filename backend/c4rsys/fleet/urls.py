@@ -42,6 +42,7 @@ urlpatterns = [
     path(f"{V}journal", lifecycle_views.card_journal),
     path("catalog/vehicle-options", views.catalog_options),
     path("catalog/vehicle-makes", views.catalog_makes),
+    path("catalog/vehicle-match", views.catalog_match),
     path("catalog/vehicle-makes/<str:make>/models", views.catalog_models),
     path("c/<str:cmp>/vehicles", views.vehicle_list),
     path("c/<str:cmp>/vehicles/schedule", views.vehicle_schedule),

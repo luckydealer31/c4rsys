@@ -26,6 +26,7 @@ from c4rsys.fleet import (
     owners,
     services,
 )
+from c4rsys.fleet.catalog.match import in_text as catalog_match_in_text
 from c4rsys.fleet.models import Vehicle, VehicleCard, VehicleMake, VehicleModel, VehicleMove
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
@@ -298,6 +299,26 @@ def catalog_makes(request: HttpRequest) -> JsonResponse:
                     "country": m.country,
                 }
                 for m in items
+            ]
+        }
+    )
+
+
+@require_http_methods(["GET"])
+def catalog_match(request: HttpRequest) -> JsonResponse:
+    """Makes and models of the catalog named in a text, as an offer (20.11.2026)."""
+    require_user(request)
+    return JsonResponse(
+        {
+            "matches": [
+                {
+                    "type": m.vehicle_type,
+                    "make": m.make,
+                    "make_name": m.make_name,
+                    "model": m.model,
+                    "model_name": m.model_name,
+                }
+                for m in catalog_match_in_text(request.GET.get("text", "")[:200])
             ]
         }
     )
