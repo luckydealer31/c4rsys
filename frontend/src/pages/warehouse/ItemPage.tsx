@@ -12,6 +12,7 @@ import { Card, ErrorMessage, Field, Info, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { countries } from "../settings/CompanyProfilePage";
 import { PartCategoryField } from "./Categories";
+import { positionOf } from "./namePosition";
 import { MinimumsCard, PricesCard } from "./Prices";
 import { ItemStockCard, SupplierArticles } from "./Stock";
 import { TagsLine } from "../tags/Tags";
@@ -192,8 +193,14 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
   // 20.11.2026); nothing is added until the offer is pressed.
   const [offers, setOffers] = useState<Applies[]>([]);
   const firstName = useRef(form.name);
+  const byHand = useRef(new Set<PairKey>(PAIRS.map(([key]) => key).filter((key) => Boolean(item?.[key]))));
   useEffect(() => {
     if (!editable || form.name === firstName.current) return;
+    // The position named in the name presses its buttons (customer's decision of 20.11.2026);
+    // a button pressed by hand, or saved earlier, is not touched any more.
+    const read = positionOf(form.name);
+    const auto = PAIRS.map(([key]) => key).filter((key) => !byHand.current.has(key));
+    set(Object.fromEntries(auto.map((key) => [key, read[key]])));
     const timer = window.setTimeout(async () => {
       const found = form.name.trim()
         ? (await api<{ matches: Offer[] }>(`/catalog/vehicle-match?text=${encodeURIComponent(form.name)}`)).matches
@@ -335,7 +342,10 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
                     pressed={form[key] === value || form[key] === "both"}
                     disabled={!editable}
                     label={t(`warehouse.value_${value}`)}
-                    onClick={() => set({ [key]: togglePair(form[key], value, value === a ? b : a) })}
+                    onClick={() => {
+                      byHand.current.add(key);
+                      set({ [key]: togglePair(form[key], value, value === a ? b : a) });
+                    }}
                   />
                 ))}
               </div>

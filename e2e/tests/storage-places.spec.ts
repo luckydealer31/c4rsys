@@ -78,7 +78,10 @@ test("storage places are tags of their group", async ({ page }) => {
   await expect(page.getByLabel(t("warehouse.country_other"), { exact: true })).toHaveValue("Абхазия");
   await expect(page.locator(".applies-row")).toHaveText(/Toyota/);
   // A make and a model named in the name are offered; pressing the offer adds them.
-  await page.locator("label.field").filter({ hasText: new RegExp(`^${t("warehouse.name")}$`) }).locator("input").fill("Колодки ford focus");
+  await page.locator("label.field").filter({ hasText: new RegExp(`^${t("warehouse.name")}$`) }).locator("input").fill("Колодки передние ford focus");
+  // The position named in the name presses its button.
+  await expect(page.getByRole("button", { name: new RegExp(t("warehouse.value_front")) })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: new RegExp(t("warehouse.value_rear")) })).toHaveAttribute("aria-pressed", "false");
   const offer = page.getByRole("button", { name: "Ford Focus", exact: true });
   await offer.click();
   await expect(page.locator(".applies-row")).toHaveCount(2);
