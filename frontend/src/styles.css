@@ -928,3 +928,10 @@ tr.limited > td:not(:last-child) { opacity: 0.5; }
 .applies-draft > button {
   flex: 0 0 auto;
 }
+
+/* A list with marks that is searched: wider, the field stays at the top while the list scrolls. */
+.multi-pick.wide .multi-pick-pop { width: 380px; }
+.multi-pick-search { position: sticky; top: 0; width: 100%; }
+.multi-pick.wide .multi-pick-button { max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
+.multi-pick-pop:focus { outline: none; }
+.multi-pick-typed { position: sticky; top: 0; background: var(--surface, #fff); font-weight: 600; padding: 2px 0 4px; border-bottom: 1px solid var(--border); }

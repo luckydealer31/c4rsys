@@ -9,7 +9,7 @@ import { useCommand } from "../../api/useCommand";
 import { MultiPick } from "../../components/MultiPick";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
-import { PlaceTags } from "../tags/Tags";
+import { PlaceTags, RowTags, useTagsOf } from "../tags/Tags";
 import { useVehicles } from "../vehicles/VehiclesPage";
 import { useCategoryLabel } from "./Categories";
 import { VehiclePrice } from "./Prices";
@@ -31,12 +31,23 @@ export function parseTags(text: string): string[] {
   return [...new Set(text.split(",").map((tag) => tag.trim()).filter(Boolean))];
 }
 
-/** Stock of the company (§ 11.1.1, § 11.1.10; customer's decisions of 20.11.2026). With every
- * warehouse it is one list: a row per item with its whole quantity and the warehouses it lies
- * on. With one or several warehouses chosen the stock goes warehouse by warehouse, each with
- * what lies on it. The main columns stand first; the arrow at the end of the heading opens the
+/** Stock of the company (§ 11.1.1, § 11.1.10; customer's decisions of 20.11.2026). Two views:
+ * by items — one list, a row per item with its whole quantity and the warehouses it lies on;
+ * by warehouses — warehouse by warehouse, each with what lies on it (all of them, or the
+ * ones chosen); the same item is then repeated under every warehouse that has it. The main columns stand first; the arrow at the end of the heading opens the
  * rest and the table is then scrolled sideways. The row opens the item with its units and lots.
  * The vehicles put on a warehouse as stock stand below. */
+const VIEWS = ["items", "places"] as const;
+type View = (typeof VIEWS)[number];
+const VIEW_KEY = "c4r.stock.view";
+function storedView(): View {
+  try {
+    return window.localStorage.getItem(VIEW_KEY) === "places" ? "places" : "items";
+  } catch {
+    return "items";
+  }
+}
+
 export function StockList() {
   const { t, i18n } = useTranslation();
   const company = useCompany();
@@ -46,6 +57,11 @@ export function StockList() {
   // The warehouses chosen; none — all of them.
   const [chosen, setChosen] = useState<Set<string>>(new Set());
   const [more, setMore] = useState(false);
+  // The items chosen in the view by items; none — all of them.
+  const [items, setItems] = useState<Set<string>>(new Set());
+  // The view is remembered in the browser: it is a habit of the employee, not a filter.
+  const [view, setView] = useState<View>(storedView);
+  const tagsOf = useTagsOf("item");
   const categoryLabel = useCategoryLabel();
   const regions = new Intl.DisplayNames([i18n.language], { type: "region" });
   // «100 THB», or «100–150 THB» when the units differ; empty when nothing is known.
@@ -75,7 +91,8 @@ export function StockList() {
       const here = row.places.find((p) => p.context_id === place);
       return here && Number(here.quantity) > 0 ? [{ ...row, quantity: here.quantity, tags: here.tags, places: [here] }] : [];
     });
-  const stored = (vehicles.data?.vehicles ?? []).filter((v) => v.storage && (chosen.size === 0 || chosen.has(v.storage.context_id)));
+  const picked = view === "places" && chosen.size > 0;
+  const stored = (vehicles.data?.vehicles ?? []).filter((v) => v.storage && (!picked || chosen.has(v.storage.context_id)));
   const placeName = (id: string) => places.find((p) => p.context_id === id)?.location_name ?? "";
 
   const table = (stock: StockRow[], withPlaces: boolean) => (
@@ -88,6 +105,7 @@ export function StockList() {
             <th>{t("warehouse.manufacturer")}</th>
             <th>{t("warehouse.country")}</th>
             <th>{t("stock.category")}</th>
+            <th>{t("tags.title")}</th>
             <th>{t("stock.rest")}</th>
             {withPlaces ? <th>{t("stock.warehouses")}</th> : null}
             {more ? (
@@ -133,6 +151,9 @@ export function StockList() {
                   : row.item.country_other || "—"}
               </td>
               <td className="small">{categoryLabel(row.item.part_category, row.item.part_subcategory) || "—"}</td>
+              <td>
+                <RowTags tags={tagsOf(row.item.id)} />
+              </td>
               <td className="nowrap">
                 {quantity(row.quantity, row.item.unit)}
                 {row.below_minimum ? (
@@ -169,12 +190,51 @@ export function StockList() {
   );
 
   // The chosen warehouses in the order of their list, each with what lies on it.
-  const blocks = places.filter((p) => chosen.has(p.context_id)).map((p) => ({ place: p, stock: on(p.context_id) }));
+  const blocks = places
+    .filter((p) => !picked || chosen.has(p.context_id))
+    .map((p) => ({ place: p, stock: on(p.context_id) }));
   return (
     <>
       <Card>
         <div className="list-bar">
           {places.length > 1 ? (
+            <div className="segmented" role="group" aria-label={t("stock.view")}>
+              {VIEWS.map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={view === key}
+                  onClick={() => {
+                    setView(key);
+                    try {
+                      window.localStorage.setItem(VIEW_KEY, key);
+                    } catch {
+                      // The view is then kept until the page is left.
+                    }
+                  }}
+                >
+                  {t(`stock.view_${key}`)}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          {/* By items the same part of several manufacturers is picked out of the list and
+              compared (customer's decision of 20.11.2026). */}
+          {view === "items" || places.length < 2 ? (
+            <MultiPick
+              options={all.map((row) => ({
+                id: row.item.id,
+                name: [row.item.name, row.item.article].filter(Boolean).join(" · "),
+              }))}
+              chosen={items}
+              onChange={setItems}
+              label={t("stock.item")}
+              all={t("stock.all_items")}
+              count={(n) => t("stock.items_count", { count: n })}
+              search={t("stock.item_search")}
+            />
+          ) : null}
+          {places.length > 1 && view === "places" ? (
             <MultiPick
               options={places.map((p) => ({ id: p.context_id, name: p.location_name }))}
               chosen={chosen}
@@ -193,10 +253,10 @@ export function StockList() {
           />
         </div>
         {rows.isLoading ? <Loading /> : null}
-        {chosen.size === 0 ? (
+        {view === "items" || places.length < 2 ? (
           <>
             {rows.data && all.length === 0 ? <p className="muted">{t("stock.empty")}</p> : null}
-            {all.length ? table(all, true) : null}
+            {all.length ? table(items.size ? all.filter((row) => items.has(row.item.id)) : all, true) : null}
           </>
         ) : (
           blocks.map(({ place, stock }) => (

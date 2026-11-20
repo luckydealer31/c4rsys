@@ -3135,7 +3135,14 @@
     "more_columns": "คอลัมน์เพิ่มเติม",
     "less_columns": "ย่อคอลัมน์",
     "warehouses_count": "คลังสินค้า: {{count}}",
-    "empty_here": "ไม่มีสินค้าในคลังนี้"
+    "empty_here": "ไม่มีสินค้าในคลังนี้",
+    "view": "มุมมอง",
+    "view_items": "ตามรายการ",
+    "view_places": "ตามคลัง",
+    "item": "รายการ",
+    "all_items": "ทุกรายการ",
+    "items_count": "รายการ: {{count}}",
+    "item_search": "ค้นหารายการ"
   },
   "articles": {
     "title": "รหัสสินค้าของผู้จำหน่าย",

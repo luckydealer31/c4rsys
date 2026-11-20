@@ -126,8 +126,29 @@ test("storage places are tags of their group", async ({ page }) => {
   const choice = page.getByRole("dialog", { name: t("stock.warehouse") });
   const head = (key: string) => page.locator("th").filter({ hasText: new RegExp(`^${t(key)}$`) });
   const lines = page.locator("table tbody tr");
-  await expect(where).toContainText(t("stock.all_warehouses"));
+  // Two views (customer's decision of 20.11.2026): by items — one list with the column of the
+  // warehouses and no choice of them; by warehouses — a block per warehouse.
+  const byPlaces = page.getByRole("button", { name: t("stock.view_places"), exact: true });
+  await expect(page.getByRole("button", { name: t("stock.view_items"), exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(where).toHaveCount(0);
   await expect(lines).toHaveCount(1);
+  // By items the list of the items is searched while typing and marked.
+  await ok(page, "POST", `/c/${s.cmp}/warehouse/items`, { name: "Фильтр", unit: "piece" });
+  const which = page.getByRole("button", { name: t("stock.item"), exact: true });
+  const list = page.getByRole("dialog", { name: t("stock.item") });
+  await expect(which).toContainText(t("stock.all_items"));
+  await which.click();
+  // Typed on the keys, with no field: the list is narrowed, Backspace takes a letter back.
+  // (Latin keys: the test types other letters as inserted text, without key presses.)
+  await page.keyboard.type("zzzz");
+  await expect(list.getByRole("checkbox")).toHaveCount(1);
+  await page.keyboard.press("Backspace");
+  await expect(list).toContainText("zzz");
+  for (let i = 0; i < 3; i += 1) await page.keyboard.press("Backspace");
+  await expect(list.getByRole("textbox")).toHaveCount(0);
+  await expect(list.getByRole("checkbox")).toHaveCount(2);
+  await page.keyboard.press("Escape");
+  await expect(head("tags.title")).toBeVisible();
   await expect(head("stock.warehouses")).toBeVisible();
   // The main columns stand first; the only unit is named by its identifier.
   await expect(lines.first()).toContainText("AST-");
@@ -142,6 +163,13 @@ test("storage places are tags of their group", async ({ page }) => {
   await expect(head("warehouse.comment")).toBeVisible();
   await page.getByRole("button", { name: t("stock.less_columns"), exact: true }).click();
   await expect(head("stock.cost")).toHaveCount(0);
+  // By warehouses every warehouse has its block and the column of the warehouses is gone.
+  const block = (name: string) => page.getByRole("region", { name });
+  await byPlaces.click();
+  await expect(where).toContainText(t("stock.all_warehouses"));
+  await expect(block("Пхукет").locator("tbody tr")).toHaveCount(1);
+  await expect(block("Чалонг")).toContainText(t("stock.empty_here"));
+  await expect(head("stock.warehouses")).toHaveCount(0);
   // The search stands at the right end of the line.
   const search = page.getByRole("textbox", { name: t("warehouse.search") });
   expect((await search.boundingBox())!.x).toBeGreaterThan((await where.boundingBox())!.x + 300);
@@ -149,14 +177,13 @@ test("storage places are tags of their group", async ({ page }) => {
   await where.click();
   await choice.getByLabel("Чалонг").check();
   await expect(where).toContainText("Чалонг");
-  const block = (name: string) => page.getByRole("region", { name });
   await expect(block("Чалонг")).toContainText(t("stock.empty_here"));
   await expect(block("Пхукет")).toHaveCount(0);
   await expect(head("stock.warehouses")).toHaveCount(0);
   await choice.getByLabel("Пхукет").click();
   await expect(where).toContainText(t("stock.all_warehouses"));
   await expect(choice.getByLabel(t("stock.all_warehouses"))).toBeChecked();
-  await expect(head("stock.warehouses")).toBeVisible();
+  await expect(block("Чалонг")).toBeVisible();
   await choice.getByLabel("Пхукет").click();
   await expect(block("Пхукет").locator("tbody tr")).toHaveCount(1);
   await expect(where).toContainText("Пхукет");

@@ -3135,7 +3135,14 @@
     "more_columns": "More columns",
     "less_columns": "Fewer columns",
     "warehouses_count": "Warehouses: {{count}}",
-    "empty_here": "Nothing lies on this warehouse."
+    "empty_here": "Nothing lies on this warehouse.",
+    "view": "View",
+    "view_items": "By items",
+    "view_places": "By warehouses",
+    "item": "Item",
+    "all_items": "All items",
+    "items_count": "Items: {{count}}",
+    "item_search": "Find an item"
   },
   "articles": {
     "title": "Supplier articles",

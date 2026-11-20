@@ -3135,7 +3135,14 @@
     "more_columns": "Ещё столбцы",
     "less_columns": "Свернуть столбцы",
     "warehouses_count": "Складов: {{count}}",
-    "empty_here": "На этом складе ничего нет."
+    "empty_here": "На этом складе ничего нет.",
+    "view": "Вид",
+    "view_items": "По номенклатуре",
+    "view_places": "По складам",
+    "item": "Позиция",
+    "all_items": "Вся номенклатура",
+    "items_count": "Позиций: {{count}}",
+    "item_search": "Найти позицию"
   },
   "articles": {
     "title": "Артикулы поставщиков",
