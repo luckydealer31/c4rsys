@@ -2882,7 +2882,6 @@
     "category": "Category note",
     "comment": "Comment",
     "create_item": "New item",
-    "delete_hint": "Only an item without movements can be deleted; otherwise archive it.",
     "external_id": "External ID",
     "external_id_hint": "Your ID of the item — an import finds it again by it.",
     "import": "Import from file",
@@ -2982,7 +2981,10 @@
     "vehicle_type": "Vehicle type",
     "country_other_option": "Other — type it in",
     "country_other": "Name of the country",
-    "applicability_offers": "Named in the name:"
+    "applicability_offers": "Named in the name:",
+    "delete_ask": "Delete the item?",
+    "delete_used": "The item has already been used, so it cannot be deleted. It will be moved to the archive.",
+    "to_archive": "Move to the archive"
   },
   "warnings": {
     "client_has_debt": "The client has a debt: {{amounts}}.",
@@ -3143,7 +3145,9 @@
     "item": "Item",
     "all_items": "All items",
     "items_count": "Items: {{count}}",
-    "item_search": "Find an item"
+    "item_search": "Find an item",
+    "details_show": "Units, lots and price",
+    "details_hide": "Collapse"
   },
   "articles": {
     "title": "Supplier articles",

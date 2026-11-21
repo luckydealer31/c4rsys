@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useApi } from "../../api/queries";
 import type { ItemPrices, PriceEntry, WarehouseItem } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { Card, ErrorMessage, Field } from "../../components/ui";
+import { ErrorMessage, Field, Info } from "../../components/ui";
 import { useCan, useCompany } from "../../layout/CompanyShell";
 import { useQuantity } from "./Stock";
 
@@ -43,7 +43,7 @@ function PriceInput({
   const [draft, setDraft] = useState<string | null>(null);
   const shown = draft ?? value;
   return (
-    <span className="row" style={{ alignItems: "center", flexWrap: "nowrap" }}>
+    <span className="price-input">
       <input
         inputMode="decimal"
         style={{ width: 120 }}
@@ -90,20 +90,24 @@ export function PricesCard({ item }: { item: WarehouseItem }) {
   const refresh = async (result: unknown) => {
     if (result === null) return false;
     await client.invalidateQueries({ queryKey: ["warehouse-prices", company.public_id, item.id] });
+    await client.invalidateQueries({ queryKey: ["warehouse-stock", company.public_id] });
     return true;
   };
   const save = (lotId: string | null, packagingId: string | null) => async (amount: string | null) =>
     refresh(await setPrice.run({ lot_id: lotId, packaging_id: packagingId, amount }));
 
   return (
-    <Card title={t("prices.title")}>
+    <section className="stock-prices">
+      <h3>
+        {t("prices.title")} <Info text={t("prices.snapshot_hint")} />
+      </h3>
       {item.accounting === "batch" ? (
         <p>
           {t("prices.mode")}: <strong>{t(`prices.mode_${prices.mode}`)}</strong>
         </p>
       ) : null}
       {prices.mode === "item" ? (
-        <table>
+        <table className="fit">
           <tbody>
             {forms.map((form) => (
               <tr key={form.packaging_id ?? "loose"}>
@@ -124,7 +128,7 @@ export function PricesCard({ item }: { item: WarehouseItem }) {
         prices.lots.map((lot) => (
           <div key={lot.id} className="line-card">
             <h3>{lot.public_id}</h3>
-            <table>
+            <table className="fit">
               <tbody>
                 {forms.map((form) => (
                   <tr key={form.packaging_id ?? "loose"}>
@@ -148,7 +152,7 @@ export function PricesCard({ item }: { item: WarehouseItem }) {
         <>
           <h3>{t("prices.own_title")}</h3>
           <p className="muted small">{t("prices.own_hint")}</p>
-          <table>
+          <table className="fit">
             <tbody>
               {prices.assets.map((asset) => (
                 <tr key={asset.id}>
@@ -205,55 +209,8 @@ export function PricesCard({ item }: { item: WarehouseItem }) {
           )}
         </div>
       ) : null}
-      <p className="muted small">{t("prices.snapshot_hint")}</p>
       <ErrorMessage error={setPrice.error ?? setMode.error ?? setAsset.error} />
-    </Card>
-  );
-}
-
-/** A minimum per warehouse (§ 11.7.8): below it the stock is marked. */
-export function MinimumsCard({ item }: { item: WarehouseItem }) {
-  const { t } = useTranslation();
-  const company = useCompany();
-  const can = useCan();
-  const client = useQueryClient();
-  const data = useApi<{ prices: ItemPrices }>(
-    ["warehouse-prices", company.public_id, item.id],
-    `/c/${company.public_id}/warehouse/items/${item.id}/prices`,
-  );
-  const save = useCommand<Record<string, unknown>, unknown>(`/c/${company.public_id}/warehouse/items/${item.id}/minimum`, "PUT");
-  const minimums = data.data?.prices.minimums ?? [];
-  if (!minimums.length) return null;
-  return (
-    <Card title={t("prices.minimum_title")}>
-      <table>
-        <tbody>
-          {minimums.map((m) => (
-            <tr key={m.context_id}>
-              <td>
-                {t("warehouse.storage_warehouse")} — {m.location_name}
-              </td>
-              <td>
-                <PriceInput
-                  value={m.quantity ? String(Number(m.quantity)) : ""}
-                  currency={t(`warehouse.unit_short_${item.unit}`)}
-                  disabled={!can("warehouse.catalog.manage")}
-                  onSave={async (quantity) => {
-                    const result = await save.run({ context_id: m.context_id, quantity });
-                    if (result === null) return false;
-                    await client.invalidateQueries({ queryKey: ["warehouse-prices", company.public_id, item.id] });
-                    await client.invalidateQueries({ queryKey: ["warehouse-stock", company.public_id] });
-                    return true;
-                  }}
-                />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="muted small">{t("prices.minimum_hint")}</p>
-      <ErrorMessage error={save.error} />
-    </Card>
+    </section>
   );
 }
 

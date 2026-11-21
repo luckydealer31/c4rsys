@@ -14,7 +14,6 @@ import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { countries } from "../settings/CompanyProfilePage";
 import { PartCategoryField } from "./Categories";
 import { positionOf } from "./namePosition";
-import { MinimumsCard, PricesCard } from "./Prices";
 import { ItemStockCard, SupplierArticles } from "./Stock";
 import { TagsLine } from "../tags/Tags";
 
@@ -131,10 +130,7 @@ export function ItemPage() {
       />
       <div className="page full" style={{ paddingTop: 0 }}>
         <ItemStockCard item={item.data.item} />
-        <PricesCard item={item.data.item} />
-        <MinimumsCard item={item.data.item} />
         {item.data.item.accounting === "batch" ? <Packagings item={item.data.item} /> : null}
-        <Barcodes item={item.data.item} />
         <SupplierArticles item={item.data.item} />
         <ItemState item={item.data.item} />
       </div>
@@ -352,6 +348,7 @@ function ItemForm({
             autoFromStart={!item || !item.part_category}
             onChange={(category, subcategory) => set({ part_category: category, part_subcategory: subcategory })}
           />
+              {item ? <Barcodes item={item} /> : null}
             </div>
             <div className="stack">
               <div className="field">
@@ -801,7 +798,8 @@ function Packagings({ item }: { item: WarehouseItem }) {
   );
 }
 
-/** Barcodes of the company: a scan gives the item and the packaging (§ 11.1.16). */
+/** Barcodes of the company: a scan gives the item and the packaging (§ 11.1.16). They stand in
+ * the card itself, as marks with a cross and a short field (customer's remark of 21.11.2026). */
 function Barcodes({ item }: { item: WarehouseItem }) {
   const { t } = useTranslation();
   const company = useCompany();
@@ -817,35 +815,58 @@ function Barcodes({ item }: { item: WarehouseItem }) {
     const p = item.packagings.find((x) => x.id === id);
     return p ? `${p.name ? `${p.name} — ` : ""}${Number(p.quantity)} ${unit}` : "";
   };
+  const editable = can("warehouse.catalog.manage");
+  async function put() {
+    if (!code.trim() || add.pending) return;
+    const body = packaging ? { code, packaging_id: packaging } : { code };
+    if ((await add.run(body)) !== null) {
+      setCode("");
+      setPackaging("");
+      await refresh();
+    }
+  }
+  if (!editable && !item.barcodes.length) return null;
   return (
-    <Card title={t("warehouse.barcodes")}>
-      <ul>
+    <div className="field">
+      <span>{t("warehouse.barcodes")}</span>
+      <div className="barcode-line">
         {item.barcodes.map((b) => (
-          <li key={b.id}>
-            <span className="code">{b.code}</span> {b.packaging_id ? <span className="muted">{packName(b.packaging_id)}</span> : null}{" "}
-            {can("warehouse.catalog.manage") ? (
+          <span key={b.id} className="code-chip">
+            <span className="code">{b.code}</span>
+            {b.packaging_id ? <span className="muted small">{packName(b.packaging_id)}</span> : null}
+            {editable ? (
               <button
                 type="button"
-                className="secondary"
+                className="link"
+                aria-label={t("rights.remove")}
+                title={t("rights.remove")}
                 onClick={async () => {
                   if ((await remove.run({ id: b.id })) !== null) await refresh();
                 }}
               >
-                {t("rights.remove")}
+                ×
               </button>
             ) : null}
-          </li>
+          </span>
         ))}
-      </ul>
-      {can("warehouse.catalog.manage") ? (
-        <div className="row">
-          <Field label={t("warehouse.barcode")}>
-            <input value={code} onChange={(e) => setCode(e.target.value)} />
-          </Field>
-          {item.accounting === "batch" ? (
-            <Field label={t("warehouse.packaging")}>
-              <select value={packaging} onChange={(e) => setPackaging(e.target.value)}>
-                <option value="">—</option>
+        {editable ? (
+          <>
+            <input
+              value={code}
+              aria-label={t("warehouse.barcode")}
+              placeholder={t("warehouse.barcode")}
+              onChange={(e) => setCode(e.target.value)}
+              onKeyDown={(e) => {
+                // Enter adds the barcode instead of saving the whole card.
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void put();
+                }
+              }}
+            />
+            {item.accounting === "batch" && item.packagings.some((p) => p.state === "active") ? (
+              <select value={packaging} aria-label={t("warehouse.packaging")} onChange={(e) => setPackaging(e.target.value)}>
+                <option value="">{t("warehouse.packaging")}: —</option>
                 {item.packagings
                   .filter((p) => p.state === "active")
                   .map((p) => (
@@ -854,32 +875,28 @@ function Barcodes({ item }: { item: WarehouseItem }) {
                     </option>
                   ))}
               </select>
-            </Field>
-          ) : null}
-          <div className="field" style={{ alignSelf: "end" }}>
+            ) : null}
             <button
               type="button"
+              className="secondary"
+              aria-label={t("warehouse.add_barcode")}
+              title={t("warehouse.add_barcode")}
               disabled={!code.trim() || add.pending}
-              onClick={async () => {
-                const body = packaging ? { code, packaging_id: packaging } : { code };
-                if ((await add.run(body)) !== null) {
-                  setCode("");
-                  setPackaging("");
-                  await refresh();
-                }
-              }}
+              onClick={() => void put()}
             >
-              {t("warehouse.add_barcode")}
+              <Icon name="plus" size={14} />
             </button>
-          </div>
-        </div>
-      ) : null}
+          </>
+        ) : null}
+      </div>
       <ErrorMessage error={add.error ?? remove.error} />
-    </Card>
+    </div>
   );
 }
 
-/** Archive, restore, or delete while unused (§ 11.1.11). */
+/** One button of deletion (customer's remark of 21.11.2026): an item nothing has been done with
+ * is deleted; one that is used cannot be (§ 11.1.11), so the answer of the server turns the
+ * question into a move to the archive. An archived item is brought back by its own button. */
 function ItemState({ item }: { item: WarehouseItem }) {
   const { t } = useTranslation();
   const company = useCompany();
@@ -887,50 +904,62 @@ function ItemState({ item }: { item: WarehouseItem }) {
   const navigate = useNavigate();
   const refresh = useRefresh(item);
   const base = `/c/${company.public_id}/warehouse/items/${item.id}`;
-  const toggle = useCommand<{ expected_version: number }, unknown>(
-    `${base}/${item.state === "archived" ? "restore" : "archive"}`,
-  );
+  const archived = item.state === "archived";
+  const toggle = useCommand<{ expected_version: number }, unknown>(`${base}/${archived ? "restore" : "archive"}`);
   const remove = useCommand<Record<string, never>, unknown>(base, "DELETE");
   const [confirm, setConfirm] = useState(false);
   if (!can("warehouse.catalog.manage")) return null;
+  // Used already: it is not deleted, it goes to the archive.
+  const used = remove.error?.code === "ITEM_IN_USE";
+  const move = async () => {
+    if ((await toggle.run({ expected_version: item.version })) !== null) {
+      setConfirm(false);
+      await refresh();
+    }
+  };
   return (
-    <Card>
-      <div className="actions" style={{ marginTop: 0 }}>
-        <button
-          type="button"
-          className="secondary"
-          onClick={async () => {
-            if ((await toggle.run({ expected_version: item.version })) !== null) await refresh();
-          }}
-        >
-          {item.state === "archived" ? t("warehouse.restore") : t("warehouse.archive")}
+    <div className="item-state">
+      {archived ? (
+        <button type="button" className="secondary" disabled={toggle.pending} onClick={() => void move()}>
+          {t("warehouse.restore")}
         </button>
-        {confirm ? (
-          <>
-            <button
-              type="button"
-              className="danger"
-              onClick={async () => {
-                if ((await remove.run({})) !== null) {
-                  await refresh();
-                  navigate(companyPath(company, "/warehouse?tab=stock"));
-                }
-              }}
-            >
-              {t("locations.delete_confirm")}
-            </button>
-            <button type="button" className="secondary" onClick={() => setConfirm(false)}>
-              {t("common.cancel")}
-            </button>
-          </>
-        ) : (
-          <button type="button" className="secondary" onClick={() => setConfirm(true)}>
-            {t("locations.delete")}
+      ) : null}
+      {!confirm ? (
+        <button type="button" className="secondary" onClick={() => setConfirm(true)}>
+          {t("locations.delete")}
+        </button>
+      ) : used && !archived ? (
+        <>
+          <span role="alert">{t("warehouse.delete_used")}</span>
+          <button type="button" disabled={toggle.pending} onClick={() => void move()}>
+            {t("warehouse.to_archive")}
           </button>
-        )}
-      </div>
-      <p className="muted small">{t("warehouse.delete_hint")}</p>
-      <ErrorMessage error={toggle.error ?? remove.error} />
-    </Card>
+          <button type="button" className="secondary" onClick={() => setConfirm(false)}>
+            {t("common.cancel")}
+          </button>
+        </>
+      ) : (
+        <>
+          <span>{t("warehouse.delete_ask")}</span>
+          <button
+            type="button"
+            className="danger"
+            disabled={remove.pending}
+            onClick={async () => {
+              if ((await remove.run({})) !== null) {
+                await refresh();
+                navigate(companyPath(company, "/warehouse?tab=items"));
+              }
+            }}
+          >
+            {t("locations.delete_confirm")}
+          </button>
+          <button type="button" className="secondary" onClick={() => setConfirm(false)}>
+            {t("common.cancel")}
+          </button>
+        </>
+      )}
+      <ErrorMessage error={toggle.error ?? (used && !archived ? null : remove.error)} />
+    </div>
   );
 }

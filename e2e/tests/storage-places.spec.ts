@@ -87,6 +87,23 @@ test("storage places are tags of their group", async ({ page }) => {
   await link.fill("https://example.com/pads-2.jpg");
   await expect(saving).toBeEnabled();
   await expect(card.getByRole("status")).toHaveCount(0);
+  // The blocks under the card (customer's remarks of 21.11.2026). The stock and the minimum are
+  // one block: a line per warehouse.
+  const place = (name: string) => page.locator(".place-line", { hasText: name });
+  await expect(place("Пхукет")).toContainText("1");
+  await expect(place("Пхукет").getByRole("textbox", { name: t("prices.minimum_title") })).toBeVisible();
+  await expect(page.getByRole("heading", { name: t("prices.minimum_title") })).toHaveCount(0);
+  // The barcodes are in the card itself: Enter adds one and does not save the card.
+  await card.getByRole("textbox", { name: t("warehouse.barcode"), exact: true }).fill("4601234567890");
+  await card.getByRole("textbox", { name: t("warehouse.barcode"), exact: true }).press("Enter");
+  await expect(page.locator(".code-chip")).toContainText("4601234567890");
+  // One button of deletion: a used item is offered the archive instead.
+  const state = page.locator(".item-state");
+  await state.getByRole("button", { name: t("locations.delete"), exact: true }).click();
+  await state.getByRole("button", { name: t("locations.delete_confirm"), exact: true }).click();
+  await expect(state.getByRole("alert")).toContainText(t("warehouse.delete_used"));
+  await expect(state.getByRole("button", { name: t("warehouse.to_archive"), exact: true })).toBeVisible();
+  await state.getByRole("button", { name: t("common.cancel"), exact: true }).click();
   const adding = page
     .locator("section.card")
     .filter({ hasText: t("warehouse.section_parts") })
@@ -122,12 +139,21 @@ test("storage places are tags of their group", async ({ page }) => {
   await offer.click();
   await expect(page.locator(".applies-row")).toHaveCount(2);
   await expect(offer).toHaveCount(0);
+  // The units, their place marks and the sale price are not in the card: the row of the stock
+  // unfolds them (customer's decision of 21.11.2026).
+  await expect(page.getByRole("button", { name: t("stock.edit_tags"), exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: t("prices.title") })).toHaveCount(0);
+  await page.goto(`${s.base}/warehouse?tab=stock`);
+  await page.getByRole("button", { name: t("stock.details_show"), exact: true }).click();
+  const details = page.locator("tr.stock-details");
+  await expect(details).toContainText("AST-");
+  await expect(details.getByRole("heading", { name: t("prices.title") })).toBeVisible();
   await page.getByRole("button", { name: t("stock.edit_tags"), exact: true }).first().click();
   const add = page.getByRole("combobox", { name: t("tags.place_add") });
   await add.fill("Стеллаж 2");
   await add.press("Enter");
   await expect(page.locator(".place-tags .tag-chip")).toHaveText([/Стеллаж 1/, /Стеллаж 2/]);
-  await page.locator("tr", { has: page.locator(".place-tags") }).getByRole("button", { name: t("common.save"), exact: true }).click();
+  await page.locator("td", { has: page.locator(".place-tags") }).last().getByRole("button", { name: t("common.save"), exact: true }).click();
   await expect(page.getByText("Стеллаж 1, Стеллаж 2")).toBeVisible();
   await page.goto(`${s.base}/company/tags`);
   await expect(group.locator(".tag-rows li")).toHaveText([/Стеллаж 1/, /Стеллаж 2/]);

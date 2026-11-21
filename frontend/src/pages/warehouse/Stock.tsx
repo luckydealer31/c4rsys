@@ -1,18 +1,18 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 
 import { useApi } from "../../api/queries";
-import type { Counterparty, ItemStock, StockRow, Storage, SupplierArticle, WarehouseItem } from "../../api/types";
+import type { Counterparty, ItemPrices, ItemStock, StockRow, Storage, SupplierArticle, WarehouseItem } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { MultiPick } from "../../components/MultiPick";
-import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
+import { Card, ErrorMessage, Field, Info, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { PlaceTags, RowTags, useTagsOf } from "../tags/Tags";
 import { useVehicles } from "../vehicles/VehiclesPage";
 import { useCategoryLabel } from "./Categories";
-import { VehiclePrice } from "./Prices";
+import { PricesCard, VehiclePrice } from "./Prices";
 
 /** A quantity with the short unit; trailing zeros of hundredths are dropped. */
 export function useQuantity() {
@@ -35,7 +35,8 @@ export function parseTags(text: string): string[] {
  * by items — one list, a row per item with its whole quantity and the warehouses it lies on;
  * by warehouses — warehouse by warehouse, each with what lies on it (all of them, or the
  * ones chosen); the same item is then repeated under every warehouse that has it. The main columns stand first; the arrow at the end of the heading opens the
- * rest and the table is then scrolled sideways. The row opens the item with its units and lots.
+ * rest and the table is then scrolled sideways. The arrow of a row unfolds its units, lots and
+ * sale price right in the list (customer's decision of 21.11.2026); the name opens the card.
  * The vehicles put on a warehouse as stock stand below. */
 const VIEWS = ["items", "places"] as const;
 type View = (typeof VIEWS)[number];
@@ -57,6 +58,8 @@ export function StockList() {
   // The warehouses chosen; none — all of them.
   const [chosen, setChosen] = useState<Set<string>>(new Set());
   const [more, setMore] = useState(false);
+  // The rows unfolded: «warehouse:item», the warehouse empty in the view by items.
+  const [open, setOpen] = useState<Set<string>>(new Set());
   // The items chosen in the view by items; none — all of them.
   const [items, setItems] = useState<Set<string>>(new Set());
   // The view is remembered in the browser: it is a habit of the employee, not a filter.
@@ -95,7 +98,7 @@ export function StockList() {
   const stored = (vehicles.data?.vehicles ?? []).filter((v) => v.storage && (!picked || chosen.has(v.storage.context_id)));
   const placeName = (id: string) => places.find((p) => p.context_id === id)?.location_name ?? "";
 
-  const table = (stock: StockRow[], withPlaces: boolean) => (
+  const table = (stock: StockRow[], withPlaces: boolean, place = "") => (
     <div className="table-scroll">
       <table className={`stock-table${more ? " wide" : ""}`}>
         <thead>
@@ -136,14 +139,37 @@ export function StockList() {
           </tr>
         </thead>
         <tbody>
-          {stock.map((row) => (
-            <tr key={row.item.id}>
+          {stock.map((row) => {
+            const key = `${place}:${row.item.id}`;
+            const shown = open.has(key);
+            return (
+            <Fragment key={row.item.id}>
+            <tr>
               <td>
-                <Link to={companyPath(company, `/warehouse/items/${row.item.id}`)} state={{ from: "stock" }}>
-                  {row.item.name}
-                </Link>
-                {/* The only unit or lot is named by its own identifier. */}
-                {row.unit_id ? <div className="muted small">{row.unit_id}</div> : null}
+                <div className="stock-name">
+                  <button
+                    type="button"
+                    className="icon-button"
+                    aria-expanded={shown}
+                    aria-label={t(shown ? "stock.details_hide" : "stock.details_show")}
+                    title={t(shown ? "stock.details_hide" : "stock.details_show")}
+                    onClick={() => {
+                      const next = new Set(open);
+                      if (shown) next.delete(key);
+                      else next.add(key);
+                      setOpen(next);
+                    }}
+                  >
+                    {shown ? "▾" : "▸"}
+                  </button>
+                  <div>
+                    <Link to={companyPath(company, `/warehouse/items/${row.item.id}`)} state={{ from: "stock" }}>
+                      {row.item.name}
+                    </Link>
+                    {/* The only unit or lot is named by its own identifier. */}
+                    {row.unit_id ? <div className="muted small">{row.unit_id}</div> : null}
+                  </div>
+                </div>
               </td>
               <td>{row.item.article || "—"}</td>
               <td>{row.item.manufacturer_name || "—"}</td>
@@ -185,7 +211,16 @@ export function StockList() {
               ) : null}
               <td className="more-col" />
             </tr>
-          ))}
+            {shown ? (
+              <tr className="stock-details">
+                <td colSpan={withPlaces ? (more ? 17 : 9) : more ? 16 : 8}>
+                  <StockDetails itemId={row.item.id} place={place} />
+                </td>
+              </tr>
+            ) : null}
+            </Fragment>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -265,7 +300,7 @@ export function StockList() {
             <section key={place.context_id} className="stock-block" aria-label={place.location_name}>
               <h3>{place.location_name}</h3>
               {rows.data && stock.length === 0 ? <p className="muted">{t("stock.empty_here")}</p> : null}
-              {stock.length ? table(stock, false) : null}
+              {stock.length ? table(stock, false, place.context_id) : null}
             </section>
           ))
         )}
@@ -311,30 +346,152 @@ function StoredPrice({ vehicleId }: { vehicleId: string }) {
   return <VehiclePrice vehicleId={vehicleId} value={prices.data?.prices[vehicleId] ?? ""} />;
 }
 
-/** The expanded stock of an item: assets or lots with their quantities by packaging, own tags
- * and purchase costs of each receipt (§ 11.1.10, § 11.2.13). */
+/** A row of the stock unfolded: the units or the lots of the item warehouse by warehouse, with
+ * their place marks, the repacking and the receipts, what is issued and still out, and the sale
+ * prices (§ 11.1.10, § 11.2.13, § 11.7.4; customer's decision of 21.11.2026). Under a warehouse
+ * only what lies on it is shown. */
+function StockDetails({ itemId, place }: { itemId: string; place: string }) {
+  const company = useCompany();
+  const quantity = useQuantity();
+  const full = useApi<{ item: WarehouseItem }>(
+    ["warehouse-item", company.public_id, itemId],
+    `/c/${company.public_id}/warehouse/items/${itemId}`,
+  );
+  const data = useApi<{ stock: ItemStock }>(
+    ["warehouse-item-stock", company.public_id, itemId],
+    `/c/${company.public_id}/warehouse/items/${itemId}/stock`,
+  );
+  const item = full.data?.item;
+  if (!item || !data.data) return <Loading />;
+  const places = data.data.stock.places.filter((p) => !place || p.context_id === place);
+  return (
+    <>
+      {places.map((p) => (
+        <div key={p.context_id} className="stock-place">
+          {place ? null : (
+            <p>
+              <strong>{p.location_name}</strong> — {quantity(p.quantity, item.unit)}
+            </p>
+          )}
+          <PlaceDetails item={item} place={p} />
+        </div>
+      ))}
+      <IssuedList item={item} />
+      <PricesCard item={item} />
+    </>
+  );
+}
+
+/** The minimum of an item warehouse by warehouse, beside what lies there (§ 11.7.8). The units,
+ * the lots and the prices are in the stock list (customer's decision of 21.11.2026). */
 export function ItemStockCard({ item }: { item: WarehouseItem }) {
   const { t } = useTranslation();
   const company = useCompany();
   const can = useCan();
   const quantity = useQuantity();
-  const money = useMoney();
   const data = useApi<{ stock: ItemStock }>(
     ["warehouse-item-stock", company.public_id, item.id],
     `/c/${company.public_id}/warehouse/items/${item.id}/stock`,
     can("warehouse.view"),
   );
+  // Every warehouse has a line: what lies there and the minimum beside it (customer's remark of
+  // 21.11.2026); a warehouse without the item is in the list too, for its minimum to be set.
+  const prices = useApi<{ prices: ItemPrices }>(
+    ["warehouse-prices", company.public_id, item.id],
+    `/c/${company.public_id}/warehouse/items/${item.id}/prices`,
+    can("warehouse.view"),
+  );
   if (!can("warehouse.view")) return null;
   const places = data.data?.stock.places ?? [];
+  const minimums = prices.data?.prices.minimums ?? [];
+  const lines = [
+    ...minimums.map((m) => ({ context_id: m.context_id, name: m.location_name, minimum: m.quantity as string | null, known: true })),
+    ...places
+      .filter((p) => !minimums.some((m) => m.context_id === p.context_id))
+      .map((p) => ({ context_id: p.context_id, name: p.location_name, minimum: null as string | null, known: false })),
+  ];
   return (
-    <Card title={t("stock.title")}>
+    <Card>
       {data.isLoading ? <Loading /> : null}
-      {data.data && places.length === 0 ? <p className="muted">{t("stock.item_empty")}</p> : null}
-      {places.map((place) => (
-        <div key={place.context_id} style={{ marginBottom: 16 }}>
-          <h3>
-            {t("warehouse.storage_warehouse")} — {place.location_name}: {quantity(place.quantity, item.unit)}
-          </h3>
+      {data.data && lines.length === 0 ? <p className="muted">{t("stock.item_empty")}</p> : null}
+      {lines.length ? (
+        <div className="place-line head muted small">
+          <span>{t("warehouse.storage_warehouse")}</span>
+          <span>{t("stock.rest")}</span>
+          <span>
+            {t("prices.minimum_title")} <Info text={t("prices.minimum_hint")} />
+          </span>
+        </div>
+      ) : null}
+      {lines.map((line) => {
+        const place = places.find((p) => p.context_id === line.context_id);
+        return (
+          <div key={line.context_id} className="place-block">
+            <div className="place-line">
+              <strong>{line.name}</strong>
+              <span>{quantity(place?.quantity ?? 0, item.unit)}</span>
+              <span>
+                {line.known ? (
+                  <MinimumField item={item} contextId={line.context_id} value={line.minimum} />
+                ) : (
+                  "—"
+                )}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+    </Card>
+  );
+}
+
+/** The minimum of an item on a warehouse (§ 11.7.8): empty — no minimum. */
+function MinimumField({ item, contextId, value }: { item: WarehouseItem; contextId: string; value: string | null }) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const can = useCan();
+  const client = useQueryClient();
+  const save = useCommand<Record<string, unknown>, unknown>(`/c/${company.public_id}/warehouse/items/${item.id}/minimum`, "PUT");
+  const saved = value ? String(Number(value)) : "";
+  const [draft, setDraft] = useState<string | null>(null);
+  return (
+    <span className="price-input">
+      <input
+        inputMode="decimal"
+        aria-label={t("prices.minimum_title")}
+        value={draft ?? saved}
+        disabled={!can("warehouse.catalog.manage")}
+        placeholder="—"
+        onChange={(e) => setDraft(e.target.value)}
+      />
+      <span className="small muted">{t(`warehouse.unit_short_${item.unit}`)}</span>
+      {draft !== null && draft !== saved ? (
+        <button
+          type="button"
+          onClick={async () => {
+            if ((await save.run({ context_id: contextId, quantity: draft.trim() === "" ? null : draft })) === null) return;
+            await client.invalidateQueries({ queryKey: ["warehouse-prices", company.public_id, item.id] });
+            await client.invalidateQueries({ queryKey: ["warehouse-stock", company.public_id] });
+            setDraft(null);
+          }}
+        >
+          {t("common.save")}
+        </button>
+      ) : null}
+      <ErrorMessage error={save.error} />
+    </span>
+  );
+}
+
+/** The units and the lots of an item on one warehouse. */
+function PlaceDetails({ item, place }: { item: WarehouseItem; place: ItemStock["places"][number] }) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const can = useCan();
+  const quantity = useQuantity();
+  const money = useMoney();
+  return (
+    <>
           {place.assets.length ? (
             <table>
               <thead>
@@ -415,10 +572,7 @@ export function ItemStockCard({ item }: { item: WarehouseItem }) {
               <Tags kind="lots" id={lot.id} tags={lot.tags} item={item} />
             </div>
           ))}
-        </div>
-      ))}
-      <IssuedList item={item} />
-    </Card>
+    </>
   );
 }
 

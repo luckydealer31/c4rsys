@@ -2882,7 +2882,6 @@
     "category": "หมายเหตุหมวดหมู่",
     "comment": "Comment",
     "create_item": "New item",
-    "delete_hint": "Only an item without movements can be deleted; otherwise archive it.",
     "external_id": "External ID",
     "external_id_hint": "Your ID of the item — an import finds it again by it.",
     "import": "Import from file",
@@ -2982,7 +2981,10 @@
     "vehicle_type": "ประเภทยานพาหนะ",
     "country_other_option": "อื่น ๆ — พิมพ์เอง",
     "country_other": "ชื่อประเทศ",
-    "applicability_offers": "ตรงกับชื่อ:"
+    "applicability_offers": "ตรงกับชื่อ:",
+    "delete_ask": "ลบรายการนี้หรือไม่",
+    "delete_used": "รายการนี้ถูกใช้งานแล้วจึงลบไม่ได้ ระบบจะย้ายไปยังที่เก็บถาวร",
+    "to_archive": "ย้ายไปที่เก็บถาวร"
   },
   "warnings": {
     "client_has_debt": "The client has a debt: {{amounts}}.",
@@ -3143,7 +3145,9 @@
     "item": "รายการ",
     "all_items": "ทุกรายการ",
     "items_count": "รายการ: {{count}}",
-    "item_search": "ค้นหารายการ"
+    "item_search": "ค้นหารายการ",
+    "details_show": "หน่วย ล็อต และราคา",
+    "details_hide": "ย่อ"
   },
   "articles": {
     "title": "รหัสสินค้าของผู้จำหน่าย",

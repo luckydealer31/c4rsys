@@ -482,6 +482,13 @@ td.nowrap { white-space: nowrap; }
   min-width: 30px; min-height: 30px; justify-content: center; border-radius: 6px; }
 /* The stock of a chosen warehouse under its name. */
 .stock-block + .stock-block { margin-top: 20px; }
+/* A row of the stock unfolded: its units, lots and prices under it. */
+.stock-name { display: flex; align-items: flex-start; gap: 4px; }
+.stock-name .icon-button { padding: 0 4px; line-height: 1.4; }
+.stock-details > td { background: var(--bg); padding: 12px 16px 16px 34px; }
+.stock-details table { width: auto; min-width: 0; }
+.stock-details h3 { margin: 12px 0 6px; font-size: 1rem; }
+.stock-place + .stock-place { margin-top: 12px; }
 .stock-block h3 { margin: 4px 0 6px; font-size: 1rem; }
 /* A list with marks: all, one or several. */
 .multi-pick { position: relative; }
@@ -960,3 +967,21 @@ tr.limited > td:not(:last-child) { opacity: 0.5; }
 
 /* A text that grows with its content: no handle, no bar. */
 textarea.growing { resize: none; overflow: hidden; display: block; }
+
+/* A number with its unit and the button that saves it: the field keeps its width. */
+.price-input { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.price-input > input { width: 110px; }
+table.fit { width: auto; }
+/* The stock of an item: a line per warehouse — the name, what lies there, the minimum. */
+.place-line { display: grid; grid-template-columns: minmax(140px, 260px) minmax(90px, 160px) minmax(0, 1fr);
+  gap: 12px; align-items: center; padding: 6px 0; }
+.place-block + .place-block, .place-line.head + .place-block { border-top: 1px solid var(--border); }
+/* The barcodes of an item: marks with a cross, then a short field. */
+.barcode-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.barcode-line > input { width: 200px; }
+.barcode-line > select { width: auto; }
+.barcode-line > button { flex: 0 0 auto; line-height: 0; padding: 9px; }
+.code-chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border: 1px solid var(--border);
+  border-radius: 999px; }
+.code-chip button.link { text-decoration: none; font-size: 16px; line-height: 1; }
+.item-state { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: var(--gap); }
