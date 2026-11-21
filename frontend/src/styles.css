@@ -486,6 +486,15 @@ td.nowrap { white-space: nowrap; }
 .place-select { display: inline-flex; align-items: center; gap: 6px; }
 .place-select > select { width: 220px; max-width: 100%; }
 .place-edit { display: inline-flex; align-items: center; gap: 4px; }
+/* The list of the units: fixed columns, the prices at the right edge. */
+.units-table { table-layout: fixed; width: 100%; min-width: 860px; }
+.units-table .mark-col { width: 36px; }
+.units-table .num-col { width: 52px; }
+.units-table .id-col { width: 210px; }
+.units-table .serial-col { width: 180px; }
+.units-table .cost-col { width: 170px; text-align: right; }
+.units-table .price-col { width: 230px; text-align: right; }
+.units-table td { height: 56px; }
 .place-edit .icon-button { flex: 0 0 auto; }
 .scroll-window td { vertical-align: middle; }
 .places-of { margin-bottom: 16px; }

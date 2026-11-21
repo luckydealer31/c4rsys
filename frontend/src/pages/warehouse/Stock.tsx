@@ -545,7 +545,9 @@ function PlaceDetails({ item, place }: { item: WarehouseItem; place: ItemStock["
     <>
           {here.length ? <UnitsBar item={item} contextId={place.context_id} ids={here} onDone={() => setMarked(new Set())} /> : null}
           {place.assets.length ? (
-            <table>
+            // The columns have their own widths, so nothing moves when a place is being chosen
+            // (customer's remark of 22.11.2026).
+            <table className="units-table">
               <thead>
                 <tr>
                   {marking ? (
@@ -559,12 +561,12 @@ function PlaceDetails({ item, place }: { item: WarehouseItem; place: ItemStock["
                       />
                     </th>
                   ) : null}
-                  <th>№</th>
-                  <th>{t("stock.asset_id")}</th>
-                  {serials ? <th>{t("receipts.serial_number")}</th> : null}
+                  <th className="num-col">№</th>
+                  <th className="id-col">{t("stock.asset_id")}</th>
+                  {serials ? <th className="serial-col">{t("receipts.serial_number")}</th> : null}
                   <th>{t("stock.tags")}</th>
-                  <th>{t("receipts.unit_cost")}</th>
-                  <th>{t("stock.sale_price")}</th>
+                  <th className="cost-col">{t("receipts.unit_cost")}</th>
+                  <th className="price-col">{t("stock.sale_price")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -586,8 +588,8 @@ function PlaceDetails({ item, place }: { item: WarehouseItem; place: ItemStock["
                     <td>
                       <Tags kind="assets" id={asset.id} tags={asset.tags} item={item} contextId={place.context_id} />
                     </td>
-                    <td>{money(asset.purchase_cost, asset.currency)}</td>
-                    <td>
+                    <td className="cost-col">{money(asset.purchase_cost, asset.currency)}</td>
+                    <td className="price-col">
                       <AssetPrice item={item} assetId={asset.id} />
                     </td>
                   </tr>
@@ -789,7 +791,7 @@ function Tags({
   if (chosen === null) {
     return (
       <span className="small">
-        {tags.join(", ") || "—"}{" "}
+        {tags.join(", ") || <span className="muted">{t("places.no_place")}</span>}{" "}
         {can("warehouse.tags.edit") ? (
           <button
             type="button"

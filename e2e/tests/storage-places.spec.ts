@@ -190,10 +190,15 @@ test("storage places are a list of the warehouse", async ({ page }) => {
   const cell = page.locator("td", { has: page.locator(".place-select") }).last();
   await cell.getByRole("combobox", { name: t("stock.tags"), exact: true }).selectOption("Стеллаж 2");
   // The button beside the list is small: the line does not grow and nothing moves aside.
+  // The columns keep their places while a place is being chosen (customer's remark of
+  // 22.11.2026): the price stands where it stood.
+  const priceAt = async () => (await page.locator(".scroll-window tbody .price-input input").boundingBox())!.x;
+  const editing = await priceAt();
   const saveIt = cell.getByRole("button", { name: t("common.save"), exact: true });
   expect((await saveIt.boundingBox())!.width).toBeLessThan(40);
   await saveIt.click();
   await expect(page.locator(".scroll-window tbody")).toContainText("Стеллаж 2");
+  expect(Math.abs((await priceAt()) - editing)).toBeLessThan(2);
   await expect(page.locator(".scroll-window tbody")).not.toContainText("Стеллаж 1");
 
   // The section is laid out as the others are (customer's remarks of 20.11.2026): no heading
