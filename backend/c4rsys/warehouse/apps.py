@@ -18,6 +18,10 @@ class WarehouseConfig(AppConfig):
         from c4rsys.warehouse import places
 
         places.register()
+        from c4rsys.warehouse import recognition_anthropic
+
+        # Reading the documents of suppliers (customer's decision of 21.11.2026).
+        recognition_anthropic.register()
         from c4rsys.companies import readiness
 
         # TODO(spec): § 4.3.1 does not define readiness of a warehouse context. PROPOSAL: an

@@ -187,8 +187,11 @@ ANYMAIL = {
 }
 # Address of the interface in invitation messages.
 # The outer service that reads the documents of suppliers (warehouse/recognition.py); empty —
-# the feature is off. Which service it is has not been decided (20.11.2026).
+# the feature is off. The first service is «anthropic» (customer's decision of 21.11.2026): it
+# needs ANTHROPIC_API_KEY, which the SDK reads from the environment itself; the model is the
+# agent's choice (PROPOSAL).
 C4R_INVOICE_RECOGNITION = os.environ.get("C4R_INVOICE_RECOGNITION", "")
+C4R_ANTHROPIC_MODEL = os.environ.get("C4R_ANTHROPIC_MODEL", "") or "claude-opus-5-5"
 C4R_PUBLIC_URL = os.environ.get("C4R_PUBLIC_URL", "http://localhost:5173")
 # The personal cabinet works on its own domain (customer's decisions of 30.10.2026; the test one
 # is system4rent.com). Requests of companies to a person lead there.

@@ -2,8 +2,9 @@
 20.11.2026): the supplier, the date, the number and the lines with their articles, quantities
 and prices, for a warehouse receipt to be filled from them.
 
-The reading itself is done by an outer service, and which one is not decided yet (OPEN): this
-module is the socket for it. A service is a function registered under a name with `register`;
+The reading itself is done by an outer service: this module is the socket for it, and the first
+service is in recognition_anthropic.py (customer's decision of 21.11.2026). A service is a
+function registered under a name with `register`;
 `C4R_INVOICE_RECOGNITION` names the one in use, empty — the feature is off. Whatever the service
 is, it is given `INSTRUCTION` and must answer with the JSON described by `SCHEMA`; `parse` checks
 that answer, so no service can put an unchecked value into the system.
