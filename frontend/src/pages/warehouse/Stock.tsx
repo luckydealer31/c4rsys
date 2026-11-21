@@ -547,7 +547,7 @@ function PlaceDetails({ item, place }: { item: WarehouseItem; place: ItemStock["
           {place.assets.length ? (
             // The columns have their own widths, so nothing moves when a place is being chosen
             // (customer's remark of 22.11.2026).
-            <table className="units-table">
+            <table className={`units-table${serials ? " with-serials" : ""}`}>
               <thead>
                 <tr>
                   {marking ? (

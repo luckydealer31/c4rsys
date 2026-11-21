@@ -189,6 +189,13 @@ test("storage places are a list of the warehouse", async ({ page }) => {
   // The place is chosen from the list of the warehouse, not typed; a unit has one place.
   const cell = page.locator("td", { has: page.locator(".place-select") }).last();
   await cell.getByRole("combobox", { name: t("stock.tags"), exact: true }).selectOption("Стеллаж 2");
+  // The headings of the prices stand over their values (customer's remark of 22.11.2026).
+  const middle = async (locator: ReturnType<typeof page.locator>) => {
+    const box = (await locator.boundingBox())!;
+    return box.x + box.width / 2;
+  };
+  const priceHead = page.locator(".units-table th.price-col");
+  expect(Math.abs((await middle(priceHead)) - (await middle(page.locator(".units-table td.price-col .price-input"))))).toBeLessThan(12);
   // The button beside the list is small: the line does not grow and nothing moves aside.
   // The columns keep their places while a place is being chosen (customer's remark of
   // 22.11.2026): the price stands where it stood.
