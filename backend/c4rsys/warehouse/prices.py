@@ -27,7 +27,13 @@ from c4rsys.warehouse.models import (
     SalePrice,
     VehicleSalePrice,
 )
-from c4rsys.warehouse.stock import ZERO, company_currency, money_text, totals
+from c4rsys.warehouse.stock import (
+    ZERO,
+    company_currency,
+    money_text,
+    totals,
+    units_of_item,
+)
 
 ITEM_MODE = "item"
 LOT_MODE = "lot"
@@ -205,6 +211,17 @@ def set_asset_price(
         after={"sale_price": str(amount) if amount is not None else None},
     )
     return asset
+
+
+def set_units_price(
+    ctx: CommandContext, company: Company, item_id: UUID, ids: list[UUID], amount: Decimal | None
+) -> int:
+    """The same own price for every chosen unit of an item (customer's decision of 21.11.2026);
+    each change is in the journal."""
+    units = units_of_item(company.id, item_id, ids)
+    for unit in units:
+        set_asset_price(ctx, company, unit.id, amount)
+    return len(units)
 
 
 def set_vehicle_price(

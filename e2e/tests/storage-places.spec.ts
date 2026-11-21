@@ -138,19 +138,38 @@ test("storage places are tags of their group", async ({ page }) => {
   await offer.click();
   await expect(page.locator(".applies-row")).toHaveCount(2);
   await expect(offer).toHaveCount(0);
-  // The units, their place marks and the sale price are not in the card: the row of the stock
-  // unfolds them (customer's decision of 21.11.2026).
+  // The units, their place marks and the sale price are not in the card of the catalog. A
+  // double press on the row of the stock opens the card of the item in the stock: the lists are
+  // in windows of their own, the catalog is a link (customer's decisions of 21.11.2026).
   await expect(page.getByRole("button", { name: t("stock.edit_tags"), exact: true })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: t("prices.title") })).toHaveCount(0);
   await page.goto(`${s.base}/warehouse?tab=stock`);
-  await page.getByRole("button", { name: t("stock.details_show"), exact: true }).click();
-  const details = page.locator("tr.stock-details");
-  await expect(details).toContainText("AST-");
-  await expect(details.getByRole("heading", { name: t("prices.title") })).toBeVisible();
-  // The name unfolds the row too; the card of the catalog is a link inside (customer's remark
-  // of 21.11.2026).
-  await expect(page.locator(".stock-name").getByRole("link")).toHaveCount(0);
-  await expect(details.getByRole("link", { name: t("stock.to_card"), exact: true })).toBeVisible();
+  await page.locator("tr.opens").first().dblclick();
+  await expect(page).toHaveURL(/\/warehouse\/stock\//);
+  await expect(page.locator(".scroll-window")).toContainText("AST-");
+  // A piece item has no block of prices: the price is in the line of each unit. What the goods
+  // are is read above the list.
+  await expect(page.getByRole("heading", { name: t("prices.title") })).toHaveCount(0);
+  await expect(page.locator(".goods-facts")).toContainText("Абхазия");
+  await expect(page.locator(".scroll-window tbody td").nth(1)).toHaveText("1");
+  await expect(page.getByRole("link", { name: t("stock.to_card"), exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: `← ${t("warehouse.tab_stock")}` })).toBeVisible();
+  // No unit has a serial number, so there is no such column; the sale price is in the line of
+  // the unit, and the storage place is named so (customer's remarks of 21.11.2026).
+  const unitsHead = page.locator(".scroll-window thead");
+  await expect(unitsHead).not.toContainText(t("receipts.serial_number"));
+  await expect(unitsHead).toContainText(t("stock.sale_price"));
+  await expect(unitsHead).toContainText(t("stock.tags"));
+  // Several units are marked and get one price at once (customer's decision of 21.11.2026).
+  await page.getByRole("checkbox", { name: t("stock.mark_all"), exact: true }).check();
+  const bar = page.locator(".units-bar");
+  await expect(bar).toContainText(t("stock.marked", { count: 1 }));
+  await expect(bar.getByRole("button", { name: t("stock.tags"), exact: true })).toBeVisible();
+  await bar.getByRole("button", { name: t("stock.sale_price"), exact: true }).click();
+  await bar.getByRole("textbox", { name: t("stock.sale_price"), exact: true }).fill("250");
+  await bar.getByRole("button", { name: t("common.save"), exact: true }).click();
+  await expect(bar).toHaveCount(0);
+  await expect(page.locator(".scroll-window tbody .price-input input")).toHaveValue("250.00");
   await page.getByRole("button", { name: t("stock.edit_tags"), exact: true }).first().click();
   const add = page.getByRole("combobox", { name: t("tags.place_add") });
   await add.fill("Стеллаж 2");

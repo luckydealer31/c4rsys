@@ -482,15 +482,24 @@ td.nowrap { white-space: nowrap; }
   min-width: 30px; min-height: 30px; justify-content: center; border-radius: 6px; }
 /* The stock of a chosen warehouse under its name. */
 .stock-block + .stock-block { margin-top: 20px; }
-/* A row of the stock unfolded: its units, lots and prices under it. */
-.stock-name { display: flex; align-items: flex-start; gap: 4px; }
-.stock-name .icon-button { padding: 0 4px; line-height: 1.4; }
-.stock-details > td { background: var(--bg); padding: 12px 16px 16px 34px; }
-.stock-details table { width: auto; min-width: 0; }
-.stock-details h3 { margin: 12px 0 6px; font-size: 1rem; }
-.stock-place + .stock-place { margin-top: 12px; }
-.stock-to-card { margin: 12px 0 0; }
-.stock-name button.link { text-align: left; }
+/* A row that a double press opens. */
+tr.opens { cursor: pointer; }
+/* A long list inside a card is scrolled in its own window, its heading stays in sight. */
+.scroll-window { max-height: 420px; overflow: auto; }
+.scroll-window > table > thead th { position: sticky; top: 0; background: var(--surface); z-index: 1; }
+.card-head .at-end { margin-left: auto; }
+/* The marks of the units and what is done with the marked ones. */
+.mark-col { width: 32px; }
+.mark-col input { width: auto; }
+.units-bar { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+  padding: 8px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); }
+.units-bar > button { flex: 0 0 auto; }
+.units-bar + table > thead th { top: 54px; }
+/* What the goods are, in a line: a small name over a value. */
+.goods-facts { display: flex; flex-wrap: wrap; gap: 8px 32px; margin: 0 0 var(--gap); }
+.goods-facts > div { display: flex; flex-direction: column; gap: 2px; }
+.goods-facts dt { font-size: 0.8rem; color: var(--muted); }
+.goods-facts dd { margin: 0; }
 .stock-block h3 { margin: 4px 0 6px; font-size: 1rem; }
 /* A list with marks: all, one or several. */
 .multi-pick { position: relative; }

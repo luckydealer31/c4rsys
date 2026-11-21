@@ -1326,6 +1326,57 @@ def set_tags(
     return record
 
 
+# The units changed by one command (customer's decision of 21.11.2026).
+UNITS_AT_ONCE = 5000
+
+
+def unit_ids(value: Any) -> list[UUID]:
+    """The chosen units of a command over several of them: a list without repeats."""
+    if not isinstance(value, list) or not value or len(value) > UNITS_AT_ONCE:
+        raise errors.validation_error("asset_ids")
+    ids: list[UUID] = []
+    for raw in value:
+        if not isinstance(raw, str):
+            raise errors.validation_error("asset_ids")
+        try:
+            ids.append(UUID(raw))
+        except ValueError as exc:
+            raise errors.validation_error("asset_ids") from exc
+    return list(dict.fromkeys(ids))
+
+
+def units_of_item(company_id: UUID, item_id: UUID, ids: list[UUID]) -> list[Asset]:
+    """The chosen units, locked, in the order of their identifiers; every one must be a unit of
+    the item — a stranger among them refuses the whole command."""
+    units = list(
+        Asset.objects.select_for_update()
+        .select_related("context")
+        .filter(company_id=company_id, item_id=item_id, pk__in=ids)
+        .order_by("pk")
+    )
+    if len(units) != len(ids):
+        raise errors.not_found()
+    return units
+
+
+def unit_contexts(company_id: UUID, item_id: UUID, ids: list[UUID]) -> list[ActivityContext]:
+    """The warehouses the chosen units lie on, for the rights to be checked in each."""
+    units = Asset.objects.select_related("context").filter(
+        company_id=company_id, item_id=item_id, pk__in=ids
+    )
+    return list({unit.context_id: unit.context for unit in units}.values())
+
+
+def set_units_tags(
+    ctx: CommandContext, company_id: UUID, item_id: UUID, ids: list[UUID], values: list[str]
+) -> int:
+    """The same storage places for every chosen unit; each change is in the journal."""
+    units = units_of_item(company_id, item_id, ids)
+    for unit in units:
+        set_tags(ctx, company_id, "asset", unit.id, values)
+    return len(units)
+
+
 def record_context(company_id: UUID, kind: str, record_id: UUID) -> ActivityContext:
     model = Asset if kind == "asset" else Lot
     record = (

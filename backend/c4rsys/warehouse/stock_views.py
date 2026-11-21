@@ -808,6 +808,25 @@ def lot_tags(request: HttpRequest, cmp: str, lot_id: UUID) -> JsonResponse:
     return _tags_command(request, cmp, "lot", lot_id)
 
 
+@require_POST
+def units_tags(request: HttpRequest, cmp: str, item_id: UUID) -> JsonResponse:
+    """The storage places of several units of an item at once (customer's decision of
+    21.11.2026); the right is needed on every warehouse the chosen units lie on."""
+    context, actor = _actor(request, cmp)
+    data = parse_json(request)
+    ids = stock.unit_ids(data.get("asset_ids"))
+    for place in stock.unit_contexts(context.company.id, item_id, ids):
+        _require_in(actor, "warehouse.tags.edit", place)
+    values = stock.tags(data.get("tags"))
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        changed = stock.set_units_tags(ctx, context.company.id, item_id, ids, values)
+        return CommandResult(200, {"changed": changed})
+
+    payload = {"item_id": str(item_id), "asset_ids": [str(i) for i in ids], "tags": values}
+    return run_and_respond(request, "warehouse.set_units_tags", actor, payload, handler)
+
+
 # --- Supplier articles (§ 11.2.17) -------------------------------------------------------------
 
 

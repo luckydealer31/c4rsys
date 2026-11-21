@@ -31,6 +31,7 @@ import { TagPage, TagsPage } from "./pages/tags/TagsPage";
 import { CompanyPage } from "./pages/company/CompanyPage";
 import { ImportPage } from "./pages/imports/ImportPage";
 import { ItemPage, NewItemPage } from "./pages/warehouse/ItemPage";
+import { StockItemPage } from "./pages/warehouse/Stock";
 import { NewPurchasePage, PurchasePage } from "./pages/warehouse/Purchases";
 import { InventoryPage } from "./pages/warehouse/Inventory";
 import { NewOperationPage, OperationPage, RepackPage } from "./pages/warehouse/Operations";
@@ -231,6 +232,7 @@ function MainApp({ cabinet }: { cabinet: boolean }) {
         <Route path="warehouse/import" element={<ImportPage />} />
         <Route path="imports" element={<ImportPage />} />
         <Route path="warehouse/items/:id" element={<ItemPage />} />
+        <Route path="warehouse/stock/:id" element={<StockItemPage />} />
         <Route path="warehouse/receipts/new" element={<ReceiptPage />} />
         <Route path="warehouse/receipts/:id" element={<ReceiptPage />} />
         <Route path="warehouse/operations/new" element={<NewOperationPage />} />

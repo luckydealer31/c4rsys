@@ -1,18 +1,19 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Fragment, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
 
 import { useApi } from "../../api/queries";
 import type { Counterparty, ItemPrices, ItemStock, StockRow, Storage, SupplierArticle, WarehouseItem } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
+import { Icon } from "../../components/icons";
 import { MultiPick } from "../../components/MultiPick";
 import { Card, ErrorMessage, Field, Info, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { PlaceTags, RowTags, useTagsOf } from "../tags/Tags";
 import { useVehicles } from "../vehicles/VehiclesPage";
 import { useCategoryLabel } from "./Categories";
-import { PricesCard, VehiclePrice } from "./Prices";
+import { AssetPrice, PricesCard, VehiclePrice } from "./Prices";
 
 /** A quantity with the short unit; trailing zeros of hundredths are dropped. */
 export function useQuantity() {
@@ -35,9 +36,8 @@ export function parseTags(text: string): string[] {
  * by items — one list, a row per item with its whole quantity and the warehouses it lies on;
  * by warehouses — warehouse by warehouse, each with what lies on it (all of them, or the
  * ones chosen); the same item is then repeated under every warehouse that has it. The main columns stand first; the arrow at the end of the heading opens the
- * rest and the table is then scrolled sideways. The arrow of a row unfolds its units, lots and
- * sale price right in the list (customer's decision of 21.11.2026); the name does the same,
- * and the card of the catalog, where the item is edited, is a link inside what is unfolded.
+ * rest and the table is then scrolled sideways. A double press on a row — or its name — opens
+ * the card of the item in the stock (customer's decision of 21.11.2026).
  * The vehicles put on a warehouse as stock stand below. */
 const VIEWS = ["items", "places"] as const;
 type View = (typeof VIEWS)[number];
@@ -59,8 +59,9 @@ export function StockList() {
   // The warehouses chosen; none — all of them.
   const [chosen, setChosen] = useState<Set<string>>(new Set());
   const [more, setMore] = useState(false);
-  // The rows unfolded: «warehouse:item», the warehouse empty in the view by items.
-  const [open, setOpen] = useState<Set<string>>(new Set());
+  const navigate = useNavigate();
+  const cardOf = (id: string, place: string) =>
+    companyPath(company, `/warehouse/stock/${id}${place ? `?place=${place}` : ""}`);
   // The items chosen in the view by items; none — all of them.
   const [items, setItems] = useState<Set<string>>(new Set());
   // The view is remembered in the browser: it is a habit of the employee, not a filter.
@@ -140,38 +141,12 @@ export function StockList() {
           </tr>
         </thead>
         <tbody>
-          {stock.map((row) => {
-            const key = `${place}:${row.item.id}`;
-            const shown = open.has(key);
-            const toggle = () => {
-              const next = new Set(open);
-              if (shown) next.delete(key);
-              else next.add(key);
-              setOpen(next);
-            };
-            return (
-            <Fragment key={row.item.id}>
-            <tr>
+          {stock.map((row) => (
+            <tr key={row.item.id} className="opens" onDoubleClick={() => void navigate(cardOf(row.item.id, place))}>
               <td>
-                <div className="stock-name">
-                  <button
-                    type="button"
-                    className="icon-button"
-                    aria-expanded={shown}
-                    aria-label={t(shown ? "stock.details_hide" : "stock.details_show")}
-                    title={t(shown ? "stock.details_hide" : "stock.details_show")}
-                    onClick={toggle}
-                  >
-                    {shown ? "▾" : "▸"}
-                  </button>
-                  <div>
-                    <button type="button" className="link" onClick={toggle}>
-                      {row.item.name}
-                    </button>
-                    {/* The only unit or lot is named by its own identifier. */}
-                    {row.unit_id ? <div className="muted small">{row.unit_id}</div> : null}
-                  </div>
-                </div>
+                <Link to={cardOf(row.item.id, place)}>{row.item.name}</Link>
+                {/* The only unit or lot is named by its own identifier. */}
+                {row.unit_id ? <div className="muted small">{row.unit_id}</div> : null}
               </td>
               <td>{row.item.article || "—"}</td>
               <td>{row.item.manufacturer_name || "—"}</td>
@@ -213,16 +188,7 @@ export function StockList() {
               ) : null}
               <td className="more-col" />
             </tr>
-            {shown ? (
-              <tr className="stock-details">
-                <td colSpan={withPlaces ? (more ? 17 : 9) : more ? 16 : 8}>
-                  <StockDetails itemId={row.item.id} place={place} />
-                </td>
-              </tr>
-            ) : null}
-            </Fragment>
-            );
-          })}
+          ))}
         </tbody>
       </table>
     </div>
@@ -348,48 +314,92 @@ function StoredPrice({ vehicleId }: { vehicleId: string }) {
   return <VehiclePrice vehicleId={vehicleId} value={prices.data?.prices[vehicleId] ?? ""} />;
 }
 
-/** A row of the stock unfolded: the units or the lots of the item warehouse by warehouse, with
- * their place marks, the repacking and the receipts, what is issued and still out, and the sale
- * prices (§ 11.1.10, § 11.2.13, § 11.7.4; customer's decision of 21.11.2026). Under a warehouse
- * only what lies on it is shown. */
-function StockDetails({ itemId, place }: { itemId: string; place: string }) {
-  const { t } = useTranslation();
+/** The card of an item in the stock (customer's decision of 21.11.2026): a double press on its
+ * row opens it. What lies where, the sale prices, and the units or the lots warehouse by
+ * warehouse — each list in a window of its own that is scrolled, so a thousand units do not
+ * stretch the page. The catalog, where the item itself is edited, is a link. Opened from a
+ * warehouse of the view by warehouses, it shows that warehouse only. */
+export function StockItemPage() {
+  const { t, i18n } = useTranslation();
+  const categoryLabel = useCategoryLabel();
   const company = useCompany();
   const can = useCan();
   const quantity = useQuantity();
+  const { id = "" } = useParams();
+  const place = new URLSearchParams(useLocation().search).get("place") ?? "";
   const full = useApi<{ item: WarehouseItem }>(
-    ["warehouse-item", company.public_id, itemId],
-    `/c/${company.public_id}/warehouse/items/${itemId}`,
+    ["warehouse-item", company.public_id, id],
+    `/c/${company.public_id}/warehouse/items/${id}`,
+    can("warehouse.view"),
   );
   const data = useApi<{ stock: ItemStock }>(
-    ["warehouse-item-stock", company.public_id, itemId],
-    `/c/${company.public_id}/warehouse/items/${itemId}/stock`,
+    ["warehouse-item-stock", company.public_id, id],
+    `/c/${company.public_id}/warehouse/items/${id}/stock`,
+    can("warehouse.view"),
   );
+  if (!can("warehouse.view")) return <p className="muted">{t("warehouse.no_access")}</p>;
   const item = full.data?.item;
-  if (!item || !data.data) return <Loading />;
+  if (!item || !data.data) {
+    return (
+      <div className="page full">
+        <Loading />
+      </div>
+    );
+  }
   const places = data.data.stock.places.filter((p) => !place || p.context_id === place);
+  // What the goods are, to read and not to edit; only what is filled.
+  const facts = [
+    [t("warehouse.article"), item.article],
+    [t("warehouse.manufacturer"), item.manufacturer_name],
+    [
+      t("warehouse.country"),
+      item.country
+        ? (new Intl.DisplayNames([i18n.language], { type: "region" }).of(item.country) ?? item.country)
+        : item.country_other,
+    ],
+    [t("stock.category"), categoryLabel(item.part_category, item.part_subcategory)],
+  ].filter(([, value]) => value);
   return (
-    <>
-      {places.map((p) => (
-        <div key={p.context_id} className="stock-place">
-          {place ? null : (
-            <p>
-              <strong>{p.location_name}</strong> — {quantity(p.quantity, item.unit)}
-            </p>
-          )}
-          <PlaceDetails item={item} place={p} />
-        </div>
-      ))}
-      <IssuedList item={item} />
-      <PricesCard item={item} />
-      {can("warehouse.catalog.manage") ? (
-        <p className="stock-to-card">
-          <Link to={companyPath(company, `/warehouse/items/${item.id}`)} state={{ from: "stock" }}>
+    <div className="page full">
+      <Link to={companyPath(company, "/warehouse?tab=stock")}>← {t("warehouse.tab_stock")}</Link>
+      <div className="card-head">
+        <h1>{item.name}</h1>
+        {can("warehouse.catalog.manage") ? (
+          <Link className="at-end" to={companyPath(company, `/warehouse/items/${item.id}`)} state={{ from: "stock" }}>
             {t("stock.to_card")}
           </Link>
-        </p>
+        ) : null}
+      </div>
+      {facts.length ? (
+        <dl className="goods-facts">
+          {facts.map(([label, value]) => (
+            <div key={label}>
+              <dt>{label}</dt>
+              <dd>{value}</dd>
+            </div>
+          ))}
+        </dl>
       ) : null}
-    </>
+      {/* A material is priced by the item or by its lots; the units of a piece item carry their
+          price in their own lines (customer's remark of 21.11.2026). */}
+      {item.accounting === "batch" ? <PricesCard item={item} /> : null}
+      {places.length === 0 ? (
+        <Card>
+          <p className="muted">{t("stock.item_empty")}</p>
+        </Card>
+      ) : null}
+      {places.map((p) => (
+        <section key={p.context_id} className="card" aria-label={p.location_name}>
+          <h2>
+            {p.location_name} — {quantity(p.quantity, item.unit)}
+          </h2>
+          <div className="scroll-window">
+            <PlaceDetails item={item} place={p} />
+          </div>
+        </section>
+      ))}
+      <IssuedCard item={item} />
+    </div>
   );
 }
 
@@ -501,28 +511,66 @@ function PlaceDetails({ item, place }: { item: WarehouseItem; place: ItemStock["
   const can = useCan();
   const quantity = useQuantity();
   const money = useMoney();
+  // The column of the serial numbers is there only when some unit has one.
+  const serials = place.assets.some((asset) => asset.serial_number);
+  // Several units are marked and changed at once (customer's decision of 21.11.2026).
+  const [marked, setMarked] = useState<Set<string>>(new Set());
+  const marking = can("warehouse.price.set") || can("warehouse.tags.edit");
+  const here = place.assets.filter((asset) => marked.has(asset.id)).map((asset) => asset.id);
+  const mark = (id: string, on: boolean) => {
+    const next = new Set(marked);
+    if (on) next.add(id);
+    else next.delete(id);
+    setMarked(next);
+  };
   return (
     <>
+          {here.length ? <UnitsBar item={item} ids={here} onDone={() => setMarked(new Set())} /> : null}
           {place.assets.length ? (
             <table>
               <thead>
                 <tr>
+                  {marking ? (
+                    <th className="mark-col">
+                      <input
+                        type="checkbox"
+                        aria-label={t("stock.mark_all")}
+                        title={t("stock.mark_all")}
+                        checked={here.length === place.assets.length}
+                        onChange={(e) => setMarked(new Set(e.target.checked ? place.assets.map((a) => a.id) : []))}
+                      />
+                    </th>
+                  ) : null}
+                  <th>№</th>
                   <th>{t("stock.asset_id")}</th>
-                  <th>{t("receipts.serial_number")}</th>
-                  <th>{t("receipts.unit_cost")}</th>
-                  <th>{t("receipts.number_short")}</th>
+                  {serials ? <th>{t("receipts.serial_number")}</th> : null}
                   <th>{t("stock.tags")}</th>
+                  <th>{t("receipts.unit_cost")}</th>
+                  <th>{t("stock.sale_price")}</th>
                 </tr>
               </thead>
               <tbody>
-                {place.assets.map((asset) => (
+                {place.assets.map((asset, index) => (
                   <tr key={asset.id}>
+                    {marking ? (
+                      <td className="mark-col">
+                        <input
+                          type="checkbox"
+                          aria-label={asset.public_id}
+                          checked={marked.has(asset.id)}
+                          onChange={(e) => mark(asset.id, e.target.checked)}
+                        />
+                      </td>
+                    ) : null}
+                    <td>{index + 1}</td>
                     <td>{asset.public_id}</td>
-                    <td>{asset.serial_number || "—"}</td>
-                    <td>{money(asset.purchase_cost, asset.currency)}</td>
-                    <td>{asset.receipt_number ?? "—"}</td>
+                    {serials ? <td>{asset.serial_number || "—"}</td> : null}
                     <td>
                       <Tags kind="assets" id={asset.id} tags={asset.tags} item={item} />
+                    </td>
+                    <td>{money(asset.purchase_cost, asset.currency)}</td>
+                    <td>
+                      <AssetPrice item={item} assetId={asset.id} />
                     </td>
                   </tr>
                 ))}
@@ -587,8 +635,87 @@ function PlaceDetails({ item, place }: { item: WarehouseItem; place: ItemStock["
   );
 }
 
+/** What is done with the marked units at once (customer's decision of 21.11.2026): one sale
+ * price or one storage place for all of them. The line stays above the list while it is
+ * scrolled. */
+function UnitsBar({ item, ids, onDone }: { item: WarehouseItem; ids: string[]; onDone: () => void }) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const can = useCan();
+  const client = useQueryClient();
+  const base = `/c/${company.public_id}/warehouse/items/${item.id}/units`;
+  const price = useCommand<Record<string, unknown>, unknown>(`${base}/price`);
+  const places = useCommand<Record<string, unknown>, unknown>(`${base}/tags`);
+  const [what, setWhat] = useState<"price" | "place" | null>(null);
+  const [amount, setAmount] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
+  const done = async (result: unknown) => {
+    if (result === null) return;
+    await client.invalidateQueries({ queryKey: ["warehouse-prices", company.public_id, item.id] });
+    await client.invalidateQueries({ queryKey: ["warehouse-item-stock", company.public_id, item.id] });
+    await client.invalidateQueries({ queryKey: ["warehouse-stock", company.public_id] });
+    await client.invalidateQueries({ queryKey: ["tags", company.public_id] });
+    onDone();
+  };
+  return (
+    <div className="units-bar" role="group" aria-label={t("stock.marked", { count: ids.length })}>
+      <strong>{t("stock.marked", { count: ids.length })}</strong>
+      {what === null ? (
+        <>
+          {can("warehouse.price.set") ? (
+            <button type="button" className="secondary" onClick={() => setWhat("price")}>
+              {t("stock.sale_price")}
+            </button>
+          ) : null}
+          {can("warehouse.tags.edit") ? (
+            <button type="button" className="secondary" onClick={() => setWhat("place")}>
+              {t("stock.tags")}
+            </button>
+          ) : null}
+        </>
+      ) : null}
+      {what === "price" ? (
+        <>
+          <span className="price-input">
+            <input
+              inputMode="decimal"
+              autoFocus
+              aria-label={t("stock.sale_price")}
+              placeholder={t("stock.sale_price")}
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+            <span className="small muted">{company.main_currency ?? ""}</span>
+          </span>
+          <button
+            type="button"
+            disabled={price.pending}
+            onClick={async () => done(await price.run({ asset_ids: ids, amount: amount.trim() === "" ? null : amount }))}
+          >
+            {t("common.save")}
+          </button>
+        </>
+      ) : null}
+      {what === "place" ? (
+        <>
+          <PlaceTags value={tags} onChange={setTags} />
+          <button type="button" disabled={places.pending} onClick={async () => done(await places.run({ asset_ids: ids, tags }))}>
+            {t("common.save")}
+          </button>
+        </>
+      ) : null}
+      {what !== null ? (
+        <button type="button" className="secondary" onClick={() => setWhat(null)}>
+          {t("common.cancel")}
+        </button>
+      ) : null}
+      <ErrorMessage error={price.error ?? places.error} />
+    </div>
+  );
+}
+
 /** Issued with a return possible and still out (§ 11.4.1). */
-function IssuedList({ item }: { item: WarehouseItem }) {
+function IssuedCard({ item }: { item: WarehouseItem }) {
   const { t } = useTranslation();
   const company = useCompany();
   const quantity = useQuantity();
@@ -599,9 +726,8 @@ function IssuedList({ item }: { item: WarehouseItem }) {
   const rows = issued.data?.issued ?? [];
   if (!rows.length) return null;
   return (
-    <>
-      <h3>{t("stock.issued_title")}</h3>
-      <ul>
+    <Card title={t("stock.issued_title")}>
+      <ul className="scroll-window">
         {rows.map((row) => (
           <li key={`${row.operation_id}-${row.asset ?? row.lot}`}>
             <Link to={companyPath(company, `/warehouse/operations/${row.operation_id}`)}>№ {row.number}</Link> ·{" "}
@@ -609,7 +735,7 @@ function IssuedList({ item }: { item: WarehouseItem }) {
           </li>
         ))}
       </ul>
-    </>
+    </Card>
   );
 }
 
@@ -626,8 +752,14 @@ function Tags({ kind, id, tags, item }: { kind: "assets" | "lots"; id: string; t
       <span className="small">
         {tags.join(", ") || "—"}{" "}
         {can("warehouse.tags.edit") ? (
-          <button type="button" className="link" onClick={() => setChosen(tags)}>
-            {t("stock.edit_tags")}
+          <button
+            type="button"
+            className="icon-button"
+            aria-label={t("stock.edit_tags")}
+            title={t("stock.edit_tags")}
+            onClick={() => setChosen(tags)}
+          >
+            <Icon name="edit" size={14} />
           </button>
         ) : null}
       </span>

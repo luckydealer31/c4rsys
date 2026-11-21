@@ -109,6 +109,27 @@ def asset_price(request: HttpRequest, cmp: str, asset_id: UUID) -> JsonResponse:
     return run_and_respond(request, "warehouse.set_asset_price", actor, payload, handler)
 
 
+@require_POST
+def units_price(request: HttpRequest, cmp: str, item_id: UUID) -> JsonResponse:
+    """The own price of several units of an item at once (customer's decision of 21.11.2026)."""
+    context, actor = _actor(request, cmp)
+    _require(actor, "warehouse.price.set")
+    data = parse_json(request)
+    ids = stock.unit_ids(data.get("asset_ids"))
+    amount = _amount(data, context)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        changed = prices.set_units_price(ctx, context.company, item_id, ids, amount)
+        return CommandResult(200, {"changed": changed})
+
+    payload = {
+        "item_id": str(item_id),
+        "asset_ids": [str(i) for i in ids],
+        "amount": str(amount) if amount is not None else None,
+    }
+    return run_and_respond(request, "warehouse.set_units_price", actor, payload, handler)
+
+
 @require_http_methods(["PUT"])
 def vehicle_price(request: HttpRequest, cmp: str, vehicle_id: UUID) -> JsonResponse:
     context, actor = _actor(request, cmp)

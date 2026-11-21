@@ -165,3 +165,58 @@ def test_minimum_stock_warns(owner: Client, cmp: str, setup: dict[str, Any]) -> 
     assert stock["Oil"]["below_minimum"] is True and stock["Pads"]["below_minimum"] is False
     put(owner, url(cmp, setup["oil"], "minimum"), {"context_id": setup["ctx"], "quantity": None})
     assert owner.get(f"/api/c/{cmp}/warehouse/low-stock").json()["low_stock"] == []
+
+
+def test_price_and_places_of_several_units_at_once(
+    owner: Client, cmp: str, setup: dict[str, Any]
+) -> None:
+    """Customer's decision of 21.11.2026: the chosen units get one price and one storage place by
+    one command; a unit of another item among them refuses it all."""
+    first, second = list(Asset.objects.order_by("pk"))
+    ids = [str(first.id), str(second.id)]
+    priced = post(
+        owner, url(cmp, setup["pads"], "units/price"), {"asset_ids": ids, "amount": "640"}, key()
+    )
+    assert priced.status_code == 200, priced.content
+    assert priced.json()["changed"] == 2
+    assert {a.sale_price for a in Asset.objects.all()} == {Decimal("640")}
+
+    placed = post(
+        owner, url(cmp, setup["pads"], "units/tags"), {"asset_ids": ids, "tags": ["Shelf 7"]}, key()
+    )
+    assert placed.status_code == 200, placed.content
+    shown = owner.get(url(cmp, setup["pads"], "stock")).json()["stock"]["places"][0]["assets"]
+    assert [a["tags"] for a in shown] == [["Shelf 7"], ["Shelf 7"]]
+
+    cleared = post(
+        owner, url(cmp, setup["pads"], "units/price"), {"asset_ids": ids[:1], "amount": None}, key()
+    )
+    assert cleared.status_code == 200
+    first.refresh_from_db()
+    assert first.sale_price is None
+
+    strange = post(
+        owner, url(cmp, setup["oil"], "units/price"), {"asset_ids": ids, "amount": "1"}, key()
+    )
+    assert strange.status_code == 404
+    second.refresh_from_db()
+    assert second.sale_price == Decimal("640")
+    empty = post(
+        owner, url(cmp, setup["pads"], "units/price"), {"asset_ids": [], "amount": "1"}, key()
+    )
+    assert empty.status_code == 400
+
+    grant = {"type": "grant", "locations": "all", "contexts": "all", "cash_accounts": "all"}
+    viewer, _ = hire(owner, cmp, "viewer@example.com", [{**grant, "permission": "warehouse.view"}])
+    assert (
+        post(
+            viewer, url(cmp, setup["pads"], "units/price"), {"asset_ids": ids, "amount": "1"}, key()
+        ).status_code
+        == 403
+    )
+    assert (
+        post(
+            viewer, url(cmp, setup["pads"], "units/tags"), {"asset_ids": ids, "tags": []}, key()
+        ).status_code
+        == 403
+    )

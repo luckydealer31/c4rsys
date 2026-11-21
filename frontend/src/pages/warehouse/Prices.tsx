@@ -82,7 +82,6 @@ export function PricesCard({ item }: { item: WarehouseItem }) {
   const data = useApi<{ prices: ItemPrices }>(["warehouse-prices", company.public_id, item.id], `${base}/items/${item.id}/prices`);
   const setPrice = useCommand<Record<string, unknown>, unknown>(`${base}/items/${item.id}/price`, "PUT");
   const setMode = useCommand<Record<string, unknown>, unknown>(`${base}/items/${item.id}/price-mode`);
-  const setAsset = useCommand<{ id: string; amount: string | null }, unknown>((b) => `${base}/assets/${b.id}/price`, "PUT");
   const [newPrices, setNewPrices] = useState<Record<string, string>>({});
   const prices = data.data?.prices;
   if (!prices) return null;
@@ -97,10 +96,10 @@ export function PricesCard({ item }: { item: WarehouseItem }) {
     refresh(await setPrice.run({ lot_id: lotId, packaging_id: packagingId, amount }));
 
   return (
-    <section className="stock-prices">
-      <h3>
+    <section className="card">
+      <h2>
         {t("prices.title")} <Info text={t("prices.snapshot_hint")} />
-      </h3>
+      </h2>
       {item.accounting === "batch" ? (
         <p>
           {t("prices.mode")}: <strong>{t(`prices.mode_${prices.mode}`)}</strong>
@@ -148,29 +147,6 @@ export function PricesCard({ item }: { item: WarehouseItem }) {
           </div>
         ))
       )}
-      {item.accounting === "individual" && prices.assets.length ? (
-        <>
-          <h3>{t("prices.own_title")}</h3>
-          <p className="muted small">{t("prices.own_hint")}</p>
-          <table className="fit">
-            <tbody>
-              {prices.assets.map((asset) => (
-                <tr key={asset.id}>
-                  <td>{asset.public_id}</td>
-                  <td>
-                    <PriceInput
-                      value={asset.sale_price ?? ""}
-                      currency={prices.currency}
-                      disabled={!editable}
-                      onSave={async (amount) => refresh(await setAsset.run({ id: asset.id, amount }))}
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </>
-      ) : null}
       {item.accounting === "batch" && can("warehouse.price.policy") ? (
         <div className="line-card">
           {prices.mode === "item" ? (
@@ -209,8 +185,39 @@ export function PricesCard({ item }: { item: WarehouseItem }) {
           )}
         </div>
       ) : null}
-      <ErrorMessage error={setPrice.error ?? setMode.error ?? setAsset.error} />
+      <ErrorMessage error={setPrice.error ?? setMode.error} />
     </section>
+  );
+}
+
+/** The own sale price of a unit (§ 11.7.4) in the line of the unit; empty — the price of the
+ * item is used. */
+export function AssetPrice({ item, assetId }: { item: WarehouseItem; assetId: string }) {
+  const company = useCompany();
+  const can = useCan();
+  const client = useQueryClient();
+  const base = `/c/${company.public_id}/warehouse`;
+  const data = useApi<{ prices: ItemPrices }>(["warehouse-prices", company.public_id, item.id], `${base}/items/${item.id}/prices`);
+  const save = useCommand<{ amount: string | null }, unknown>(`${base}/assets/${assetId}/price`, "PUT");
+  const prices = data.data?.prices;
+  if (!prices) return null;
+  return (
+    <>
+      <PriceInput
+        // The price the unit is sold for: its own, or the price of the item given at the receipt.
+        // A price typed here becomes the own price of this unit.
+        value={prices.assets.find((a) => a.id === assetId)?.sale_price ?? amountOf(prices.item_prices, null)}
+        currency={prices.currency}
+        disabled={!can("warehouse.price.set")}
+        onSave={async (amount) => {
+          if ((await save.run({ amount })) === null) return false;
+          await client.invalidateQueries({ queryKey: ["warehouse-prices", company.public_id, item.id] });
+          await client.invalidateQueries({ queryKey: ["warehouse-stock", company.public_id] });
+          return true;
+        }}
+      />
+      <ErrorMessage error={save.error} />
+    </>
   );
 }
 
