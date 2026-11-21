@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
 
 import { ApiError, api, uploadFile } from "../../api/client";
 import { useApi } from "../../api/queries";
@@ -108,6 +108,8 @@ export function NewItemPage() {
 export function ItemPage() {
   const company = useCompany();
   const { id = "" } = useParams();
+  // The form is made anew after a save, so what was saved is remembered here.
+  const [savedVersion, setSavedVersion] = useState<number | null>(null);
   const item = useApi<{ item: WarehouseItem }>(
     ["warehouse-item", company.public_id, id],
     `/c/${company.public_id}/warehouse/items/${id}`,
@@ -121,7 +123,12 @@ export function ItemPage() {
   }
   return (
     <>
-      <ItemForm key={item.data.item.version} item={item.data.item} />
+      <ItemForm
+        key={item.data.item.version}
+        item={item.data.item}
+        saved={savedVersion === item.data.item.version}
+        onSaved={setSavedVersion}
+      />
       <div className="page full" style={{ paddingTop: 0 }}>
         <ItemStockCard item={item.data.item} />
         <PricesCard item={item.data.item} />
@@ -169,7 +176,15 @@ function ToggleButton({
   );
 }
 
-function ItemForm({ item }: { item?: WarehouseItem }) {
+function ItemForm({
+  item,
+  saved = false,
+  onSaved,
+}: {
+  item?: WarehouseItem;
+  saved?: boolean;
+  onSaved?: (version: number) => void;
+}) {
   const { t, i18n } = useTranslation();
   const company = useCompany();
   const can = useCan();
@@ -182,7 +197,12 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
   );
   const vehicles = useApi<VehicleOptions>(["vehicle-options"], "/catalog/vehicle-options");
   const [form, setForm] = useState<Form>(formOf(item));
-  const [saved, setSaved] = useState(false);
+  // Seen when there is something to save (customer's remark of 21.11.2026): «Save» of a card
+  // works only after a change, and «Saved» stands beside it until the next one.
+  const [first] = useState(() => JSON.stringify(formOf(item)));
+  const changed = JSON.stringify(form) !== first;
+  // The way back leads where the card was opened from; opened by itself — to the catalog.
+  const from = (useLocation().state as { from?: string } | null)?.from === "stock" ? "stock" : "items";
   const [draft, setDraft] = useState<Applies | null>(null);
   const save = useCommand<Record<string, unknown>, { item: WarehouseItem }>(
     item ? `/c/${company.public_id}/warehouse/items/${item.id}` : `/c/${company.public_id}/warehouse/items`,
@@ -215,7 +235,6 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    setSaved(false);
     const body: Record<string, unknown> = {
       name: form.name,
       manufacturer: form.manufacturer && form.manufacturer !== OTHER ? form.manufacturer : "",
@@ -239,7 +258,7 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
     if (result) {
       await refresh();
       if (!item) navigate(companyPath(company, `/warehouse/items/${result.item.id}`));
-      else setSaved(true);
+      else onSaved?.(result.item.version);
     }
   }
 
@@ -256,7 +275,7 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
   return (
     <div className="page full">
       <p>
-        <Link to={companyPath(company, "/warehouse?tab=stock")}>← {t("nav.warehouse")}</Link>
+        <Link to={companyPath(company, `/warehouse?tab=${from}`)}>← {t(`warehouse.tab_${from}`)}</Link>
       </p>
       {/* The card of an item (customer's decision of 21.11.2026): the whole width, the tags beside
           the name, one block without headings — the fields at the left, compatibility and
@@ -475,12 +494,16 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
           </div>
         </section>
         <ErrorMessage error={save.error} />
-        {saved ? <div className="alert ok">{t("common.saved")}</div> : null}
         {editable ? (
           <div className="actions">
-            <button type="submit" disabled={!form.name.trim() || save.pending}>
+            <button type="submit" disabled={!form.name.trim() || save.pending || (Boolean(item) && !changed)}>
               {item ? t("common.save") : t("warehouse.create_item")}
             </button>
+            {saved && !changed ? (
+              <span className="saved-mark" role="status">
+                <Icon name="check" size={16} /> {t("common.saved")}
+              </span>
+            ) : null}
           </div>
         ) : null}
       </form>

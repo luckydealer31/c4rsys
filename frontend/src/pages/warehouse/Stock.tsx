@@ -139,7 +139,9 @@ export function StockList() {
           {stock.map((row) => (
             <tr key={row.item.id}>
               <td>
-                <Link to={companyPath(company, `/warehouse/items/${row.item.id}`)}>{row.item.name}</Link>
+                <Link to={companyPath(company, `/warehouse/items/${row.item.id}`)} state={{ from: "stock" }}>
+                  {row.item.name}
+                </Link>
                 {/* The only unit or lot is named by its own identifier. */}
                 {row.unit_id ? <div className="muted small">{row.unit_id}</div> : null}
               </td>

@@ -954,3 +954,6 @@ tr.limited > td:not(:last-child) { opacity: 0.5; }
 @media (max-width: 900px) {
   .item-columns { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* «Saved» beside the button of a form. */
+.saved-mark { display: inline-flex; align-items: center; gap: 4px; color: var(--ok); }

@@ -65,9 +65,18 @@ test("storage places are tags of their group", async ({ page }) => {
   ]);
   await expect(card.getByRole("link", { name: "https://example.com/pads.jpg" })).toBeVisible();
   await expect(link).toHaveCount(0);
+  // What was saved is seen (customer's remark of 21.11.2026): «Saved» beside the button, and the
+  // button waits for the next change. The way back names the catalog, not the whole section.
+  const saving = card.getByRole("button", { name: t("common.save"), exact: true });
+  await expect(card.getByRole("status")).toContainText(t("common.saved"));
+  await expect(saving).toBeDisabled();
+  await expect(page.getByRole("link", { name: `← ${t("warehouse.tab_items")}` })).toBeVisible();
   await pencil.click();
   await expect(link).toHaveValue("https://example.com/pads.jpg");
   await expect(card.getByRole("button", { name: t("images.remove"), exact: true })).toBeVisible();
+  await link.fill("https://example.com/pads-2.jpg");
+  await expect(saving).toBeEnabled();
+  await expect(card.getByRole("status")).toHaveCount(0);
   const adding = page
     .locator("section.card")
     .filter({ hasText: t("warehouse.section_parts") })
