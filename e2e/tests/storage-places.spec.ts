@@ -239,6 +239,10 @@ test("storage places are tags of their group", async ({ page }) => {
   await expect(lines.first()).toContainText("Пхукет");
   await expect(head("warehouse.country")).toBeVisible();
   await expect(head("stock.category")).toBeVisible();
+  // The order of the main columns (customer's remark of 22.11.2026): the description stands
+  // after the name, the category before the manufacturer.
+  await expect(page.locator("table.stock-table thead th").nth(1)).toHaveText(t("warehouse.model_characteristic"));
+  await expect(page.locator("table.stock-table thead th").nth(3)).toHaveText(t("stock.category"));
   // The arrow at the end of the heading opens the rest of the columns and closes them.
   await expect(head("stock.cost")).toHaveCount(0);
   await page.getByRole("button", { name: t("stock.more_columns"), exact: true }).click();

@@ -106,22 +106,22 @@ export function StockList() {
         <thead>
           <tr>
             <th>{t("warehouse.name")}</th>
+            <th>{t("warehouse.model_characteristic")}</th>
             <th>{t("warehouse.article")}</th>
+            <th>{t("stock.category")}</th>
             <th>{t("warehouse.manufacturer")}</th>
             <th>{t("warehouse.country")}</th>
-            <th>{t("stock.category")}</th>
             <th>{t("tags.title")}</th>
             <th>{t("stock.rest")}</th>
             {withPlaces ? <th>{t("stock.warehouses")}</th> : null}
             {more ? (
               <>
+                <th>{t("stock.units")}</th>
                 <th>{t("stock.cost")}</th>
                 <th>{t("stock.retail")}</th>
                 <th>{t("warehouse.attr_originality")}</th>
                 <th>{t("warehouse.attr_condition")}</th>
-                <th>{t("warehouse.model_characteristic")}</th>
                 <th>{t("stock.tags")}</th>
-                <th>{t("stock.units")}</th>
                 <th>{t("warehouse.comment")}</th>
               </>
             ) : null}
@@ -148,14 +148,15 @@ export function StockList() {
                 {/* The only unit or lot is named by its own identifier. */}
                 {row.unit_id ? <div className="muted small">{row.unit_id}</div> : null}
               </td>
+              <td className="small">{row.item.model_characteristic || "—"}</td>
               <td>{row.item.article || "—"}</td>
+              <td className="small">{categoryLabel(row.item.part_category, row.item.part_subcategory) || "—"}</td>
               <td>{row.item.manufacturer_name || "—"}</td>
               <td>
                 {row.item.country
                   ? (regions.of(row.item.country) ?? row.item.country)
                   : row.item.country_other || "—"}
               </td>
-              <td className="small">{categoryLabel(row.item.part_category, row.item.part_subcategory) || "—"}</td>
               <td>
                 <RowTags tags={tagsOf(row.item.id)} />
               </td>
@@ -170,6 +171,7 @@ export function StockList() {
               {withPlaces ? <td className="small">{row.places.map((p) => p.location_name).join(", ")}</td> : null}
               {more ? (
                 <>
+                  <td>{row.units}</td>
                   <td className="nowrap">
                     {range(row.cost_min, row.cost_max, row.currency) || (row.cost_unknown ? t("receipts.cost_not_given") : "—")}
                   </td>
@@ -180,9 +182,7 @@ export function StockList() {
                   </td>
                   <td>{row.item.originality ? t(`warehouse.value_${row.item.originality}`) : "—"}</td>
                   <td>{row.item.condition ? t(`warehouse.value_${row.item.condition}`) : "—"}</td>
-                  <td className="small">{row.item.model_characteristic || "—"}</td>
                   <td className="small muted">{row.tags.join(", ") || "—"}</td>
-                  <td>{row.units}</td>
                   <td className="small">{row.item.comment || "—"}</td>
                 </>
               ) : null}
