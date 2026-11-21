@@ -957,3 +957,6 @@ tr.limited > td:not(:last-child) { opacity: 0.5; }
 
 /* «Saved» beside the button of a form. */
 .saved-mark { display: inline-flex; align-items: center; gap: 4px; color: var(--ok); }
+
+/* A text that grows with its content: no handle, no bar. */
+textarea.growing { resize: none; overflow: hidden; display: block; }

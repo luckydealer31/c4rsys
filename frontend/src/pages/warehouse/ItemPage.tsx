@@ -489,7 +489,7 @@ function ItemForm({
               onChange={(photo, photo_url) => set({ photo, photo_url })}
             />
             <Field label={t("warehouse.comment")}>
-              <textarea rows={3} value={form.comment} disabled={!editable} onChange={(e) => set({ comment: e.target.value })} />
+              <GrowingText value={form.comment} disabled={!editable} onChange={(comment) => set({ comment })} />
             </Field>
           </div>
         </section>
@@ -508,6 +508,37 @@ function ItemForm({
         ) : null}
       </form>
     </div>
+  );
+}
+
+/** A text of several lines that takes one line while it is empty and grows with what is
+ * written (customer's remark of 21.11.2026). */
+function GrowingText({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: string;
+  disabled: boolean;
+  onChange: (value: string) => void;
+}) {
+  const area = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const el = area.current;
+    if (!el) return;
+    el.style.height = "auto";
+    // The borders are outside the height of the content.
+    el.style.height = `${el.scrollHeight + el.offsetHeight - el.clientHeight}px`;
+  }, [value]);
+  return (
+    <textarea
+      ref={area}
+      className="growing"
+      rows={1}
+      value={value}
+      disabled={disabled}
+      onChange={(e) => onChange(e.target.value)}
+    />
   );
 }
 

@@ -51,6 +51,16 @@ test("storage places are tags of their group", async ({ page }) => {
   // The form of the item: no note of the category, and applicability asks for the type of the
   // vehicle before the make.
   await expect(page.getByText(t("warehouse.category"), { exact: true })).toHaveCount(0);
+  // The explanation of the category is under «i», and an empty comment takes one line as high
+  // as the field beside it (customer's remarks of 21.11.2026).
+  await expect(page.getByText(t("categories.hint"))).toBeHidden();
+  const comment = page.locator("textarea.growing");
+  const low = (await comment.boundingBox())!.height;
+  expect(low).toBeLessThan(50);
+  await comment.fill("one\ntwo\nthree\nfour");
+  expect((await comment.boundingBox())!.height).toBeGreaterThan(low + 40);
+  await comment.fill("");
+  expect((await comment.boundingBox())!.height).toBe(low);
   // The photo (customer's decision of 21.11.2026): without one — the button of the file and the
   // field of the link; with one — the photo alone with a pencil that brings them back.
   const card = page.locator("form").filter({ has: page.locator(".item-columns") });

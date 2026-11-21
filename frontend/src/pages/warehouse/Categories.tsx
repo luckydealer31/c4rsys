@@ -88,7 +88,8 @@ export function PartCategoryField({
   return (
     <div className="stack">
       <div className="row">
-        <Field label={t("categories.category")}>
+        {/* The explanation is under «i» (customer's remark of 21.11.2026). */}
+        <Field label={t("categories.category")} info={editable ? t("categories.hint") : undefined}>
           <select
             value={category}
             disabled={!editable}
@@ -142,7 +143,6 @@ export function PartCategoryField({
           ))}
         </p>
       ) : null}
-      {editable ? <p className="muted small">{t("categories.hint")}</p> : null}
     </div>
   );
 }
