@@ -805,10 +805,15 @@ function Tags({
     );
   }
   return (
-    <span className="row" style={{ alignItems: "center" }}>
+    <span className="place-edit">
       <PlaceSelect contextId={contextId} value={chosen} onChange={setChosen} />
+      {/* Small buttons beside the list (customer's remark of 22.11.2026): the line keeps its
+          height and nothing moves aside. */}
       <button
         type="button"
+        className="icon-button primary"
+        aria-label={t("common.save")}
+        title={t("common.save")}
         disabled={save.pending}
         onClick={async () => {
           if ((await save.run({ tags: chosen })) !== null) {
@@ -818,7 +823,16 @@ function Tags({
           }
         }}
       >
-        {t("common.save")}
+        <Icon name="check" size={16} />
+      </button>
+      <button
+        type="button"
+        className="icon-button"
+        aria-label={t("common.cancel")}
+        title={t("common.cancel")}
+        onClick={() => setChosen(null)}
+      >
+        <Icon name="close" size={16} />
       </button>
       <ErrorMessage error={save.error} />
     </span>

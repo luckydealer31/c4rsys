@@ -484,7 +484,10 @@ td.nowrap { white-space: nowrap; }
 .stock-block + .stock-block { margin-top: 20px; }
 /* The storage places of a warehouse in its settings, and the choice of one. */
 .place-select { display: inline-flex; align-items: center; gap: 6px; }
-.place-select > select { width: auto; min-width: 140px; }
+.place-select > select { width: 220px; max-width: 100%; }
+.place-edit { display: inline-flex; align-items: center; gap: 4px; }
+.place-edit .icon-button { flex: 0 0 auto; }
+.scroll-window td { vertical-align: middle; }
 .places-of { margin-bottom: 16px; }
 .places-of > strong { margin-right: 8px; }
 .place-list { list-style: none; padding: 0; margin: 6px 0; display: flex; flex-wrap: wrap; gap: 6px 8px; }
@@ -505,6 +508,8 @@ tr.opens { cursor: pointer; }
 .units-bar { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
   padding: 8px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); }
 .units-bar > button { flex: 0 0 auto; }
+.units-bar .price-input > input { width: 180px; }
+.scroll-window .price-input > input { width: 140px; }
 .units-bar + table > thead th { top: 54px; }
 /* What the goods are, in a line: a small name over a value. */
 .goods-facts { display: flex; flex-wrap: wrap; gap: 8px 32px; margin: 0 0 var(--gap); }

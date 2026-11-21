@@ -189,7 +189,10 @@ test("storage places are a list of the warehouse", async ({ page }) => {
   // The place is chosen from the list of the warehouse, not typed; a unit has one place.
   const cell = page.locator("td", { has: page.locator(".place-select") }).last();
   await cell.getByRole("combobox", { name: t("stock.tags"), exact: true }).selectOption("Стеллаж 2");
-  await cell.getByRole("button", { name: t("common.save"), exact: true }).click();
+  // The button beside the list is small: the line does not grow and nothing moves aside.
+  const saveIt = cell.getByRole("button", { name: t("common.save"), exact: true });
+  expect((await saveIt.boundingBox())!.width).toBeLessThan(40);
+  await saveIt.click();
   await expect(page.locator(".scroll-window tbody")).toContainText("Стеллаж 2");
   await expect(page.locator(".scroll-window tbody")).not.toContainText("Стеллаж 1");
 

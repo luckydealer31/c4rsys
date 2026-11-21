@@ -6653,6 +6653,7 @@
     "none_hint": "This warehouse has no storage places yet. They are added in «Warehouse → Settings».",
     "new": "New place",
     "name": "Name of the place",
-    "archived": "archived"
+    "archived": "archived",
+    "no_place": "No place"
   }
 }

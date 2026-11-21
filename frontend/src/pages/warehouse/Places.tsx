@@ -51,7 +51,7 @@ export function PlaceSelect({
   return (
     <span className="place-select">
       <select aria-label={t("stock.tags")} value={current} onChange={(e) => onChange(e.target.value ? [e.target.value] : [])}>
-        <option value="">—</option>
+        <option value="">{t("places.no_place")}</option>
         {shown.map((name) => (
           <option key={name} value={name}>
             {name}
