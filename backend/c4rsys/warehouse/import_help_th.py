@@ -96,7 +96,6 @@ TH: dict[str, str] = {
     "original or analog": "original (ของแท้) หรือ analog (ทดแทน)",
     "new or used": "new (ใหม่) หรือ used (ใช้แล้ว)",
     "Barcode of the item": "บาร์โค้ดของรายการ",
-    "Link to a photo": "ลิงก์ไปยังรูปภาพ",
     "Your own ID of the item, used to find it again": ("ID ของรายการในระบบของคุณ ใช้เพื่อค้นหาอีกครั้ง"),
     # Initial stock
     "ID of an existing item (the «items» sheet); required": (

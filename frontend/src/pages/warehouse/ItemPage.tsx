@@ -43,7 +43,6 @@ const TEXTS = [
   "model_characteristic",
   "country",
   "country_other",
-  "photo_url",
   "comment",
   "external_id",
 ] as const;
@@ -80,7 +79,6 @@ function formOf(item?: WarehouseItem): Form {
     // A country typed by hand opens the form on «other».
     country: item?.country_other ? OTHER : (item?.country ?? ""),
     country_other: item?.country_other ?? "",
-    photo_url: item?.photo_url ?? "",
     comment: item?.comment ?? "",
     external_id: item?.external_id ?? "",
     photo: item?.photo ?? null,
@@ -348,7 +346,6 @@ function ItemForm({
             autoFromStart={!item || !item.part_category}
             onChange={(category, subcategory) => set({ part_category: category, part_subcategory: subcategory })}
           />
-              {item ? <Barcodes item={item} /> : null}
             </div>
             <div className="stack">
               <div className="field">
@@ -478,16 +475,13 @@ function ItemForm({
             </div>
           </div>
           <div className="item-columns item-more">
-            <ItemPhoto
-              photo={form.photo}
-              url={form.photo_url}
-              name={form.name}
-              editable={editable}
-              onChange={(photo, photo_url) => set({ photo, photo_url })}
-            />
+            {/* The barcodes and the comment are one line, the photo is under them (customer's
+                remark of 21.11.2026); a new item has no barcodes yet. */}
+            {item ? <Barcodes item={item} /> : <div />}
             <Field label={t("warehouse.comment")}>
               <GrowingText value={form.comment} disabled={!editable} onChange={(comment) => set({ comment })} />
             </Field>
+            <ItemPhoto photo={form.photo} name={form.name} editable={editable} onChange={(photo) => set({ photo })} />
           </div>
         </section>
         <ErrorMessage error={save.error} />
@@ -539,37 +533,32 @@ function GrowingText({
   );
 }
 
-/** The photo of an item (customer's decision of 21.11.2026). While there is one — a file or a
- * link — it is shown alone with a pencil; the button of the file and the field of the link are
- * there when there is no photo yet or the pencil was pressed. A picture of another site is not
- * drawn here (the pages load pictures from this site only), so a link is shown as a link. */
+/** The photo of an item (customer's decisions of 21.11.2026): a file only, there is no link —
+ * what is in the catalog is at hand and can be photographed. Without a photo there is one
+ * button; with one it is shown alone with a pencil that opens «Replace» and «Remove». */
 function ItemPhoto({
   photo,
-  url,
   name,
   editable,
   onChange,
 }: {
   photo: string | null;
-  url: string;
   name: string;
   editable: boolean;
-  onChange: (photo: string | null, url: string) => void;
+  onChange: (photo: string | null) => void;
 }) {
   const { t } = useTranslation();
   const input = useRef<HTMLInputElement>(null);
-  const [open, setOpen] = useState(!photo && !url);
+  const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
-  const has = Boolean(photo || url);
 
   async function choose(file: File | undefined) {
     if (!file) return;
     setPending(true);
     setError(null);
     try {
-      // A file takes the place of a link: the item has one photo.
-      onChange((await uploadFile("item_photo", file)).id, "");
+      onChange((await uploadFile("item_photo", file)).id);
       setOpen(false);
     } catch (caught) {
       setError(caught instanceof ApiError ? caught : new ApiError(0, null));
@@ -583,17 +572,11 @@ function ItemPhoto({
     <div className="field item-photo">
       <span>
         {t("warehouse.photo")}
-        {editable && open ? <Info text={`${t("images.hint")} ${t("warehouse.photo_url_hint")}`} /> : null}
+        {editable && (open || !photo) ? <Info text={t("images.hint")} /> : null}
       </span>
-      {has ? (
+      {photo ? (
         <div className="item-photo-shown">
-          {photo ? (
-            <Avatar file={photo} name={name} size={96} square />
-          ) : (
-            <a href={url} target="_blank" rel="noreferrer">
-              {url}
-            </a>
-          )}
+          <Avatar file={photo} name={name} size={96} square />
           {editable && !open ? (
             <button
               type="button"
@@ -609,7 +592,7 @@ function ItemPhoto({
       ) : !editable ? (
         <span className="muted">—</span>
       ) : null}
-      {editable && open ? (
+      {editable && (open || !photo) ? (
         <div className="item-photo-edit">
           <input
             ref={input}
@@ -621,16 +604,15 @@ function ItemPhoto({
           <button type="button" className="secondary" disabled={pending} onClick={() => input.current?.click()}>
             {t(photo ? "images.replace" : "images.choose")}
           </button>
-          {photo ? null : (
-            <input
-              value={url}
-              aria-label={t("warehouse.photo_url")}
-              placeholder={t("warehouse.photo_url")}
-              onChange={(e) => onChange(null, e.target.value)}
-            />
-          )}
-          {has ? (
-            <button type="button" className="secondary" onClick={() => onChange(null, "")}>
+          {photo ? (
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => {
+                onChange(null);
+                setOpen(false);
+              }}
+            >
               {t("images.remove")}
             </button>
           ) : null}

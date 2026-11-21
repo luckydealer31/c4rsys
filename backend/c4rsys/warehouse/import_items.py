@@ -54,7 +54,6 @@ class ItemsTemplate:
         "originality": 10,
         "condition": 10,
         "barcode": 64,
-        "photo_url": 500,
         "comment": 2000,
         "external_id": 100,
     }
@@ -93,7 +92,6 @@ class ItemsTemplate:
         ),
         "condition": ("new or used", "new или used — новое или Б/У", "new"),
         "barcode": ("Barcode of the item", "Штрихкод позиции", "5011987000001"),
-        "photo_url": ("Link to a photo", "Ссылка на фотографию", "https://example.com/oil.jpg"),
         "comment": ("Comment", "Комментарий", ""),
         "external_id": (
             "Your own ID of the item, used to find it again",

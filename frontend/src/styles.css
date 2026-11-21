@@ -489,6 +489,8 @@ td.nowrap { white-space: nowrap; }
 .stock-details table { width: auto; min-width: 0; }
 .stock-details h3 { margin: 12px 0 6px; font-size: 1rem; }
 .stock-place + .stock-place { margin-top: 12px; }
+.stock-to-card { margin: 12px 0 0; }
+.stock-name button.link { text-align: left; }
 .stock-block h3 { margin: 4px 0 6px; font-size: 1rem; }
 /* A list with marks: all, one or several. */
 .multi-pick { position: relative; }

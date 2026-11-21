@@ -36,7 +36,8 @@ export function parseTags(text: string): string[] {
  * by warehouses — warehouse by warehouse, each with what lies on it (all of them, or the
  * ones chosen); the same item is then repeated under every warehouse that has it. The main columns stand first; the arrow at the end of the heading opens the
  * rest and the table is then scrolled sideways. The arrow of a row unfolds its units, lots and
- * sale price right in the list (customer's decision of 21.11.2026); the name opens the card.
+ * sale price right in the list (customer's decision of 21.11.2026); the name does the same,
+ * and the card of the catalog, where the item is edited, is a link inside what is unfolded.
  * The vehicles put on a warehouse as stock stand below. */
 const VIEWS = ["items", "places"] as const;
 type View = (typeof VIEWS)[number];
@@ -142,6 +143,12 @@ export function StockList() {
           {stock.map((row) => {
             const key = `${place}:${row.item.id}`;
             const shown = open.has(key);
+            const toggle = () => {
+              const next = new Set(open);
+              if (shown) next.delete(key);
+              else next.add(key);
+              setOpen(next);
+            };
             return (
             <Fragment key={row.item.id}>
             <tr>
@@ -153,19 +160,14 @@ export function StockList() {
                     aria-expanded={shown}
                     aria-label={t(shown ? "stock.details_hide" : "stock.details_show")}
                     title={t(shown ? "stock.details_hide" : "stock.details_show")}
-                    onClick={() => {
-                      const next = new Set(open);
-                      if (shown) next.delete(key);
-                      else next.add(key);
-                      setOpen(next);
-                    }}
+                    onClick={toggle}
                   >
                     {shown ? "▾" : "▸"}
                   </button>
                   <div>
-                    <Link to={companyPath(company, `/warehouse/items/${row.item.id}`)} state={{ from: "stock" }}>
+                    <button type="button" className="link" onClick={toggle}>
                       {row.item.name}
-                    </Link>
+                    </button>
                     {/* The only unit or lot is named by its own identifier. */}
                     {row.unit_id ? <div className="muted small">{row.unit_id}</div> : null}
                   </div>
@@ -351,7 +353,9 @@ function StoredPrice({ vehicleId }: { vehicleId: string }) {
  * prices (§ 11.1.10, § 11.2.13, § 11.7.4; customer's decision of 21.11.2026). Under a warehouse
  * only what lies on it is shown. */
 function StockDetails({ itemId, place }: { itemId: string; place: string }) {
+  const { t } = useTranslation();
   const company = useCompany();
+  const can = useCan();
   const quantity = useQuantity();
   const full = useApi<{ item: WarehouseItem }>(
     ["warehouse-item", company.public_id, itemId],
@@ -378,6 +382,13 @@ function StockDetails({ itemId, place }: { itemId: string; place: string }) {
       ))}
       <IssuedList item={item} />
       <PricesCard item={item} />
+      {can("warehouse.catalog.manage") ? (
+        <p className="stock-to-card">
+          <Link to={companyPath(company, `/warehouse/items/${item.id}`)} state={{ from: "stock" }}>
+            {t("stock.to_card")}
+          </Link>
+        </p>
+      ) : null}
     </>
   );
 }

@@ -2928,7 +2928,6 @@
     "packagings_hint": "How much material a packaging holds, in the base unit, to hundredths.",
     "parts_hint": "Optional. An empty value means «Not given», not «fits everywhere»; universal use is set explicitly.",
     "photo": "Photo",
-    "photo_url": "Photo link",
     "possible_duplicate": "possible duplicate",
     "restore": "Restore",
     "result_conflict": "Conflict — data changed",
@@ -2977,7 +2976,6 @@
     "archived": "archived",
     "tab_reserves": "Reserves",
     "country": "Country of manufacture",
-    "photo_url_hint": "An address of a picture on the internet, when the photo is not uploaded.",
     "vehicle_type": "Vehicle type",
     "country_other_option": "Other — type it in",
     "country_other": "Name of the country",
@@ -3147,7 +3145,8 @@
     "items_count": "Items: {{count}}",
     "item_search": "Find an item",
     "details_show": "Units, lots and price",
-    "details_hide": "Collapse"
+    "details_hide": "Collapse",
+    "to_card": "Open in the catalog"
   },
   "articles": {
     "title": "Supplier articles",

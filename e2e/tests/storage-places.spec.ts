@@ -61,30 +61,29 @@ test("storage places are tags of their group", async ({ page }) => {
   expect((await comment.boundingBox())!.height).toBeGreaterThan(low + 40);
   await comment.fill("");
   expect((await comment.boundingBox())!.height).toBe(low);
-  // The photo (customer's decision of 21.11.2026): without one — the button of the file and the
-  // field of the link; with one — the photo alone with a pencil that brings them back.
+  // The photo (customer's decisions of 21.11.2026): a file only, no link; without a photo there
+  // is one button. It stands under the line of the barcodes and the comment.
   const card = page.locator("form").filter({ has: page.locator(".item-columns") });
-  const link = card.getByRole("textbox", { name: t("warehouse.photo_url"), exact: true });
   const pencil = card.locator(".item-photo").getByRole("button", { name: t("common.edit"), exact: true });
-  await expect(card.getByRole("button", { name: t("images.choose"), exact: true })).toBeVisible();
+  const choose = card.getByRole("button", { name: t("images.choose"), exact: true });
+  await expect(choose).toBeVisible();
   await expect(pencil).toHaveCount(0);
-  await link.fill("https://example.com/pads.jpg");
+  await expect(card.locator(".item-photo").getByRole("textbox")).toHaveCount(0);
+  const code = card.getByRole("textbox", { name: t("warehouse.barcode"), exact: true });
+  expect(Math.abs((await code.boundingBox())!.y - (await comment.boundingBox())!.y)).toBeLessThan(40);
+  expect((await choose.boundingBox())!.y).toBeGreaterThan((await code.boundingBox())!.y);
+  await comment.fill("Проверить");
   await Promise.all([
     page.waitForResponse((r) => r.request().method() === "PATCH" && r.url().includes(`/warehouse/items/${item.id}`)),
     card.getByRole("button", { name: t("common.save"), exact: true }).click(),
   ]);
-  await expect(card.getByRole("link", { name: "https://example.com/pads.jpg" })).toBeVisible();
-  await expect(link).toHaveCount(0);
   // What was saved is seen (customer's remark of 21.11.2026): «Saved» beside the button, and the
   // button waits for the next change. The way back names the catalog, not the whole section.
   const saving = card.getByRole("button", { name: t("common.save"), exact: true });
   await expect(card.getByRole("status")).toContainText(t("common.saved"));
   await expect(saving).toBeDisabled();
   await expect(page.getByRole("link", { name: `← ${t("warehouse.tab_items")}` })).toBeVisible();
-  await pencil.click();
-  await expect(link).toHaveValue("https://example.com/pads.jpg");
-  await expect(card.getByRole("button", { name: t("images.remove"), exact: true })).toBeVisible();
-  await link.fill("https://example.com/pads-2.jpg");
+  await comment.fill("Проверить ещё");
   await expect(saving).toBeEnabled();
   await expect(card.getByRole("status")).toHaveCount(0);
   // The blocks under the card (customer's remarks of 21.11.2026). The stock and the minimum are
@@ -148,6 +147,10 @@ test("storage places are tags of their group", async ({ page }) => {
   const details = page.locator("tr.stock-details");
   await expect(details).toContainText("AST-");
   await expect(details.getByRole("heading", { name: t("prices.title") })).toBeVisible();
+  // The name unfolds the row too; the card of the catalog is a link inside (customer's remark
+  // of 21.11.2026).
+  await expect(page.locator(".stock-name").getByRole("link")).toHaveCount(0);
+  await expect(details.getByRole("link", { name: t("stock.to_card"), exact: true })).toBeVisible();
   await page.getByRole("button", { name: t("stock.edit_tags"), exact: true }).first().click();
   const add = page.getByRole("combobox", { name: t("tags.place_add") });
   await add.fill("Стеллаж 2");

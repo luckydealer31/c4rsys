@@ -2928,7 +2928,6 @@
     "packagings_hint": "How much material a packaging holds, in the base unit, to hundredths.",
     "parts_hint": "Optional. An empty value means «Not given», not «fits everywhere»; universal use is set explicitly.",
     "photo": "Photo",
-    "photo_url": "Photo link",
     "possible_duplicate": "possible duplicate",
     "restore": "Restore",
     "result_conflict": "Conflict — data changed",
@@ -2977,7 +2976,6 @@
     "archived": "เก็บถาวร",
     "tab_reserves": "การจอง",
     "country": "ประเทศผู้ผลิต",
-    "photo_url_hint": "ที่อยู่รูปภาพบนอินเทอร์เน็ต เมื่อไม่ได้อัปโหลดรูป",
     "vehicle_type": "ประเภทยานพาหนะ",
     "country_other_option": "อื่น ๆ — พิมพ์เอง",
     "country_other": "ชื่อประเทศ",
@@ -3147,7 +3145,8 @@
     "items_count": "รายการ: {{count}}",
     "item_search": "ค้นหารายการ",
     "details_show": "หน่วย ล็อต และราคา",
-    "details_hide": "ย่อ"
+    "details_hide": "ย่อ",
+    "to_card": "เปิดในรายการสินค้า"
   },
   "articles": {
     "title": "รหัสสินค้าของผู้จำหน่าย",
