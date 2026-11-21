@@ -941,3 +941,16 @@ tr.limited > td:not(:last-child) { opacity: 0.5; }
 .read-lines td { vertical-align: middle; }
 .read-lines td > .muted.small { display: block; }
 .read-supplier { width: auto; max-width: 260px; min-height: 30px; padding: 2px 8px; }
+
+/* The card of a warehouse item: the fields at the left, compatibility and applicability at the
+   right; one column on a narrow screen. */
+.item-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px 32px;
+  align-items: start; }
+.item-more { margin-top: 16px; }
+.item-photo-shown { display: flex; align-items: flex-start; gap: 8px; overflow-wrap: anywhere; }
+.item-photo-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
+.item-photo-edit > button { flex: 0 0 auto; }
+.item-photo-edit > input { flex: 1 1 200px; max-width: 320px; }
+@media (max-width: 900px) {
+  .item-columns { grid-template-columns: minmax(0, 1fr); }
+}

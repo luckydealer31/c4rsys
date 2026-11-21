@@ -51,6 +51,23 @@ test("storage places are tags of their group", async ({ page }) => {
   // The form of the item: no note of the category, and applicability asks for the type of the
   // vehicle before the make.
   await expect(page.getByText(t("warehouse.category"), { exact: true })).toHaveCount(0);
+  // The photo (customer's decision of 21.11.2026): without one — the button of the file and the
+  // field of the link; with one — the photo alone with a pencil that brings them back.
+  const card = page.locator("form").filter({ has: page.locator(".item-columns") });
+  const link = card.getByRole("textbox", { name: t("warehouse.photo_url"), exact: true });
+  const pencil = card.locator(".item-photo").getByRole("button", { name: t("common.edit"), exact: true });
+  await expect(card.getByRole("button", { name: t("images.choose"), exact: true })).toBeVisible();
+  await expect(pencil).toHaveCount(0);
+  await link.fill("https://example.com/pads.jpg");
+  await Promise.all([
+    page.waitForResponse((r) => r.request().method() === "PATCH" && r.url().includes(`/warehouse/items/${item.id}`)),
+    card.getByRole("button", { name: t("common.save"), exact: true }).click(),
+  ]);
+  await expect(card.getByRole("link", { name: "https://example.com/pads.jpg" })).toBeVisible();
+  await expect(link).toHaveCount(0);
+  await pencil.click();
+  await expect(link).toHaveValue("https://example.com/pads.jpg");
+  await expect(card.getByRole("button", { name: t("images.remove"), exact: true })).toBeVisible();
   const adding = page
     .locator("section.card")
     .filter({ hasText: t("warehouse.section_parts") })

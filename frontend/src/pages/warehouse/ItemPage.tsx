@@ -3,11 +3,12 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router";
 
-import { api } from "../../api/client";
+import { ApiError, api, uploadFile } from "../../api/client";
 import { useApi } from "../../api/queries";
 import type { CatalogMake, CatalogModel, VehicleOptions, WarehouseItem, WarehouseOptions } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { ImagePicker } from "../../components/images";
+import { Icon } from "../../components/icons";
+import { Avatar } from "../../components/images";
 import { Card, ErrorMessage, Field, Info, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { countries } from "../settings/CompanyProfilePage";
@@ -113,7 +114,7 @@ export function ItemPage() {
   );
   if (!item.data) {
     return (
-      <div className="page">
+      <div className="page full">
         <Loading />
       </div>
     );
@@ -121,7 +122,7 @@ export function ItemPage() {
   return (
     <>
       <ItemForm key={item.data.item.version} item={item.data.item} />
-      <div className="page" style={{ paddingTop: 0 }}>
+      <div className="page full" style={{ paddingTop: 0 }}>
         <ItemStockCard item={item.data.item} />
         <PricesCard item={item.data.item} />
         <MinimumsCard item={item.data.item} />
@@ -242,8 +243,8 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
     }
   }
 
-  const text = (key: (typeof TEXTS)[number], hint?: string) => (
-    <Field label={t(`warehouse.${key}`)} hint={hint}>
+  const text = (key: (typeof TEXTS)[number]) => (
+    <Field label={t(`warehouse.${key}`)}>
       <input
         value={form[key]}
         disabled={!editable}
@@ -253,19 +254,23 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
   );
 
   return (
-    <div className="page">
+    <div className="page full">
       <p>
         <Link to={companyPath(company, "/warehouse?tab=stock")}>← {t("nav.warehouse")}</Link>
       </p>
-      <h1>{item ? item.name : t("warehouse.create_item")}</h1>
-      {item ? <TagsLine kind="item" id={item.id} /> : null}
+      {/* The card of an item (customer's decision of 21.11.2026): the whole width, the tags beside
+          the name, one block without headings — the fields at the left, compatibility and
+          applicability at the right, the photo and the comment below. */}
+      <div className="card-head">
+        <h1>{item ? item.name : t("warehouse.create_item")}</h1>
+        {item ? <TagsLine kind="item" id={item.id} /> : null}
+      </div>
       <form className="stack" onSubmit={submit}>
-        <Card title={t("warehouse.section_main")}>
-          <div className="row">
-            <Field label={t("warehouse.name")}>
-              <input value={form.name} disabled={!editable} onChange={(e) => set({ name: e.target.value })} />
-            </Field>
-            <Field label={t("warehouse.unit")} hint={t("warehouse.unit_hint")}>
+        <section className="card">
+          <div className="item-columns">
+            <div className="stack">
+              <div className="row">
+            <Field label={t("warehouse.unit")} info={item ? undefined : t("warehouse.unit_hint")}>
               <select value={form.unit} disabled={Boolean(item)} onChange={(e) => set({ unit: e.target.value })}>
                 {(options.data?.units ?? []).map((u) => (
                   <option key={u.code} value={u.code}>
@@ -274,16 +279,13 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
                 ))}
               </select>
             </Field>
-          </div>
-          <PartCategoryField
-            name={form.name}
-            category={form.part_category}
-            subcategory={form.part_subcategory}
-            editable={editable}
-            autoFromStart={!item || !item.part_category}
-            onChange={(category, subcategory) => set({ part_category: category, part_subcategory: subcategory })}
-          />
-          <div className="row">
+                {text("article")}
+              </div>
+              <Field label={t("warehouse.name")}>
+                <input value={form.name} disabled={!editable} onChange={(e) => set({ name: e.target.value })} />
+              </Field>
+              {text("model_characteristic")}
+              <div className="row">
             <Field label={t("warehouse.manufacturer")}>
               <select
                 value={form.manufacturer}
@@ -322,16 +324,79 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
               </select>
             </Field>
             {form.country === OTHER ? text("country_other") : null}
-            {text("article")}
-            {text("model_characteristic")}
-          </div>
-        </Card>
-        {/* The note of the category is not asked for and the explanation went under «i»
-            (customer's decisions of 19.11.2026). */}
-        <section className="card">
-          <h2>
-            {t("warehouse.section_parts")} <Info text={t("warehouse.toggles_hint")} />
-          </h2>
+              </div>
+          <PartCategoryField
+            name={form.name}
+            category={form.part_category}
+            subcategory={form.part_subcategory}
+            editable={editable}
+            autoFromStart={!item || !item.part_category}
+            onChange={(category, subcategory) => set({ part_category: category, part_subcategory: subcategory })}
+          />
+            </div>
+            <div className="stack">
+              <div className="field">
+                <span>{t("warehouse.applicability")}</span>
+            {/* Compatibility (customer's decision of 20.11.2026): a chosen row is text with a cross;
+                «Add» opens a row of type, make and model that OK adds and the cross drops. */}
+            {form.applicability.map((row, index) => (
+              <div key={index} className="applies-row">
+                <span>
+                  {[t(`vehicles.type_${row.type}`), row.make_name, row.model_name || t("warehouse.all_models")].join(
+                    " · ",
+                  )}
+                </span>
+                {editable ? (
+                  <button
+                    type="button"
+                    className="link"
+                    aria-label={t("rights.remove")}
+                    onClick={() => set({ applicability: form.applicability.filter((_, i) => i !== index) })}
+                  >
+                    ×
+                  </button>
+                ) : null}
+              </div>
+            ))}
+            {editable && fresh.length ? (
+              <p className="small">
+                {t("warehouse.applicability_offers")}{" "}
+                {fresh.map((o) => (
+                  <button
+                    key={`${o.make}/${o.model}`}
+                    type="button"
+                    className="link"
+                    style={{ marginRight: 10 }}
+                    onClick={() => set({ applicability: [...form.applicability, o] })}
+                  >
+                    {[o.make_name, o.model_name || t("warehouse.all_models")].join(" ")}
+                  </button>
+                ))}
+              </p>
+            ) : null}
+            {draft ? (
+              <ApplicabilityRow
+                row={draft}
+                types={vehicles.data?.vehicle_types ?? []}
+                locale={i18n.language}
+                onChange={setDraft}
+                onOk={() => {
+                  const same = form.applicability.some((a) => a.make === draft.make && a.model === draft.model);
+                  if (!same) set({ applicability: [...form.applicability, draft] });
+                  setDraft(null);
+                }}
+                onCancel={() => setDraft(null)}
+              />
+            ) : editable ? (
+              <button type="button" className="secondary" onClick={() => setDraft(EMPTY)}>
+                {t("warehouse.add_applicability")}
+              </button>
+            ) : null}
+              </div>
+              <div className="field">
+                <span>
+                  {t("warehouse.section_parts")} <Info text={t("warehouse.toggles_hint")} />
+                </span>
           <div className="toggle-grid">
             {PAIRS.map(([key, a, b]) => (
               <div key={key} className="toggle-row">
@@ -393,83 +458,22 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
                 );
               })}
           </div>
-          <div className="field" style={{ marginTop: 12 }}>
-            <span>{t("warehouse.applicability")}</span>
-            {/* Compatibility (customer's decision of 20.11.2026): a chosen row is text with a cross;
-                «Add» opens a row of type, make and model that OK adds and the cross drops. */}
-            {form.applicability.map((row, index) => (
-              <div key={index} className="applies-row">
-                <span>
-                  {[t(`vehicles.type_${row.type}`), row.make_name, row.model_name || t("warehouse.all_models")].join(
-                    " · ",
-                  )}
-                </span>
-                {editable ? (
-                  <button
-                    type="button"
-                    className="link"
-                    aria-label={t("rights.remove")}
-                    onClick={() => set({ applicability: form.applicability.filter((_, i) => i !== index) })}
-                  >
-                    ×
-                  </button>
-                ) : null}
               </div>
-            ))}
-            {editable && fresh.length ? (
-              <p className="small">
-                {t("warehouse.applicability_offers")}{" "}
-                {fresh.map((o) => (
-                  <button
-                    key={`${o.make}/${o.model}`}
-                    type="button"
-                    className="link"
-                    style={{ marginRight: 10 }}
-                    onClick={() => set({ applicability: [...form.applicability, o] })}
-                  >
-                    {[o.make_name, o.model_name || t("warehouse.all_models")].join(" ")}
-                  </button>
-                ))}
-              </p>
-            ) : null}
-            {draft ? (
-              <ApplicabilityRow
-                row={draft}
-                types={vehicles.data?.vehicle_types ?? []}
-                locale={i18n.language}
-                onChange={setDraft}
-                onOk={() => {
-                  const same = form.applicability.some((a) => a.make === draft.make && a.model === draft.model);
-                  if (!same) set({ applicability: [...form.applicability, draft] });
-                  setDraft(null);
-                }}
-                onCancel={() => setDraft(null)}
-              />
-            ) : editable ? (
-              <button type="button" className="secondary" onClick={() => setDraft(EMPTY)}>
-                {t("warehouse.add_applicability")}
-              </button>
-            ) : null}
+            </div>
+          </div>
+          <div className="item-columns item-more">
+            <ItemPhoto
+              photo={form.photo}
+              url={form.photo_url}
+              name={form.name}
+              editable={editable}
+              onChange={(photo, photo_url) => set({ photo, photo_url })}
+            />
+            <Field label={t("warehouse.comment")}>
+              <textarea rows={3} value={form.comment} disabled={!editable} onChange={(e) => set({ comment: e.target.value })} />
+            </Field>
           </div>
         </section>
-        <Card title={t("warehouse.section_more")}>
-          <Field label={t("warehouse.photo")}>
-            <ImagePicker
-              purpose="item_photo"
-              value={form.photo}
-              name={form.name}
-              square
-              disabled={!editable}
-              onChange={(photo) => set({ photo })}
-            />
-          </Field>
-          {/* The outer ID is not asked for here (customer's decision of 20.11.2026): the article
-              names the item. The value an import has given stays and goes on matching it. */}
-          {text("photo_url", t("warehouse.photo_url_hint"))}
-          <Field label={t("warehouse.comment")}>
-            <textarea rows={3} value={form.comment} disabled={!editable} onChange={(e) => set({ comment: e.target.value })} />
-          </Field>
-        </Card>
         <ErrorMessage error={save.error} />
         {saved ? <div className="alert ok">{t("common.saved")}</div> : null}
         {editable ? (
@@ -480,6 +484,108 @@ function ItemForm({ item }: { item?: WarehouseItem }) {
           </div>
         ) : null}
       </form>
+    </div>
+  );
+}
+
+/** The photo of an item (customer's decision of 21.11.2026). While there is one — a file or a
+ * link — it is shown alone with a pencil; the button of the file and the field of the link are
+ * there when there is no photo yet or the pencil was pressed. A picture of another site is not
+ * drawn here (the pages load pictures from this site only), so a link is shown as a link. */
+function ItemPhoto({
+  photo,
+  url,
+  name,
+  editable,
+  onChange,
+}: {
+  photo: string | null;
+  url: string;
+  name: string;
+  editable: boolean;
+  onChange: (photo: string | null, url: string) => void;
+}) {
+  const { t } = useTranslation();
+  const input = useRef<HTMLInputElement>(null);
+  const [open, setOpen] = useState(!photo && !url);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<ApiError | null>(null);
+  const has = Boolean(photo || url);
+
+  async function choose(file: File | undefined) {
+    if (!file) return;
+    setPending(true);
+    setError(null);
+    try {
+      // A file takes the place of a link: the item has one photo.
+      onChange((await uploadFile("item_photo", file)).id, "");
+      setOpen(false);
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught : new ApiError(0, null));
+    } finally {
+      setPending(false);
+      if (input.current) input.current.value = "";
+    }
+  }
+
+  return (
+    <div className="field item-photo">
+      <span>
+        {t("warehouse.photo")}
+        {editable && open ? <Info text={`${t("images.hint")} ${t("warehouse.photo_url_hint")}`} /> : null}
+      </span>
+      {has ? (
+        <div className="item-photo-shown">
+          {photo ? (
+            <Avatar file={photo} name={name} size={96} square />
+          ) : (
+            <a href={url} target="_blank" rel="noreferrer">
+              {url}
+            </a>
+          )}
+          {editable && !open ? (
+            <button
+              type="button"
+              className="icon-button"
+              aria-label={t("common.edit")}
+              title={t("common.edit")}
+              onClick={() => setOpen(true)}
+            >
+              <Icon name="edit" size={16} />
+            </button>
+          ) : null}
+        </div>
+      ) : !editable ? (
+        <span className="muted">—</span>
+      ) : null}
+      {editable && open ? (
+        <div className="item-photo-edit">
+          <input
+            ref={input}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            hidden
+            onChange={(e) => void choose(e.target.files?.[0])}
+          />
+          <button type="button" className="secondary" disabled={pending} onClick={() => input.current?.click()}>
+            {t(photo ? "images.replace" : "images.choose")}
+          </button>
+          {photo ? null : (
+            <input
+              value={url}
+              aria-label={t("warehouse.photo_url")}
+              placeholder={t("warehouse.photo_url")}
+              onChange={(e) => onChange(null, e.target.value)}
+            />
+          )}
+          {has ? (
+            <button type="button" className="secondary" onClick={() => onChange(null, "")}>
+              {t("images.remove")}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      <ErrorMessage error={error} />
     </div>
   );
 }
