@@ -204,8 +204,7 @@ def test_groups_of_tags_name_who_makes_their_tags_and_where_they_are_offered(
     assert post(owner, groups, body, key()).status_code == 201
     assert _code(post(owner, groups, {"name": "places"}, key())) == "TAG_GROUP_EXISTS"
     listed = mechanic.get(f"/api/c/{s.cmp}/tags").json()
-    # Beside the group of the storage places, which the system keeps in every company.
-    assert [g["code"] for g in listed["groups"]] == ["", "storage_places"]
+    assert [g["code"] for g in listed["groups"]] == [""]
     group = listed["groups"][0]
     assert (group["name"], group["kinds"], group["can_create"]) == ("Places", ["item"], False)
     assert [m["id"] for m in group["members"]] == [str(keeper_id)]
@@ -238,14 +237,5 @@ def test_groups_of_tags_name_who_makes_their_tags_and_where_they_are_offered(
     assert _tag(keeper, s, "Shelf 5", group_id=group["id"]).status_code == 403
     assert owner.delete(f"{groups}/{group['id']}", headers=key()).status_code == 200
     after = owner.get(f"/api/c/{s.cmp}/tags").json()
-    assert [g["code"] for g in after["groups"]] == ["storage_places"]
+    assert after["groups"] == []
     assert after["tags"][0]["group_id"] is None
-    # The group of the system is not removed and keeps its name; its people are named.
-    kept = after["groups"][0]
-    assert owner.delete(f"{groups}/{kept['id']}", headers=key()).status_code == 400
-    body = {"name": "Other", "member_ids": [str(keeper_id)], "expected_version": kept["version"]}
-    assert _send(owner, "patch", f"{groups}/{kept['id']}", body).status_code == 200
-    kept = owner.get(f"/api/c/{s.cmp}/tags").json()["groups"][0]
-    assert kept["name"] == "Storage places" and [m["id"] for m in kept["members"]] == [
-        str(keeper_id)
-    ]

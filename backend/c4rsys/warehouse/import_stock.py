@@ -18,7 +18,7 @@ from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
 from c4rsys.warehouse import catalog, stock
 from c4rsys.warehouse.imports import Checked, Scope
-from c4rsys.warehouse.models import Item, Lot, Packaging, SalePrice
+from c4rsys.warehouse.models import Item, Lot, Packaging, SalePrice, StoragePlace
 
 YES = {"yes", "y", "1", "true", "да", "ใช่"}
 NO = {"", "no", "n", "0", "false", "нет", "ไม่"}
@@ -156,8 +156,8 @@ class StockTemplate:
             "",
         ),
         "place_tags": (
-            "Marks of the place, separated by commas",
-            "Отметки места хранения через запятую",
+            "Storage place, one of the list of the warehouse",
+            "Место хранения — одно из списка мест склада",
             "Стеллаж 2",
         ),
     }
@@ -215,11 +215,16 @@ class StockTemplate:
             scope.actor, PRICE_RIGHT
         ):
             out.error("sale_price", "PRICE_NOT_ALLOWED")
-        text = values.get("place_tags", "")
-        try:
-            out.extra["tags"] = stock.tags([t for t in text.split(",") if t.strip()], "place_tags")
-        except errors.ApiError:
-            out.error("place_tags", "TAGS_INVALID")
+        # One storage place, chosen from the list of the warehouse (customer's decision of
+        # 22.11.2026): a name the list does not have is an error of the row.
+        text = " ".join(values.get("place_tags", "").split())
+        out.extra["tags"] = [text] if text else []
+        if text and context is not None:
+            known = StoragePlace.objects.filter(
+                context_id=context.id, name_key=text.lower(), state=StoragePlace.State.ACTIVE
+            )
+            if not known.exists():
+                out.error("place_tags", "PLACE_TAG_UNKNOWN")
         opened = values.get("opened", "").strip().lower()
         if opened not in YES | NO:
             out.error("opened", "VALUE_UNKNOWN")

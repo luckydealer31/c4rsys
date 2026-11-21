@@ -522,6 +522,47 @@ class ReceiptLine(models.Model):
         return f"{self.receipt_id}:{self.item_id}"
 
 
+class StoragePlace(models.Model):
+    """A storage place of a warehouse — «Rack 3, shelf B» (§ 11.1.9; customer's decision of
+    22.11.2026). The places are a list of the warehouse, kept in its settings as the posts of a
+    service are; a unit or a lot lies in one of them or in none. A place is renamed for every
+    unit that lies there and is archived, not removed."""
+
+    class State(models.TextChoices):
+        ACTIVE = "active"
+        ARCHIVED = "archived"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    context = models.ForeignKey(
+        "companies.ActivityContext", on_delete=models.PROTECT, related_name="+"
+    )
+    name = models.CharField(max_length=100)
+    name_key = models.CharField(max_length=100)
+    state = models.CharField(max_length=10, choices=State.choices, default=State.ACTIVE)
+    created_at = models.DateTimeField(default=now)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        db_table = "warehouse_storage_place"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["company", "id"], name="warehouse_storage_place_company_id_uniq"
+            ),
+            models.CheckConstraint(
+                condition=~Q(name=""), name="warehouse_storage_place_name_not_empty"
+            ),
+            models.UniqueConstraint(
+                fields=["context", "name_key"],
+                condition=Q(state="active"),
+                name="warehouse_storage_place_active_name_uniq",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class Asset(models.Model):
     """An individually accounted unit with its own AST ID (§ 11.1.2, § 2.6.1)."""
 
@@ -547,6 +588,10 @@ class Asset(models.Model):
     )
     context = models.ForeignKey(
         "companies.ActivityContext", on_delete=models.PROTECT, related_name="+"
+    )
+    # Where on the warehouse the unit lies; a unit that leaves the warehouse has no place.
+    place = models.ForeignKey(
+        StoragePlace, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
     state = models.CharField(max_length=20, choices=State.choices, default=State.IN_STOCK)
     serial_number = models.CharField(max_length=100, blank=True, default="")
@@ -582,6 +627,9 @@ class Lot(models.Model):
     item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name="lots")
     context = models.ForeignKey(
         "companies.ActivityContext", on_delete=models.PROTECT, related_name="+"
+    )
+    place = models.ForeignKey(
+        StoragePlace, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
     # A child lot separated for a move to another warehouse (§ 11.3.3) — part С3.
     parent = models.ForeignKey(

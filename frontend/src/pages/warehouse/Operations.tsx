@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 
 import { uploadFile } from "../../api/client";
+import { PlacesSettings } from "./Places";
 import { useApi } from "../../api/queries";
 import type {
   ItemBrief,
@@ -934,6 +935,7 @@ export function WarehouseSettingsCard() {
           </select>
         </Field>
       ) : null}
+      <PlacesSettings />
       <h3>{t("operations.reasons")}</h3>
       <ul>
         {(reasons.data?.reasons ?? []).map((r) => (

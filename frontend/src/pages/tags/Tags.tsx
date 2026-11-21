@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useId, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 
@@ -104,81 +104,6 @@ export function RowTags({ tags }: { tags: Tag[] }) {
         <TagChip key={tag.id} tag={tag} link />
       ))}
     </span>
-  );
-}
-
-/** The group of the storage places of the warehouse. */
-export const STORAGE = "storage_places";
-
-/** The storage places of a unit or a lot (§ 11.1.9; customer's decision of 17.11.2026): no free
- * text — tags of the group «Storage places». A place is chosen from the list; a new one is typed
- * by whoever may make tags in that group. `value` — the names of the places. */
-export function PlaceTags({ value, onChange }: { value: string[]; onChange: (names: string[]) => void }) {
-  const { t } = useTranslation();
-  const list = useTags();
-  const id = useId();
-  const [text, setText] = useState("");
-  const [refused, setRefused] = useState("");
-  const group = (list.data?.groups ?? []).find((g) => g.code === STORAGE);
-  const known = (list.data?.tags ?? []).filter((tag) => tag.group_id === group?.id && !tag.archived).map((tag) => tag.name);
-  const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
-
-  function add(raw: string) {
-    const name = raw.trim().replace(/\s+/g, " ");
-    setRefused("");
-    if (!name) return;
-    const existing = known.find((k) => same(k, name));
-    if (!existing && !group?.can_create) {
-      setRefused(name);
-      return;
-    }
-    if (!value.some((v) => same(v, name))) onChange([...value, existing ?? name]);
-    setText("");
-  }
-
-  return (
-    <div className="place-tags">
-      {value.map((name) => (
-        <span key={name} className="tag-chip tag-gray">
-          {name}
-          <button type="button" aria-label={t("tags.place_remove", { name })} title={t("tags.place_remove", { name })} onClick={() => onChange(value.filter((v) => v !== name))}>
-            ×
-          </button>
-        </span>
-      ))}
-      <input
-        list={id}
-        value={text}
-        maxLength={40}
-        placeholder={t("tags.place_add")}
-        aria-label={t("tags.place_add")}
-        onChange={(e) => {
-          const next = e.target.value;
-          // A comma ends a place, as when the places were written in one line.
-          if (next.endsWith(",")) add(next.slice(0, -1));
-          else {
-            setText(next);
-            // Chosen from the list: taken at once.
-            if (known.some((k) => k === next)) add(next);
-          }
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            add(text);
-          }
-        }}
-        onBlur={() => add(text)}
-      />
-      <datalist id={id}>
-        {known
-          .filter((k) => !value.some((v) => same(v, k)))
-          .map((k) => (
-            <option key={k} value={k} />
-          ))}
-      </datalist>
-      {refused ? <small className="place-refused">{t("tags.place_unknown", { name: refused })}</small> : null}
-    </div>
   );
 }
 

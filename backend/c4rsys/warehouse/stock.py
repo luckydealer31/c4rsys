@@ -517,8 +517,8 @@ def post_receipt(
             raise errors.business_rule("ITEM_ARCHIVED", field=f"{where}.item_id")
         if line.packaging is not None and line.packaging.state != Packaging.State.ACTIVE:
             raise errors.business_rule("PACKAGING_UNKNOWN", field=f"{where}.packaging_id")
-        # The storage places of the line: tags of the group of places (§ 11.1.9).
-        marks = storage.resolve(ctx, company_id, line.tags, f"{where}.tags")
+        # The storage place of the line: one of the places of the warehouse (§ 11.1.9).
+        marks = storage.resolve(ctx, company_id, context.id, line.tags, f"{where}.tags")
         if item.accounting == Item.Accounting.INDIVIDUAL:
             for unit in range(int(line.quantity)):
                 asset = Asset(
@@ -536,7 +536,7 @@ def post_receipt(
                 asset.public_id = allocate_public_id(
                     "AST", entity_type="warehouse_asset", entity_id=asset.id
                 )
-                storage.put(ctx, company_id, storage.ASSET, [asset.id], marks)
+                asset.place = marks
                 asset.save(force_insert=True)
                 created_assets.append(asset.public_id)
                 StockMovement.objects.create(
@@ -803,7 +803,7 @@ def post_initial_line(
     now = timezone.now()
     from c4rsys.warehouse import prices  # prices use the values of this module
 
-    marks = storage.resolve(ctx, company.id, list(data.tags), "place_tags")
+    marks = storage.resolve(ctx, company.id, context.id, list(data.tags), "place_tags")
     if item.accounting == Item.Accounting.INDIVIDUAL:
         asset = Asset(
             company=company,
@@ -1314,7 +1314,13 @@ def set_tags(
         raise errors.not_found()
     where = storage.KINDS[kind]
     before = storage.names(company_id, where, [record.id]).get(record.id, [])
-    storage.replace(ctx, company_id, where, record.id, storage.resolve(ctx, company_id, values))
+    storage.replace(
+        ctx,
+        company_id,
+        where,
+        record.id,
+        storage.resolve(ctx, company_id, record.context_id, values),
+    )
     after = storage.names(company_id, where, [record.id]).get(record.id, [])
     ctx.audit(
         "warehouse.tags_changed",

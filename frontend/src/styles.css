@@ -482,6 +482,17 @@ td.nowrap { white-space: nowrap; }
   min-width: 30px; min-height: 30px; justify-content: center; border-radius: 6px; }
 /* The stock of a chosen warehouse under its name. */
 .stock-block + .stock-block { margin-top: 20px; }
+/* The storage places of a warehouse in its settings, and the choice of one. */
+.place-select { display: inline-flex; align-items: center; gap: 6px; }
+.place-select > select { width: auto; min-width: 140px; }
+.places-of { margin-bottom: 16px; }
+.places-of > strong { margin-right: 8px; }
+.place-list { list-style: none; padding: 0; margin: 6px 0; display: flex; flex-wrap: wrap; gap: 6px 8px; }
+.place-list li { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; border: 1px solid var(--border);
+  border-radius: 999px; background: var(--surface); }
+.place-list li.editing { flex: 1 1 100%; flex-wrap: wrap; gap: 8px; padding: 6px; border-radius: var(--radius); }
+.place-list li.editing > input { width: 220px; }
+.place-list li.editing > button { flex: 0 0 auto; }
 /* A row that a double press opens. */
 tr.opens { cursor: pointer; }
 /* A long list inside a card is scrolled in its own window, its heading stays in sight. */

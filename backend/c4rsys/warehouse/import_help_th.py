@@ -130,7 +130,7 @@ TH: dict[str, str] = {
     "Individual item: external or serial ID of the unit": (
         "สินค้ารายชิ้น: ID ภายนอกหรือหมายเลขซีเรียลของชิ้น"
     ),
-    "Marks of the place, separated by commas": "ป้ายตำแหน่งจัดเก็บ คั่นด้วยจุลภาค",
+    "Storage place, one of the list of the warehouse": "ตำแหน่งจัดเก็บ หนึ่งรายการจากรายการของคลัง",
 }
 
 EXAMPLE_NOTE = "แถวที่สองของแผ่นงาน «{sheet}» เป็นตัวอย่าง: แทนที่หรือลบออก"

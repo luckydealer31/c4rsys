@@ -141,8 +141,10 @@ def accept_return(
         raise errors.business_rule("RETURN_STORAGE_NOT_USABLE", field="location_id")
     before = _snapshot(asset)
     asset.state = IN_STOCK
+    if asset.context_id != storage.id:
+        asset.place = None
     asset.context = storage
-    asset.save(update_fields=["state", "context"])
+    asset.save(update_fields=["state", "context", "place"])
     _journal(ctx, asset, StockMovement.Kind.RETURN, 1)
     ctx.audit(
         "warehouse.equipment_returned",

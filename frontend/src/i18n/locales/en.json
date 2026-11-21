@@ -1362,11 +1362,13 @@
     "tag_group_unknown": "This group is no longer there.",
     "tag_group_member_unknown": "Choose employees of the company.",
     "tag_not_for_kind": "The group of this tag is not for such records.",
-    "place_tag_unknown": "There is no storage place «{{name}}» in the list. New places are made by the employees named in the group «Storage places».",
+    "place_tag_unknown": "The storage place «{{name}}» is not in the list of this warehouse. Places are added in «Warehouse → Settings».",
     "tag_group_of_system": "This group is kept by the system and is not removed.",
     "vehicle_repeated": "A vehicle is given twice.",
     "recognition_not_configured": "The service that reads documents is not connected.",
-    "recognition_failed": "The document could not be read. Try again or enter the lines by hand."
+    "recognition_failed": "The document could not be read. Try again or enter the lines by hand.",
+    "place_one_only": "A unit or a lot has one storage place only.",
+    "place_name_taken": "This warehouse already has a place with this name."
   },
   "history": {
     "action": "Action",
@@ -3056,7 +3058,6 @@
     "serial_numbers": "Serial numbers of units",
     "serial_numbers_hint": "Optional, one per line. Each unit gets its own AST ID.",
     "tags": "Storage place",
-    "tags_hint": "Comma separated, e.g. «Rack 3, shelf B». A hint where to look.",
     "remove_line": "Remove",
     "save_draft": "Save draft",
     "post": "Post",
@@ -6600,9 +6601,6 @@
     "add_to_group": "A tag in the group «{{group}}»",
     "system_group_storage_places": "Storage places",
     "system_where_storage_places": "Offered at the warehouse: the place of a unit or a lot.",
-    "place_add": "Add a place",
-    "place_remove": "Remove «{{name}}»",
-    "place_unknown": "There is no place «{{name}}» in the list. New places are made by the employees named in the group «Storage places».",
     "add_first": "Add a tag"
   },
   "moment": {
@@ -6647,5 +6645,14 @@
     "supplier_chosen": "chosen: {{name}}",
     "supplier_alike": "Choose one alike",
     "supplier_create": "Create the supplier"
+  },
+  "places": {
+    "title": "Storage places",
+    "hint": "The list of places of each warehouse: racks, shelves, cells. At a receipt and in the stock a place is chosen from this list. Renaming changes the name for everything that lies there.",
+    "none": "no places yet",
+    "none_hint": "This warehouse has no storage places yet. They are added in «Warehouse → Settings».",
+    "new": "New place",
+    "name": "Name of the place",
+    "archived": "archived"
   }
 }

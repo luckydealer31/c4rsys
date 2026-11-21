@@ -56,6 +56,13 @@ def supplier(owner: Client, cmp: str) -> str:
     )
 
 
+def place_of(owner: Client, cmp: str, ctx: str, name: str) -> str:
+    """Makes a storage place of the warehouse and gives the warehouse back."""
+    made = post(owner, f"/api/c/{cmp}/warehouse/places", {"context_id": ctx, "name": name}, key())
+    assert made.status_code == 201, made.content
+    return ctx
+
+
 def receipt(owner: Client, cmp: str, **data: Any) -> Any:
     return post(owner, f"/api/c/{cmp}/warehouse/receipts", {"source": "purchase", **data}, key())
 
@@ -71,7 +78,7 @@ def test_pieces_get_assets_and_supplier_may_stay_unknown(owner: Client, cmp: str
     draft = receipt(
         owner,
         cmp,
-        context_id=ctx,
+        context_id=place_of(owner, cmp, ctx, "Shelf A"),
         lines=[
             {
                 "item_id": pads["id"],
@@ -312,57 +319,68 @@ def test_movement_journal_is_append_only(owner: Client, cmp: str) -> None:
         cursor.execute("UPDATE warehouse_movement SET quantity = 5")
 
 
-def test_storage_places_are_tags_of_their_group(owner: Client, cmp: str) -> None:
-    """Customer's decision of 17.11.2026 (§ 11.1.9): a storage place is no free text — it is a
-    tag of the group «Storage places». A new place is made by whoever is named in the group or
-    manages the tags; the others choose from the list."""
+def test_storage_places_are_a_list_of_the_warehouse(owner: Client, cmp: str) -> None:
+    """Customer's decision of 22.11.2026 (§ 11.1.9): the storage places are a list of each
+    warehouse, kept by whoever manages the settings of the warehouse; the storekeeper chooses.
+    A unit lies in one place; a renamed place is renamed for what lies there."""
     ctx = warehouse(owner, cmp)
+    other = warehouse(owner, cmp, "Chalong")
     pads = item(owner, cmp, "Brake pads", "piece")
-    keeper, keeper_id = hire(owner, cmp, "k@example.com", [{"type": "set", "set": "storekeeper"}])
+    keeper, _ = hire(owner, cmp, "k@example.com", [{"type": "set", "set": "storekeeper"}])
     line = {"item_id": pads["id"], "quantity": 1, "unit_cost": "100"}
+    places = f"/api/c/{cmp}/warehouse/places"
 
-    def received(by: Client, place: str) -> Any:
-        draft = receipt(by, cmp, context_id=ctx, lines=[{**line, "tags": [place]}])
+    def received(by: Client, names: list[str], where: str = ctx) -> Any:
+        draft = receipt(by, cmp, context_id=where, lines=[{**line, "tags": names}])
         assert draft.status_code == 201, draft.content
         return post_receipt(by, cmp, draft.json()["receipt"])
 
-    # The storekeeper is not named in the group yet: a place that is not in the list is refused.
-    refused = received(keeper, "Rack 7")
+    # A place that is not in the list of the warehouse is refused, whoever receives.
+    refused = received(owner, ["Rack 7"])
     assert refused.status_code == 400, refused.content
     assert refused.json()["error"]["code"] == "PLACE_TAG_UNKNOWN"
-    # The owner makes the place by a receipt; the storekeeper then chooses it.
-    assert received(owner, "Rack 7").status_code == 200
-    assert received(keeper, "rack 7").status_code == 200
-    tags = owner.get(f"/api/c/{cmp}/tags").json()
-    group = next(g for g in tags["groups"] if g["code"] == "storage_places")
-    place = next(t for t in tags["tags"] if t["name"] == "Rack 7")
-    assert place["group_id"] == group["id"] and place["count"] == 2
-    # Named in the group, the storekeeper makes a new place themself.
-    body = {"member_ids": [str(keeper_id)], "expected_version": group["version"]}
-    url = f"/api/c/{cmp}/tag-groups/{group['id']}"
-    changed = owner.patch(url, data=body, content_type="application/json", headers=key())
-    assert changed.status_code == 200, changed.content
-    assert received(keeper, "Rack 8").status_code == 200
+    # The list is kept with the right of the settings: not by the storekeeper.
+    assert post(keeper, places, {"context_id": ctx, "name": "Rack 7"}, key()).status_code == 403
+    made = post(owner, places, {"context_id": ctx, "name": "Rack 7"}, key())
+    assert made.status_code == 201, made.content
+    place = made.json()["place"]
+    assert (
+        post(owner, places, {"context_id": ctx, "name": "rack 7"}, key()).json()["error"]["code"]
+        == "PLACE_NAME_TAKEN"
+    )
+    # Another warehouse has its own list: the same name is another place there.
+    assert post(owner, places, {"context_id": other, "name": "Rack 7"}, key()).status_code == 201
+    post(owner, places, {"context_id": ctx, "name": "Rack 8"}, key())
+    assert sorted(p["name"] for p in keeper.get(places).json()["places"]) == [
+        "Rack 7",
+        "Rack 7",
+        "Rack 8",
+    ]
 
+    assert received(keeper, ["rack 7"]).status_code == 200
+    # One place for a unit.
+    assert received(keeper, ["Rack 7", "Rack 8"]).json()["error"]["code"] == "PLACE_ONE_ONLY"
+    assert received(keeper, ["Rack 8"]).status_code == 200
     stock = owner.get(f"/api/c/{cmp}/warehouse/stock").json()["stock"]
-    assert stock[0]["tags"] == ["Rack 7", "Rack 8"]
-    # The stock is searched by the place; the page of the tag shows the item.
+    assert sorted(stock[0]["tags"]) == ["Rack 7", "Rack 8"]
+    # The stock is searched by the place.
     assert len(owner.get(f"/api/c/{cmp}/warehouse/stock?q=rack 8").json()["stock"]) == 1
     assert owner.get(f"/api/c/{cmp}/warehouse/stock?q=rack 9").json()["stock"] == []
-    page = owner.get(f"/api/c/{cmp}/tags/{place['id']}/objects").json()["objects"]
-    assert [hit["id"] for hit in page["item"]] == [pads["id"]]
-    # A place is not a tag for the cards: it is not put on a client or a vehicle by hand.
-    wrong = {"type": "item", "id": pads["id"], "tag_ids": [place["id"]]}
-    put = owner.put(
-        f"/api/c/{cmp}/tag-links", data=wrong, content_type="application/json", headers=key()
-    )
-    assert put.json()["error"]["code"] == "TAG_NOT_FOR_KIND"
-    # Renamed in the tags, the place is renamed in the stock at once.
+
+    # Renamed in the settings, the place is renamed in the stock at once.
+    url = f"{places}/{place['id']}"
     rename = {"name": "Rack 7A", "expected_version": place["version"]}
-    url = f"/api/c/{cmp}/tags/{place['id']}"
+    done = owner.patch(url, data=rename, content_type="application/json", headers=key())
+    assert done.status_code == 200, done.content
+    stock = owner.get(f"/api/c/{cmp}/warehouse/stock").json()["stock"]
+    assert sorted(stock[0]["tags"]) == ["Rack 7A", "Rack 8"]
+    # An archived place is not chosen any more; what lies there keeps it.
+    archive = {"archived": True, "expected_version": done.json()["place"]["version"]}
     assert (
-        owner.patch(url, data=rename, content_type="application/json", headers=key()).status_code
+        owner.patch(url, data=archive, content_type="application/json", headers=key()).status_code
         == 200
     )
-    stock = owner.get(f"/api/c/{cmp}/warehouse/stock").json()["stock"]
-    assert stock[0]["tags"] == ["Rack 7A", "Rack 8"]
+    assert received(keeper, ["Rack 7A"]).json()["error"]["code"] == "PLACE_TAG_UNKNOWN"
+    assert Asset.objects.filter(place_id=place["id"]).count() == 1
+    # The places are not tags any more: the tags have no group of them.
+    assert owner.get(f"/api/c/{cmp}/tags").json()["groups"] == []

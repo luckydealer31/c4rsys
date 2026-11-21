@@ -3,10 +3,10 @@ import { expect, test } from "@playwright/test";
 import { createCompany, ok, registerUser, uniqueEmail, waitForServer } from "../lib/api";
 import { t } from "../lib/i18n";
 
-// Customer's decision of 17.11.2026 (§ 11.1.9): a storage place of the warehouse is no free text
-// — it is a tag of the group «Storage places», which the system keeps among the tags of the
-// company. The stock shows the places and is searched by them; a place is changed by choosing.
-test("storage places are tags of their group", async ({ page }) => {
+// Customer's decision of 22.11.2026 (§ 11.1.9): the storage places are a list of each warehouse,
+// kept in its settings as the posts of a service are. The stock shows the places and is searched
+// by them; a place is chosen from the list, and a unit lies in one place.
+test("storage places are a list of the warehouse", async ({ page }) => {
   await waitForServer(page);
   await registerUser(page, uniqueEmail("places"), "Анна", "Петрова");
   const s = await createCompany(page);
@@ -18,6 +18,9 @@ test("storage places are tags of their group", async ({ page }) => {
   const item = (await ok(page, "POST", `/c/${s.cmp}/warehouse/items`, { name: "Колодки", unit: "piece" })).item as {
     id: string;
   };
+  // The places are a list of the warehouse (customer's decision of 22.11.2026): one is made
+  // here, another in the settings of the warehouse below.
+  await ok(page, "POST", `/c/${s.cmp}/warehouse/places`, { context_id: context, name: "Стеллаж 1" });
   const receipt = (
     await ok(page, "POST", `/c/${s.cmp}/warehouse/receipts`, {
       source: "purchase",
@@ -27,11 +30,20 @@ test("storage places are tags of their group", async ({ page }) => {
   ).receipt as { id: string; version: number };
   await ok(page, "POST", `/c/${s.cmp}/warehouse/receipts/${receipt.id}/post`, { expected_version: receipt.version });
 
-  // The place written in the receipt is a tag of the group of the system.
+  // The settings of the warehouse keep the list of its places: a place is added by Enter, and
+  // renamed with the pencil.
+  await page.goto(`${s.base}/warehouse?tab=storages`);
+  const placesList = page.locator(".places-of", { hasText: "Пхукет" });
+  await expect(placesList.locator(".place-list li")).toHaveText([/Стеллаж 1/]);
+  await placesList.getByRole("textbox", { name: t("places.new"), exact: true }).fill("Стеллаж 2");
+  await placesList.getByRole("textbox", { name: t("places.new"), exact: true }).press("Enter");
+  await expect(placesList.locator(".place-list li")).toHaveText([/Стеллаж 1/, /Стеллаж 2/]);
+  await placesList.getByRole("button", { name: `${t("common.edit")}: Стеллаж 2`, exact: true }).click();
+  await expect(placesList.getByRole("button", { name: t("warehouse.to_archive"), exact: true })).toBeVisible();
+  await placesList.getByRole("button", { name: t("common.cancel"), exact: true }).click();
+  // The tags have no group of the places any more.
   await page.goto(`${s.base}/company/tags`);
-  const group = page.locator("section.tag-group", { hasText: t("tags.system_group_storage_places") });
-  await expect(group.locator(".tag-rows li")).toHaveText([/Стеллаж 1/]);
-  await expect(group).toContainText(t("tags.count", { count: 1 }));
+  await expect(page.locator("section.tag-group")).toHaveCount(0);
 
   // The stock shows the place and is searched by it.
   await page.goto(`${s.base}/warehouse`);
@@ -174,14 +186,12 @@ test("storage places are tags of their group", async ({ page }) => {
   await expect(bar).toHaveCount(0);
   await expect(page.locator(".scroll-window tbody .price-input input")).toHaveValue("250.00");
   await page.getByRole("button", { name: t("stock.edit_tags"), exact: true }).first().click();
-  const add = page.getByRole("combobox", { name: t("tags.place_add") });
-  await add.fill("Стеллаж 2");
-  await add.press("Enter");
-  await expect(page.locator(".place-tags .tag-chip")).toHaveText([/Стеллаж 1/, /Стеллаж 2/]);
-  await page.locator("td", { has: page.locator(".place-tags") }).last().getByRole("button", { name: t("common.save"), exact: true }).click();
-  await expect(page.getByText("Стеллаж 1, Стеллаж 2")).toBeVisible();
-  await page.goto(`${s.base}/company/tags`);
-  await expect(group.locator(".tag-rows li")).toHaveText([/Стеллаж 1/, /Стеллаж 2/]);
+  // The place is chosen from the list of the warehouse, not typed; a unit has one place.
+  const cell = page.locator("td", { has: page.locator(".place-select") }).last();
+  await cell.getByRole("combobox", { name: t("stock.tags"), exact: true }).selectOption("Стеллаж 2");
+  await cell.getByRole("button", { name: t("common.save"), exact: true }).click();
+  await expect(page.locator(".scroll-window tbody")).toContainText("Стеллаж 2");
+  await expect(page.locator(".scroll-window tbody")).not.toContainText("Стеллаж 1");
 
   // The section is laid out as the others are (customer's remarks of 20.11.2026): no heading
   // on the screen, the tabs at the left, the buttons of the open tab in a column at the right.

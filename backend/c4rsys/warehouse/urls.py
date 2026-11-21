@@ -129,6 +129,8 @@ urlpatterns = [
     path("c/<str:cmp>/warehouse/reasons", ops.reason_list),
     path("c/<str:cmp>/warehouse/reasons/<uuid:reason_id>", ops.reason_detail),
     path("c/<str:cmp>/warehouse/settings", ops.settings),
+    path("c/<str:cmp>/warehouse/places", ops.place_list),
+    path("c/<str:cmp>/warehouse/places/<uuid:place_id>", ops.place_detail),
     path("c/<str:cmp>/warehouse/imports/template", imv.import_template),
     path("c/<str:cmp>/warehouse/imports", imv.import_list, {"default_kind": "items"}),
     path("c/<str:cmp>/imports/template/<str:kind>", imv.import_template),

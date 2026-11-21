@@ -314,10 +314,12 @@ def accept(
     installation.version += 1
     installation.save()
     asset.state = Asset.State.IN_STOCK
+    if asset.context_id != context.id:
+        asset.place = None
     asset.context = context
     asset.vehicle = None
     asset.purchase_cost = valuation
-    asset.save(update_fields=["state", "context", "vehicle", "purchase_cost"])
+    asset.save(update_fields=["state", "context", "place", "vehicle", "purchase_cost"])
     StockMovement.objects.create(
         company_id=company_id,
         kind=StockMovement.Kind.REMOVAL,

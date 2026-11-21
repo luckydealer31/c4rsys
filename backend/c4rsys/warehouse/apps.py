@@ -14,10 +14,6 @@ class WarehouseConfig(AppConfig):
         from c4rsys.warehouse import search as warehouse_search
 
         platform_search.register("item", warehouse_search.provider)
-        # § 11.1.9: the storage places are tags; on the page of a tag a unit is shown as its item.
-        from c4rsys.warehouse import places
-
-        places.register()
         from c4rsys.warehouse import recognition_anthropic
 
         # Reading the documents of suppliers (customer's decision of 21.11.2026).

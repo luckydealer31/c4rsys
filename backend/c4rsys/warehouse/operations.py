@@ -941,8 +941,10 @@ def receive(
         if line.asset_id:
             asset = Asset.objects.select_for_update().get(pk=line.asset_id)
             asset.context = target
+            # The places are of a warehouse: on another one the unit has no place yet.
+            asset.place = None
             asset.state = Asset.State.IN_STOCK
-            asset.save(update_fields=["context", "state"])
+            asset.save(update_fields=["context", "place", "state"])
             _move(ctx, StockMovement.Kind.MOVE_IN, target, line, Decimal(1), asset=asset)
         else:
             child = _child_lot(line, target, amount)
@@ -1371,7 +1373,7 @@ def correct_receipt_line(
                     receipt_line=line,
                     actor_user_id=ctx.actor.user_id,
                 )
-        marks = storage.resolve(ctx, company.id, line.tags) if delta > 0 else []
+        marks = storage.resolve(ctx, company.id, context.id, line.tags) if delta > 0 else None
         for _ in range(int(max(delta, ZERO))):
             asset = Asset(
                 company_id=company.id,

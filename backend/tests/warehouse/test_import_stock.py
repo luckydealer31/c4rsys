@@ -60,6 +60,10 @@ def decide(owner: Client, cmp: str, operation: dict[str, Any], *pairs: tuple[str
 
 def test_units_and_lots_are_imported(owner: Client, cmp: str, setup: dict[str, Any]) -> None:
     ctx, pads, oil = setup["ctx"], setup["pads"], setup["oil"]
+    made = post(
+        owner, f"/api/c/{cmp}/warehouse/places", {"context_id": ctx, "name": "Shelf 2"}, key()
+    )
+    assert made.status_code == 201, made.content
     book = load_workbook(io.BytesIO(template(owner, cmp, "stock")))
     assert book["contexts"]["A2"].value == ctx  # the warehouses of the company
     assert {book["items"][f"A{n}"].value for n in (2, 3)} == {pads, oil}
@@ -71,7 +75,7 @@ def test_units_and_lots_are_imported(owner: Client, cmp: str, setup: dict[str, A
         "stock",
         [
             {"item_id": pads, "context_id": ctx, "serial_number": "SN-1", "unit_cost": "450"},
-            {"item_id": pads, "context_id": ctx, "place_tags": "Shelf 2, Box 1"},
+            {"item_id": pads, "context_id": ctx, "place_tags": "shelf 2"},
             {**a1, "packaging_quantity": "4", "packs": "3", "unit_cost": "250"},
             {**a1, "packaging_quantity": "4", "opened": "yes", "quantity": "2.5"},
             {**lot, "lot_code": "A2", "quantity": "7.5"},
@@ -105,7 +109,7 @@ def test_units_and_lots_are_imported(owner: Client, cmp: str, setup: dict[str, A
         "stock",
         [
             {"item_id": pads, "context_id": ctx, "serial_number": "SN-1", "unit_cost": "450"},
-            {"item_id": pads, "context_id": ctx, "place_tags": "Shelf 2, Box 1"},
+            {"item_id": pads, "context_id": ctx, "place_tags": "shelf 2"},
             {**a1, "packaging_quantity": "4", "packs": "3", "unit_cost": "250"},
             {**a1, "packaging_quantity": "4", "opened": "yes", "quantity": "2.5"},
             {**lot, "lot_code": "A2", "quantity": "7.5"},
@@ -123,9 +127,9 @@ def test_units_and_lots_are_imported(owner: Client, cmp: str, setup: dict[str, A
     units = list(Asset.objects.order_by("created_at"))
     assert [u.serial_number for u in units] == ["SN-1", ""]
     assert units[0].purchase_cost == Decimal("450")
-    # The marks of the place are tags of the group of the storage places now (§ 11.1.9).
+    # The storage place is one of the list of the warehouse (§ 11.1.9).
     marked = places.names(units[1].company_id, places.ASSET, [units[1].id])
-    assert marked[units[1].id] == ["Box 1", "Shelf 2"]
+    assert marked[units[1].id] == ["Shelf 2"]
     assert all(u.public_id.startswith("AST") for u in units)
     first = Lot.objects.get(external_number="B-77")  # one LOT ID for the group
     assert str(first.expiry_date) == "2027-01-01"

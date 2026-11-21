@@ -181,6 +181,13 @@ def test_price_and_places_of_several_units_at_once(
     assert priced.json()["changed"] == 2
     assert {a.sale_price for a in Asset.objects.all()} == {Decimal("640")}
 
+    made = post(
+        owner,
+        f"/api/c/{cmp}/warehouse/places",
+        {"context_id": str(first.context_id), "name": "Shelf 7"},
+        key(),
+    )
+    assert made.status_code == 201, made.content
     placed = post(
         owner, url(cmp, setup["pads"], "units/tags"), {"asset_ids": ids, "tags": ["Shelf 7"]}, key()
     )

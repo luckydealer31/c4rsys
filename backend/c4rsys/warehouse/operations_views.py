@@ -21,7 +21,13 @@ from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
 from c4rsys.warehouse import catalog, corrections, operations, parts, stock
-from c4rsys.warehouse.models import StockOperation, WarehouseSettings, WriteOffReason
+from c4rsys.warehouse import places as storage
+from c4rsys.warehouse.models import (
+    StockOperation,
+    StoragePlace,
+    WarehouseSettings,
+    WriteOffReason,
+)
 from c4rsys.warehouse.stock_views import (
     COMMENT_MAX,
     _actor,
@@ -645,6 +651,63 @@ def reason_detail(request: HttpRequest, cmp: str, reason_id: UUID) -> JsonRespon
 
     payload = {"reason_id": str(reason_id), "name": name, "archived": archived}
     return run_and_respond(request, "warehouse.change_reason", actor, payload, handler)
+
+
+# --- Storage places of a warehouse (§ 11.1.9; customer's decision of 22.11.2026) ----------------
+# The list of a warehouse is kept by whoever manages the settings of the warehouse; everyone who
+# sees the warehouse sees its places and chooses among them.
+
+PLACE_NAME_MAX = 50
+
+
+@require_http_methods(["GET", "POST"])
+def place_list(request: HttpRequest, cmp: str) -> JsonResponse:
+    context, actor = _actor(request, cmp)
+    visible = _visible(context.company.id, actor)
+    if request.method == "GET":
+        _require(actor, "warehouse.view")
+        places = storage.of_contexts(context.company.id, list(visible))
+        return JsonResponse({"places": [storage.payload(p) for p in places]})
+    _manager(actor)
+    data = parse_json(request)
+    context_id = _uuid(data.get("context_id"), "context_id")
+    warehouse = visible.get(context_id) if context_id else None
+    if warehouse is None:
+        raise errors.validation_error("context_id", code="STORAGE_CONTEXT_UNKNOWN")
+    name = get_str(data, "name", max_length=PLACE_NAME_MAX)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        return CommandResult(201, {"place": storage.payload(storage.create(ctx, warehouse, name))})
+
+    payload = {"context_id": str(context_id), "name": name}
+    return run_and_respond(request, "warehouse.create_storage_place", actor, payload, handler)
+
+
+@require_http_methods(["PATCH"])
+def place_detail(request: HttpRequest, cmp: str, place_id: UUID) -> JsonResponse:
+    context, actor = _actor(request, cmp)
+    _manager(actor)
+    if not StoragePlace.objects.filter(company=context.company, pk=place_id).exists():
+        raise errors.not_found()
+    data = parse_json(request)
+    name = get_str(data, "name", max_length=PLACE_NAME_MAX, required=False).strip() or None
+    archived = data.get("archived")
+    if archived is not None and not isinstance(archived, bool):
+        raise errors.validation_error("archived")
+    expected_version = get_int(data, "expected_version")
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        place = storage.locked(context.company.id, place_id, expected_version)
+        place = storage.change(ctx, place, name=name, archived=archived)
+        return CommandResult(200, {"place": storage.payload(place)})
+
+    payload = {
+        "place_id": str(place_id),
+        "name": name,
+        "archived": archived,
+        "expected_version": expected_version,
+    }
+    return run_and_respond(request, "warehouse.change_storage_place", actor, payload, handler)
 
 
 def _settings_payload(found: WarehouseSettings) -> dict[str, Any]:

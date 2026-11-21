@@ -70,8 +70,8 @@ test("a group of tags names its makers and where its tags are offered", async ({
   await page.goto(`${s.base}/company/tags`);
   await group.getByRole("button", { name: t("tags.group_edit_named", { group: "Категории запчастей" }), exact: true }).click();
   await dialog.getByRole("button", { name: t("tags.group_remove"), exact: true }).click();
-  // Only the group of the storage places, which the system keeps, is left.
-  await expect(page.locator("section.tag-group")).toHaveCount(1);
-  await expect(page.locator("section.tag-group")).toContainText(t("tags.system_group_storage_places"));
+  // No group is left: the storage places are a list of the warehouse, not a group of tags
+  // (customer's decision of 22.11.2026).
+  await expect(page.locator("section.tag-group")).toHaveCount(0);
   await expect(page.locator(".tag-rows li")).toHaveCount(2);
 });

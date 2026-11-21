@@ -10,9 +10,10 @@ import { Icon } from "../../components/icons";
 import { MultiPick } from "../../components/MultiPick";
 import { Card, ErrorMessage, Field, Info, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
-import { PlaceTags, RowTags, useTagsOf } from "../tags/Tags";
+import { RowTags, useTagsOf } from "../tags/Tags";
 import { useVehicles } from "../vehicles/VehiclesPage";
 import { useCategoryLabel } from "./Categories";
+import { PlaceSelect } from "./Places";
 import { AssetPrice, PricesCard, VehiclePrice } from "./Prices";
 
 /** A quantity with the short unit; trailing zeros of hundredths are dropped. */
@@ -542,7 +543,7 @@ function PlaceDetails({ item, place }: { item: WarehouseItem; place: ItemStock["
   };
   return (
     <>
-          {here.length ? <UnitsBar item={item} ids={here} onDone={() => setMarked(new Set())} /> : null}
+          {here.length ? <UnitsBar item={item} contextId={place.context_id} ids={here} onDone={() => setMarked(new Set())} /> : null}
           {place.assets.length ? (
             <table>
               <thead>
@@ -583,7 +584,7 @@ function PlaceDetails({ item, place }: { item: WarehouseItem; place: ItemStock["
                     <td>{asset.public_id}</td>
                     {serials ? <td>{asset.serial_number || "—"}</td> : null}
                     <td>
-                      <Tags kind="assets" id={asset.id} tags={asset.tags} item={item} />
+                      <Tags kind="assets" id={asset.id} tags={asset.tags} item={item} contextId={place.context_id} />
                     </td>
                     <td>{money(asset.purchase_cost, asset.currency)}</td>
                     <td>
@@ -645,7 +646,7 @@ function PlaceDetails({ item, place }: { item: WarehouseItem; place: ItemStock["
                   ))}
                 </tbody>
               </table>
-              <Tags kind="lots" id={lot.id} tags={lot.tags} item={item} />
+              <Tags kind="lots" id={lot.id} tags={lot.tags} item={item} contextId={place.context_id} />
             </div>
           ))}
     </>
@@ -655,7 +656,17 @@ function PlaceDetails({ item, place }: { item: WarehouseItem; place: ItemStock["
 /** What is done with the marked units at once (customer's decision of 21.11.2026): one sale
  * price or one storage place for all of them. The line stays above the list while it is
  * scrolled. */
-function UnitsBar({ item, ids, onDone }: { item: WarehouseItem; ids: string[]; onDone: () => void }) {
+function UnitsBar({
+  item,
+  contextId,
+  ids,
+  onDone,
+}: {
+  item: WarehouseItem;
+  contextId: string;
+  ids: string[];
+  onDone: () => void;
+}) {
   const { t } = useTranslation();
   const company = useCompany();
   const can = useCan();
@@ -671,7 +682,6 @@ function UnitsBar({ item, ids, onDone }: { item: WarehouseItem; ids: string[]; o
     await client.invalidateQueries({ queryKey: ["warehouse-prices", company.public_id, item.id] });
     await client.invalidateQueries({ queryKey: ["warehouse-item-stock", company.public_id, item.id] });
     await client.invalidateQueries({ queryKey: ["warehouse-stock", company.public_id] });
-    await client.invalidateQueries({ queryKey: ["tags", company.public_id] });
     onDone();
   };
   return (
@@ -715,7 +725,7 @@ function UnitsBar({ item, ids, onDone }: { item: WarehouseItem; ids: string[]; o
       ) : null}
       {what === "place" ? (
         <>
-          <PlaceTags value={tags} onChange={setTags} />
+          <PlaceSelect contextId={contextId} value={tags} onChange={setTags} />
           <button type="button" disabled={places.pending} onClick={async () => done(await places.run({ asset_ids: ids, tags }))}>
             {t("common.save")}
           </button>
@@ -757,7 +767,19 @@ function IssuedCard({ item }: { item: WarehouseItem }) {
 }
 
 /** Text marks of a place for one asset or lot — hints where to look (§ 11.1.9). */
-function Tags({ kind, id, tags, item }: { kind: "assets" | "lots"; id: string; tags: string[]; item: WarehouseItem }) {
+function Tags({
+  kind,
+  id,
+  tags,
+  item,
+  contextId,
+}: {
+  kind: "assets" | "lots";
+  id: string;
+  tags: string[];
+  item: WarehouseItem;
+  contextId: string;
+}) {
   const { t } = useTranslation();
   const company = useCompany();
   const can = useCan();
@@ -784,14 +806,13 @@ function Tags({ kind, id, tags, item }: { kind: "assets" | "lots"; id: string; t
   }
   return (
     <span className="row" style={{ alignItems: "center" }}>
-      <PlaceTags value={chosen} onChange={setChosen} />
+      <PlaceSelect contextId={contextId} value={chosen} onChange={setChosen} />
       <button
         type="button"
         disabled={save.pending}
         onClick={async () => {
           if ((await save.run({ tags: chosen })) !== null) {
             setChosen(null);
-            await client.invalidateQueries({ queryKey: ["tags", company.public_id] });
             await client.invalidateQueries({ queryKey: ["warehouse-item-stock", company.public_id, item.id] });
             await client.invalidateQueries({ queryKey: ["warehouse-stock", company.public_id] });
           }
