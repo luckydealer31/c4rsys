@@ -3132,7 +3132,7 @@
     "cost": "Закупка",
     "retail": "Розница",
     "category": "Категория",
-    "units": "Единиц или партий",
+    "units": "Единиц / партий",
     "more_columns": "Ещё столбцы",
     "less_columns": "Свернуть столбцы",
     "warehouses_count": "Складов: {{count}}",

@@ -151,6 +151,9 @@ test("storage places are tags of their group", async ({ page }) => {
   // are is read above the list.
   await expect(page.getByRole("heading", { name: t("prices.title") })).toHaveCount(0);
   await expect(page.locator(".goods-facts")).toContainText("Абхазия");
+  // Everything about the goods is read here: the compatibility and the barcodes too.
+  await expect(page.locator(".goods-facts")).toContainText("Toyota");
+  await expect(page.locator(".goods-facts")).toContainText("4601234567890");
   await expect(page.locator(".scroll-window tbody td").nth(1)).toHaveText("1");
   await expect(page.getByRole("link", { name: t("stock.to_card"), exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: `← ${t("warehouse.tab_stock")}` })).toBeVisible();
@@ -232,23 +235,27 @@ test("storage places are tags of their group", async ({ page }) => {
   await expect(list.getByRole("textbox")).toHaveCount(0);
   await expect(list.getByRole("checkbox")).toHaveCount(2);
   await page.keyboard.press("Escape");
-  await expect(head("tags.title")).toBeVisible();
+  await expect(head("stock.tags")).toBeVisible();
   await expect(head("stock.warehouses")).toBeVisible();
   // The main columns stand first; the only unit is named by its identifier.
   await expect(lines.first()).toContainText("AST-");
   await expect(lines.first()).toContainText("Пхукет");
-  await expect(head("warehouse.country")).toBeVisible();
+  await expect(head("warehouse.country")).toHaveCount(0);
   await expect(head("stock.category")).toBeVisible();
-  // The order of the main columns (customer's remark of 22.11.2026): the description stands
-  // after the name, the category before the manufacturer.
-  await expect(page.locator("table.stock-table thead th").nth(1)).toHaveText(t("warehouse.model_characteristic"));
-  await expect(page.locator("table.stock-table thead th").nth(3)).toHaveText(t("stock.category"));
+  // The order of the main columns (customer's remark of 22.11.2026): name, article, description,
+  // category, storage place, stock, warehouses; the manufacturer, the country and the tags of
+  // the item are among the rest.
+  await expect(page.locator("table.stock-table thead th").nth(1)).toHaveText(t("warehouse.article"));
+  await expect(page.locator("table.stock-table thead th").nth(2)).toHaveText(t("warehouse.model_characteristic"));
+  await expect(page.locator("table.stock-table thead th").nth(4)).toHaveText(t("stock.tags"));
   // The arrow at the end of the heading opens the rest of the columns and closes them.
   await expect(head("stock.cost")).toHaveCount(0);
   await page.getByRole("button", { name: t("stock.more_columns"), exact: true }).click();
   await expect(head("stock.cost")).toBeVisible();
   await expect(lines.first()).toContainText("100 THB");
   await expect(head("warehouse.comment")).toBeVisible();
+  await expect(head("warehouse.country")).toBeVisible();
+  await expect(head("tags.title")).toBeVisible();
   await page.getByRole("button", { name: t("stock.less_columns"), exact: true }).click();
   await expect(head("stock.cost")).toHaveCount(0);
   // By warehouses every warehouse has its block and the column of the warehouses is gone.

@@ -3132,7 +3132,7 @@
     "cost": "ราคาซื้อ",
     "retail": "ราคาขาย",
     "category": "หมวดหมู่",
-    "units": "หน่วยหรือล็อต",
+    "units": "หน่วย / ล็อต",
     "more_columns": "คอลัมน์เพิ่มเติม",
     "less_columns": "ย่อคอลัมน์",
     "warehouses_count": "คลังสินค้า: {{count}}",

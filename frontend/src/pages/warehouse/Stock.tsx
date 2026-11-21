@@ -106,22 +106,22 @@ export function StockList() {
         <thead>
           <tr>
             <th>{t("warehouse.name")}</th>
-            <th>{t("warehouse.model_characteristic")}</th>
             <th>{t("warehouse.article")}</th>
+            <th>{t("warehouse.model_characteristic")}</th>
             <th>{t("stock.category")}</th>
-            <th>{t("warehouse.manufacturer")}</th>
-            <th>{t("warehouse.country")}</th>
-            <th>{t("tags.title")}</th>
+            <th>{t("stock.tags")}</th>
             <th>{t("stock.rest")}</th>
             {withPlaces ? <th>{t("stock.warehouses")}</th> : null}
             {more ? (
               <>
+                <th>{t("warehouse.manufacturer")}</th>
+                <th>{t("warehouse.country")}</th>
                 <th>{t("stock.units")}</th>
                 <th>{t("stock.cost")}</th>
                 <th>{t("stock.retail")}</th>
                 <th>{t("warehouse.attr_originality")}</th>
                 <th>{t("warehouse.attr_condition")}</th>
-                <th>{t("stock.tags")}</th>
+                <th>{t("tags.title")}</th>
                 <th>{t("warehouse.comment")}</th>
               </>
             ) : null}
@@ -148,18 +148,10 @@ export function StockList() {
                 {/* The only unit or lot is named by its own identifier. */}
                 {row.unit_id ? <div className="muted small">{row.unit_id}</div> : null}
               </td>
-              <td className="small">{row.item.model_characteristic || "—"}</td>
               <td>{row.item.article || "—"}</td>
+              <td className="small">{row.item.model_characteristic || "—"}</td>
               <td className="small">{categoryLabel(row.item.part_category, row.item.part_subcategory) || "—"}</td>
-              <td>{row.item.manufacturer_name || "—"}</td>
-              <td>
-                {row.item.country
-                  ? (regions.of(row.item.country) ?? row.item.country)
-                  : row.item.country_other || "—"}
-              </td>
-              <td>
-                <RowTags tags={tagsOf(row.item.id)} />
-              </td>
+              <td className="small">{row.tags.join(", ") || "—"}</td>
               <td className="nowrap">
                 {quantity(row.quantity, row.item.unit)}
                 {row.below_minimum ? (
@@ -171,6 +163,12 @@ export function StockList() {
               {withPlaces ? <td className="small">{row.places.map((p) => p.location_name).join(", ")}</td> : null}
               {more ? (
                 <>
+                  <td>{row.item.manufacturer_name || "—"}</td>
+                  <td>
+                    {row.item.country
+                      ? (regions.of(row.item.country) ?? row.item.country)
+                      : row.item.country_other || "—"}
+                  </td>
                   <td>{row.units}</td>
                   <td className="nowrap">
                     {range(row.cost_min, row.cost_max, row.currency) || (row.cost_unknown ? t("receipts.cost_not_given") : "—")}
@@ -182,7 +180,9 @@ export function StockList() {
                   </td>
                   <td>{row.item.originality ? t(`warehouse.value_${row.item.originality}`) : "—"}</td>
                   <td>{row.item.condition ? t(`warehouse.value_${row.item.condition}`) : "—"}</td>
-                  <td className="small muted">{row.tags.join(", ") || "—"}</td>
+                  <td>
+                    <RowTags tags={tagsOf(row.item.id)} />
+                  </td>
                   <td className="small">{row.item.comment || "—"}</td>
                 </>
               ) : null}
@@ -348,7 +348,12 @@ export function StockItemPage() {
   }
   const places = data.data.stock.places.filter((p) => !place || p.context_id === place);
   // What the goods are, to read and not to edit; only what is filled.
+  // Everything about the goods, to read and not to edit (customer's remark of 22.11.2026); only
+  // what is filled. A pair with both values pressed is shown as both.
+  const pair = (value: string, first: string, second: string) =>
+    (value === "both" ? [first, second] : value ? [value] : []).map((v) => t(`warehouse.value_${v}`)).join(", ");
   const facts = [
+    [t("warehouse.model_characteristic"), item.model_characteristic],
     [t("warehouse.article"), item.article],
     [t("warehouse.manufacturer"), item.manufacturer_name],
     [
@@ -358,6 +363,18 @@ export function StockItemPage() {
         : item.country_other,
     ],
     [t("stock.category"), categoryLabel(item.part_category, item.part_subcategory)],
+    [t("warehouse.barcodes"), item.barcodes.map((b) => b.code).join(", ")],
+    [
+      t("warehouse.applicability"),
+      item.applicability.map((a) => [a.make_name, a.model_name].filter(Boolean).join(" ")).join(", "),
+    ],
+    [t("warehouse.attr_side"), pair(item.side, "left", "right")],
+    [t("warehouse.attr_longitudinal"), pair(item.longitudinal, "front", "rear")],
+    [t("warehouse.attr_vertical"), pair(item.vertical, "upper", "lower")],
+    [t("warehouse.attr_placement"), pair(item.placement, "inner", "outer")],
+    [t("warehouse.attr_originality"), item.originality ? t(`warehouse.value_${item.originality}`) : ""],
+    [t("warehouse.attr_condition"), item.condition ? t(`warehouse.value_${item.condition}`) : ""],
+    [t("warehouse.comment"), item.comment],
   ].filter(([, value]) => value);
   return (
     <div className="page full">

@@ -3132,7 +3132,7 @@
     "cost": "Purchase",
     "retail": "Retail",
     "category": "Category",
-    "units": "Units or lots",
+    "units": "Units / lots",
     "more_columns": "More columns",
     "less_columns": "Fewer columns",
     "warehouses_count": "Warehouses: {{count}}",
