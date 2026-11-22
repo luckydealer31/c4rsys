@@ -2,7 +2,9 @@
 sent to the Telegram bot is read — the date, the amount, the currency, the seller and what was paid
 for — and kept as a draft with the photo. The draft changes no money. Its author — who sent the
 photo — later opens the list «Drafts of expenses» in «Finance», checks it, chooses the cash desk or
-account and the article, and records the expense. Only the author sees a draft.
+account and the article, and records the expense. A draft is seen by its author and by who
+may pay out of an account of the company — an authorized employee (customer's decision of
+23.11.2026); nobody else sees it.
 
 The reading is done by the outer service that reads the other documents (the socket is the same as
 in warehouse/recognition.py): it is given `INSTRUCTION` and answers by `SCHEMA`; `parse` checks the
@@ -18,11 +20,12 @@ from uuid import UUID
 from django.conf import settings
 from django.db.models import QuerySet
 
-from c4rsys.companies.models import Company
+from c4rsys.companies import access
+from c4rsys.companies.models import Company, Employment
 from c4rsys.finance import records
-from c4rsys.finance.models import ExpenseDraft, MoneyMovement
+from c4rsys.finance.models import CashAccount, ExpenseDraft, MoneyMovement
 from c4rsys.platform import errors
-from c4rsys.platform.commands import CommandContext
+from c4rsys.platform.commands import Actor, CommandContext
 
 INSTRUCTION = (
     "The document is a receipt, a bill or another proof of a payment made by a company: fuel, a "
@@ -115,11 +118,40 @@ def read(content: bytes, content_type: str) -> Read:
 # --- Drafts -------------------------------------------------------------------------------------
 
 
-def of_author(company_id: UUID, user_id: UUID) -> QuerySet[ExpenseDraft]:
-    """The open drafts of the person: nobody else sees them (customer's decision)."""
-    return ExpenseDraft.objects.filter(
-        company_id=company_id, author_user_id=user_id, state=ExpenseDraft.State.DRAFT
-    ).order_by("-created_at")
+def sees_all(actor: Actor) -> bool:
+    """An authorized employee: who may pay out of an active account of the company."""
+    if actor.company_id is None:
+        return False
+    resolver = access.RightsResolver()
+    accounts = CashAccount.objects.filter(
+        company_id=actor.company_id, state=CashAccount.State.ACTIVE
+    )
+    return any(
+        resolver.has_permission(actor, "finance.payout", resource_id=account.id)
+        for account in accounts
+    )
+
+
+def visible(company_id: UUID, actor: Actor) -> QuerySet[ExpenseDraft]:
+    """The open drafts the person sees: the own ones, and all of them for an authorized one."""
+    found = ExpenseDraft.objects.filter(company_id=company_id, state=ExpenseDraft.State.DRAFT)
+    if not sees_all(actor):
+        found = found.filter(author_user_id=actor.user_id)
+    return found.order_by("-created_at")
+
+
+def file_reader(user_id: UUID, item: Any) -> bool:
+    """The photo of a receipt is read by who sees its draft."""
+    draft = ExpenseDraft.objects.filter(file_id=item.id).first()
+    if draft is None:
+        return False
+    employment = Employment.objects.filter(
+        company_id=draft.company_id, user_id=user_id, state=Employment.State.ACTIVE
+    ).first()
+    if employment is None:
+        return False
+    actor = Actor(user_id=user_id, company_id=draft.company_id, employment_id=employment.id)
+    return sees_all(actor)
 
 
 def create(
@@ -150,13 +182,11 @@ def create(
     return draft
 
 
-def _own(company_id: UUID, draft_id: UUID, user_id: UUID) -> ExpenseDraft:
+def _open(company_id: UUID, draft_id: UUID, actor: Actor) -> ExpenseDraft:
     draft = (
-        ExpenseDraft.objects.select_for_update()
-        .filter(company_id=company_id, pk=draft_id, author_user_id=user_id)
-        .first()
+        ExpenseDraft.objects.select_for_update().filter(company_id=company_id, pk=draft_id).first()
     )
-    if draft is None:
+    if draft is None or (draft.author_user_id != actor.user_id and not sees_all(actor)):
         raise errors.not_found()
     if draft.state != ExpenseDraft.State.DRAFT:
         raise errors.business_rule("EXPENSE_DRAFT_CLOSED")
@@ -164,7 +194,7 @@ def _own(company_id: UUID, draft_id: UUID, user_id: UUID) -> ExpenseDraft:
 
 
 def remove(ctx: CommandContext, company_id: UUID, draft_id: UUID) -> None:
-    draft = _own(company_id, draft_id, ctx.actor.user_id)
+    draft = _open(company_id, draft_id, ctx.actor)
     draft.state = ExpenseDraft.State.REMOVED
     draft.save(update_fields=["state"])
     ctx.audit("expense_draft.removed", object_type="expense_draft", object_id=draft.id)
@@ -174,7 +204,7 @@ def record(
     ctx: CommandContext, company_id: UUID, draft_id: UUID, data: records.ManualRecord
 ) -> MoneyMovement:
     """The expense of the draft is recorded as a payout, and the draft is closed with it."""
-    draft = _own(company_id, draft_id, ctx.actor.user_id)
+    draft = _open(company_id, draft_id, ctx.actor)
     movement = records.record_manual(ctx, company_id, data)
     draft.state = ExpenseDraft.State.RECORDED
     draft.movement = movement

@@ -6,6 +6,7 @@ posted record is not changed: corrections are separate records (§ 17.2.11).
 """
 
 from dataclasses import dataclass
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -128,6 +129,9 @@ class ManualRecord:
     context_id: UUID | None = None
     vehicle_id: UUID | None = None
     note: str = ""
+    # When the money actually moved (customer's decision of 23.11.2026: an expense of a receipt
+    # is recorded by the date of the receipt); None — now. Never in the future.
+    posted_at: datetime | None = None
 
 
 def _dimensions(company_id: UUID, data: ManualRecord) -> None:
@@ -170,6 +174,8 @@ def record_manual(ctx: CommandContext, company_id: UUID, data: ManualRecord) -> 
         location_id = ActivityContext.objects.get(pk=data.context_id).location_id
 
     now = timezone.now()
+    if data.posted_at is not None and data.posted_at > now:
+        raise errors.validation_error("spent_on", code="DATE_IN_FUTURE")
     movement = MoneyMovement.objects.create(
         company_id=company_id,
         number=next_number(company_id, "payment"),
@@ -189,7 +195,7 @@ def record_manual(ctx: CommandContext, company_id: UUID, data: ManualRecord) -> 
         # (decision 26.10.2026).
         method="",
         note=data.note,
-        posted_at=now,
+        posted_at=data.posted_at or now,
         created_by_user_id=ctx.actor.user_id,
         created_at=now,
     )

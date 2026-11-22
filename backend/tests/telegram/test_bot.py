@@ -120,7 +120,14 @@ def _message(**content: Any) -> Any:
 def _press(data: str) -> Any:
     chat = {"id": TG, "type": "private"}
     return _update(
-        {"callback_query": {"id": "q", "data": data, "from": SENDER, "message": {"chat": chat}}}
+        {
+            "callback_query": {
+                "id": "q",
+                "data": data,
+                "from": SENDER,
+                "message": {"chat": chat, "message_id": 41},
+            }
+        }
     )
 
 
@@ -194,6 +201,8 @@ def test_a_vehicle_is_made_by_a_photo_after_the_confirmation(
     # Whose the vehicle is, is asked first; then the photo.
     _press("veh")
     assert "Чьё" in _texts(telegram)[-1]
+    # The message whose button was pressed is taken away from the chat.
+    assert ("deleteMessage", {"chat_id": TG, "message_id": 41}) in telegram
     _press("rel:managed")
     assert "Пришлите фото" in _texts(telegram)[-1]
     _message(photo=[{"file_id": "small", "file_size": 10}, {"file_id": "big", "file_size": 72}])
@@ -330,10 +339,13 @@ def test_a_receipt_becomes_a_draft_of_an_expense_seen_by_its_author(
         "THB",
     )
     assert (draft["seller"], draft["purpose"]) == ("PTT Station", "Fuel")
-    # The author opens the photo; nobody else sees the draft.
+    assert (draft["own"], draft["author"]) == (True, "Anna Petrova")
+    # The author opens the photo. An employee without the right to pay out does not see the draft
+    # nor its photo; an authorized one — who may pay out — sees both.
     assert owner.get(f"/api/files/{draft['file_id']}").status_code == 200
-    other, _ = hire(owner, cmp, "second@example.com", [{"type": "set", "set": "rental_manager"}])
+    other, _ = hire(owner, cmp, "second@example.com", [{"type": "set", "set": "driver"}])
     assert other.get(f"/api/c/{cmp}/expense-drafts").json()["drafts"] == []
+    assert other.get(f"/api/files/{draft['file_id']}").status_code == 404
     account = post(
         owner,
         f"/api/c/{cmp}/cash-accounts",
@@ -349,15 +361,25 @@ def test_a_receipt_becomes_a_draft_of_an_expense_seen_by_its_author(
         "currency": "THB",
         "article_id": article["id"],
         "note": "PTT Station — Fuel",
+        "spent_on": "2026-11-20",
     }
     refused = post(other, f"/api/c/{cmp}/expense-drafts/{draft['id']}/record", body, key())
     assert refused.status_code in (403, 404)
+    future = post(
+        owner,
+        f"/api/c/{cmp}/expense-drafts/{draft['id']}/record",
+        {**body, "spent_on": "2999-01-01"},
+        key(),
+    )
+    assert future.status_code == 400
     done = post(owner, f"/api/c/{cmp}/expense-drafts/{draft['id']}/record", body, key())
     assert done.status_code == 201, done.content
     assert done.json()["record"]["direction"] == "out"
     assert owner.get(f"/api/c/{cmp}/expense-drafts").json()["drafts"] == []
     kept = ExpenseDraft.objects.get()
-    assert kept.state == "recorded" and kept.movement_id is not None
+    assert kept.state == "recorded" and kept.movement is not None
+    # The expense is recorded by the date of the receipt: its noon in the time zone of the company.
+    assert str(kept.movement.posted_at) == "2026-11-20 05:00:00+00:00"
     # A closed draft is not recorded twice.
     again = post(owner, f"/api/c/{cmp}/expense-drafts/{draft['id']}/record", body, key())
     assert again.status_code == 422

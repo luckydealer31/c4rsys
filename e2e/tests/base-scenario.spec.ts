@@ -169,7 +169,7 @@ test("base example from registration to closing survives a restart", async ({ pa
           {
             id: "0190a000-0000-7000-8000-00000000d001", file_id: "0190a000-0000-7000-8000-00000000f001",
             spent_on: "2026-11-20", amount: "1250.5", currency: "THB", seller: "PTT Station",
-            purpose: "Fuel", created_at: "2026-11-20T10:00:00Z",
+            purpose: "Fuel", created_at: "2026-11-20T10:00:00Z", own: false, author: "Иван Водитель",
           },
         ],
       },
@@ -180,6 +180,10 @@ test("base example from registration to closing survives a restart", async ({ pa
   await expect(draft).toContainText("PTT Station");
   await expect(draft.getByRole("link", { name: t("drafts.receipt"), exact: true })).toBeVisible();
   await expect(draft.getByLabel(t("payments.amount", { currency: "THB" }))).toHaveValue("1250.5");
+  // The expense takes the date of the receipt; a draft of another employee names its author.
+  await expect(draft.getByLabel(t("drafts.date"))).toHaveValue("2026-11-20");
+  await expect(draft).toContainText(t("drafts.author", { name: "Иван Водитель" }));
+  await expect(draft.getByLabel(t("money.location"))).toHaveCount(0);
   const recordIt = draft.getByRole("button", { name: t("drafts.record"), exact: true });
   await expect(recordIt).toBeDisabled(); // the article is not chosen yet
   await draft.getByLabel(t("money.article")).selectOption({ index: 1 });

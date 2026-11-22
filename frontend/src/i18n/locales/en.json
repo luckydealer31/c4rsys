@@ -6726,13 +6726,15 @@
     "disconnect": "Disconnect"
   },
   "drafts": {
-    "own": "Your drafts of expenses.",
+    "own": "Drafts of expenses.",
     "empty": "There are no drafts of expenses.",
-    "hint": "A draft appears when you send a photo of a receipt to the c4rsys bot in Telegram («Receipt of an expense»). The system reads the date, the amount, the currency, the seller and what was paid for. Only you see the draft, and it changes no money: check the data, choose the cash desk or account and the article, and press «Record the expense».",
+    "hint": "A draft appears when a photo of a receipt is sent to the c4rsys bot in Telegram («Receipt of an expense»). The system reads the date, the amount, the currency, the seller and what was paid for. The draft is seen by its author and by the employees who may pay out; it changes no money. Check the data, choose the cash desk or account and the article, and press «Record the expense» — the expense is recorded by the date of the receipt.",
     "receipt": "Receipt",
     "nothing_read": "nothing was read from the receipt",
     "other_currency": "The receipt is in {{currency}}: enter the amount in the currency of the chosen cash desk or account.",
     "record": "Record the expense",
-    "remove": "Remove the draft"
+    "remove": "Remove the draft",
+    "date": "Date of the expense",
+    "author": "author: {{name}}"
   }
 }

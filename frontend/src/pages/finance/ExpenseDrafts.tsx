@@ -7,7 +7,6 @@ import type { CashAccount } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { ErrorMessage, Field, Info, Loading } from "../../components/ui";
 import { useCompany } from "../../layout/CompanyShell";
-import { useLocations } from "../settings/LocationsPage";
 import { useArticleName, useArticles } from "./Articles";
 
 type Draft = {
@@ -19,11 +18,15 @@ type Draft = {
   seller: string;
   purpose: string;
   created_at: string;
+  own: boolean;
+  author: string;
 };
 
 /** Drafts of expenses (customer's decisions of 23.11.2026): a receipt sent to the Telegram bot is
- * read and kept here with its photo. Only its author sees a draft: checks it, chooses the cash
- * desk or account and the article, and records the expense. A draft changes no money. */
+ * read and kept here with its photo. Its author checks it, chooses the cash
+ * desk or account and the article, and records the expense by the date of the receipt. An
+ * authorized employee — who may pay out — sees the drafts of the others too. A draft changes no
+ * money. */
 export function ExpenseDrafts({ accounts }: { accounts: CashAccount[] }) {
   const { t } = useTranslation();
   const company = useCompany();
@@ -49,7 +52,6 @@ function DraftCard({ draft, accounts }: { draft: Draft; accounts: CashAccount[] 
   const company = useCompany();
   const client = useQueryClient();
   const articles = useArticles();
-  const locations = useLocations();
   const nameOf = useArticleName();
   // The account in the currency of the receipt is offered first.
   const first = accounts.find((a) => a.currency === draft.currency) ?? accounts[0];
@@ -57,8 +59,9 @@ function DraftCard({ draft, accounts }: { draft: Draft; accounts: CashAccount[] 
     cash_account_id: "",
     amount: draft.amount ?? "",
     article_id: "",
-    location_id: "",
-    note: [draft.seller, draft.purpose, draft.spent_on].filter(Boolean).join(" · ").slice(0, 500),
+    // The expense is recorded by the date of the receipt (customer's decision of 23.11.2026).
+    spent_on: draft.spent_on ?? "",
+    note: [draft.seller, draft.purpose].filter(Boolean).join(" · ").slice(0, 500),
   });
   const form = { ...chosen, cash_account_id: chosen.cash_account_id || (first?.id ?? "") };
   const account = accounts.find((a) => a.id === form.cash_account_id);
@@ -88,6 +91,7 @@ function DraftCard({ draft, accounts }: { draft: Draft; accounts: CashAccount[] 
         ]
           .filter(Boolean)
           .join(" · ") || t("drafts.nothing_read")}
+        {draft.own ? null : <span className="muted"> · {t("drafts.author", { name: draft.author })}</span>}
       </p>
       {accounts.length === 0 ? (
         <p className="muted">{t("money.no_accounts")}</p>
@@ -119,15 +123,8 @@ function DraftCard({ draft, accounts }: { draft: Draft; accounts: CashAccount[] 
               ))}
             </select>
           </Field>
-          <Field label={t("money.location")}>
-            <select value={form.location_id} onChange={(e) => setForm({ ...form, location_id: e.target.value })}>
-              <option value="">—</option>
-              {(locations.data?.locations ?? []).map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.name}
-                </option>
-              ))}
-            </select>
+          <Field label={t("drafts.date")}>
+            <input type="date" value={form.spent_on} onChange={(e) => setForm({ ...form, spent_on: e.target.value })} />
           </Field>
           <Field label={t("money.note")}>
             <input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
@@ -143,7 +140,7 @@ function DraftCard({ draft, accounts }: { draft: Draft; accounts: CashAccount[] 
           type="button"
           disabled={!form.amount || !form.article_id || !form.cash_account_id || record.pending}
           onClick={async () => {
-            const body = { ...form, currency: account?.currency ?? "", location_id: form.location_id || null };
+            const body = { ...form, currency: account?.currency ?? "" };
             if ((await record.run(body)) !== null) await refresh();
           }}
         >

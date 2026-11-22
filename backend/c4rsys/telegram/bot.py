@@ -117,6 +117,21 @@ def _warehouses(context: companies.CompanyContext, actor: Actor) -> list[Activit
     ]
 
 
+def _clear(chat_id: int, message_id: Any) -> None:
+    """The message whose button was pressed is taken away (customer's remark of 23.11.2026): the
+    answered questions do not pile up in the chat and cannot be pressed twice. Telegram does not
+    delete a message older than two days: then only its buttons are taken off."""
+    if not isinstance(message_id, int):
+        return
+    try:
+        api.call("deleteMessage", chat_id=chat_id, message_id=message_id)
+    except Exception:  # noqa: BLE001 -- an old message stays, without its buttons
+        try:
+            api.call("editMessageReplyMarkup", chat_id=chat_id, message_id=message_id)
+        except Exception:  # noqa: BLE001 -- nothing more can be done with it
+            logger.warning("Telegram did not let the bot clear a message")
+
+
 class Talk:
     """One update of a bound Telegram account."""
 
@@ -655,6 +670,7 @@ def handle(update: dict[str, Any]) -> None:
             api.call("answerCallbackQuery", callback_query_id=query["id"])
         except Exception:  # noqa: BLE001 -- the button only stops blinking
             logger.warning("Telegram did not take the answer to a button")
+        _clear(int(chat["id"]), message.get("message_id"))
     link = links.link_of_telegram(int(sender["id"]))
     text = str(message.get("text") or "") if query is None else ""
     # A new link of the profile opened by a bound account binds anew.

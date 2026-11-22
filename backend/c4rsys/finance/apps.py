@@ -16,9 +16,11 @@ class FinanceConfig(AppConfig):
         platform_search.register("payment", finance_search.provider)
         # Receipts of expenses are read by the service that reads the other documents (customer's
         # decision of 23.11.2026).
+        from c4rsys.files import services as files
         from c4rsys.finance import expense_drafts
         from c4rsys.warehouse import recognition_anthropic as outer
 
+        files.register_reader("expense_receipt", expense_drafts.file_reader)
         if outer.available():
             expense_drafts.register(
                 outer.NAME,

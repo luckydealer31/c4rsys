@@ -1,15 +1,19 @@
 """HTTP API of finance: accounts and their records, articles, payments (ТЗ гл. 17, § 22.1.7,
 § 23.1.11–23.1.12, § 23.7.1)."""
 
+from datetime import UTC, date, datetime, time
 from decimal import Decimal, InvalidOperation
 from typing import Any
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from django.db.models import Q
 from django.http import HttpRequest, JsonResponse
+from django.utils import timezone
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from c4rsys.accounts.middleware import require_user
+from c4rsys.accounts.models import UserAccount
 from c4rsys.companies import access
 from c4rsys.companies import services as companies
 from c4rsys.companies.views import run_and_respond
@@ -754,9 +758,11 @@ def transfer_create(request: HttpRequest, cmp: str) -> JsonResponse:
 # --- Drafts of expenses (customer's decisions of 23.11.2026) -------------------------------------
 
 
-def _draft_payload(draft: Any) -> dict[str, Any]:
+def _draft_payload(draft: Any, authors: dict[UUID, str], user_id: UUID) -> dict[str, Any]:
     return {
         "id": str(draft.id),
+        "own": draft.author_user_id == user_id,
+        "author": authors.get(draft.author_user_id, ""),
         "file_id": str(draft.file_id),
         "spent_on": draft.spent_on.isoformat() if draft.spent_on else None,
         "amount": format(draft.amount.normalize(), "f") if draft.amount is not None else None,
@@ -773,8 +779,12 @@ def expense_drafts(request: HttpRequest, cmp: str) -> JsonResponse:
     from c4rsys.finance import expense_drafts as drafts
 
     context, actor = _actor(request, cmp)
-    found = drafts.of_author(context.company.id, actor.user_id)[:200]
-    return JsonResponse({"drafts": [_draft_payload(d) for d in found]})
+    found = list(drafts.visible(context.company.id, actor)[:200])
+    authors = {
+        u.id: f"{u.first_name} {u.last_name}".strip()
+        for u in UserAccount.objects.filter(pk__in={d.author_user_id for d in found})
+    }
+    return JsonResponse({"drafts": [_draft_payload(d, authors, actor.user_id) for d in found]})
 
 
 @require_http_methods(["DELETE"])
@@ -812,8 +822,8 @@ def expense_draft_record(request: HttpRequest, cmp: str, draft_id: UUID) -> Json
         amount=_amount(data.get("amount"), "amount", currency.minor_units),
         currency=currency.code,
         article_id=_uuid(data.get("article_id"), "article_id"),
-        location_id=_optional_uuid(data, "location_id"),
         note=get_str(data, "note", max_length=NOTE_MAX, required=False),
+        posted_at=_spent_at(data.get("spent_on"), context.company.timezone),
     )
 
     def handler(ctx: CommandContext) -> CommandResult:
@@ -826,7 +836,22 @@ def expense_draft_record(request: HttpRequest, cmp: str, draft_id: UUID) -> Json
         "amount": str(record.amount),
         "currency": record.currency,
         "article_id": str(record.article_id),
-        "location_id": str(record.location_id) if record.location_id else None,
+        "spent_on": record.posted_at.isoformat() if record.posted_at else None,
         "note": record.note,
     }
     return run_and_respond(request, "expense_draft.record", actor, payload, handler)
+
+
+def _spent_at(value: Any, zone: str) -> datetime | None:
+    """The date of the receipt as the moment of the expense: the noon of that day in the time
+    zone of the company; the date of today — now; empty — now."""
+    if value in (None, ""):
+        return None
+    try:
+        day = date.fromisoformat(str(value))
+        tz = ZoneInfo(zone) if zone else UTC
+    except (ValueError, KeyError) as exc:
+        raise errors.validation_error("spent_on") from exc
+    if day == timezone.now().astimezone(tz).date():
+        return None
+    return datetime.combine(day, time(12), tzinfo=tz)
