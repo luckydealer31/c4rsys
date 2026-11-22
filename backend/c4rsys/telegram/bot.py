@@ -1,7 +1,8 @@
 """The talk with the bot (customer's decisions of 22.11.2026). The first part: binding the
 Telegram account by the link of the profile and the shared number, the choice of the company, and
 a vehicle made by a photo of its paper — the bot shows what was read and makes the vehicle after
-«Confirm» in the chat.
+«Confirm» in the chat; and a document of a supplier, which becomes a draft of a warehouse
+receipt to be checked and posted on the site.
 
 The bot acts as the employee it is bound to: every right is checked as on the site, and what it
 makes goes through the same commands with the same journal."""
@@ -17,7 +18,7 @@ from django.utils import timezone
 from c4rsys.accounts.models import UserAccount
 from c4rsys.companies import access, locations
 from c4rsys.companies import services as companies
-from c4rsys.companies.models import Employment
+from c4rsys.companies.models import ActivityContext, Employment
 from c4rsys.files import checks
 from c4rsys.files import services as files
 from c4rsys.files.models import StoredFile
@@ -25,11 +26,15 @@ from c4rsys.fleet import characteristics, owners, recognition
 from c4rsys.fleet import services as fleet
 from c4rsys.fleet.catalog.match import in_text as catalog_match
 from c4rsys.fleet.models import VehicleCard
+from c4rsys.parties import counterparties
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult, run_command
 from c4rsys.telegram import api, links
 from c4rsys.telegram.models import TelegramLink
 from c4rsys.telegram.texts import FIELDS, field, language, t
+from c4rsys.warehouse import catalog, stock
+from c4rsys.warehouse import recognition as invoices
+from c4rsys.warehouse.models import Item, Receipt
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +105,17 @@ def _places(context: companies.CompanyContext, actor: Actor) -> list[tuple[str, 
     ]
 
 
+def _warehouses(context: companies.CompanyContext, actor: Actor) -> list[ActivityContext]:
+    """The warehouses the employee may receive goods into."""
+    return [
+        place
+        for place in locations.storage_contexts(context.company.id)
+        if access.RightsResolver().has_permission(
+            actor, "warehouse.receive", location_id=place.location_id, context_id=place.id
+        )
+    ]
+
+
 class Talk:
     """One update of a bound Telegram account."""
 
@@ -129,7 +145,7 @@ class Talk:
                 return self.say("no_company")
             rows = [[(c.company.display_name, f"co:{c.company.public_id}")] for c in contexts]
             return self.say("choose_company", _buttons(*rows))
-        rows = [[(t(self.lang, "menu_vehicle"), "veh")]]
+        rows = [[(t(self.lang, "menu_vehicle"), "veh")], [(t(self.lang, "menu_invoice"), "inv")]]
         if len(contexts) > 1:
             rows.append([(t(self.lang, "menu_company"), "cos")])
         self.say("menu", _buttons(*rows), company=current.company.display_name)
@@ -169,28 +185,30 @@ class Talk:
         _save(self.link, {"step": "photo"})
         self.say("send_photo")
 
-    def photo(self, message: dict[str, Any]) -> None:
-        if self.link.state.get("step") != "photo":
-            return self.menu()
+    def _file(self, message: dict[str, Any], purpose: str) -> tuple[UUID, bytes, str] | None:
+        """The photo or the file of the message, checked and kept: its id, content and type."""
         if message.get("photo"):
             source = message["photo"][-1]
         else:
             source = message["document"]
         if int(source.get("file_size") or 0) > files.MAX_DOCUMENT_BYTES:
-            return self.say("file_wrong")
+            self.say("file_wrong")
+            return None
         self.say("reading")
         content = api.download(str(source["file_id"]))
         try:
             content_type = files.document_type(content)
         except errors.ApiError:
-            return self.say("file_wrong")
+            self.say("file_wrong")
+            return None
         if checks.inspect(content_type, content):
-            return self.say("file_wrong")
+            self.say("file_wrong")
+            return None
         user_id = self.link.user_id
 
         def keep(ctx: CommandContext) -> CommandResult:
             item = files.store(
-                purpose=StoredFile.Purpose.VEHICLE_PAPER,
+                purpose=purpose,
                 uploaded_by=user_id,
                 content=content,
                 content_type=content_type,
@@ -210,13 +228,25 @@ class Talk:
             )
             return CommandResult(201, {"id": str(item.id)})
 
-        run_command(
+        kept = run_command(
             command="file.upload",
             actor=Actor(user_id=user_id),
             idempotency_key=self.key("file"),
             payload={"sha256": hashlib.sha256(content).hexdigest()},
             handler=keep,
         )
+        return UUID(kept.body["id"]), content, content_type
+
+    def photo(self, message: dict[str, Any]) -> None:
+        step = self.link.state.get("step")
+        if step == "invoice":
+            return self.invoice_photo(message)
+        if step != "photo":
+            return self.menu()
+        taken = self._file(message, StoredFile.Purpose.VEHICLE_PAPER)
+        if taken is None:
+            return None
+        _, content, content_type = taken
         try:
             paper = recognition.read(content, content_type)
         except errors.ApiError as exc:
@@ -351,6 +381,139 @@ class Talk:
         self.say("created", name=made.body["name"], url=url)
         self.menu()
 
+    # --- A document of a supplier ---------------------------------------------------------------
+
+    def invoice(self, chosen: str = "") -> None:
+        """«A delivery note by a photo»: the warehouse is asked when there are several."""
+        acting = self._acting()
+        if acting is None:
+            return
+        context, actor = acting
+        if not invoices.configured():
+            return self.say("off")
+        places = _warehouses(context, actor)
+        if not places:
+            return self.say("no_right_receive")
+        if len(places) > 1 and not chosen:
+            rows = [[(place.location.name, f"wh:{place.id}")] for place in places]
+            return self.say("which_warehouse", _buttons(*rows))
+        place = next((p for p in places if str(p.id) == chosen), places[0])
+        _save(self.link, {"step": "invoice", "warehouse": str(place.id)})
+        self.say("send_invoice", warehouse=place.location.name)
+
+    def invoice_photo(self, message: dict[str, Any]) -> None:
+        """The document is read into a draft of a receipt (customer's decision of 22.11.2026):
+        the lines whose goods are found in the catalog, with the quantity and the price read. It
+        is checked, completed and posted on the site; the stock does not change here."""
+        acting = self._acting()
+        if acting is None:
+            return
+        context, actor = acting
+        place = next(
+            (
+                p
+                for p in _warehouses(context, actor)
+                if str(p.id) == self.link.state.get("warehouse")
+            ),
+            None,
+        )
+        if place is None:
+            return self.say("no_right_receive")
+        taken = self._file(message, StoredFile.Purpose.WAREHOUSE_DOCUMENT)
+        if taken is None:
+            return None
+        file_id, content, content_type = taken
+        try:
+            document = invoices.read(content, content_type)
+        except errors.ApiError as exc:
+            return self.say("off" if exc.code == "RECOGNITION_NOT_CONFIGURED" else "read_failed")
+        active = catalog.items_of(context.company.id).filter(state=Item.State.ACTIVE)
+        lines: list[stock.LineData] = []
+        missed: list[str] = []
+        for line in document.lines:
+            same = (
+                active.filter(article__iexact=line.article)
+                if line.article
+                else active.filter(name__iexact=line.name)
+            )
+            item = same.first()
+            whole = line.quantity is not None and line.quantity == line.quantity.to_integral_value()
+            # Not found in the catalog, without a quantity, or a part of a piece: left to the site.
+            if (
+                item is None
+                or line.quantity is None
+                or (item.accounting == Item.Accounting.INDIVIDUAL and not whole)
+            ):
+                missed.append(line.name)
+                continue
+            lines.append(
+                stock.LineData(item_id=item.id, quantity=line.quantity, unit_cost=line.unit_cost)
+            )
+        _save(self.link, {})
+        if not lines:
+            self.say("invoice_nothing", missed="\n".join(f"— {name}" for name in missed[:30]))
+            return self.menu()
+        named = document.supplier_name
+        suppliers = (
+            [
+                card
+                for card in counterparties.search(context.company.id, named)[:5]
+                if card.company_name.casefold() == named.casefold()
+            ]
+            if named
+            else []
+        )
+        supplier = suppliers[0] if len(suppliers) == 1 else None
+        about = " ".join(
+            filter(
+                None,
+                [
+                    document.document_number,
+                    document.document_date.isoformat() if document.document_date else "",
+                    "" if supplier or not named else named,
+                ],
+            )
+        )
+        data = stock.ReceiptData(
+            context_id=place.id,
+            source=Receipt.Source.PURCHASE,
+            supplier_id=supplier.id if supplier else None,
+            document_id=file_id,
+            comment=about[:500],
+            lines=tuple(lines),
+        )
+
+        def handler(ctx: CommandContext) -> CommandResult:
+            receipt = stock.create_receipt(ctx, context.company, data)
+            return CommandResult(201, {"id": str(receipt.id), "number": receipt.number})
+
+        try:
+            made = run_command(
+                command="warehouse.create_receipt",
+                actor=actor,
+                idempotency_key=self.key("receipt"),
+                payload={**data.as_dict(), "through": "telegram"},
+                handler=handler,
+            )
+        except errors.ApiError as exc:
+            self.say("invoice_failed", code=exc.code)
+            return self.menu()
+        url = (
+            f"{settings.C4R_PUBLIC_URL.rstrip('/')}/c/{context.company.public_id}"
+            f"/warehouse/receipts/{made.body['id']}"
+        )
+        self.say(
+            "invoice_made",
+            number=made.body["number"],
+            added=len(lines),
+            total=len(document.lines),
+            supplier=supplier.company_name if supplier else t(self.lang, "invoice_no_supplier"),
+            url=url,
+        )
+        if missed:
+            self.say("invoice_missed", missed="\n".join(f"— {name}" for name in missed[:30]))
+        self.menu()
+
 
 def _unbound(update_id: int, sender: dict[str, Any], chat_id: int, message: dict[str, Any]) -> None:
     """Somebody the bot does not know: only the link of the profile and the number are taken."""
@@ -440,6 +603,10 @@ def handle(update: dict[str, Any]) -> None:
             talk.other_company()
         elif data == "veh":
             talk.vehicle()
+        elif data == "inv":
+            talk.invoice()
+        elif data.startswith("wh:"):
+            talk.invoice(data[3:])
         elif data == "ok":
             talk.confirmed()
         elif data == "no":

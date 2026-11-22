@@ -3,6 +3,7 @@ the shared number, the choice of the company, a vehicle by a photo of its paper.
 service that reads the papers are replaced by functions of the tests."""
 
 import json
+from decimal import Decimal
 from typing import Any
 
 import pytest
@@ -12,6 +13,8 @@ from c4rsys.fleet import recognition
 from c4rsys.platform.models import AuditEvent
 from c4rsys.telegram import api
 from c4rsys.telegram.models import TelegramLink
+from c4rsys.warehouse import recognition as invoices
+from c4rsys.warehouse.models import Receipt
 from tests.accounts.helpers import post
 from tests.companies.helpers import create_company, key, named_user
 from tests.files.helpers import PNG
@@ -62,6 +65,32 @@ def reader(settings: Any) -> Any:
     settings.C4R_INVOICE_RECOGNITION = "test"
     yield box
     recognition._recognizers.pop("test", None)
+
+
+@pytest.fixture
+def invoice_reader(settings: Any) -> Any:
+    box: dict[str, Any] = {
+        "answer": {
+            "supplier_name": "auto parts co",
+            "document_date": "2026-11-12",
+            "document_number": "INV-77",
+            "currency": "THB",
+            "lines": [
+                {
+                    "name": "Brake pads",
+                    "article": "BP-100",
+                    "quantity": "2",
+                    "unit_cost": "1250.50",
+                },
+                {"name": "Unknown thing", "article": None, "quantity": "1", "unit_cost": "5"},
+                {"name": "Oil 5W30", "article": None, "quantity": None, "unit_cost": "300"},
+            ],
+        }
+    }
+    invoices.register("test", lambda content, kind: box["answer"])
+    settings.C4R_INVOICE_RECOGNITION = "test"
+    yield box
+    invoices._recognizers.pop("test", None)
 
 
 _next = iter(range(1, 10_000))
@@ -191,3 +220,60 @@ def test_a_vehicle_is_made_by_a_photo_after_the_confirmation(
     _press("veh")
     _message(photo=[{"file_id": "big", "file_size": 72}])
     assert "Не удалось прочитать" in _texts(telegram)[-1]
+
+
+def test_a_document_of_a_supplier_becomes_a_draft_of_a_receipt(
+    owner: Client, telegram: list[tuple[str, dict[str, Any]]], invoice_reader: Any
+) -> None:
+    cmp = create_company(owner, timezone="Asia/Bangkok", main_currency="THB").json()["company"][
+        "public_id"
+    ]
+    made = post(
+        owner, f"/api/c/{cmp}/locations", {"name": "Phuket", "contexts": ["warehouse"]}, key()
+    ).json()["location"]
+    warehouse = next(c["id"] for c in made["contexts"] if c["type"] == "warehouse")
+    items = f"/api/c/{cmp}/warehouse/items"
+    pads = post(owner, items, {"name": "Колодки", "unit": "piece", "article": "bp-100"}, key())
+    post(owner, items, {"name": "oil 5w30", "unit": "liter"}, key())
+    supplier = post(
+        owner,
+        f"/api/c/{cmp}/counterparties",
+        {
+            "kind": "company",
+            "company_name": "Auto Parts Co",
+            "contacts": [{"kind": "email", "value": "sales@parts.example"}],
+        },
+        key(),
+    )
+    assert supplier.status_code == 201, supplier.content
+    _bind(owner)
+    menu = telegram[-1][1]["reply_markup"]["inline_keyboard"]
+    assert [row[0]["callback_data"] for row in menu] == ["veh", "inv"]
+
+    _press("inv")
+    assert "Склад: Phuket" in _texts(telegram)[-1]
+    _message(photo=[{"file_id": "big", "file_size": 72}])
+    receipt = Receipt.objects.get()
+    # A draft: nothing is in the stock until it is posted on the site.
+    assert receipt.state == "draft"
+    assert str(receipt.context_id) == warehouse
+    assert str(receipt.supplier_id) == supplier.json()["counterparty"]["id"]
+    assert receipt.document_id is not None
+    assert "INV-77" in receipt.comment
+    lines = [(str(line.item_id), line.quantity, line.unit_cost) for line in receipt.lines.all()]
+    assert lines == [(pads.json()["item"]["id"], Decimal(2), Decimal("1250.50"))]
+    assert owner.get(f"/api/c/{cmp}/warehouse/stock").json()["stock"] == []
+    said = "\n".join(_texts(telegram))
+    assert "Строк добавлено: 1 из 3" in said
+    assert f"/c/{cmp}/warehouse/receipts/{receipt.id}" in said
+    assert "— Unknown thing" in said and "— Oil 5W30" in said
+
+    # Nothing of the document is in the catalog: no draft.
+    invoice_reader["answer"] = {
+        **invoice_reader["answer"],
+        "lines": [{"name": "X", "quantity": "1"}],
+    }
+    _press("inv")
+    _message(photo=[{"file_id": "big", "file_size": 72}])
+    assert "черновик не создан" in _texts(telegram)[-2]
+    assert Receipt.objects.count() == 1

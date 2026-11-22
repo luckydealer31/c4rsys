@@ -60,6 +60,51 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "A vehicle by a photo of its paper",
         "th": "เพิ่มรถจากรูปถ่ายเอกสาร",
     },
+    "menu_invoice": {
+        "ru": "Накладная по фото",
+        "en": "A delivery note by a photo",
+        "th": "ใบส่งของจากรูปถ่าย",
+    },
+    "no_right_receive": {
+        "ru": "В этой компании нет склада, на который вы можете принимать товар.",
+        "en": "There is no warehouse in this company you can receive goods into.",
+        "th": "ไม่มีคลังสินค้าในบริษัทนี้ที่คุณรับสินค้าเข้าได้",
+    },
+    "which_warehouse": {
+        "ru": "На какой склад поступление?",
+        "en": "Which warehouse is the receipt for?",
+        "th": "รับสินค้าเข้าคลังใด?",
+    },
+    "send_invoice": {
+        "ru": "Склад: {warehouse}. Пришлите фото накладной, счёта или чека поставщика. Можно фото или файл (PDF, картинка).",
+        "en": "Warehouse: {warehouse}. Send a photo of the delivery note, the invoice or the receipt of the supplier. A photo or a file (PDF, picture) will do.",
+        "th": "คลัง: {warehouse} ส่งรูปถ่ายใบส่งของ ใบแจ้งหนี้ หรือใบเสร็จของผู้ขาย ส่งเป็นรูปถ่ายหรือไฟล์ (PDF, รูปภาพ) ได้",
+    },
+    "invoice_made": {
+        "ru": "Черновик поступления № {number} создан. Строк добавлено: {added} из {total}. Поставщик: {supplier}.\nПроверьте и проведите на сайте:\n{url}",
+        "en": "The draft of receipt No. {number} is made. Lines added: {added} of {total}. Supplier: {supplier}.\nCheck and post it on the site:\n{url}",
+        "th": "สร้างร่างใบรับสินค้าเลขที่ {number} แล้ว เพิ่มรายการ: {added} จาก {total} ผู้ขาย: {supplier}\nตรวจสอบและบันทึกบนเว็บไซต์:\n{url}",
+    },
+    "invoice_no_supplier": {
+        "ru": "не найден в базе, выберите на сайте",
+        "en": "not found in the base, choose on the site",
+        "th": "ไม่พบในฐานข้อมูล โปรดเลือกบนเว็บไซต์",
+    },
+    "invoice_missed": {
+        "ru": "Не добавлены (нет в каталоге или не прочитано количество) — добавьте на сайте:\n{missed}",
+        "en": "Not added (not in the catalog, or the quantity is not read) — add them on the site:\n{missed}",
+        "th": "ไม่ได้เพิ่ม (ไม่มีในแค็ตตาล็อกหรืออ่านจำนวนไม่ได้) — โปรดเพิ่มบนเว็บไซต์:\n{missed}",
+    },
+    "invoice_nothing": {
+        "ru": "Ни одна строка накладной не найдена в каталоге, черновик не создан. Оформите поступление на сайте.\n{missed}",
+        "en": "No line of the document is found in the catalog, no draft is made. Make the receipt on the site.\n{missed}",
+        "th": "ไม่พบรายการใดของเอกสารในแค็ตตาล็อก จึงไม่ได้สร้างร่าง โปรดทำใบรับสินค้าบนเว็บไซต์\n{missed}",
+    },
+    "invoice_failed": {
+        "ru": "Не удалось создать черновик поступления ({code}). Оформите его на сайте.",
+        "en": "The draft of the receipt could not be made ({code}). Make it on the site.",
+        "th": "ไม่สามารถสร้างร่างใบรับสินค้าได้ ({code}) โปรดทำบนเว็บไซต์",
+    },
     "menu_company": {
         "ru": "Сменить компанию",
         "en": "Another company",
