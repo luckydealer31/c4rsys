@@ -22,6 +22,10 @@ import { useMoney, useQuantity } from "./Stock";
 
 export const NEW_KINDS = ["issue", "consume", "move", "write_off"] as const;
 type NewKind = (typeof NEW_KINDS)[number];
+/** The operations offered by buttons (customer's decision of 22.11.2026): goods are not issued
+ * or used «on a vehicle» by an operation any more — they leave into an order or into a service.
+ * The issues made earlier stay in the list and are returned or consumed from their pages. */
+export const OFFERED_KINDS = ["move", "write_off"] as const;
 export const RIGHT: Record<NewKind, string> = {
   issue: "warehouse.issue",
   consume: "warehouse.issue",
@@ -154,7 +158,7 @@ export function NewOperationPage() {
   const navigate = useNavigate();
   const client = useQueryClient();
   const [params] = useSearchParams();
-  const kind = (NEW_KINDS as readonly string[]).includes(params.get("kind") ?? "") ? (params.get("kind") as NewKind) : "issue";
+  const kind = (NEW_KINDS as readonly string[]).includes(params.get("kind") ?? "") ? (params.get("kind") as NewKind) : "move";
   const warehouses = useWarehouses();
   const reasons = useReasons();
   const reasonName = useReasonName();

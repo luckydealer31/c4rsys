@@ -284,6 +284,9 @@ test("storage places are a list of the warehouse", async ({ page }) => {
   expect((await side.boundingBox())!.x).toBeGreaterThan(first.x + 600);
   await page.getByRole("tab", { name: t("warehouse.tab_operations"), exact: true }).click();
   await expect(side.getByRole("link", { name: t("operations.new_move") })).toBeVisible();
+  // No issue or use «on a vehicle» by an operation (customer's decision of 22.11.2026).
+  await expect(side.getByRole("link", { name: t("operations.new_issue") })).toHaveCount(0);
+  await expect(side.getByRole("link", { name: t("operations.new_consume") })).toHaveCount(0);
   await page.getByRole("tab", { name: t("warehouse.tab_items"), exact: true }).click();
   await expect(side.getByRole("link", { name: t("warehouse.create_item") })).toBeVisible();
   await page.getByRole("tab", { name: t("warehouse.tab_reserves"), exact: true }).click();

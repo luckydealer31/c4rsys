@@ -13,15 +13,12 @@ import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { RowTags, useTagsOf } from "../tags/Tags";
 import { useVehicles } from "../vehicles/VehiclesPage";
 import { useCategoryLabel } from "./Categories";
-import { NEW_KINDS, RIGHT, useWarehouses } from "./Operations";
+import { NEW_KINDS, OFFERED_KINDS, RIGHT, useWarehouses } from "./Operations";
 import { PlaceSelect } from "./Places";
 import { ToOrderModal, ToServiceModal } from "./SendTo";
 import { serviceLocations } from "../service/hooks";
 import { useLocations } from "../settings/LocationsPage";
 
-// The marked units are moved or written off from their card; they are issued through an order
-// or a service, not «to a vehicle» (customer's decision of 22.11.2026).
-const UNIT_KINDS = ["move", "write_off"] as const;
 import { AssetPrice, PricesCard, VehiclePrice } from "./Prices";
 
 /** A quantity with the short unit; trailing zeros of hundredths are dropped. */
@@ -736,7 +733,7 @@ function UnitsBar({
               {t("send.to_service")}
             </button>
           ) : null}
-          {UNIT_KINDS.filter((kind) => can(RIGHT[kind])).map((kind) => (
+          {OFFERED_KINDS.filter((kind) => can(RIGHT[kind])).map((kind) => (
             <button key={kind} type="button" className="secondary" onClick={() => operate(kind)}>
               {t(`operations.new_${kind}`)}
             </button>

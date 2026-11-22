@@ -11,7 +11,7 @@ import { SectionTabs } from "../../layout/SectionTabs";
 import { useFirstTab } from "../../layout/tabOrder";
 import { useCategoryLabel } from "./Categories";
 import { InventoriesList } from "./Inventory";
-import { NEW_KINDS, OperationsList, RIGHT, WarehouseSettingsCard } from "./Operations";
+import { OFFERED_KINDS, OperationsList, RIGHT, WarehouseSettingsCard } from "./Operations";
 import { PurchasesList } from "./Purchases";
 import { ReceiptsList } from "./Receipts";
 import { ReservesList } from "./Reserves";
@@ -44,7 +44,7 @@ export function WarehousePage() {
         : tab === "receipts"
           ? [receive]
           : tab === "operations"
-            ? NEW_KINDS.map((kind): [boolean, string, string] => [
+            ? OFFERED_KINDS.map((kind): [boolean, string, string] => [
                 can(RIGHT[kind]),
                 `/warehouse/operations/new?kind=${kind}`,
                 t(`operations.new_${kind}`),
