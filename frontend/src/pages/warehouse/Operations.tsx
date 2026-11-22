@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 
 import { uploadFile } from "../../api/client";
 import { PlacesSettings } from "./Places";
@@ -163,14 +163,21 @@ export function NewOperationPage() {
     `/c/${company.public_id}/warehouse/vehicles`,
     (kind === "issue" || kind === "consume") && can("warehouse.issue"),
   );
-  const [contextId, setContextId] = useState("");
+  // Opened from the units marked in a stock card: the warehouse, the item and the units are
+  // already chosen (customer's remark of 22.11.2026).
+  const chosen = useLocation().state as { context_id?: string; item?: ItemBrief; asset_ids?: string[] } | null;
+  const [contextId, setContextId] = useState(chosen?.context_id ?? "");
   const [targetId, setTargetId] = useState("");
   const [vehicleId, setVehicleId] = useState("");
   const [reasonId, setReasonId] = useState("");
   const [comment, setComment] = useState("");
   const [oneStep, setOneStep] = useState(false);
   const [photos, setPhotos] = useState<string[]>([]);
-  const [takes, setTakes] = useState<TakeForm[]>([]);
+  const [takes, setTakes] = useState<TakeForm[]>(
+    chosen?.item
+      ? [{ item: chosen.item, asset_ids: chosen.asset_ids ?? [], lot_id: "", form: "", quantity: "", confirm_expired: false }]
+      : [],
+  );
   const path = kind === "write_off" ? "write-off" : kind;
   const create = useCommand<Record<string, unknown>, { operation: StockOperation }>(
     `/c/${company.public_id}/warehouse/operations/${path}`,

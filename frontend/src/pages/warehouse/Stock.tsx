@@ -13,6 +13,7 @@ import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { RowTags, useTagsOf } from "../tags/Tags";
 import { useVehicles } from "../vehicles/VehiclesPage";
 import { useCategoryLabel } from "./Categories";
+import { NEW_KINDS, RIGHT } from "./Operations";
 import { PlaceSelect } from "./Places";
 import { AssetPrice, PricesCard, VehiclePrice } from "./Prices";
 
@@ -533,7 +534,8 @@ function PlaceDetails({ item, place }: { item: WarehouseItem; place: ItemStock["
   const serials = place.assets.some((asset) => asset.serial_number);
   // Several units are marked and changed at once (customer's decision of 21.11.2026).
   const [marked, setMarked] = useState<Set<string>>(new Set());
-  const marking = can("warehouse.price.set") || can("warehouse.tags.edit");
+  const marking =
+    can("warehouse.price.set") || can("warehouse.tags.edit") || NEW_KINDS.some((kind) => can(RIGHT[kind]));
   const here = place.assets.filter((asset) => marked.has(asset.id)).map((asset) => asset.id);
   const mark = (id: string, on: boolean) => {
     const next = new Set(marked);
@@ -679,6 +681,13 @@ function UnitsBar({
   const [what, setWhat] = useState<"price" | "place" | null>(null);
   const [amount, setAmount] = useState("");
   const [tags, setTags] = useState<string[]>([]);
+  const navigate = useNavigate();
+  // The marked units go straight into an operation of the warehouse (customer's remark of
+  // 22.11.2026): the operation opens with this warehouse, this item and these units chosen.
+  const operate = (kind: string) =>
+    navigate(companyPath(company, `/warehouse/operations/new?kind=${kind}`), {
+      state: { context_id: contextId, item, asset_ids: ids },
+    });
   const done = async (result: unknown) => {
     if (result === null) return;
     await client.invalidateQueries({ queryKey: ["warehouse-prices", company.public_id, item.id] });
@@ -701,6 +710,11 @@ function UnitsBar({
               {t("stock.tags")}
             </button>
           ) : null}
+          {NEW_KINDS.filter((kind) => can(RIGHT[kind])).map((kind) => (
+            <button key={kind} type="button" className="secondary" onClick={() => operate(kind)}>
+              {t(`operations.new_${kind}`)}
+            </button>
+          ))}
         </>
       ) : null}
       {what === "price" ? (

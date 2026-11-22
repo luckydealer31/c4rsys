@@ -207,6 +207,17 @@ test("storage places are a list of the warehouse", async ({ page }) => {
   await expect(page.locator(".scroll-window tbody")).toContainText("Стеллаж 2");
   expect(Math.abs((await priceAt()) - editing)).toBeLessThan(2);
   await expect(page.locator(".scroll-window tbody")).not.toContainText("Стеллаж 1");
+  // The marked units go into an operation of the warehouse (customer's remark of 22.11.2026):
+  // it opens with the warehouse, the item and the units already chosen.
+  const stockCard = page.url();
+  await page.getByRole("checkbox", { name: t("stock.mark_all"), exact: true }).check();
+  for (const kind of ["issue", "consume", "move", "write_off"]) {
+    await expect(page.locator(".units-bar").getByRole("button", { name: t(`operations.new_${kind}`), exact: true })).toBeVisible();
+  }
+  await page.locator(".units-bar").getByRole("button", { name: t("operations.new_write_off"), exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1, name: t("operations.new_write_off") })).toBeVisible();
+  await expect(page.locator(".line-card input[type=checkbox]")).toBeChecked();
+  await page.goto(stockCard);
 
   // The section is laid out as the others are (customer's remarks of 20.11.2026): no heading
   // on the screen, the tabs at the left, the buttons of the open tab in a column at the right.
