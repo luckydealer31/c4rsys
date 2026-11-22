@@ -1369,7 +1369,9 @@
     "recognition_failed": "The document could not be read. Try again or enter the lines by hand.",
     "place_one_only": "A unit or a lot has one storage place only.",
     "place_name_taken": "This warehouse already has a place with this name.",
-    "order_not_internal": "A vehicle is given only in an internal order."
+    "order_not_internal": "A vehicle is given only in an internal order.",
+    "sale_line_other_order": "The goods are of another order.",
+    "sale_line_installed": "The goods were used in a done work: the sale cannot be cancelled; a removal and a return with a valuation are needed."
   },
   "history": {
     "action": "Action",
@@ -6681,5 +6683,14 @@
     "at_cost": "at the purchase cost",
     "at_price": "at the sale price",
     "state_used": "Used"
+  },
+  "goods": {
+    "of_order": "Goods of the order",
+    "unlink": "Unlink",
+    "free": "Goods of the order without a work",
+    "free_hint": "The goods are in the order of this service. They can be linked to a work and unlinked again — they stay in the order with the same price.",
+    "work": "Work",
+    "link": "Link",
+    "installed_hint": "The goods were used in a done work — they are on the vehicle. The sale is not simply cancelled: a removal and a return with a valuation are needed."
   }
 }

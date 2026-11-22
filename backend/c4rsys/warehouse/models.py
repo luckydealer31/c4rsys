@@ -1348,6 +1348,10 @@ class SaleLine(models.Model):
         "fleet.VehicleCard", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
     at_cost = models.BooleanField(default=False)
+    # Customer's decision of 22.11.2026: the goods of an order may be linked to a work of a
+    # service of the same order and unlinked again; they stay in the order with their price.
+    # The work belongs to the service module, so only its id is kept here.
+    job_id = models.UUIDField(null=True, blank=True)
     quantity = models.DecimalField(max_digits=12, decimal_places=2)
     unit_price = models.DecimalField(max_digits=14, decimal_places=4)
     amount = models.DecimalField(max_digits=14, decimal_places=4)

@@ -1031,3 +1031,8 @@ table.fit { width: auto; }
 .pick-vehicle { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .pick-vehicle > select { flex: 1 1 320px; width: auto; }
 .pick-vehicle > button { flex: 0 0 auto; width: auto; }
+.free-goods { margin-top: 16px; }
+.free-goods-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 6px 0; border-top: 1px solid var(--border); }
+.free-goods-row > span { flex: 1 1 260px; }
+.free-goods-row > select { flex: 0 1 240px; width: auto; }
+.free-goods-row > button { flex: 0 0 auto; width: auto; }

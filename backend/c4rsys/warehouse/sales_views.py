@@ -53,6 +53,8 @@ def _line_payload(line: SaleLine, vehicles: dict[UUID, str]) -> dict[str, Any]:
         if line.for_vehicle_id
         else None,
         "at_cost": line.at_cost,
+        "job_id": str(line.job_id) if line.job_id else None,
+        "installed": sales.installed(line),
         "asset": line.asset.public_id if line.asset else None,
         "lot": line.lot.public_id if line.lot else None,
         "packaging_quantity": str(line.packaging.quantity)

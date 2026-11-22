@@ -38,6 +38,7 @@ from c4rsys.service.models import (
     SystemWork,
 )
 from c4rsys.warehouse import parts as work_issues_parts
+from c4rsys.warehouse import sales as sale_goods
 from c4rsys.warehouse import work_issues
 
 NAME_MAX = 200
@@ -493,6 +494,8 @@ def _operation_payload(op: ServiceOperation, *, detail: bool = True) -> dict[str
         ],
         "materials": _materials_payload([j.id for j in jobs]),
         **_parts_payload(op, [j.id for j in jobs]),
+        # The goods of the order, linked to a work or not (customer's decision of 22.11.2026).
+        "goods": sale_goods.goods_of_order(op.company_id, op.order_id) if detail else [],
     }
     if detail:
         result["blockers"] = list(operations.blockers(op, order.is_internal))
@@ -1604,6 +1607,66 @@ def material_issue(request: HttpRequest, cmp: str, material_id: UUID) -> JsonRes
         materials.issue(ctx, context.company, m)
 
     return _material_command(request, cmp, material_id, "service_material.issue", action)
+
+
+def _may_link(actor: Actor, op: ServiceOperation) -> None:
+    """PROPOSAL: who changes service operations or does the works links goods to a work."""
+    if not (
+        _can(actor, "service.create", op.location_id) or _can(actor, "service.work", op.location_id)
+    ):
+        raise errors.permission_denied("service.work")
+
+
+@require_POST
+def job_goods(request: HttpRequest, cmp: str, job_id: UUID) -> JsonResponse:
+    """Goods of the order are linked to a work of its service (customer's decision of
+    22.11.2026): the same line of the order with the same price."""
+    context, actor = _actor(request, cmp)
+    job = operations.get_job(context.company.id, job_id)
+    if not _visible(actor, job.operation):
+        raise errors.not_found()
+    _may_link(actor, job.operation)
+    data = parse_json(request)
+    line_id = _required_uuid(data, "line_id")
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        locked = operations.locked_job(
+            context.company.id, job_id, get_int(data, "expected_version")
+        )
+        if locked.state not in (ServiceJob.State.PLANNED, ServiceJob.State.IN_PROGRESS):
+            raise errors.business_rule("SERVICE_JOB_FINISHED", state=locked.state)
+        sale_goods.link_to_job(ctx, context.company.id, line_id, locked.order_id, locked.id)
+        op = operations.get_operation(context.company.id, locked.operation_id)
+        return CommandResult(200, {"operation": _operation_payload(op)})
+
+    payload = {
+        "job_id": str(job_id),
+        "line_id": str(line_id),
+        "expected_version": data.get("expected_version"),
+    }
+    return run_and_respond(request, "service_goods.link", actor, payload, handler)
+
+
+@require_POST
+def goods_unlink(request: HttpRequest, cmp: str, line_id: UUID) -> JsonResponse:
+    """The goods leave the work and stay in the order (customer's decision of 22.11.2026)."""
+    context, actor = _actor(request, cmp)
+    line = sale_goods.get_line(context.company.id, line_id)
+    if line.job_id is None:
+        raise errors.not_found()
+    job = operations.get_job(context.company.id, line.job_id)
+    if not _visible(actor, job.operation):
+        raise errors.not_found()
+    _may_link(actor, job.operation)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        sale_goods.link_to_job(ctx, context.company.id, line_id, job.order_id, None)
+        op = operations.get_operation(context.company.id, job.operation_id)
+        return CommandResult(200, {"operation": _operation_payload(op)})
+
+    return run_and_respond(
+        request, "service_goods.unlink", actor, {"line_id": str(line_id)}, handler
+    )
 
 
 @require_POST

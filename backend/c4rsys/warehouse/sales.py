@@ -12,6 +12,7 @@ PROPOSAL: loose sale comes from loose material or an opened package; closed pack
 whole (to pour from a closed package it is first repacked).
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
@@ -45,6 +46,21 @@ from c4rsys.warehouse.models import (
 from c4rsys.warehouse.stock import ZERO, company_currency, expired
 
 SOURCE = "sale_line"
+
+# The service module says whether a work is done: goods linked to a done work are installed, and
+# their sale is not simply cancelled (customer's decision of 22.11.2026).
+_work_done: list[Callable[[UUID, UUID], bool]] = []
+
+
+def register_work_done(checker: Callable[[UUID, UUID], bool]) -> None:
+    _work_done.append(checker)
+
+
+def installed(line: SaleLine) -> bool:
+    """Linked to a work that is done."""
+    return line.job_id is not None and any(
+        check(line.company_id, line.job_id) for check in _work_done
+    )
 
 
 @dataclass(frozen=True)
@@ -467,6 +483,10 @@ def cancel(ctx: CommandContext, company_id: UUID, line_id: UUID, reason: str) ->
     order = _order(company_id, line.order_id)
     if line.state != SaleLine.State.SOLD:
         raise errors.business_rule("SALE_LINE_STATE", state=line.state)
+    if installed(line):
+        # Customer's decision of 22.11.2026: what a done work used is on the vehicle; it comes
+        # back only by a removal and a return with a valuation, not by a cancellation.
+        raise errors.business_rule("SALE_LINE_INSTALLED")
     if line.vehicle_id is not None:
         return _cancel_vehicle(ctx, order, line, reason)
     op_line = line.operation_line
@@ -581,6 +601,63 @@ def operations_for_orders(
 
 def history_for_order(company_id: UUID, order_id: UUID) -> list[tuple[str, str]]:
     return [("order", str(order_id))]
+
+
+def link_to_job(
+    ctx: CommandContext, company_id: UUID, line_id: UUID, order_id: UUID, job_id: UUID | None
+) -> SaleLine:
+    """Customer's decision of 22.11.2026: goods of an order are linked to a work of a service of
+    the same order, or unlinked (`job_id` empty). The line, its reserve and its price stay as
+    they are — it is the same line, not a return."""
+    line = _lock_line(company_id, line_id)
+    if line.order_id != order_id:
+        raise errors.business_rule("SALE_LINE_OTHER_ORDER", field="line_id")
+    order = _order(company_id, line.order_id)
+    if line.state != SaleLine.State.RESERVED or line.item_id is None:
+        raise errors.business_rule("SALE_LINE_STATE", state=line.state)
+    before = line.job_id
+    line.job_id = job_id
+    line.save(update_fields=["job_id"])
+    ctx.audit(
+        "warehouse.sale_linked" if job_id else "warehouse.sale_unlinked",
+        object_type="order",
+        object_id=order.id,
+        before={"line": str(line.id), "job": str(before) if before else None},
+        after={"line": str(line.id), "job": str(job_id) if job_id else None},
+    )
+    return line
+
+
+def get_line(company_id: UUID, line_id: UUID) -> SaleLine:
+    line = SaleLine.objects.filter(company_id=company_id, pk=line_id).first()
+    if line is None:
+        raise errors.not_found()
+    return line
+
+
+def goods_of_order(company_id: UUID, order_id: UUID) -> list[dict[str, Any]]:
+    """The goods of an order as a service of it shows them: what, how much, for how much and
+    the work they are linked to."""
+    from c4rsys.warehouse.stock import money_text
+
+    return [
+        {
+            "id": str(line.id),
+            "name": line.item.name if line.item else "",
+            "unit": line.item.unit if line.item else "",
+            "what": line.asset.public_id
+            if line.asset
+            else (line.lot.public_id if line.lot else ""),
+            "quantity": str(line.quantity),
+            "amount": money_text(line.amount, line.currency),
+            "currency": line.currency,
+            "state": line.state,
+            "job_id": str(line.job_id) if line.job_id else None,
+            "installed": installed(line),
+        }
+        for line in lines_of_order(company_id, order_id)
+        if line.item_id is not None and line.state in (SaleLine.State.RESERVED, SaleLine.State.SOLD)
+    ]
 
 
 def lines_of_order(company_id: UUID, order_id: UUID) -> list[SaleLine]:

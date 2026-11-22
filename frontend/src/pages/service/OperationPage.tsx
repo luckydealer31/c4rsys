@@ -7,7 +7,7 @@ import { ApiError } from "../../api/client";
 import { useApi } from "../../api/queries";
 import type { ServiceJob, ServiceMaterial, ServiceOperation } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
+import { Card, ErrorMessage, Field, Info, Loading } from "../../components/ui";
 import { OrderLeft, OrderOffer, useOrderOffer } from "../orders/CancelWith";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { formatMoment, fromLocalInput, toLocalInput } from "../../time";
@@ -476,11 +476,102 @@ function Jobs({ op, zone }: { op: ServiceOperation; zone: string }) {
           {job.comment ? <div className="small">{job.comment}</div> : null}
           {job.end_reason ? <div className="muted small">{job.end_reason}</div> : null}
           <Materials op={op} job={job} zone={zone} />
+          <JobGoods op={op} job={job} />
           <OwnMaterials op={op} job={job} />
           <JobActions op={op} job={job} zone={zone} />
         </div>
       ))}
+      <FreeGoods op={op} />
     </Card>
+  );
+}
+
+/** Customer's decision of 22.11.2026: the goods of the order are linked to a work and unlinked
+ * again — they stay in the order with their price. */
+function useGoodsLink() {
+  const company = useCompany();
+  const can = useCan();
+  const refresh = useRefresh();
+  const link = useCommand<{ job_id: string; line_id: string; expected_version: number }, unknown>(
+    (b) => `/c/${company.public_id}/service/jobs/${b.job_id}/goods`,
+  );
+  const unlink = useCommand<{ line_id: string }, unknown>((b) => `/c/${company.public_id}/service/goods/${b.line_id}/unlink`);
+  const done = async (result: unknown) => {
+    if (result !== null) await refresh();
+  };
+  return { link, unlink, done, may: can("service.create") || can("service.work") };
+}
+
+function goodsText(g: ServiceOperation["goods"][number]) {
+  return `${g.name}${g.what ? ` · ${g.what}` : ""} · ${Number(g.quantity)} · ${g.amount} ${g.currency}`;
+}
+
+/** The goods of the order linked to this work. */
+function JobGoods({ op, job }: { op: ServiceOperation; job: ServiceJob }) {
+  const { t } = useTranslation();
+  const { unlink, done, may } = useGoodsLink();
+  const items = op.goods.filter((g) => g.job_id === job.id);
+  if (items.length === 0) return null;
+  return (
+    <div className="small job-goods" style={{ marginTop: 8 }}>
+      {items.map((g) => (
+        <div key={g.id}>
+          {t("goods.of_order")}: {goodsText(g)}{" "}
+          {may && g.state === "reserved" ? (
+            <button type="button" className="link" disabled={unlink.pending} onClick={async () => done(await unlink.run({ line_id: g.id }))}>
+              {t("goods.unlink")}
+            </button>
+          ) : null}
+        </div>
+      ))}
+      <ErrorMessage error={unlink.error} />
+    </div>
+  );
+}
+
+/** The goods of the order not linked to any work: a work is chosen for each. */
+function FreeGoods({ op }: { op: ServiceOperation }) {
+  const { t } = useTranslation();
+  const { link, done, may } = useGoodsLink();
+  const [chosen, setChosen] = useState<Record<string, string>>({});
+  const items = op.goods.filter((g) => g.job_id === null && g.state === "reserved");
+  const jobs = op.jobs.filter((j) => j.state === "planned" || j.state === "in_progress");
+  if (items.length === 0) return null;
+  return (
+    <div className="free-goods">
+      <h3>
+        {t("goods.free")} <Info text={t("goods.free_hint")} />
+      </h3>
+      {items.map((g) => {
+        const job = jobs.find((j) => j.id === chosen[g.id]);
+        return (
+          <div key={g.id} className="free-goods-row small">
+            <span>{goodsText(g)}</span>
+            {may && jobs.length ? (
+              <>
+                <select aria-label={t("goods.work")} value={chosen[g.id] ?? ""} onChange={(e) => setChosen({ ...chosen, [g.id]: e.target.value })}>
+                  <option value="">{t("goods.work")}</option>
+                  {jobs.map((j) => (
+                    <option key={j.id} value={j.id}>
+                      {j.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="secondary small"
+                  disabled={!job || link.pending}
+                  onClick={async () => job && done(await link.run({ job_id: job.id, line_id: g.id, expected_version: job.version }))}
+                >
+                  {t("goods.link")}
+                </button>
+              </>
+            ) : null}
+          </div>
+        );
+      })}
+      <ErrorMessage error={link.error} />
+    </div>
   );
 }
 

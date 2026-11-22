@@ -80,6 +80,13 @@ def operations_of(company_id: UUID) -> QuerySet[ServiceOperation]:
     return ServiceOperation.objects.filter(company_id=company_id)
 
 
+def job_done(company_id: UUID, job_id: UUID) -> bool:
+    """For the warehouse: goods linked to a done work are installed."""
+    return ServiceJob.objects.filter(
+        company_id=company_id, pk=job_id, state=ServiceJob.State.DONE
+    ).exists()
+
+
 def vehicles_of_orders(company_id: UUID, order_ids: set[UUID]) -> dict[UUID, set[UUID]]:
     """The vehicles served in the orders — for other modules that show an order."""
     found: dict[UUID, set[UUID]] = {}

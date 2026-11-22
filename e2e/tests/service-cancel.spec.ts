@@ -57,4 +57,56 @@ test("a completed service is cancelled in its order", async ({ page }) => {
   await expect(rows).toHaveCount(0);
   await page.getByRole("button", { name: t("rentals.filter_services"), exact: true }).click();
   await expect(rows).toHaveCount(1);
+
+  // Customer's decisions of 22.11.2026: goods leave the warehouse into a service that already
+  // exists; without a work they go into the order of the service, and there they are linked to
+  // a work and unlinked again — the same line of the order with the same price. The same
+  // company serves: one more registration would pass the hourly limit of the server.
+  await ok(page, "POST", `/c/${s.cmp}/modules/warehouse/connect`, { locations: [s.location] });
+  await ok(page, "POST", `/c/${s.cmp}/modules/service/connect`, { locations: [s.location] });
+  const locations = (await ok(page, "GET", `/c/${s.cmp}/locations`)).locations as {
+    contexts: { id: string; type: string }[];
+  }[];
+  const context = locations.flatMap((l) => l.contexts).find((c) => c.type === "warehouse")!.id;
+  const item = ((await ok(page, "POST", `/c/${s.cmp}/warehouse/items`, { name: "Фильтр", unit: "piece" })).item as { id: string }).id;
+  const receipt = (
+    await ok(page, "POST", `/c/${s.cmp}/warehouse/receipts`, {
+      source: "purchase",
+      context_id: context,
+      lines: [{ item_id: item, quantity: 1, unit_cost: "200", sale_price: "350" }],
+    })
+  ).receipt as { id: string; version: number };
+  await ok(page, "POST", `/c/${s.cmp}/warehouse/receipts/${receipt.id}/post`, { expected_version: receipt.version });
+  const work = ((await ok(page, "POST", `/c/${s.cmp}/service/works`, { name: "Замена фильтра", pricing: "fixed", price: "500" })).work as { id: string }).id;
+  const operation = (
+    await ok(page, "POST", `/c/${s.cmp}/service/operations`, {
+      vehicle_card_id: s.vehicle,
+      location_id: s.location,
+      reason: "Плановое обслуживание",
+      client_id: s.client,
+      work_ids: [work],
+    })
+  ).operation as { id: string };
+
+  await page.goto(`${s.base}/warehouse/stock/${item}`);
+  await page.getByRole("checkbox", { name: t("stock.mark_all"), exact: true }).check();
+  await page.locator(".units-bar").getByRole("button", { name: t("send.to_service"), exact: true }).click();
+  const toService = page.getByRole("dialog", { name: t("send.to_service") });
+  await toService.locator(".pick-list").getByRole("button").first().click();
+  await expect(toService.getByRole("button", { name: "Замена фильтра", exact: true })).toBeVisible();
+  await toService.getByRole("button", { name: t("send.without_work"), exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/service/operations/${operation.id}$`));
+
+  const free = page.locator(".free-goods");
+  await expect(free).toContainText("Фильтр");
+  await expect(free).toContainText("350.00");
+  await free.getByRole("combobox", { name: t("goods.work") }).selectOption({ label: "Замена фильтра" });
+  await free.getByRole("button", { name: t("goods.link"), exact: true }).click();
+  const linked = page.locator(".job-goods");
+  await expect(linked).toContainText("Фильтр");
+  await expect(linked).toContainText("350.00");
+  await expect(free).toHaveCount(0);
+  await linked.getByRole("button", { name: t("goods.unlink"), exact: true }).click();
+  await expect(page.locator(".free-goods")).toContainText("Фильтр");
+  await expect(linked).toHaveCount(0);
 });

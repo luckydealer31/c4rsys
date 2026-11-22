@@ -1938,6 +1938,19 @@ export type ServiceJob = {
   end_reason: string;
 };
 
+/** Goods of the order of a service: a line of the order with its price. */
+export type ServiceGoods = {
+  id: string;
+  name: string;
+  unit: string;
+  what: string;
+  quantity: string;
+  amount: string;
+  currency: string;
+  state: "reserved" | "sold";
+  job_id: string | null;
+};
+
 export type ServiceOperation = {
   id: string;
   version: number;
@@ -1968,6 +1981,8 @@ export type ServiceOperation = {
   installed_parts: PartInstallation[];
   installations: PartInstallation[];
   own_materials: ContractorMaterial[];
+  /** The goods of the order, linked to a work or not; empty in a list of operations. */
+  goods: ServiceGoods[];
   blockers?: string[];
 };
 

@@ -21,6 +21,10 @@ class ServiceConfig(AppConfig):
         from c4rsys.service import operations as service_operations
 
         delivery_services.register_on_finished(service_operations.on_delivery_finished)
+        # Customer's decision of 22.11.2026: goods linked to a done work are not simply cancelled.
+        from c4rsys.warehouse import sales as warehouse_sales
+
+        warehouse_sales.register_work_done(service_operations.job_done)
         # § 2.8.2: the records of the module in the single search line.
         from c4rsys.platform import search as platform_search
         from c4rsys.service import search as service_search

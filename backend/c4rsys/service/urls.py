@@ -35,6 +35,8 @@ urlpatterns = [
     path("c/<str:cmp>/service/jobs/<uuid:job_id>/cancel", views.job_cancel),
     path("c/<str:cmp>/service/jobs/<uuid:job_id>/price", views.job_price),
     path("c/<str:cmp>/service/jobs/<uuid:job_id>/materials", views.job_materials),
+    path("c/<str:cmp>/service/jobs/<uuid:job_id>/goods", views.job_goods),
+    path("c/<str:cmp>/service/goods/<uuid:line_id>/unlink", views.goods_unlink),
     path("c/<str:cmp>/service/materials/<uuid:material_id>/return", views.material_return),
     path("c/<str:cmp>/service/materials/<uuid:material_id>/consume", views.material_consume),
     path("c/<str:cmp>/service/materials/<uuid:material_id>/price", views.material_price),

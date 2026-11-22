@@ -6,7 +6,7 @@ import { Link, useNavigate } from "react-router";
 import { useApi } from "../../api/queries";
 import type { Client, ItemBrief, Order, Sources, Storage, Vehicle, WarehouseItem } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
+import { Card, ErrorMessage, Field, Info, Loading } from "../../components/ui";
 import { OrderLeft, OrderOffer, useOrderOffer } from "../orders/CancelWith";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { clientName } from "../clients/ClientsPage";
@@ -23,6 +23,9 @@ export type SaleLine = {
   /** In an internal order: the vehicle of the company the goods are used on. */
   for_vehicle: { id: string; name: string } | null;
   at_cost: boolean;
+  /** Linked to a work of a service; with the work done the goods are installed. */
+  job_id: string | null;
+  installed: boolean;
   asset: string | null;
   lot: string | null;
   packaging_quantity: string | null;
@@ -178,7 +181,8 @@ export function SaleGoods({ order, onChange }: { order: Order; onChange: () => P
                       {t("receipts.remove_line")}
                     </button>
                   ) : null}
-                  {line.state === "sold" && open && can("warehouse.sale.correct") && !line.vehicle ? (
+                  {line.installed && line.state === "sold" && open ? <Info text={t("goods.installed_hint")} /> : null}
+                  {line.state === "sold" && open && can("warehouse.sale.correct") && !line.vehicle && !line.installed ? (
                     <button type="button" className="link" onClick={() => setCancelling(line.id)}>
                       {t("sales.cancel")}
                     </button>
