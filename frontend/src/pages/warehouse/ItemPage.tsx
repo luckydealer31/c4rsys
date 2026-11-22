@@ -47,6 +47,10 @@ const TEXTS = [
   "external_id",
 ] as const;
 
+/** A barcode of the card: saved with the card, by «Save» (customer's remark of 22.11.2026). */
+type Code = { code: string; packaging_id: string | null };
+const codeKey = (c: Code) => `${c.code}|${c.packaging_id ?? ""}`;
+
 type Form = {
   name: string;
   part_category: string;
@@ -57,6 +61,7 @@ type Form = {
   photo: string | null;
   applicability: Applies[];
   extra_attributes: Record<string, string[]>;
+  barcodes: Code[];
 } & Record<PairKey | ChoiceKey | (typeof TEXTS)[number], string>;
 
 function formOf(item?: WarehouseItem): Form {
@@ -84,6 +89,7 @@ function formOf(item?: WarehouseItem): Form {
     photo: item?.photo ?? null,
     applicability: (item?.applicability ?? []).map((a) => ({ ...a, model: a.model ?? "" })),
     extra_attributes: item?.extra_attributes ?? {},
+    barcodes: (item?.barcodes ?? []).map((b) => ({ code: b.code, packaging_id: b.packaging_id })),
   };
 }
 
@@ -202,6 +208,9 @@ function ItemForm({
     item ? `/c/${company.public_id}/warehouse/items/${item.id}` : `/c/${company.public_id}/warehouse/items`,
     item ? "PATCH" : "POST",
   );
+  const codes = `/c/${company.public_id}/warehouse/items/${item?.id ?? ""}/barcodes`;
+  const addCode = useCommand<{ code: string; packaging_id?: string }, unknown>(codes);
+  const removeCode = useCommand<{ id: string }, unknown>((body) => `${codes}/${body.id}`, "DELETE");
   const editable = can("warehouse.catalog.manage");
   const set = (changes: Partial<Form>) => setForm((prev) => ({ ...prev, ...changes }));
   // Makes and models named in the name are offered as compatibility (customer's decision of
@@ -248,6 +257,19 @@ function ItemForm({
     body.country_other = form.country === OTHER ? form.country_other : "";
     if (item) body.expected_version = item.version;
     else body.unit = form.unit;
+    if (item) {
+      // The barcodes go first: they do not change the version of the card, and a code that is
+      // refused leaves the card as it is written, to be corrected and saved again.
+      const kept = new Set(form.barcodes.map(codeKey));
+      const had = new Set(item.barcodes.map(codeKey));
+      for (const b of item.barcodes.filter((x) => !kept.has(codeKey(x)))) {
+        if ((await removeCode.run({ id: b.id })) === null) return void (await refresh());
+      }
+      for (const b of form.barcodes.filter((x) => !had.has(codeKey(x)))) {
+        const added = await addCode.run(b.packaging_id ? { code: b.code, packaging_id: b.packaging_id } : { code: b.code });
+        if (added === null) return void (await refresh());
+      }
+    }
     const result = await save.run(body);
     if (result) {
       await refresh();
@@ -477,17 +499,22 @@ function ItemForm({
           <div className="item-columns item-more">
             {/* The barcodes and the comment are one line, the photo is under them (customer's
                 remark of 21.11.2026); a new item has no barcodes yet. */}
-            {item ? <Barcodes item={item} /> : <div />}
+            {item ? <Barcodes item={item} value={form.barcodes} onChange={(barcodes) => set({ barcodes })} /> : <div />}
             <Field label={t("warehouse.comment")}>
               <GrowingText value={form.comment} disabled={!editable} onChange={(comment) => set({ comment })} />
             </Field>
             <ItemPhoto photo={form.photo} name={form.name} editable={editable} onChange={(photo) => set({ photo })} />
           </div>
         </section>
-        <ErrorMessage error={save.error} />
+        <ErrorMessage error={addCode.error ?? removeCode.error ?? save.error} />
         {editable ? (
           <div className="actions">
-            <button type="submit" disabled={!form.name.trim() || save.pending || (Boolean(item) && !changed)}>
+            <button
+              type="submit"
+              disabled={
+                !form.name.trim() || save.pending || addCode.pending || removeCode.pending || (Boolean(item) && !changed)
+              }
+            >
               {item ? t("common.save") : t("warehouse.create_item")}
             </button>
             {saved && !changed ? (
@@ -781,39 +808,34 @@ function Packagings({ item }: { item: WarehouseItem }) {
 }
 
 /** Barcodes of the company: a scan gives the item and the packaging (§ 11.1.16). They stand in
- * the card itself, as marks with a cross and a short field (customer's remark of 21.11.2026). */
-function Barcodes({ item }: { item: WarehouseItem }) {
+ * the card itself, as marks with a cross and a short field (customer's remark of 21.11.2026), and
+ * are saved with the card: the plus and the cross only change what «Save» will write (customer's
+ * remark of 22.11.2026). */
+function Barcodes({ item, value, onChange }: { item: WarehouseItem; value: Code[]; onChange: (value: Code[]) => void }) {
   const { t } = useTranslation();
-  const company = useCompany();
   const can = useCan();
-  const refresh = useRefresh(item);
   const [code, setCode] = useState("");
   const [packaging, setPackaging] = useState("");
-  const base = `/c/${company.public_id}/warehouse/items/${item.id}/barcodes`;
-  const add = useCommand<{ code: string; packaging_id?: string }, unknown>(base);
-  const remove = useCommand<{ id: string }, unknown>((body) => `${base}/${body.id}`, "DELETE");
   const unit = t(`warehouse.unit_short_${item.unit}`);
   const packName = (id: string | null) => {
     const p = item.packagings.find((x) => x.id === id);
     return p ? `${p.name ? `${p.name} — ` : ""}${Number(p.quantity)} ${unit}` : "";
   };
   const editable = can("warehouse.catalog.manage");
-  async function put() {
-    if (!code.trim() || add.pending) return;
-    const body = packaging ? { code, packaging_id: packaging } : { code };
-    if ((await add.run(body)) !== null) {
-      setCode("");
-      setPackaging("");
-      await refresh();
-    }
+  const written = code.trim();
+  function put() {
+    if (!written) return;
+    if (!value.some((b) => b.code === written)) onChange([...value, { code: written, packaging_id: packaging || null }]);
+    setCode("");
+    setPackaging("");
   }
-  if (!editable && !item.barcodes.length) return null;
+  if (!editable && !value.length) return null;
   return (
     <div className="field">
       <span>{t("warehouse.barcodes")}</span>
       <div className="barcode-line">
-        {item.barcodes.map((b) => (
-          <span key={b.id} className="code-chip">
+        {value.map((b) => (
+          <span key={b.code} className="code-chip">
             <span className="code">{b.code}</span>
             {b.packaging_id ? <span className="muted small">{packName(b.packaging_id)}</span> : null}
             {editable ? (
@@ -822,9 +844,7 @@ function Barcodes({ item }: { item: WarehouseItem }) {
                 className="link"
                 aria-label={t("rights.remove")}
                 title={t("rights.remove")}
-                onClick={async () => {
-                  if ((await remove.run({ id: b.id })) !== null) await refresh();
-                }}
+                onClick={() => onChange(value.filter((x) => x.code !== b.code))}
               >
                 ×
               </button>
@@ -839,10 +859,10 @@ function Barcodes({ item }: { item: WarehouseItem }) {
               placeholder={t("warehouse.barcode")}
               onChange={(e) => setCode(e.target.value)}
               onKeyDown={(e) => {
-                // Enter adds the barcode instead of saving the whole card.
+                // Enter puts the barcode into the card instead of saving the whole card.
                 if (e.key === "Enter") {
                   e.preventDefault();
-                  void put();
+                  put();
                 }
               }}
             />
@@ -863,15 +883,14 @@ function Barcodes({ item }: { item: WarehouseItem }) {
               className="secondary"
               aria-label={t("warehouse.add_barcode")}
               title={t("warehouse.add_barcode")}
-              disabled={!code.trim() || add.pending}
-              onClick={() => void put()}
+              disabled={!written}
+              onClick={put}
             >
               <Icon name="plus" size={14} />
             </button>
           </>
         ) : null}
       </div>
-      <ErrorMessage error={add.error ?? remove.error} />
     </div>
   );
 }

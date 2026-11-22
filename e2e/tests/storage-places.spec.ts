@@ -104,9 +104,27 @@ test("storage places are a list of the warehouse", async ({ page }) => {
   await expect(place("Пхукет")).toContainText("1");
   await expect(place("Пхукет").getByRole("textbox", { name: t("prices.minimum_title") })).toBeVisible();
   await expect(page.getByRole("heading", { name: t("prices.minimum_title") })).toHaveCount(0);
-  // The barcodes are in the card itself: Enter adds one and does not save the card.
+  // The barcodes are in the card itself: Enter puts one into the card and does not save it; it
+  // is written by «Save», as the rest of the card (customer's remark of 22.11.2026).
   await card.getByRole("textbox", { name: t("warehouse.barcode"), exact: true }).fill("4601234567890");
   await card.getByRole("textbox", { name: t("warehouse.barcode"), exact: true }).press("Enter");
+  await expect(page.locator(".code-chip")).toContainText("4601234567890");
+  await expect(saving).toBeEnabled();
+  await page.reload();
+  await expect(page.locator(".code-chip")).toHaveCount(0);
+  await card.getByRole("textbox", { name: t("warehouse.barcode"), exact: true }).fill("4601234567890");
+  await card.getByRole("button", { name: t("warehouse.add_barcode"), exact: true }).click();
+  await Promise.all([
+    page.waitForResponse((r) => r.request().method() === "PATCH" && r.url().includes(`/warehouse/items/${item.id}`)),
+    saving.click(),
+  ]);
+  await expect(card.getByRole("status")).toContainText(t("common.saved"));
+  await page.reload();
+  await expect(page.locator(".code-chip")).toContainText("4601234567890");
+  // The cross takes the barcode out only after «Save» too.
+  await page.locator(".code-chip").getByRole("button", { name: t("rights.remove"), exact: true }).click();
+  await expect(page.locator(".code-chip")).toHaveCount(0);
+  await page.reload();
   await expect(page.locator(".code-chip")).toContainText("4601234567890");
   // One button of deletion: a used item is offered the archive instead.
   const state = page.locator(".item-state");
