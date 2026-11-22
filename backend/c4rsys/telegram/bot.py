@@ -57,6 +57,15 @@ PLAIN = (
 )
 
 
+def app_url(company: str = "") -> str:
+    """The address of the window of the bot: the menu of a company, or the choice of one. Empty
+    when the site is not served over https."""
+    site = settings.C4R_PUBLIC_URL.rstrip("/")
+    if not site.startswith("https://"):
+        return ""
+    return f"{site}/tg?to=/c/{company}/app" if company else f"{site}/tg?to=/app"
+
+
 def _buttons(*rows: list[tuple[str, str]]) -> dict[str, Any]:
     return {
         "inline_keyboard": [
@@ -169,14 +178,19 @@ class Talk:
         if len(contexts) > 1:
             rows.append([(t(self.lang, "menu_company"), "cos")])
         markup = _buttons(*rows)
-        # The window of the bot (customer's decision of 23.11.2026): the inspections of the site
-        # open inside Telegram, signed in by the bound account. Telegram takes only an https page.
-        site = settings.C4R_PUBLIC_URL.rstrip("/")
-        if site.startswith("https://"):
-            page = f"{site}/tg?to=/c/{current.company.public_id}/inspections"
-            markup["inline_keyboard"].insert(
-                3, [{"text": t(self.lang, "menu_inspection"), "web_app": {"url": page}}]
-            )
+        # One button (customer's decision of 23.11.2026): the window of the bot — the menu of the
+        # site inside Telegram, signed in by the bound account — does everything: a vehicle, a
+        # delivery note, a receipt, the inspections. Telegram takes only an https page; without
+        # one (a developer's machine) the menu of the chat stays.
+        page = app_url(current.company.public_id)
+        if page:
+            markup = {
+                "inline_keyboard": [[{"text": t(self.lang, "menu_app"), "web_app": {"url": page}}]]
+            }
+            if len(contexts) > 1:
+                markup["inline_keyboard"].append(
+                    [{"text": t(self.lang, "menu_company"), "callback_data": "cos"}]
+                )
         self.say("menu", markup, company=current.company.display_name)
 
     def choose(self, public_id: str) -> None:

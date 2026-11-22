@@ -3,7 +3,7 @@ from typing import Any
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
-from c4rsys.telegram import api
+from c4rsys.telegram import api, bot
 
 
 class Command(BaseCommand):
@@ -20,3 +20,12 @@ class Command(BaseCommand):
             allowed_updates=["message", "callback_query"],
         )
         self.stdout.write(f"The updates of @{api.bot_name()} go to {url}")
+        # The button beside the field of the message opens the window of the bot (customer's
+        # decision of 23.11.2026).
+        page = bot.app_url()
+        if page:
+            api.call(
+                "setChatMenuButton",
+                menu_button={"type": "web_app", "text": "c4rsys", "web_app": {"url": page}},
+            )
+            self.stdout.write(f"The menu button opens {page}")

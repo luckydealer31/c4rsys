@@ -51,9 +51,9 @@ TEXTS: dict[str, dict[str, str]] = {
         "th": "เลือกบริษัท:",
     },
     "menu": {
-        "ru": "{company}. Что сделать?",
-        "en": "{company}. What to do?",
-        "th": "{company} ต้องการทำอะไร?",
+        "ru": "{company}",
+        "en": "{company}",
+        "th": "{company}",
     },
     "menu_vehicle": {
         "ru": "Добавить Т/С",
@@ -116,7 +116,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "The draft of the expense is made.\nDate: {date}\nAmount: {amount}\nSeller: {seller}\nFor: {purpose}\nCheck and record it on the site:\n{url}",
         "th": "สร้างร่างค่าใช้จ่ายแล้ว\nวันที่: {date}\nจำนวนเงิน: {amount}\nผู้ขาย: {seller}\nรายการ: {purpose}\nตรวจสอบและบันทึกบนเว็บไซต์:\n{url}",
     },
-    "menu_inspection": {"ru": "Осмотр", "en": "Inspection", "th": "ตรวจสภาพรถ"},
+    "menu_app": {"ru": "Открыть c4rsys", "en": "Open c4rsys", "th": "เปิด c4rsys"},
     "menu_company": {
         "ru": "Сменить компанию",
         "en": "Another company",

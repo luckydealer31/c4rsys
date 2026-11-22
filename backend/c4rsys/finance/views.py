@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 from django.db.models import Q
 from django.http import HttpRequest, JsonResponse
 from django.utils import timezone
-from django.views.decorators.http import require_GET, require_http_methods, require_POST
+from django.views.decorators.http import require_http_methods, require_POST
 
 from c4rsys.accounts.middleware import require_user
 from c4rsys.accounts.models import UserAccount
@@ -773,12 +773,37 @@ def _draft_payload(draft: Any, authors: dict[UUID, str], user_id: UUID) -> dict[
     }
 
 
-@require_GET
+@require_http_methods(["GET", "POST"])
 def expense_drafts(request: HttpRequest, cmp: str) -> JsonResponse:
-    """The open drafts of the person asking: a draft is seen by its author only."""
+    """The open drafts the person sees; POST — a receipt uploaded on the site (or in the window
+    of the bot) is read into a new draft, as the bot does with a photo sent to the chat."""
+    from c4rsys.files import services as files
+    from c4rsys.files.models import StoredFile
     from c4rsys.finance import expense_drafts as drafts
 
     context, actor = _actor(request, cmp)
+    if request.method == "POST":
+        file_id = _uuid(parse_json(request).get("file_id"), "file_id")
+        item = files.readable(actor.user_id, file_id)
+        if (
+            item is None
+            or item.purpose != StoredFile.Purpose.EXPENSE_RECEIPT
+            or item.uploaded_by != actor.user_id
+        ):
+            raise errors.validation_error("file_id", code="FILE_NOT_USABLE")
+        try:
+            read = drafts.read(files.content(item), item.content_type)
+        except errors.ApiError:
+            # The photo is kept all the same: the draft is filled in by hand.
+            read = drafts.Read()
+
+        def create(ctx: CommandContext) -> CommandResult:
+            draft = drafts.create(ctx, context.company, item.id, read, "site")
+            return CommandResult(201, {"id": str(draft.id)})
+
+        return run_and_respond(
+            request, "expense_draft.create", actor, {"file_id": str(file_id)}, create
+        )
     found = list(drafts.visible(context.company.id, actor)[:200])
     authors = {
         u.id: f"{u.first_name} {u.last_name}".strip()

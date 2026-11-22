@@ -20,7 +20,7 @@ export function TelegramEntry() {
     const launch = new URLSearchParams(window.location.hash.slice(1)).get("tgWebAppData") ?? "";
     const asked = new URLSearchParams(window.location.search).get("to") ?? "";
     // Only a page of this site is opened.
-    const to = asked.startsWith("/c/") || asked === "/companies" ? asked : "/";
+    const to = asked.startsWith("/c/") || asked === "/companies" || asked === "/app" ? asked : "/app";
     // The window takes the whole height where Telegram lets a page ask for it.
     try {
       (window as unknown as { TelegramWebviewProxy?: Proxy }).TelegramWebviewProxy?.postEvent?.("web_app_expand", "");

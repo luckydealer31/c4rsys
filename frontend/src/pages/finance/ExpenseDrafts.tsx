@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { uploadFile } from "../../api/client";
 import { useApi } from "../../api/queries";
 import type { CashAccount } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
@@ -34,9 +35,45 @@ export function ExpenseDrafts({ accounts }: { accounts: CashAccount[] }) {
     ["expense-drafts", company.public_id],
     `/c/${company.public_id}/expense-drafts`,
   );
+  // A receipt is added here too (customer's decision of 23.11.2026): from the window of the bot
+  // or from the site, the photo is read into a draft the same way.
+  const client = useQueryClient();
+  const add = useCommand<{ file_id: string }, unknown>(`/c/${company.public_id}/expense-drafts`);
+  const [uploading, setUploading] = useState(false);
+  async function receipt(file: File) {
+    setUploading(true);
+    let id = "";
+    try {
+      id = (await uploadFile("expense_receipt", file)).id;
+    } finally {
+      setUploading(false);
+    }
+    if ((await add.run({ file_id: id })) !== null) {
+      await client.invalidateQueries({ queryKey: ["expense-drafts", company.public_id] });
+    }
+  }
   if (!drafts.data) return <Loading />;
+  const busy = uploading || add.pending;
   return (
     <>
+      <p>
+        <label className={`button secondary${busy ? " disabled" : ""}`}>
+          {busy ? t("drafts.reading") : t("drafts.add")}
+          <input
+            type="file"
+            hidden
+            aria-label={t("drafts.add")}
+            accept="image/png,image/jpeg,image/webp,application/pdf"
+            disabled={busy}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (file) void receipt(file);
+            }}
+          />
+        </label>
+      </p>
+      <ErrorMessage error={add.error} />
       <p className="small muted">
         {drafts.data.drafts.length ? t("drafts.own") : t("drafts.empty")} <Info text={t("drafts.hint")} />
       </p>

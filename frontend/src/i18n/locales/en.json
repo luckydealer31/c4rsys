@@ -6737,6 +6737,21 @@
     "record": "Record the expense",
     "remove": "Remove the draft",
     "date": "Date of the expense",
-    "author": "author: {{name}}"
+    "author": "author: {{name}}",
+    "add": "Add a receipt",
+    "reading": "Reading the receipt…"
+  },
+  "miniapp": {
+    "choose_company": "Choose a company",
+    "no_company": "You have no company you work in.",
+    "add_vehicle": "Add a vehicle",
+    "add_invoice": "Add a delivery note",
+    "add_receipt": "Add a receipt",
+    "inspections": "Inspections",
+    "other_company": "Another company",
+    "tab_waiting": "To be made",
+    "tab_done": "Made",
+    "none_waiting": "There are no inspections to be made.",
+    "none_done": "There are no inspections made."
   }
 }

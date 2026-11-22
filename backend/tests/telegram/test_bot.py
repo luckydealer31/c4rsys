@@ -20,7 +20,7 @@ from c4rsys.warehouse import recognition as invoices
 from c4rsys.warehouse.models import Receipt
 from tests.accounts.helpers import post
 from tests.companies.helpers import create_company, hire, key, named_user
-from tests.files.helpers import PNG
+from tests.files.helpers import PNG, upload
 
 pytestmark = pytest.mark.django_db
 
@@ -373,11 +373,18 @@ def test_a_receipt_becomes_a_draft_of_an_expense_seen_by_its_author(
         key(),
     )
     assert future.status_code == 400
+    # A receipt uploaded on the site becomes a draft the same way.
+    uploaded = upload(owner, "expense_receipt", key=next(iter(key().values()))).json()["file"]
+    made = post(owner, f"/api/c/{cmp}/expense-drafts", {"file_id": uploaded["id"]}, key())
+    assert made.status_code == 201, made.content
+    assert len(owner.get(f"/api/c/{cmp}/expense-drafts").json()["drafts"]) == 2
+    removed = owner.delete(f"/api/c/{cmp}/expense-drafts/{made.json()['id']}", headers=key())
+    assert removed.status_code == 200, removed.content
     done = post(owner, f"/api/c/{cmp}/expense-drafts/{draft['id']}/record", body, key())
     assert done.status_code == 201, done.content
     assert done.json()["record"]["direction"] == "out"
     assert owner.get(f"/api/c/{cmp}/expense-drafts").json()["drafts"] == []
-    kept = ExpenseDraft.objects.get()
+    kept = ExpenseDraft.objects.get(state="recorded")
     assert kept.state == "recorded" and kept.movement is not None
     # The expense is recorded by the date of the receipt: its noon in the time zone of the company.
     assert str(kept.movement.posted_at) == "2026-11-20 05:00:00+00:00"
@@ -418,11 +425,10 @@ def test_the_window_of_the_bot_signs_in_by_the_bound_account(
     assert enter(_launch(TG, age=2 * 3600))[0].status_code == 401
     assert enter(_launch(TG + 1))[0].status_code == 401
     assert enter("")[0].status_code in (400, 401)
-    # The button of the window is in the menu when the site is served over https.
+    # Served over https, the menu is one button: the window of the bot.
     settings.C4R_PUBLIC_URL = "https://test.example"
     _message(text="/menu")
     rows = telegram[-1][1]["reply_markup"]["inline_keyboard"]
-    opened = next(row[0]["web_app"]["url"] for row in rows if "web_app" in row[0])
-    assert opened.startswith("https://test.example/tg?to=/c/CMP-") and opened.endswith(
-        "/inspections"
-    )
+    assert len(rows) == 1
+    opened = rows[0][0]["web_app"]["url"]
+    assert opened.startswith("https://test.example/tg?to=/c/CMP-") and opened.endswith("/app")

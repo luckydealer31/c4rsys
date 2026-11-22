@@ -1048,3 +1048,17 @@ table.fit { width: auto; }
 .paper-read { margin-bottom: 12px; }
 .paper-read .paper-fact { display: contents; }
 .expense-draft { margin-bottom: 12px; }
+
+/* The menu of the window of the Telegram bot: large buttons for a thumb. */
+.tiles { display: grid; gap: 12px; margin: 16px 0; }
+.tile {
+  display: block;
+  padding: 18px 16px;
+  border: 1px solid var(--border, #d8dde6);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+  color: inherit;
+  font-size: 1.05rem;
+  font-weight: 600;
+  text-decoration: none;
+}

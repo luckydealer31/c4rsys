@@ -76,6 +76,7 @@ import { NewVehiclePage } from "./pages/vehicles/NewVehicleWizard";
 import { VehiclePage, VehiclesPage } from "./pages/vehicles/VehiclesPage";
 import { SchedulePage } from "./pages/vehicles/SchedulePage";
 import { DamagePage } from "./pages/inspections/DamagePage";
+import { AppHome, MiniInspections, MiniMenu } from "./pages/telegram/MiniApp";
 import { TelegramEntry } from "./pages/telegram/TelegramEntry";
 import { InspectionPage } from "./pages/inspections/InspectionPage";
 import { InspectionsPage } from "./pages/inspections/InspectionsPage";
@@ -177,6 +178,7 @@ function MainApp({ cabinet }: { cabinet: boolean }) {
           </AppShell>
         }
       />
+      <Route path="/app" element={<AppHome />} />
       <Route
         path="/invitations"
         element={
@@ -203,6 +205,8 @@ function MainApp({ cabinet }: { cabinet: boolean }) {
         <Route path="vehicles/schedule" element={<SchedulePage />} />
         <Route path="vehicles/:id" element={<VehiclePage />} />
         <Route path="vehicles/:id/edit" element={<EditVehiclePage />} />
+        <Route path="app" element={<MiniMenu />} />
+        <Route path="app/inspections" element={<MiniInspections />} />
         <Route path="inspections" element={<InspectionsPage />} />
         <Route path="inspections/new" element={<NewInspectionPage />} />
         <Route path="inspections/drafts/:draftId" element={<OnlineDraftPage />} />

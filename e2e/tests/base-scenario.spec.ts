@@ -169,8 +169,20 @@ test("base example from registration to closing survives a restart", async ({ pa
     await route.fulfill({ json: { status: "signed_in" } });
   });
   await page.goto(`/tg?to=${base}/inspections#tgWebAppData=${encodeURIComponent("user=1&hash=abc")}`);
-  await expect(page).toHaveURL(new RegExp(`${base}/inspections$`));
+  await expect(page).toHaveURL(/\/vehicles/); // the old address of the inspections leads to the garage
   expect(launch).toBe("user=1&hash=abc");
+  // The menu of the window: with one company it opens at once; a vehicle, a delivery note, a
+  // receipt and the inspections — all of them, to be made and made, in two tabs.
+  await page.goto("/tg?to=/app#tgWebAppData=x");
+  await expect(page).toHaveURL(new RegExp(`${base}/app$`));
+  for (const key of ["add_vehicle", "add_receipt", "inspections"]) {
+    await expect(page.getByRole("link", { name: t(`miniapp.${key}`), exact: true })).toBeVisible();
+  }
+  await page.getByRole("link", { name: t("miniapp.inspections"), exact: true }).click();
+  await expect(page.getByRole("tab", { name: t("miniapp.tab_waiting") })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByText(t("miniapp.none_waiting"))).toBeVisible();
+  await page.getByRole("tab", { name: t("miniapp.tab_done") }).click();
+  await expect(page.getByText(t("miniapp.none_done"))).toBeVisible();
   await page.goto(`/tg?to=https://example.com/#tgWebAppData=x`);
   await expect(page).not.toHaveURL(/example\.com/);
   await page.unroute("**/api/telegram/webapp/session");
@@ -191,6 +203,7 @@ test("base example from registration to closing survives a restart", async ({ pa
     }),
   );
   await page.goto(`${base}/finance?tab=drafts`);
+  await expect(page.getByLabel(t("drafts.add"))).toBeAttached(); // a receipt is added here too
   const draft = page.locator(".expense-draft");
   await expect(draft).toContainText("PTT Station");
   await expect(draft.getByRole("link", { name: t("drafts.receipt"), exact: true })).toBeVisible();
