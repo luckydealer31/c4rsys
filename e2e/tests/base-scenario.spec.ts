@@ -75,6 +75,27 @@ test("base example from registration to closing survives a restart", async ({ pa
   await name.getByRole("button", { name: t("common.save") }).click();
   await expect(name.getByText(t("common.saved"))).toBeVisible();
 
+  // The block «Telegram» (customer's decisions of 22.11.2026) is not shown while the bot is not
+  // connected; connected, it makes a one-time link to the bot. The bot is not connected here:
+  // its answers are put in their place.
+  await expect(page.getByRole("heading", { name: "Telegram", exact: true })).toHaveCount(0);
+  await page.route("**/api/me/telegram", (route) =>
+    route.fulfill({ json: { configured: true, linked: false, phone: "", username: "" } }),
+  );
+  await page.route("**/api/me/telegram/link", (route) =>
+    route.fulfill({ json: { url: "https://t.me/test_bot?start=one-time" } }),
+  );
+  await page.reload();
+  const telegram = card(page, "Telegram");
+  await expect(telegram).toContainText(t("telegram.not_linked"));
+  await telegram.getByRole("button", { name: t("telegram.connect"), exact: true }).click();
+  await expect(telegram.getByRole("link", { name: t("telegram.open_bot") })).toHaveAttribute(
+    "href",
+    "https://t.me/test_bot?start=one-time",
+  );
+  await page.unroute("**/api/me/telegram");
+  await page.unroute("**/api/me/telegram/link");
+
   // Company, its currency, location with the rental context, cash desk.
   await page.goto("/companies");
   const create = card(page, t("companies.create_title"));

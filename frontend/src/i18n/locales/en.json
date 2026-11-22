@@ -1372,7 +1372,10 @@
     "order_not_internal": "A vehicle is given only in an internal order.",
     "sale_line_other_order": "The goods are of another order.",
     "sale_line_installed": "The goods were used in a done work: the sale cannot be cancelled; a removal and a return with a valuation are needed.",
-    "return_amount_range": "The valuation cannot be more than the amount of the sale."
+    "return_amount_range": "The valuation cannot be more than the amount of the sale.",
+    "telegram_not_configured": "The Telegram bot is not connected.",
+    "telegram_link_expired": "The link is out of date. Get a new one.",
+    "telegram_taken": "This Telegram account is already bound to another profile."
   },
   "history": {
     "action": "Action",
@@ -6709,5 +6712,15 @@
     "take_off": "Taken off the vehicle",
     "taken_off": "taken off the vehicle",
     "take_off_hint": "Mark it when the part is taken off. After that a return with a valuation can be made in the order. A paid removal is added as a work of its own."
+  },
+  "telegram": {
+    "linked": "Connected. The number {{phone}} is confirmed by Telegram",
+    "not_linked": "Not connected.",
+    "hint": "With the c4rsys bot in Telegram you can work from a phone: for now — add a vehicle by a photo of its paper. Press «Connect», open the bot by the link and press «Share my number» there: Telegram gives the number it has checked itself. The link works once and lives 15 minutes.",
+    "connect": "Connect",
+    "relink": "Connect another Telegram",
+    "open_bot": "Open the bot in Telegram",
+    "done": "Done, check",
+    "disconnect": "Disconnect"
   }
 }

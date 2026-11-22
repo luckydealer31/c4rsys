@@ -63,6 +63,7 @@ INSTALLED_APPS = [
     "c4rsys.documents",
     "c4rsys.tags",
     "c4rsys.backoffice",
+    "c4rsys.telegram",
 ]
 
 MIDDLEWARE = [
@@ -193,6 +194,9 @@ ANYMAIL = {
 C4R_INVOICE_RECOGNITION = os.environ.get("C4R_INVOICE_RECOGNITION", "")
 C4R_ANTHROPIC_MODEL = os.environ.get("C4R_ANTHROPIC_MODEL", "") or "claude-opus-5-5"
 C4R_PUBLIC_URL = os.environ.get("C4R_PUBLIC_URL", "http://localhost:5173")
+# The Telegram bot of the system (c4rsys.telegram; customer's decision of 22.11.2026): the token
+# BotFather gave. Empty — the bot is off.
+C4R_TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 # The personal cabinet works on its own domain (customer's decisions of 30.10.2026; the test one
 # is system4rent.com). Requests of companies to a person lead there.
 C4R_CABINET_HOSTS = [

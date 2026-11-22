@@ -8,7 +8,7 @@ import { useCommand } from "../../api/useCommand";
 import { ME_KEY } from "../../auth";
 import { Avatar, ImagePicker } from "../../components/images";
 import { TimeZoneSelect } from "../../components/TimeZoneSelect";
-import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
+import { Card, ErrorMessage, Field, Info, Loading } from "../../components/ui";
 import { UI_LANGUAGES } from "../../i18n";
 import { deviceTimeZone } from "../../time";
 
@@ -37,6 +37,7 @@ export function ProfilePage({ user }: { user: User }) {
       <LoginEmailCard user={user} />
       <PasswordCard />
       <PreferencesCard user={user} />
+      <TelegramCard />
       <SessionsCard />
     </div>
   );
@@ -529,6 +530,82 @@ function PasswordCard() {
           </div>
         </form>
       )}
+    </Card>
+  );
+}
+
+type TelegramState = { configured: boolean; linked: boolean; phone: string; username: string };
+
+/** The Telegram bot of the system (customer's decisions of 22.11.2026): the profile makes a
+ * one-time link to the bot; there the number is shared, and with that the Telegram account is
+ * bound and the number is confirmed. Shown only when the bot is connected. */
+function TelegramCard() {
+  const { t } = useTranslation();
+  const client = useQueryClient();
+  const state = useQuery({ queryKey: ["me-telegram"], queryFn: () => api<TelegramState>("/me/telegram") });
+  const link = useCommand<Record<string, never>, { url: string }>("/me/telegram/link");
+  const unlink = useCommand<Record<string, never>, TelegramState>("/me/telegram/unlink");
+  const [url, setUrl] = useState("");
+  if (!state.data?.configured) return null;
+  const data = state.data;
+  return (
+    <Card title="Telegram">
+      {data.linked ? (
+        <p>
+          {t("telegram.linked", { phone: data.phone })}
+          {data.username ? ` · @${data.username}` : ""} <Info text={t("telegram.hint")} />
+        </p>
+      ) : (
+        <p className="muted">
+          {t("telegram.not_linked")} <Info text={t("telegram.hint")} />
+        </p>
+      )}
+      {url ? (
+        <p>
+          <a href={url} target="_blank" rel="noreferrer">
+            {t("telegram.open_bot")}
+          </a>
+          {" · "}
+          <button
+            type="button"
+            className="link"
+            onClick={async () => {
+              await state.refetch();
+              setUrl("");
+            }}
+          >
+            {t("telegram.done")}
+          </button>
+        </p>
+      ) : (
+        <div className="actions">
+          <button
+            type="button"
+            className="secondary"
+            disabled={link.pending}
+            onClick={async () => {
+              const made = await link.run({});
+              if (made) setUrl(made.url);
+            }}
+          >
+            {data.linked ? t("telegram.relink") : t("telegram.connect")}
+          </button>
+          {data.linked ? (
+            <button
+              type="button"
+              className="link"
+              disabled={unlink.pending}
+              onClick={async () => {
+                const next = await unlink.run({});
+                if (next) client.setQueryData(["me-telegram"], next);
+              }}
+            >
+              {t("telegram.disconnect")}
+            </button>
+          ) : null}
+        </div>
+      )}
+      <ErrorMessage error={link.error ?? unlink.error} />
     </Card>
   );
 }

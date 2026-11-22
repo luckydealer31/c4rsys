@@ -1,0 +1,195 @@
+# ruff: noqa: E501 -- the texts are written whole
+"""What the bot says, in the three languages of the interface. The language is the one of the
+profile; before the Telegram account is bound — the one Telegram names."""
+
+LANGUAGES = ("en", "ru", "th")
+
+TEXTS: dict[str, dict[str, str]] = {
+    "not_linked": {
+        "ru": "Этот Telegram не привязан к профилю c4rsys. Откройте на сайте «Профиль» → «Telegram» → «Подключить» и перейдите по ссылке оттуда.",
+        "en": "This Telegram account is not bound to a c4rsys profile. On the site open «Profile» → «Telegram» → «Connect» and follow the link from there.",
+        "th": "บัญชี Telegram นี้ยังไม่ได้ผูกกับโปรไฟล์ c4rsys เปิด «โปรไฟล์» → «Telegram» → «เชื่อมต่อ» บนเว็บไซต์ แล้วเปิดลิงก์จากที่นั่น",
+    },
+    "code_wrong": {
+        "ru": "Ссылка устарела или уже использована. Получите новую в профиле на сайте.",
+        "en": "The link is out of date or already used. Get a new one in the profile on the site.",
+        "th": "ลิงก์หมดอายุหรือถูกใช้ไปแล้ว รับลิงก์ใหม่ในโปรไฟล์บนเว็บไซต์",
+    },
+    "share_ask": {
+        "ru": "Чтобы привязать Telegram к профилю, подтвердите номер телефона — нажмите кнопку ниже.",
+        "en": "To bind Telegram to the profile, confirm the phone number — press the button below.",
+        "th": "หากต้องการผูก Telegram กับโปรไฟล์ โปรดยืนยันหมายเลขโทรศัพท์ — กดปุ่มด้านล่าง",
+    },
+    "share_button": {
+        "ru": "Поделиться номером",
+        "en": "Share my number",
+        "th": "แชร์หมายเลขของฉัน",
+    },
+    "share_other": {
+        "ru": "Нужен ваш собственный номер: нажмите кнопку «Поделиться номером».",
+        "en": "Your own number is needed: press the button «Share my number».",
+        "th": "ต้องใช้หมายเลขของคุณเอง: กดปุ่ม «แชร์หมายเลขของฉัน»",
+    },
+    "taken": {
+        "ru": "Этот Telegram уже привязан к другому профилю. Сначала отключите его там.",
+        "en": "This Telegram account is already bound to another profile. Disconnect it there first.",
+        "th": "บัญชี Telegram นี้ผูกกับโปรไฟล์อื่นอยู่แล้ว โปรดยกเลิกการเชื่อมต่อที่นั่นก่อน",
+    },
+    "linked": {
+        "ru": "Готово: Telegram привязан к профилю, номер {phone} подтверждён.",
+        "en": "Done: Telegram is bound to the profile, the number {phone} is confirmed.",
+        "th": "เรียบร้อย: ผูก Telegram กับโปรไฟล์แล้ว ยืนยันหมายเลข {phone} แล้ว",
+    },
+    "no_company": {
+        "ru": "У вас нет компании, в которой вы работаете.",
+        "en": "You have no company you work in.",
+        "th": "คุณยังไม่มีบริษัทที่ทำงานอยู่",
+    },
+    "choose_company": {
+        "ru": "Выберите компанию:",
+        "en": "Choose a company:",
+        "th": "เลือกบริษัท:",
+    },
+    "menu": {
+        "ru": "{company}. Что сделать?",
+        "en": "{company}. What to do?",
+        "th": "{company} ต้องการทำอะไร?",
+    },
+    "menu_vehicle": {
+        "ru": "ТС по фото документа",
+        "en": "A vehicle by a photo of its paper",
+        "th": "เพิ่มรถจากรูปถ่ายเอกสาร",
+    },
+    "menu_company": {
+        "ru": "Сменить компанию",
+        "en": "Another company",
+        "th": "เปลี่ยนบริษัท",
+    },
+    "no_right": {
+        "ru": "В этой компании у вас нет права создавать ТС.",
+        "en": "You have no right to create vehicles in this company.",
+        "th": "คุณไม่มีสิทธิ์สร้างรถในบริษัทนี้",
+    },
+    "off": {
+        "ru": "Чтение документов сейчас не подключено.",
+        "en": "Reading of documents is not connected now.",
+        "th": "ยังไม่ได้เชื่อมต่อการอ่านเอกสาร",
+    },
+    "send_photo": {
+        "ru": "Пришлите фото документа на ТС — свидетельства о регистрации, blue book или другого с данными машины. Можно фото или файл (PDF, картинка).",
+        "en": "Send a photo of a paper of the vehicle — a registration certificate, a blue book or another one with its data. A photo or a file (PDF, picture) will do.",
+        "th": "ส่งรูปถ่ายเอกสารรถ เช่น ใบจดทะเบียน เล่มทะเบียน หรือเอกสารอื่นที่มีข้อมูลรถ ส่งเป็นรูปถ่ายหรือไฟล์ (PDF, รูปภาพ) ได้",
+    },
+    "reading": {
+        "ru": "Читаю документ…",
+        "en": "Reading the document…",
+        "th": "กำลังอ่านเอกสาร…",
+    },
+    "read_failed": {
+        "ru": "Не удалось прочитать документ. Попробуйте другое фото или добавьте ТС на сайте.",
+        "en": "The document could not be read. Try another photo or add the vehicle on the site.",
+        "th": "ไม่สามารถอ่านเอกสารได้ ลองรูปอื่นหรือเพิ่มรถบนเว็บไซต์",
+    },
+    "file_wrong": {
+        "ru": "Этот файл не подходит: нужны фото (JPEG, PNG, WebP) или PDF до 10 МБ.",
+        "en": "This file will not do: a photo (JPEG, PNG, WebP) or a PDF up to 10 MB is needed.",
+        "th": "ไฟล์นี้ใช้ไม่ได้: ต้องเป็นรูปถ่าย (JPEG, PNG, WebP) หรือ PDF ไม่เกิน 10 MB",
+    },
+    "read_title": {
+        "ru": "Прочитано из документа:",
+        "en": "Read from the document:",
+        "th": "อ่านได้จากเอกสาร:",
+    },
+    "read_ask": {
+        "ru": "Проверьте данные. Создать ТС?",
+        "en": "Check the data. Create the vehicle?",
+        "th": "ตรวจสอบข้อมูล สร้างรถหรือไม่?",
+    },
+    "confirm": {"ru": "Подтвердить", "en": "Confirm", "th": "ยืนยัน"},
+    "cancel": {"ru": "Отмена", "en": "Cancel", "th": "ยกเลิก"},
+    "cancelled": {"ru": "Отменено.", "en": "Cancelled.", "th": "ยกเลิกแล้ว"},
+    "whose": {"ru": "Чьё это ТС?", "en": "Whose vehicle is it?", "th": "รถคันนี้เป็นของใคร?"},
+    "rel_own": {"ru": "Компании", "en": "The company's", "th": "ของบริษัท"},
+    "rel_managed": {"ru": "В управлении", "en": "Managed", "th": "รับบริหาร"},
+    "rel_client": {"ru": "Клиента", "en": "A client's", "th": "ของลูกค้า"},
+    "where": {
+        "ru": "В какой локации учитывать ТС?",
+        "en": "Which location is the vehicle kept in?",
+        "th": "บันทึกรถไว้ที่สาขาใด?",
+    },
+    "no_location": {
+        "ru": "Нет локации, в которой вы можете создать ТС.",
+        "en": "There is no location you can create a vehicle in.",
+        "th": "ไม่มีสาขาที่คุณสร้างรถได้",
+    },
+    "created": {
+        "ru": "ТС создано: {name}\n{url}",
+        "en": "The vehicle is created: {name}\n{url}",
+        "th": "สร้างรถแล้ว: {name}\n{url}",
+    },
+    "create_failed": {
+        "ru": "Не удалось создать ТС ({code}). Добавьте его на сайте.",
+        "en": "The vehicle could not be created ({code}). Add it on the site.",
+        "th": "ไม่สามารถสร้างรถได้ ({code}) โปรดเพิ่มบนเว็บไซต์",
+    },
+    "start_over": {
+        "ru": "Начните с меню: /menu",
+        "en": "Start from the menu: /menu",
+        "th": "เริ่มจากเมนู: /menu",
+    },
+}
+
+# The names of what is read from a paper.
+FIELDS: dict[str, dict[str, str]] = {
+    "make": {"ru": "Марка", "en": "Make", "th": "ยี่ห้อ"},
+    "model": {"ru": "Модель", "en": "Model", "th": "รุ่น"},
+    "year": {"ru": "Год", "en": "Year", "th": "ปี"},
+    "plate": {"ru": "Госномер", "en": "Plate", "th": "ป้ายทะเบียน"},
+    "plate_country": {
+        "ru": "Страна регистрации",
+        "en": "Country of registration",
+        "th": "ประเทศที่จดทะเบียน",
+    },
+    "vin": {"ru": "VIN", "en": "VIN", "th": "VIN"},
+    "body_number": {"ru": "Номер кузова", "en": "Body number", "th": "หมายเลขตัวถัง"},
+    "chassis_number": {"ru": "Номер шасси", "en": "Chassis number", "th": "หมายเลขแชสซี"},
+    "frame_number": {"ru": "Номер рамы", "en": "Frame number", "th": "หมายเลขเฟรม"},
+    "engine_number": {"ru": "Номер двигателя", "en": "Engine number", "th": "หมายเลขเครื่องยนต์"},
+    "color": {"ru": "Цвет", "en": "Colour", "th": "สี"},
+    "body_type": {"ru": "Тип кузова", "en": "Body type", "th": "ประเภทตัวถัง"},
+    "fuel_type": {"ru": "Топливо", "en": "Fuel", "th": "เชื้อเพลิง"},
+    "transmission": {"ru": "Коробка", "en": "Gearbox", "th": "เกียร์"},
+    "drive": {"ru": "Привод", "en": "Drive", "th": "ระบบขับเคลื่อน"},
+    "engine_volume_cc": {
+        "ru": "Объём двигателя, см³",
+        "en": "Engine volume, cc",
+        "th": "ปริมาตรเครื่องยนต์ ซีซี",
+    },
+    "power_hp": {"ru": "Мощность, л. с.", "en": "Power, hp", "th": "กำลัง แรงม้า"},
+    "seats": {"ru": "Мест", "en": "Seats", "th": "ที่นั่ง"},
+    "doors": {"ru": "Дверей", "en": "Doors", "th": "ประตู"},
+    "curb_weight_kg": {
+        "ru": "Снаряжённая масса, кг",
+        "en": "Curb weight, kg",
+        "th": "น้ำหนักรถเปล่า กก.",
+    },
+    "gross_weight_kg": {"ru": "Полная масса, кг", "en": "Gross weight, kg", "th": "น้ำหนักรวม กก."},
+    "owner_name": {
+        "ru": "Владелец в документе",
+        "en": "Owner in the document",
+        "th": "เจ้าของในเอกสาร",
+    },
+}
+
+
+def language(code: str | None) -> str:
+    short = (code or "")[:2].lower()
+    return short if short in LANGUAGES else "en"
+
+
+def t(lang: str, key: str, **params: object) -> str:
+    return TEXTS[key][lang].format(**params)
+
+
+def field(lang: str, key: str) -> str:
+    return FIELDS[key][lang]
