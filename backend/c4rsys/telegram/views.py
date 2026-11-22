@@ -13,9 +13,9 @@ from django.views.decorators.http import require_GET, require_POST
 from c4rsys.accounts.middleware import require_user
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult, run_command
-from c4rsys.platform.http import idempotency_key, respond
+from c4rsys.platform.http import get_str, idempotency_key, parse_json, respond
 from c4rsys.platform.middleware import get_request_id
-from c4rsys.telegram import api, bot, links
+from c4rsys.telegram import api, bot, links, webapp
 from c4rsys.telegram.models import TelegramUpdate
 
 logger = logging.getLogger(__name__)
@@ -107,3 +107,22 @@ def me_telegram_unlink(request: HttpRequest) -> JsonResponse:
             request_id=get_request_id(request),
         )
     )
+
+
+@require_POST
+def webapp_session(request: HttpRequest) -> JsonResponse:
+    """The window of the bot signs in: valid launch data of a bound Telegram account open a
+    session of its profile (customer's decision of 23.11.2026)."""
+    from c4rsys.accounts import services as accounts
+    from c4rsys.accounts.middleware import set_session_cookie
+    from c4rsys.accounts.views import _client
+
+    data = parse_json(request)
+    user = webapp.telegram_user(get_str(data, "init_data", max_length=8192))
+    link = links.link_of_telegram(int(user["id"]))
+    if link is None:
+        raise errors.ApiError("SESSION_REQUIRED", status=401)
+    signed = accounts.sign_in_trusted(link.user_id, _client(request), "telegram")
+    response = JsonResponse({"status": "signed_in"})
+    set_session_cookie(response, signed.session_token, signed.user)
+    return response

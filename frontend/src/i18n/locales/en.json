@@ -6723,7 +6723,9 @@
     "relink": "Connect another Telegram",
     "open_bot": "Open the bot in Telegram",
     "done": "Done, check",
-    "disconnect": "Disconnect"
+    "disconnect": "Disconnect",
+    "entry_failed": "Signing in through Telegram failed. Open the window from the menu of the bot again; if Telegram is not bound, connect it in the profile on the site.",
+    "entry_login": "Sign in to the site in the usual way"
   },
   "drafts": {
     "own": "Drafts of expenses.",

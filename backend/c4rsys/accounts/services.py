@@ -408,6 +408,32 @@ def _create_session(user: UserAccount, client: Client, now: datetime) -> tuple[U
     return session, token
 
 
+def sign_in_trusted(user_id: UUID, client: Client, through: str) -> SignedIn:
+    """A session opened without the code and the password, by another proof of the person that
+    the caller has checked itself: the Telegram account bound to the profile (customer's decision
+    of 23.11.2026, c4rsys.telegram). The checks of a login (a system block) apply, the login is
+    journaled with its way, and the session lives by the limits of the account as any other."""
+    now = timezone.now()
+    with transaction.atomic():
+        user = UserAccount.objects.select_for_update().filter(pk=user_id).first()
+        if user is None or user.state != UserAccount.State.ACTIVE:
+            raise errors.ApiError("SESSION_REQUIRED", status=401)
+        for check in _login_checks:
+            check(user, client)
+        session, session_token = _create_session(user, client, now)
+        journal(
+            "auth.login",
+            object_type="user_session",
+            object_id=session.id,
+            user=user,
+            session=session,
+            after={"through": through},
+        )
+        for handler in _signed_in:
+            handler(user, session, client)
+        return SignedIn(user, session, session_token)
+
+
 def expiry_reason(session: UserSession, user: UserAccount, now: datetime) -> str | None:
     """Limits are the account's current settings, counted per session from its own login and last
     activity; changing the settings does not restart the count (§ 24.4.2)."""

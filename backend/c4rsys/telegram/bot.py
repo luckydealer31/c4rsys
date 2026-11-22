@@ -168,7 +168,16 @@ class Talk:
         ]
         if len(contexts) > 1:
             rows.append([(t(self.lang, "menu_company"), "cos")])
-        self.say("menu", _buttons(*rows), company=current.company.display_name)
+        markup = _buttons(*rows)
+        # The window of the bot (customer's decision of 23.11.2026): the inspections of the site
+        # open inside Telegram, signed in by the bound account. Telegram takes only an https page.
+        site = settings.C4R_PUBLIC_URL.rstrip("/")
+        if site.startswith("https://"):
+            page = f"{site}/tg?to=/c/{current.company.public_id}/inspections"
+            markup["inline_keyboard"].insert(
+                3, [{"text": t(self.lang, "menu_inspection"), "web_app": {"url": page}}]
+            )
+        self.say("menu", markup, company=current.company.display_name)
 
     def choose(self, public_id: str) -> None:
         for context in _contexts(self.link.user):

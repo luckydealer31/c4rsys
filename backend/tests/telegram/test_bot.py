@@ -3,6 +3,7 @@ the shared number, the choice of the company, a vehicle by a photo of its paper.
 service that reads the papers are replaced by functions of the tests."""
 
 import json
+import time
 from decimal import Decimal
 from typing import Any
 
@@ -13,7 +14,7 @@ from c4rsys.finance import expense_drafts
 from c4rsys.finance.models import ExpenseDraft
 from c4rsys.fleet import recognition
 from c4rsys.platform.models import AuditEvent
-from c4rsys.telegram import api
+from c4rsys.telegram import api, webapp
 from c4rsys.telegram.models import TelegramLink
 from c4rsys.warehouse import recognition as invoices
 from c4rsys.warehouse.models import Receipt
@@ -383,3 +384,45 @@ def test_a_receipt_becomes_a_draft_of_an_expense_seen_by_its_author(
     # A closed draft is not recorded twice.
     again = post(owner, f"/api/c/{cmp}/expense-drafts/{draft['id']}/record", body, key())
     assert again.status_code == 422
+
+
+def _launch(telegram_user_id: int, age: int = 0) -> str:
+    """The launch data Telegram gives the window of the bot."""
+    from urllib.parse import urlencode
+
+    fields = {
+        "auth_date": str(int(time.time()) - age),
+        "query_id": "q1",
+        "user": json.dumps({"id": telegram_user_id, "first_name": "Anna"}),
+    }
+    return urlencode({**fields, "hash": webapp.sign(fields, "1:test")})
+
+
+def test_the_window_of_the_bot_signs_in_by_the_bound_account(
+    owner: Client, telegram: list[tuple[str, dict[str, Any]]], settings: Any
+) -> None:
+    create_company(owner)
+    _bind(owner)
+    me = owner.get("/api/me").json()["user"]["public_id"]
+
+    def enter(init_data: str) -> tuple[Any, Client]:
+        fresh = Client()
+        return post(fresh, "/api/telegram/webapp/session", {"init_data": init_data}), fresh
+
+    entered, window = enter(_launch(TG))
+    assert entered.status_code == 200, entered.content
+    assert window.get("/api/me").json()["user"]["public_id"] == me
+    assert AuditEvent.objects.filter(action="auth.login", after__through="telegram").count() == 1
+    # A changed line, an old one, and an account that is not bound open nothing.
+    assert enter(_launch(TG).replace("Anna", "Anne"))[0].status_code == 401
+    assert enter(_launch(TG, age=2 * 3600))[0].status_code == 401
+    assert enter(_launch(TG + 1))[0].status_code == 401
+    assert enter("")[0].status_code in (400, 401)
+    # The button of the window is in the menu when the site is served over https.
+    settings.C4R_PUBLIC_URL = "https://test.example"
+    _message(text="/menu")
+    rows = telegram[-1][1]["reply_markup"]["inline_keyboard"]
+    opened = next(row[0]["web_app"]["url"] for row in rows if "web_app" in row[0])
+    assert opened.startswith("https://test.example/tg?to=/c/CMP-") and opened.endswith(
+        "/inspections"
+    )

@@ -76,6 +76,7 @@ import { NewVehiclePage } from "./pages/vehicles/NewVehicleWizard";
 import { VehiclePage, VehiclesPage } from "./pages/vehicles/VehiclesPage";
 import { SchedulePage } from "./pages/vehicles/SchedulePage";
 import { DamagePage } from "./pages/inspections/DamagePage";
+import { TelegramEntry } from "./pages/telegram/TelegramEntry";
 import { InspectionPage } from "./pages/inspections/InspectionPage";
 import { InspectionsPage } from "./pages/inspections/InspectionsPage";
 import { NewInspectionPage } from "./pages/inspections/NewInspection";
@@ -114,6 +115,9 @@ function MainApp({ cabinet }: { cabinet: boolean }) {
     window.addEventListener("online", online);
     return () => window.removeEventListener("online", online);
   }, [refetch]);
+
+  // The window of the Telegram bot signs in by itself, whoever is signed in here or nobody.
+  if (window.location.pathname === "/tg") return <TelegramEntry />;
 
   if (me.isLoading) {
     return (

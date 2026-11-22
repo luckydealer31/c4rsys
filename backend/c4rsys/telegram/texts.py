@@ -116,6 +116,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "The draft of the expense is made.\nDate: {date}\nAmount: {amount}\nSeller: {seller}\nFor: {purpose}\nCheck and record it on the site:\n{url}",
         "th": "สร้างร่างค่าใช้จ่ายแล้ว\nวันที่: {date}\nจำนวนเงิน: {amount}\nผู้ขาย: {seller}\nรายการ: {purpose}\nตรวจสอบและบันทึกบนเว็บไซต์:\n{url}",
     },
+    "menu_inspection": {"ru": "Осмотр", "en": "Inspection", "th": "ตรวจสภาพรถ"},
     "menu_company": {
         "ru": "Сменить компанию",
         "en": "Another company",

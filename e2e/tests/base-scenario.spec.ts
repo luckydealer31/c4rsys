@@ -160,6 +160,21 @@ test("base example from registration to closing survives a restart", async ({ pa
   await page.getByRole("button", { name: t("cash.create"), exact: true }).click();
   await expect(card(page, t("cash.title")).getByRole("cell", { name: "Касса Пхукет" })).toBeVisible();
 
+  // The window of the Telegram bot (customer's decision of 23.11.2026): `/tg` signs in by the
+  // launch data of Telegram and opens the page asked for. Telegram is not here: its launch data
+  // and the answer of the server are put in their place; a page of another site is not opened.
+  let launch = "";
+  await page.route("**/api/telegram/webapp/session", async (route) => {
+    launch = (route.request().postDataJSON() as { init_data: string }).init_data;
+    await route.fulfill({ json: { status: "signed_in" } });
+  });
+  await page.goto(`/tg?to=${base}/inspections#tgWebAppData=${encodeURIComponent("user=1&hash=abc")}`);
+  await expect(page).toHaveURL(new RegExp(`${base}/inspections$`));
+  expect(launch).toBe("user=1&hash=abc");
+  await page.goto(`/tg?to=https://example.com/#tgWebAppData=x`);
+  await expect(page).not.toHaveURL(/example\.com/);
+  await page.unroute("**/api/telegram/webapp/session");
+
   // Drafts of expenses (customer's decisions of 23.11.2026): a receipt sent to the Telegram bot is
   // a draft of its author in «Finance». The bot is not connected here: a draft is put in its place.
   await page.route("**/expense-drafts", (route) =>
