@@ -37,6 +37,8 @@ ANSWER: dict[str, Any] = {
     "doors": True,
     "curb_weight_kg": None,
     "gross_weight_kg": 1500,
+    "owner_name": "  Somchai   Jaidee ",
+    "owner_kind": "Person",
 }
 
 
@@ -102,6 +104,8 @@ def test_a_paper_is_read_and_checked(owner: Client, cmp: str, service: Any) -> N
     assert body["transmission"] == "cvt"
     assert body["engine_volume_cc"] == 1197
     assert body["gross_weight_kg"] == 1500
+    assert body["owner_name"] == "Somchai Jaidee"
+    assert body["owner_kind"] == "person"
     # A value that is not allowed is as good as not read.
     assert body["fuel_type"] == ""
     assert body["power_hp"] is None

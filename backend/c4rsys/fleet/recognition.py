@@ -31,6 +31,7 @@ CHOICES: dict[str, list[str]] = {
     "fuel_type": characteristics.FUEL_TYPES,
     "transmission": characteristics.TRANSMISSIONS,
     "drive": characteristics.DRIVES,
+    "owner_kind": ["person", "organization"],
 }
 # Free texts and their longest length.
 TEXTS: dict[str, int] = {
@@ -43,6 +44,8 @@ TEXTS: dict[str, int] = {
     "frame_number": 40,
     "engine_number": 40,
     "color": 40,
+    # The owner named in the paper (customer's decision of 22.11.2026).
+    "owner_name": 200,
 }
 # Whole numbers and their largest value.
 NUMBERS: dict[str, int] = {
@@ -62,7 +65,8 @@ INSTRUCTION = (
     "the plate as written, the country that issued the plate, the VIN, the numbers of the body, "
     "the chassis, the frame and the engine, the colour in English, and the characteristics. "
     "Leave out whatever cannot be read with confidence: do not guess, and do not work out a "
-    "value from another one. The owner and other people named in the document are not asked for."
+    "value from another one. Read the owner too: the name as written, and whether the owner is "
+    "a person or an organization. Other people named in the document are not asked for."
 )
 
 

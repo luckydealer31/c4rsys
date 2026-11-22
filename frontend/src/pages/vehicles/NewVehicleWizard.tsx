@@ -134,6 +134,7 @@ export function NewVehiclePage() {
   const [uploading, setUploading] = useState(false);
   const [more, setMore] = useState<Record<string, string> | null>(null);
   const [nothing, setNothing] = useState(false);
+  const [ownerRead, setOwnerRead] = useState("");
   async function readPaper(file: File) {
     setNothing(false);
     setUploading(true);
@@ -156,11 +157,20 @@ export function NewVehiclePage() {
       step.model_other = inCatalog && text("model_code") ? "" : text("model");
     }
     for (const key of ["year", "vin", "plate"] as const) if (text(key)) step[key] = text(key);
+    // The owner named in the paper is put into the step of the owner (customer's decision of
+    // 22.11.2026): it is written for a managed or a client vehicle, not for an own one.
+    if (text("owner_name")) {
+      const kind = text("owner_kind") || "person";
+      step.owner_name = text("owner_name");
+      step.owner_kind = kind;
+      step.client_owner_kind = kind;
+    }
+    setOwnerRead(text("owner_name"));
     const rest = Object.fromEntries(PAPER_MORE.filter((key) => text(key)).map((key) => [key, text(key)]));
     setForm({ ...form, ...step });
     setCustomName(null);
     setMore(rest);
-    setNothing(Object.keys(rest).length === 0 && !text("make") && !text("year") && !text("vin") && !text("plate"));
+    setNothing(Object.keys(rest).length === 0 && !text("owner_name") && !text("make") && !text("year") && !text("vin") && !text("plate"));
   }
 
   const hasCatalog = options.data?.catalog_types.includes(form.vehicle_type) ?? false;
@@ -592,6 +602,11 @@ export function NewVehiclePage() {
           <p className="small">
             {t("vehicles.paper_done")} <Info text={t("vehicles.paper_more_hint")} />
           </p>
+          {ownerRead ? (
+            <p className="small">
+              {t("vehicles.paper_owner", { name: ownerRead })} <Info text={t("vehicles.paper_owner_hint")} />
+            </p>
+          ) : null}
           {Object.keys(more).length ? (
             <dl className="facts">
               {Object.entries(more).map(([key, value]) => (

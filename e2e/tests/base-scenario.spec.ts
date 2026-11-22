@@ -155,7 +155,7 @@ test("base example from registration to closing survives a restart", async ({ pa
         frame_number: "", engine_number: "3NR-1234567", color: "White", body_type: "sedan",
         fuel_type: "petrol", transmission: "", drive: "", engine_volume_cc: 1197, power_hp: null,
         seats: 5, doors: null, curb_weight_kg: null, gross_weight_kg: null,
-        make_code: null, model_code: null, catalog_type: null,
+        make_code: null, model_code: null, catalog_type: null, owner_name: "Somchai Jaidee", owner_kind: "person",
       },
     }),
   );
@@ -169,6 +169,7 @@ test("base example from registration to closing survives a restart", async ({ pa
   await expect(paper).toContainText("White");
   await expect(paper).toContainText("3NR-1234567");
   await expect(paper).toContainText(t("vehicles.fuel.petrol"));
+  await expect(paper).toContainText(t("vehicles.paper_owner", { name: "Somchai Jaidee" }));
   // A value read wrong is taken out; the rest is written with the card.
   await paper.locator(".paper-fact", { hasText: t("vehicles.seats") }).getByRole("button").click();
   await expect(paper.locator(".paper-fact", { hasText: t("vehicles.seats") })).toHaveCount(0);
