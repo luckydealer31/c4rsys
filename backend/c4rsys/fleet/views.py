@@ -391,7 +391,7 @@ def vehicle_recognize(request: HttpRequest, cmp: str) -> JsonResponse:
         or item.company_id not in (None, context.company.id)
     ):
         raise errors.validation_error("document_id", code="FILE_NOT_USABLE")
-    paper = recognition.read(files.content(item), item.content_type)
+    paper = recognition.read_kept(item.id, files.content(item), item.content_type)
     named = " ".join(filter(None, [paper.texts["make"], paper.texts["model"]]))
     match = next(iter(catalog_match_in_text(named)), None)
     return JsonResponse(

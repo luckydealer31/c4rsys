@@ -15,12 +15,13 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
+from uuid import UUID
 
 from django.conf import settings
 from django.utils import timezone
 
 from c4rsys.fleet import characteristics
-from c4rsys.fleet.models import Vehicle
+from c4rsys.fleet.models import PaperReading, Vehicle
 from c4rsys.platform import errors
 
 TYPES = characteristics.VEHICLE_TYPES[Vehicle.TransportClass.GROUND]
@@ -150,3 +151,17 @@ def read(content: bytes, content_type: str) -> Paper:
     except Exception as exc:  # noqa: BLE001 -- whatever the outer service fails with
         raise errors.business_rule("RECOGNITION_FAILED") from exc
     return parse(answer)
+
+
+def read_kept(file_id: UUID, content: bytes, content_type: str) -> Paper:
+    """A paper is read by the outer service once (customer's remark of 22.11.2026): the reading
+    is kept with the file, and whoever asks for the same file again — the site after the bot —
+    gets it without another request to the service."""
+    kept = PaperReading.objects.filter(pk=file_id).first()
+    if kept is not None:
+        return Paper(texts=dict(kept.texts), numbers=dict(kept.numbers))
+    paper = read(content, content_type)
+    PaperReading.objects.update_or_create(
+        pk=file_id, defaults={"texts": paper.texts, "numbers": paper.numbers}
+    )
+    return paper

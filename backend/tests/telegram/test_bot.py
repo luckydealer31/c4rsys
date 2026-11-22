@@ -60,8 +60,13 @@ def telegram(settings: Any, monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, 
 
 @pytest.fixture
 def reader(settings: Any) -> Any:
-    box: dict[str, Any] = {"answer": PAPER}
-    recognition.register("test", lambda content, kind: box["answer"])
+    box: dict[str, Any] = {"answer": PAPER, "asked": 0}
+
+    def fake(content: bytes, kind: str) -> Any:
+        box["asked"] += 1
+        return box["answer"]
+
+    recognition.register("test", fake)
     settings.C4R_INVOICE_RECOGNITION = "test"
     yield box
     recognition._recognizers.pop("test", None)
@@ -190,7 +195,15 @@ def test_a_vehicle_is_made_by_a_photo_after_the_confirmation(
     read = telegram[-1][1]
     assert "VIN: MR2K29F30N1234567" in read["text"]
     assert "Владелец в документе: Somchai Jaidee" in read["text"]
-    assert [b["callback_data"] for b in read["reply_markup"]["inline_keyboard"][0]] == ["ok", "no"]
+    rows = read["reply_markup"]["inline_keyboard"]
+    assert [row[0].get("callback_data") for row in rows] == ["ok", None, "no"]
+    # The other way: the form of a new vehicle on the site, filled from the same paper.
+    assert f"/c/{cmp}/vehicles/new?paper=" in rows[1][0]["url"]
+    paper_id = rows[1][0]["url"].split("paper=")[1]
+    again = post(owner, f"/api/c/{cmp}/vehicles/recognize", {"document_id": paper_id}, key())
+    assert again.status_code == 200 and again.json()["vin"] == "MR2K29F30N1234567"
+    # The paper is read by the service once: the site takes what the bot has read.
+    assert reader["asked"] == 1
     # Nothing is made before the confirmation.
     assert owner.get(f"/api/c/{cmp}/vehicles").json()["vehicles"] == []
 

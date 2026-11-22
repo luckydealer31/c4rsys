@@ -180,6 +180,11 @@ test("base example from registration to closing survives a restart", async ({ pa
       },
     }),
   );
+  // The button «Check on the site» of the Telegram bot leads to the same form with the paper the
+  // bot has kept: the steps are filled without an upload.
+  await page.goto(`${base}/vehicles/new?paper=0190a000-0000-7000-8000-000000000000`);
+  await expect(page.locator(".paper-read")).toContainText("3NR-1234567");
+  await page.goto(`${base}/vehicles`);
   await page.getByRole("link", { name: t("vehicles.create_button") }).click();
   await page.locator(".paper-reading input[type=file]").setInputFiles({
     name: "book.png",

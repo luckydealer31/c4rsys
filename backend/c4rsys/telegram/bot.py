@@ -246,9 +246,9 @@ class Talk:
         taken = self._file(message, StoredFile.Purpose.VEHICLE_PAPER)
         if taken is None:
             return None
-        _, content, content_type = taken
+        file_id, content, content_type = taken
         try:
-            paper = recognition.read(content, content_type)
+            paper = recognition.read_kept(file_id, content, content_type)
         except errors.ApiError as exc:
             return self.say("off" if exc.code == "RECOGNITION_NOT_CONFIGURED" else "read_failed")
         read: dict[str, Any] = {**paper.texts, **paper.numbers}
@@ -280,11 +280,18 @@ class Talk:
             if read.get(key) not in ("", None)
         ]
         text = "\n".join([t(self.lang, "read_title"), *lines, "", t(self.lang, "read_ask")])
-        api.send(
-            self.link.chat_id,
-            text,
-            _buttons([(t(self.lang, "confirm"), "ok"), (t(self.lang, "cancel"), "no")]),
+        # Two ways (customer's decision of 22.11.2026): the vehicle is made here at once, or the
+        # form of a new vehicle is opened on the site, filled from the same paper, to be checked.
+        acting = self._acting()
+        if acting is None:
+            return None
+        site = (
+            f"{settings.C4R_PUBLIC_URL.rstrip('/')}/c/{acting[0].company.public_id}"
+            f"/vehicles/new?paper={file_id}"
         )
+        markup = _buttons([(t(self.lang, "create_now"), "ok")], [(t(self.lang, "cancel"), "no")])
+        markup["inline_keyboard"].insert(1, [{"text": t(self.lang, "check_on_site"), "url": site}])
+        api.send(self.link.chat_id, text, markup)
 
     def confirmed(self) -> None:
         state = self.link.state

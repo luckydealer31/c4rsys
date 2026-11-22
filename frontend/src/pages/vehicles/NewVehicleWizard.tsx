@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useSearchParams } from "react-router";
 
@@ -144,6 +144,12 @@ export function NewVehiclePage() {
     } finally {
       setUploading(false);
     }
+    await fill(id);
+  }
+  /** The steps are filled from a paper already kept: one uploaded here, or one sent to the
+   * Telegram bot, whose button «Check on the site» leads here with `?paper=` (customer's decision
+   * of 22.11.2026). */
+  async function fill(id: string) {
     const paper = await reading.run({ document_id: id });
     if (!paper) return;
     const text = (key: string) => (paper[key] === null || paper[key] === undefined ? "" : String(paper[key]));
@@ -172,6 +178,15 @@ export function NewVehiclePage() {
     setMore(rest);
     setNothing(Object.keys(rest).length === 0 && !text("owner_name") && !text("make") && !text("year") && !text("vin") && !text("plate"));
   }
+
+  const fromBot = params.get("paper") ?? "";
+  const filled = useRef(false);
+  useEffect(() => {
+    if (!fromBot || filled.current || !options.data?.paper_recognition) return;
+    filled.current = true;
+    void fill(fromBot);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the lists are loaded
+  }, [fromBot, options.data]);
 
   const hasCatalog = options.data?.catalog_types.includes(form.vehicle_type) ?? false;
   const makes = useApi<{ makes: CatalogMake[] }>(

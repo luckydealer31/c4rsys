@@ -1540,3 +1540,20 @@ class VehicleCopyDecision(models.Model):
 
     def __str__(self) -> str:
         return f"{self.decision}:{self.company_version_id}"
+
+
+class PaperReading(models.Model):
+    """What was read from a paper of a vehicle, kept with its file (customer's remark of
+    22.11.2026): a paper is read by the outer service once; the bot and the site take the same
+    reading. The values are those checked by `recognition.parse`."""
+
+    file_id = models.UUIDField(primary_key=True)
+    texts = models.JSONField(default=dict)
+    numbers = models.JSONField(default=dict)
+    created_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "vehicle_paper_reading"
+
+    def __str__(self) -> str:
+        return f"paper-reading:{self.file_id}"
