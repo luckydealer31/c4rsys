@@ -726,7 +726,7 @@ function UnitsBar({
               {t("stock.tags")}
             </button>
           ) : null}
-          {can("warehouse.sell") ? (
+          {can("warehouse.sell") || can("warehouse.issue") ? (
             <button type="button" className="secondary" onClick={() => setSending("order")}>
               {t("send.to_order")}
             </button>

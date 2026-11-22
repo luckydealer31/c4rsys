@@ -79,8 +79,20 @@ def of_lines(company_id: UUID, line_ids: list[UUID]) -> dict[UUID, LineCost]:
 def of_vehicle(company_id: UUID, card_id: UUID, currency: str) -> dict[str, Any]:
     """Every consumption on the vehicle: by warehouse operations and by service works, at the
     purchase costs in the main currency of the company."""
+    # Customer's decision of 22.11.2026: goods of an internal order used on a managed vehicle
+    # count at their sale price; on an own vehicle — at the purchase cost, as everything else.
+    from c4rsys.warehouse.models import SaleLine
     from c4rsys.warehouse.stock import money_text
 
+    priced = dict(
+        SaleLine.objects.filter(
+            company_id=company_id,
+            for_vehicle_id=card_id,
+            at_cost=False,
+            state=SaleLine.State.SOLD,
+            operation_line__isnull=False,
+        ).values_list("operation_line_id", "amount")
+    )
     rows = []
     total = ZERO
     incomplete = False
@@ -95,6 +107,8 @@ def of_vehicle(company_id: UUID, card_id: UUID, currency: str) -> dict[str, Any]
         found = line_cost(line)
         if found.consumed <= 0:
             continue
+        if line.id in priced:
+            found = LineCost(line.id, found.consumed, priced[line.id], True)
         total += found.cost
         incomplete = incomplete or not found.known
         rows.append(

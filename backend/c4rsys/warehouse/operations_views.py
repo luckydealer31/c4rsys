@@ -316,7 +316,9 @@ def company_vehicles(request: HttpRequest, cmp: str) -> JsonResponse:
         for card in fleet.cards_of(context.company.id)
         if fleet.company_vehicle(context.company.id, card.id) is not None
     ]
-    return JsonResponse({"vehicles": [{"id": str(c.id), "name": c.name} for c in found]})
+    return JsonResponse(
+        {"vehicles": [{"id": str(c.id), "name": c.name, "relation": c.relation} for c in found]}
+    )
 
 
 # --- Issue, return, consumption -----------------------------------------------------------------

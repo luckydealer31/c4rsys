@@ -15,7 +15,15 @@ import { useServiceOperations } from "../service/hooks";
 /** The units marked in a stock card: of this item, in this warehouse. */
 export type Marked = { item: WarehouseItem; contextId: string; ids: string[] };
 
-type OpenOrder = { id: string; number: number; client: string; phone: string; created_at: string; vehicles: string[] };
+type OpenOrder = {
+  id: string;
+  number: number;
+  client: string;
+  internal: boolean;
+  phone: string;
+  created_at: string;
+  vehicles: string[];
+};
 
 /** Goods leave the warehouse into an order (customer's decision of 22.11.2026): the marked units
  * go into a new order of a client or into an open one. In the order they are reserved; they are
@@ -34,19 +42,32 @@ export function ToOrderModal({ marked, onClose }: { marked: Marked; onClose: () 
   );
   // «New order» is a button of its own (customer's remark of 22.11.2026): the search above the
   // list looks only among the open orders; a new order takes a client of the base or a new one.
-  const [mode, setMode] = useState<"orders" | "new" | "client">("orders");
-  const start = useCommand<{ client_id: string }, { order: { id: string } }>(`/c/${company.public_id}/warehouse/sales/start`);
+  const [mode, setMode] = useState<"orders" | "new" | "client" | "vehicle">("orders");
+  // Goods used on a vehicle of the company go into an internal order (customer's decision of
+  // 22.11.2026): a new one, or an open one picked from the list.
+  const own = can("warehouse.issue");
+  const [internal, setInternal] = useState<OpenOrder | null>(null);
+  const [vehicleId, setVehicleId] = useState("");
+  const vehicles = useApi<{ vehicles: { id: string; name: string; relation: string }[] }>(
+    ["warehouse-vehicles", company.public_id],
+    `/c/${company.public_id}/warehouse/vehicles`,
+    own && mode === "vehicle",
+  );
+  const start = useCommand<{ client_id: string } | { internal: true }, { order: { id: string } }>(
+    `/c/${company.public_id}/warehouse/sales/start`,
+  );
   const add = useCommand<{ order_id: string } & Record<string, unknown>, unknown>(
     (body) => `/c/${company.public_id}/warehouse/orders/${body.order_id}/sale-lines`,
   );
   const busy = start.pending || add.pending;
 
-  async function into(orderId: string) {
+  async function into(orderId: string, forVehicle?: string) {
     const done = await add.run({
       order_id: orderId,
       context_id: marked.contextId,
       item_id: marked.item.id,
       asset_ids: marked.ids,
+      ...(forVehicle ? { for_vehicle_id: forVehicle } : {}),
     });
     if (done === null) return;
     await client.invalidateQueries({ queryKey: ["warehouse-item-stock", company.public_id, marked.item.id] });
@@ -59,6 +80,12 @@ export function ToOrderModal({ marked, onClose }: { marked: Marked; onClose: () 
     if (result) await into(result.order.id);
   }
 
+  async function onVehicle() {
+    if (internal) return into(internal.id, vehicleId);
+    const result = await start.run({ internal: true });
+    if (result) await into(result.order.id, vehicleId);
+  }
+
   return (
     <Modal title={mode === "orders" ? t("send.to_order") : t("send.new_order")} onClose={onClose} roomy>
       <p className="small muted">
@@ -66,7 +93,7 @@ export function ToOrderModal({ marked, onClose }: { marked: Marked; onClose: () 
       </p>
       {mode === "orders" ? (
         <>
-          {can("order.create") ? (
+          {can("order.create") && (can("warehouse.sell") || own) ? (
             <p>
               <button type="button" className="secondary" onClick={() => setMode("new")}>
                 {t("send.new_order")}
@@ -87,8 +114,17 @@ export function ToOrderModal({ marked, onClose }: { marked: Marked; onClose: () 
           <ul className="pick-list">
             {(orders.data?.orders ?? []).map((o) => (
               <li key={o.id}>
-                <button type="button" className="link" disabled={busy} onClick={() => void into(o.id)}>
-                  № {o.number} · {o.client}
+                <button
+                  type="button"
+                  className="link"
+                  disabled={busy}
+                  onClick={() => {
+                    if (!o.internal) return void into(o.id);
+                    setInternal(o);
+                    setMode("vehicle");
+                  }}
+                >
+                  № {o.number} · {o.internal ? t("orders.internal") : o.client}
                 </button>
                 <span className="small muted">
                   {[o.phone, new Date(o.created_at).toLocaleDateString(), ...o.vehicles].filter(Boolean).join(" · ")}
@@ -100,14 +136,51 @@ export function ToOrderModal({ marked, onClose }: { marked: Marked; onClose: () 
       ) : (
         <>
           <p>
-            <button type="button" className="link" onClick={() => setMode(mode === "client" ? "new" : "orders")}>
-              ← {mode === "client" ? t("send.new_order") : t("send.open_orders")}
+            <button
+              type="button"
+              className="link"
+              onClick={() => {
+                setMode(mode === "client" || (mode === "vehicle" && !internal) ? "new" : "orders");
+                setInternal(null);
+              }}
+            >
+              ← {mode === "client" || (mode === "vehicle" && !internal) ? t("send.new_order") : t("send.open_orders")}
             </button>
           </p>
-          {mode === "new" ? (
+          {mode === "vehicle" ? (
+            <>
+              <h3>
+                {internal ? `№ ${internal.number} · ${t("orders.internal")}` : t("send.own_vehicle")}{" "}
+                <Info text={t("send.own_vehicle_hint")} />
+              </h3>
+              <div className="pick-vehicle">
+                <select aria-label={t("operations.vehicle")} value={vehicleId} onChange={(e) => setVehicleId(e.target.value)}>
+                  <option value="">{t("operations.vehicle")}</option>
+                  {(vehicles.data?.vehicles ?? []).map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.name} · {t(v.relation === "own" ? "send.vehicle_own" : "send.vehicle_managed")}
+                    </option>
+                  ))}
+                </select>
+                <button type="button" disabled={busy || !vehicleId} onClick={() => void onVehicle()}>
+                  {t("sales.add_button")}
+                </button>
+              </div>
+            </>
+          ) : mode === "new" ? (
             // Room for the list of the found clients, which drops under the field.
             <div className="finder-room">
-              <ClientFinder onPick={(c) => void fresh(c.id)} onCreate={() => setMode("client")} />
+              {own ? (
+                <p>
+                  <button type="button" className="secondary" onClick={() => setMode("vehicle")}>
+                    {t("send.own_vehicle")}
+                  </button>{" "}
+                  <Info text={t("send.own_vehicle_hint")} />
+                </p>
+              ) : null}
+              {can("warehouse.sell") ? (
+                <ClientFinder onPick={(c) => void fresh(c.id)} onCreate={() => setMode("client")} />
+              ) : null}
             </div>
           ) : (
             <ClientForm onCreated={(c) => void fresh(c.id)} />
@@ -131,7 +204,8 @@ export function ToServiceModal({ marked, locationId, onClose }: { marked: Marked
   const operations = useServiceOperations(`active=1&location_id=${locationId}`);
   const [chosen, setChosen] = useState<ServiceOperation | null>(null);
   const toWork = can("service.create") && can("warehouse.issue");
-  const toOrder = can("warehouse.sell");
+  // Goods of a client's service are sold; goods of an internal one are used on its vehicle.
+  const toOrder = (operation: ServiceOperation) => can(operation.is_internal ? "warehouse.issue" : "warehouse.sell");
   const material = useCommand<{ job_id: string } & Record<string, unknown>, unknown>(
     (body) => `/c/${company.public_id}/service/jobs/${body.job_id}/materials`,
   );
@@ -204,22 +278,27 @@ export function ToServiceModal({ marked, locationId, onClose }: { marked: Marked
               </ul>
             </>
           ) : null}
-          {toOrder ? (
-            chosen.is_internal ? (
-              <p className="small muted">{t("send.internal_later")}</p>
-            ) : (
-              <p>
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled={busy}
-                  onClick={async () => done(await line.run({ order_id: chosen.order_id, ...take }), chosen)}
-                >
-                  {t("send.without_work")}
-                </button>{" "}
-                <Info text={t("send.without_work_hint")} />
-              </p>
-            )
+          {toOrder(chosen) ? (
+            <p>
+              <button
+                type="button"
+                className="secondary"
+                disabled={busy}
+                onClick={async () =>
+                  done(
+                    await line.run({
+                      order_id: chosen.order_id,
+                      ...take,
+                      ...(chosen.is_internal ? { for_vehicle_id: chosen.vehicle_card_id } : {}),
+                    }),
+                    chosen,
+                  )
+                }
+              >
+                {t("send.without_work")}
+              </button>{" "}
+              <Info text={t("send.without_work_hint")} />
+            </p>
           ) : null}
         </>
       )}

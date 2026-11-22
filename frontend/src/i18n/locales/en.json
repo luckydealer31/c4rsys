@@ -1368,7 +1368,8 @@
     "recognition_not_configured": "The service that reads documents is not connected.",
     "recognition_failed": "The document could not be read. Try again or enter the lines by hand.",
     "place_one_only": "A unit or a lot has one storage place only.",
-    "place_name_taken": "This warehouse already has a place with this name."
+    "place_name_taken": "This warehouse already has a place with this name.",
+    "order_not_internal": "A vehicle is given only in an internal order."
   },
   "history": {
     "action": "Action",
@@ -6671,7 +6672,14 @@
     "no_works": "No unfinished works.",
     "without_work": "Without a work",
     "without_work_hint": "The goods go into the order of this service; a work is chosen later.",
-    "internal_later": "The order of this service is internal — the goods can only be added to a work.",
-    "nothing_found": "Nothing found."
+    "nothing_found": "Nothing found.",
+    "own_vehicle": "For own vehicle",
+    "own_vehicle_hint": "An internal order of the company: the goods are used on the vehicle when the order is closed. On an own vehicle — at the purchase cost, on a managed one — at the sale price.",
+    "vehicle_own": "own",
+    "vehicle_managed": "managed",
+    "used_on": "on {{vehicle}}",
+    "at_cost": "at the purchase cost",
+    "at_price": "at the sale price",
+    "state_used": "Used"
   }
 }

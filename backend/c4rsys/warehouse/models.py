@@ -1341,6 +1341,13 @@ class SaleLine(models.Model):
     vehicle = models.ForeignKey(
         "fleet.VehicleCard", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
+    # Customer's decision of 22.11.2026: in an internal order the goods are used on a vehicle of
+    # the company. On an own vehicle they count at the purchase cost (`at_cost`), on a managed
+    # one — at the sale price. A client order has no such vehicle.
+    for_vehicle = models.ForeignKey(
+        "fleet.VehicleCard", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    at_cost = models.BooleanField(default=False)
     quantity = models.DecimalField(max_digits=12, decimal_places=2)
     unit_price = models.DecimalField(max_digits=14, decimal_places=4)
     amount = models.DecimalField(max_digits=14, decimal_places=4)

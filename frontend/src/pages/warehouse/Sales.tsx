@@ -20,6 +20,9 @@ export type SaleLine = {
   context: { id: string; location_name: string };
   item: ItemBrief | null;
   vehicle: { id: string; name: string } | null;
+  /** In an internal order: the vehicle of the company the goods are used on. */
+  for_vehicle: { id: string; name: string } | null;
+  at_cost: boolean;
   asset: string | null;
   lot: string | null;
   packaging_quantity: string | null;
@@ -146,7 +149,15 @@ export function SaleGoods({ order, onChange }: { order: Order; onChange: () => P
           <tbody>
             {all.map((line) => (
               <tr key={line.id} className={line.state === "removed" || line.state === "cancelled" ? "muted" : ""}>
-                <td>{line.vehicle?.name ?? line.item?.name}</td>
+                <td>
+                  {line.vehicle?.name ?? line.item?.name}
+                  {line.for_vehicle ? (
+                    <div className="small muted">
+                      {t("send.used_on", { vehicle: line.for_vehicle.name })} ·{" "}
+                      {t(line.at_cost ? "send.at_cost" : "send.at_price")}
+                    </div>
+                  ) : null}
+                </td>
                 <td className="small">
                   {line.context.location_name}
                   {line.asset ? ` · ${line.asset}` : ""}
@@ -158,11 +169,11 @@ export function SaleGoods({ order, onChange }: { order: Order; onChange: () => P
                 <td>{money(line.unit_price, line.currency)}</td>
                 <td>{money(line.amount, line.currency)}</td>
                 <td>
-                  {t(`sales.state_${line.state}`)}
+                  {line.for_vehicle && line.state === "sold" ? t("send.state_used") : t(`sales.state_${line.state}`)}
                   {line.cancel_reason ? <div className="small muted">{line.cancel_reason}</div> : null}
                 </td>
                 <td>
-                  {line.state === "reserved" && open && can("warehouse.sell") ? (
+                  {line.state === "reserved" && open && can(order.is_internal ? "warehouse.issue" : "warehouse.sell") ? (
                     <button type="button" className="link" onClick={async () => void refresh(await remove.run({ id: line.id }))}>
                       {t("receipts.remove_line")}
                     </button>

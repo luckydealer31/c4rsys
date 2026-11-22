@@ -3,6 +3,7 @@ vehicle, minimum stock with a warning (ТЗ § 11.7.2, § 11.7.4–11.7.6, § 11
 
 from decimal import Decimal
 from typing import Any
+from uuid import UUID
 
 import pytest
 from django.test import Client
@@ -227,3 +228,72 @@ def test_price_and_places_of_several_units_at_once(
         ).status_code
         == 403
     )
+
+
+def test_goods_of_an_internal_order_are_used_on_a_vehicle(
+    owner: Client, cmp: str, setup: dict[str, Any]
+) -> None:
+    """Customer's decisions of 22.11.2026: goods go into an internal order for a vehicle of the
+    company and are used on it when the order is closed — on an own vehicle at the purchase
+    cost, on a managed one at the sale price."""
+    from c4rsys.fleet.models import VehicleCard
+    from c4rsys.orders.models import Order
+    from c4rsys.warehouse.models import StockOperation
+
+    own, managed = (str(a.id) for a in Asset.objects.order_by("id"))
+    post(
+        owner,
+        url(cmp, setup["pads"], "units/price"),
+        {"asset_ids": [own, managed], "amount": "640"},
+        key(),
+    )
+
+    def car_named(name: str) -> str:
+        body = {"name": name, "location_id": setup["location"], "odometer_unit": "km"}
+        return str(post(owner, f"/api/c/{cmp}/vehicles", body, key()).json()["vehicle"]["id"])
+
+    setup = {**setup, "car": car_named("Toyota Yaris")}
+    other = car_named("Honda Click")
+    VehicleCard.objects.filter(pk=other).update(relation=VehicleCard.Relation.MANAGED)
+
+    started = post(owner, f"/api/c/{cmp}/warehouse/sales/start", {"internal": True}, key())
+    assert started.status_code == 201, started.content
+    order = started.json()["order"]["id"]
+    lines_url = f"/api/c/{cmp}/warehouse/orders/{order}/sale-lines"
+    body = {"context_id": setup["ctx"], "item_id": setup["pads"]}
+    # A vehicle is needed in an internal order.
+    refused = post(owner, lines_url, {**body, "asset_ids": [own]}, key())
+    assert refused.status_code == 400 and "for_vehicle_id" in refused.content.decode()
+    first = post(
+        owner, lines_url, {**body, "asset_ids": [own], "for_vehicle_id": setup["car"]}, key()
+    )
+    assert first.status_code == 201, first.content
+    second = post(
+        owner, lines_url, {**body, "asset_ids": [managed], "for_vehicle_id": other}, key()
+    )
+    by_car = {line["for_vehicle"]["id"]: line for line in second.json()["lines"]}
+    assert by_car[setup["car"]]["at_cost"] is True and by_car[setup["car"]]["amount"] == "500.00"
+    assert by_car[other]["at_cost"] is False and by_car[other]["amount"] == "640.00"
+
+    # The open internal order is listed with the vehicles of its goods.
+    listed = owner.get(f"/api/c/{cmp}/warehouse/sales/open-orders").json()["orders"]
+    assert [o["internal"] for o in listed] == [True]
+    assert sorted(listed[0]["vehicles"]) == ["Honda Click", "Toyota Yaris"]
+
+    closed = post(
+        owner,
+        f"/api/c/{cmp}/orders/{order}/close",
+        {"expected_version": Order.objects.get(pk=order).version},
+        key(),
+    )
+    assert closed.status_code == 200, closed.content
+    assert {a.state for a in Asset.objects.all()} == {Asset.State.CONSUMED}
+    assert set(
+        StockOperation.objects.filter(kind="consume").values_list("vehicle_id", flat=True)
+    ) == {
+        UUID(setup["car"]),
+        UUID(other),
+    }
+    costs = f"/api/c/{cmp}/warehouse/vehicles/{{}}/material-costs"
+    assert owner.get(costs.format(setup["car"])).json()["total"] == "500.00"
+    assert owner.get(costs.format(other)).json()["total"] == "640.00"

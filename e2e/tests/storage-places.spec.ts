@@ -247,6 +247,23 @@ test("storage places are a list of the warehouse", async ({ page }) => {
   await ok(page, "DELETE", `/c/${s.cmp}/warehouse/orders/${bought}/sale-lines/${sold}`);
   await page.goto(stockCard);
   await page.getByRole("checkbox", { name: t("stock.mark_all"), exact: true }).check();
+  // Goods used on a vehicle of the company go into an internal order (customer's decisions of
+  // 22.11.2026): «New order» → «For own vehicle»; on an own vehicle — at the purchase cost.
+  await ok(page, "POST", `/c/${s.cmp}/vehicles`, { name: "Honda Click", location_id: s.location, odometer_unit: "km" });
+  await page.locator(".units-bar").getByRole("button", { name: t("send.to_order"), exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: t("send.new_order"), exact: true }).click();
+  await newOrder.getByRole("button", { name: t("send.own_vehicle"), exact: true }).click();
+  await newOrder.getByRole("combobox", { name: t("operations.vehicle") }).selectOption({ index: 1 });
+  await newOrder.getByRole("button", { name: t("sales.add_button"), exact: true }).click();
+  await expect(page).toHaveURL(/\/orders\/[0-9a-f-]+$/);
+  await expect(page.locator("main")).toContainText(t("send.used_on", { vehicle: "Honda Click" }));
+  await expect(page.locator("main")).toContainText(t("send.at_cost"));
+  const internal = page.url().split("/").pop()!;
+  const used = ((await ok(page, "GET", `/c/${s.cmp}/warehouse/orders/${internal}/sale-lines`)).lines as { id: string; amount: string }[])[0];
+  expect(used.amount).toBe("100.00");
+  await ok(page, "DELETE", `/c/${s.cmp}/warehouse/orders/${internal}/sale-lines/${used.id}`);
+  await page.goto(stockCard);
+  await page.getByRole("checkbox", { name: t("stock.mark_all"), exact: true }).check();
   await page.locator(".units-bar").getByRole("button", { name: t("operations.new_write_off"), exact: true }).click();
   await expect(page.getByRole("heading", { level: 1, name: t("operations.new_write_off") })).toBeVisible();
   await expect(page.locator(".line-card input[type=checkbox]")).toBeChecked();

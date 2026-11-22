@@ -44,6 +44,15 @@ def _line_payload(line: SaleLine, vehicles: dict[UUID, str]) -> dict[str, Any]:
         "vehicle": {"id": str(line.vehicle_id), "name": vehicles.get(line.vehicle_id, "")}
         if line.vehicle_id
         else None,
+        # In an internal order: the vehicle of the company the goods are used on; on an own
+        # one they count at the purchase cost.
+        "for_vehicle": {
+            "id": str(line.for_vehicle_id),
+            "name": vehicles.get(line.for_vehicle_id, ""),
+        }
+        if line.for_vehicle_id
+        else None,
+        "at_cost": line.at_cost,
         "asset": line.asset.public_id if line.asset else None,
         "lot": line.lot.public_id if line.lot else None,
         "packaging_quantity": str(line.packaging.quantity)
@@ -62,7 +71,10 @@ def _line_payload(line: SaleLine, vehicles: dict[UUID, str]) -> dict[str, Any]:
 
 def _lines(company_id: UUID, order_id: UUID) -> dict[str, Any]:
     lines = sales.lines_of_order(company_id, order_id)
-    vehicles = fleet.card_names(company_id, {line.vehicle_id for line in lines if line.vehicle_id})
+    vehicles = fleet.card_names(
+        company_id,
+        {card for line in lines for card in (line.vehicle_id, line.for_vehicle_id) if card},
+    )
     return {"lines": [_line_payload(line, vehicles) for line in lines]}
 
 
@@ -74,11 +86,25 @@ def _order_for(request: HttpRequest, cmp: str, order_id: UUID) -> tuple[Any, Any
 
 @require_POST
 def start(request: HttpRequest, cmp: str) -> JsonResponse:
-    """A new order for a sale from the warehouse to the chosen client (decision of 25.10.2026)."""
+    """A new order for a sale from the warehouse to the chosen client (decision of 25.10.2026),
+    or an internal one for goods used on a vehicle of the company (customer's decision of
+    22.11.2026; PROPOSAL: the right to issue from the warehouse, as the consumption on a vehicle
+    it replaces)."""
     context, actor = _actor(request, cmp)
-    _require(actor, "warehouse.sell")
     _require(actor, "order.create")
-    client_id = _uuid(parse_json(request).get("client_id"), "client_id")
+    data = parse_json(request)
+    if data.get("internal") is True:
+        _require(actor, "warehouse.issue")
+
+        def internal(ctx: CommandContext) -> CommandResult:
+            order = sales.start_internal_order(ctx, context.company, actor.employment_id)
+            return CommandResult(201, {"order": {"id": str(order.id), "number": order.number}})
+
+        return run_and_respond(
+            request, "warehouse.start_internal", actor, {"internal": True}, internal
+        )
+    _require(actor, "warehouse.sell")
+    client_id = _uuid(data.get("client_id"), "client_id")
     if client_id is None:
         raise errors.validation_error("client_id", code="FIELD_REQUIRED")
     clients.get_client(context.company.id, client_id)
@@ -102,9 +128,20 @@ def open_orders(request: HttpRequest, cmp: str) -> JsonResponse:
     from c4rsys.service import operations as service
 
     context, actor = _actor(request, cmp)
-    _require(actor, "warehouse.sell")
+    # Internal orders — for goods used on a vehicle of the company — are listed with them for
+    # who may issue from the warehouse (customer's decision of 22.11.2026).
+    internal = _has_any(actor, "warehouse.issue")
+    if not internal:
+        _require(actor, "warehouse.sell")
     company_id = context.company.id
-    query = orders.orders_of(company_id).filter(state=Order.State.OPEN, client__isnull=False)
+    query = orders.orders_of(company_id).filter(state=Order.State.OPEN)
+    of_clients = Q(client__isnull=False, is_internal=False)
+    if not _has_any(actor, "warehouse.sell"):
+        query = query.filter(is_internal=True)
+    elif internal:
+        query = query.filter(of_clients | Q(is_internal=True))
+    else:
+        query = query.filter(of_clients)
     text = request.GET.get("q", "").strip()[:100]
     if text:
         match = (
@@ -121,9 +158,18 @@ def open_orders(request: HttpRequest, cmp: str) -> JsonResponse:
     found = list(query.select_related("client")[:100])
     ids = {o.id for o in found}
     cards: dict[UUID, set[UUID]] = {}
+    used: dict[UUID, set[UUID]] = {}
+    for order_id, card_id in SaleLine.objects.filter(
+        company_id=company_id,
+        order_id__in=ids,
+        for_vehicle__isnull=False,
+        state=SaleLine.State.RESERVED,
+    ).values_list("order_id", "for_vehicle_id"):
+        used.setdefault(order_id, set()).add(card_id)
     for part in (
         rentals.vehicles_of_orders(company_id, ids),
         service.vehicles_of_orders(company_id, ids),
+        used,
     ):
         for order_id, of_order in part.items():
             cards.setdefault(order_id, set()).update(of_order)
@@ -136,6 +182,7 @@ def open_orders(request: HttpRequest, cmp: str) -> JsonResponse:
                     "id": str(o.id),
                     "number": o.number,
                     "client": clients.display_name(o.client) if o.client else "",
+                    "internal": o.is_internal,
                     "phone": phones.get(o.client_id, "") if o.client_id else "",
                     "created_at": o.created_at.isoformat(),
                     "vehicles": sorted(
@@ -159,7 +206,13 @@ def order_lines(request: HttpRequest, cmp: str, order_id: UUID) -> JsonResponse:
     context_id = _uuid(data.get("context_id"), "context_id")
     if context_id is None:
         raise errors.validation_error("context_id", code="FIELD_REQUIRED")
-    _require_in(actor, "warehouse.sell", _context_of(context.company.id, context_id))
+    # Goods of an internal order are used on a vehicle of the company: the right to issue
+    # from the warehouse (PROPOSAL), not the right to sell.
+    _require_in(
+        actor,
+        "warehouse.issue" if order.is_internal else "warehouse.sell",
+        _context_of(context.company.id, context_id),
+    )
     value = data.get("quantity")
     sale = sales.SaleData(
         context_id=context_id,
@@ -171,6 +224,7 @@ def order_lines(request: HttpRequest, cmp: str, order_id: UUID) -> JsonResponse:
         quantity=None if value in (None, "") else catalog.quantity(value, "quantity"),
         vehicle_id=_uuid(data.get("vehicle_id"), "vehicle_id"),
         confirm_expired=data.get("confirm_expired") is True,
+        for_vehicle_id=_uuid(data.get("for_vehicle_id"), "for_vehicle_id"),
     )
 
     def handler(ctx: CommandContext) -> CommandResult:
@@ -202,8 +256,9 @@ def order_line_remove(
 ) -> JsonResponse:
     context, actor, order = _order_for(request, cmp, order_id)
     line = _line_for(context, line_id, order)
-    if not _has(actor, "warehouse.sell", line.context):
-        raise errors.permission_denied("warehouse.sell")
+    right = "warehouse.issue" if order.is_internal else "warehouse.sell"
+    if not _has(actor, right, line.context):
+        raise errors.permission_denied(right)
 
     def handler(ctx: CommandContext) -> CommandResult:
         sales.remove(ctx, context.company.id, line_id)

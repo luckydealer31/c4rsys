@@ -60,6 +60,8 @@ class SaleData:
     quantity: Decimal | None = None
     vehicle_id: UUID | None = None
     confirm_expired: bool = False
+    # In an internal order: the vehicle of the company the goods are used on.
+    for_vehicle_id: UUID | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -72,6 +74,7 @@ class SaleData:
             "quantity": str(self.quantity) if self.quantity is not None else None,
             "vehicle_id": str(self.vehicle_id) if self.vehicle_id else None,
             "confirm_expired": self.confirm_expired,
+            "for_vehicle_id": str(self.for_vehicle_id) if self.for_vehicle_id else None,
         }
 
 
@@ -87,9 +90,30 @@ def start_order(
     )
 
 
+def start_internal_order(
+    ctx: CommandContext, company: Company, employment_id: UUID | None
+) -> Order:
+    """An internal order for goods used on a vehicle of the company (customer's decision of
+    22.11.2026)."""
+    return orders.create_internal_order(
+        ctx, company_id=company.id, responsible_employment_id=employment_id
+    )
+
+
+def _order(company_id: UUID, order_id: UUID, *, new_operation: bool = False) -> Order:
+    """The open order of the goods, locked: of a client or an internal one."""
+    order = orders.lock_open_order(company_id, order_id)
+    if order.is_internal:
+        return order
+    return orders.open_order_of_client(company_id, order_id, new_operation=new_operation)
+
+
 def _charge(
     ctx: CommandContext, order: Order, line: SaleLine, amount: Decimal, reason: str
 ) -> None:
+    if order.is_internal:
+        # An internal order has no client and no client charges (§ 12.1.3).
+        return
     if order.client_id is None:
         raise errors.business_rule("ORDER_WITHOUT_CLIENT")
     charges.set_charge(
@@ -120,7 +144,21 @@ def _price(value: Decimal | None) -> Decimal:
 def add(ctx: CommandContext, company: Company, order_id: UUID, data: SaleData) -> list[SaleLine]:
     """§ 11.9.1: the line reserves at once, without a term while the order is open, and keeps the
     price snapshot (§ 11.3.2). Nothing beyond the free quantity is reserved (§ 11.8.1)."""
-    order = orders.open_order_of_client(company.id, order_id, new_operation=True)
+    order = _order(company.id, order_id, new_operation=True)
+    # Customer's decisions of 22.11.2026: in an internal order the goods are used on a vehicle
+    # of the company — on an own one at the purchase cost, on a managed one at the sale price.
+    target = None
+    if order.is_internal:
+        if data.vehicle_id is not None:
+            raise errors.business_rule("ORDER_WITHOUT_CLIENT", field="order_id")
+        if data.for_vehicle_id is None:
+            raise errors.validation_error("for_vehicle_id", code="FIELD_REQUIRED")
+        target = fleet.company_vehicle(company.id, data.for_vehicle_id)
+        if target is None:
+            raise errors.validation_error("for_vehicle_id", code="VEHICLE_NOT_USABLE")
+    elif data.for_vehicle_id is not None:
+        raise errors.validation_error("for_vehicle_id", code="ORDER_NOT_INTERNAL")
+    at_cost = target is not None and target.relation == target.Relation.OWN
     if data.context_id is None:
         raise errors.validation_error("context_id", code="FIELD_REQUIRED")
     context = locations.storage_context(company.id, data.context_id)
@@ -137,6 +175,8 @@ def add(ctx: CommandContext, company: Company, order_id: UUID, data: SaleData) -
             context=context,
             currency=currency.code,
             created_by_user_id=ctx.actor.user_id,
+            for_vehicle=target,
+            at_cost=at_cost,
             **fields,
         )
         created.amount = round_money(created.unit_price * units, minor)
@@ -169,14 +209,20 @@ def add(ctx: CommandContext, company: Company, order_id: UUID, data: SaleData) -
                     or reserves.asset_reserved(asset.id)
                 ):
                     raise errors.business_rule("ASSET_NOT_AVAILABLE", asset=asset.public_id)
-                price = _price(prices.price_for(item, asset=asset))
+                # The purchase cost of a unit is known now; an unknown one counts as zero and
+                # the costs of the vehicle are marked incomplete (§ 11.2.9).
+                price = (
+                    (asset.purchase_cost or ZERO)
+                    if at_cost
+                    else _price(prices.price_for(item, asset=asset))
+                )
                 created.append(
                     line(Decimal(1), item=item, asset=asset, quantity=Decimal(1), unit_price=price)
                 )
             if len(created) != len(set(data.asset_ids)):
                 raise errors.validation_error("asset_ids", code="ASSET_UNKNOWN")
         else:
-            created.append(_add_lot(company.id, item, context.id, data, line))
+            created.append(_add_lot(company.id, item, context.id, data, line, at_cost))
     ctx.audit(
         "warehouse.sale_added",
         object_type="order",
@@ -186,12 +232,22 @@ def add(ctx: CommandContext, company: Company, order_id: UUID, data: SaleData) -
     from c4rsys.orders import approvals
 
     for c in created:
+        if order.is_internal:
+            break
         name = c.item.name if c.item_id and c.item else (c.vehicle.name if c.vehicle else "")
         approvals.on_added(ctx, order.id, "sale", c.id, name)
     return created
 
 
-def _add_lot(company_id: UUID, item: Item, context_id: UUID, data: SaleData, line: Any) -> SaleLine:
+def _add_lot(
+    company_id: UUID, item: Item, context_id: UUID, data: SaleData, line: Any, at_cost: bool
+) -> SaleLine:
+    """`at_cost`: the cost of a material is known when it is used — the earlier receipts first —
+    so the line holds zero until the order is closed."""
+
+    def priced(**where: Any) -> Decimal:
+        return ZERO if at_cost else _price(prices.price_for(item, **where))
+
     if data.quantity is None:
         raise errors.validation_error("quantity", code="FIELD_REQUIRED")
     lot = (
@@ -218,7 +274,7 @@ def _add_lot(company_id: UUID, item: Item, context_id: UUID, data: SaleData, lin
         free = opened.remaining - reserves.reserved_in_form(lot.id, opened.packaging_id, opened.id)
         if amount > free:
             raise errors.business_rule("STOCK_NOT_ENOUGH", field="quantity", available=str(free))
-        price = _price(prices.price_for(item, lot=lot))
+        price = priced(lot=lot)
         result: SaleLine = line(
             amount,
             item=item,
@@ -242,7 +298,7 @@ def _add_lot(company_id: UUID, item: Item, context_id: UUID, data: SaleData, lin
     )
     if amount > free:
         raise errors.business_rule("STOCK_NOT_ENOUGH", field="quantity", available=str(free))
-    price = _price(prices.price_for(item, lot=lot, packaging=packaging))
+    price = priced(lot=lot, packaging=packaging)
     units = amount / packaging.quantity if packaging is not None else amount
     result = line(units, item=item, lot=lot, packaging=packaging, quantity=amount, unit_price=price)
     return result
@@ -259,7 +315,7 @@ def remove(ctx: CommandContext, company_id: UUID, line_id: UUID) -> SaleLine:
     """The line leaves the open order: the reserve is released without consumption and the
     charge goes back to zero (§ 11.3.2, § 11.9.1)."""
     line = _lock_line(company_id, line_id)
-    order = orders.open_order_of_client(company_id, line.order_id)
+    order = _order(company_id, line.order_id)
     if line.state != SaleLine.State.RESERVED:
         raise errors.business_rule("SALE_LINE_STATE", state=line.state)
     line.state = SaleLine.State.REMOVED
@@ -268,7 +324,8 @@ def remove(ctx: CommandContext, company_id: UUID, line_id: UUID) -> SaleLine:
     _charge(ctx, order, line, ZERO, "sale_removed")
     from c4rsys.orders import approvals
 
-    approvals.withdraw(ctx, company_id, "sale", line.id, "removed")
+    if not order.is_internal:
+        approvals.withdraw(ctx, company_id, "sale", line.id, "removed")
     ctx.audit(
         "warehouse.sale_removed",
         object_type="order",
@@ -290,8 +347,9 @@ def on_order_close(ctx: CommandContext, company_id: UUID, order_id: UUID) -> Non
     if not lines:
         return
     company = Company.objects.get(pk=company_id)
-    by_context: dict[UUID, StockOperation] = {}
+    by_context: dict[tuple[UUID, UUID | None], StockOperation] = {}
     now = timezone.now()
+    number = Order.objects.get(pk=order_id).number
     for line in lines:
         if line.vehicle_id is not None:
             from c4rsys.fleet import lifecycle
@@ -300,21 +358,33 @@ def on_order_close(ctx: CommandContext, company_id: UUID, order_id: UUID) -> Non
                 ctx, company_id, line.vehicle_id, order_id, _buyer_profile(company_id, order_id)
             )
         else:
-            operation = by_context.get(line.context_id)
+            # Goods of an internal order are used on their vehicle: a consumption, which counts
+            # in the costs of the vehicle (customer's decision of 22.11.2026).
+            used = line.for_vehicle_id is not None
+            operation = by_context.get((line.context_id, line.for_vehicle_id))
             if operation is None:
                 operation = StockOperation.objects.create(
                     company=company,
                     number=next_number(company_id, "warehouse_operation"),
-                    kind=StockOperation.Kind.SALE,
+                    kind=StockOperation.Kind.CONSUME if used else StockOperation.Kind.SALE,
                     context=line.context,
-                    comment=f"order {Order.objects.get(pk=order_id).number}",
+                    vehicle_id=line.for_vehicle_id,
+                    comment=f"order {number}",
                     created_by_user_id=ctx.actor.user_id,
                 )
-                by_context[line.context_id] = operation
+                by_context[(line.context_id, line.for_vehicle_id)] = operation
             line.operation_line = _sell(ctx, operation, line)
+            if line.at_cost:
+                # The purchase cost of what was actually taken — the earlier receipts first.
+                from c4rsys.warehouse import costs
+
+                found = costs.line_cost(costs._lines(company_id).get(pk=line.operation_line.id))
+                minor = company_currency(company).minor_units
+                line.amount = round_money(found.cost, minor)
+                line.unit_price = line.amount / line.quantity
         line.state = SaleLine.State.SOLD
         line.sold_at = now
-        line.save(update_fields=["state", "sold_at", "operation_line"])
+        line.save(update_fields=["state", "sold_at", "operation_line", "amount", "unit_price"])
     ctx.audit(
         "warehouse.sold",
         object_type="order",
@@ -351,15 +421,16 @@ def _sell(ctx: CommandContext, operation: StockOperation, line: SaleLine) -> Ope
         opened_package_id=line.opened_package_id,
         quantity=line.quantity,
     )
+    used = operation.kind == StockOperation.Kind.CONSUME
+    movement = StockMovement.Kind.CONSUME if used else StockMovement.Kind.SALE
     if line.asset_id is not None:
         asset = Asset.objects.select_for_update().get(pk=line.asset_id)
         if asset.state != Asset.State.IN_STOCK:
             raise errors.business_rule("SALE_STOCK_MISSING", asset=asset.public_id)
-        asset.state = Asset.State.SOLD
-        asset.save(update_fields=["state"])
-        operations._move(
-            ctx, StockMovement.Kind.SALE, operation.context, op_line, Decimal(-1), asset=asset
-        )
+        asset.state = Asset.State.CONSUMED if used else Asset.State.SOLD
+        asset.vehicle_id = operation.vehicle_id
+        asset.save(update_fields=["state", "vehicle"])
+        operations._move(ctx, movement, operation.context, op_line, Decimal(-1), asset=asset)
         return op_line
     lot = line.lot
     if lot is None:
@@ -380,13 +451,7 @@ def _sell(ctx: CommandContext, operation: StockOperation, line: SaleLine) -> Ope
     holder.save(update_fields=[field])
     operations._fifo(op_line, lot, line.quantity)
     operations._move(
-        ctx,
-        StockMovement.Kind.SALE,
-        operation.context,
-        op_line,
-        -line.quantity,
-        lot=lot,
-        piece=piece,
+        ctx, movement, operation.context, op_line, -line.quantity, lot=lot, piece=piece
     )
     return op_line
 
@@ -399,7 +464,7 @@ def cancel(ctx: CommandContext, company_id: UUID, line_id: UUID, reason: str) ->
     if not reason.strip():
         raise errors.validation_error("reason", code="FIELD_REQUIRED")
     line = _lock_line(company_id, line_id)
-    order = orders.open_order_of_client(company_id, line.order_id)
+    order = _order(company_id, line.order_id)
     if line.state != SaleLine.State.SOLD:
         raise errors.business_rule("SALE_LINE_STATE", state=line.state)
     if line.vehicle_id is not None:
@@ -411,7 +476,8 @@ def cancel(ctx: CommandContext, company_id: UUID, line_id: UUID, reason: str) ->
     if line.asset_id is not None:
         asset = Asset.objects.select_for_update().get(pk=line.asset_id)
         asset.state = Asset.State.IN_STOCK
-        asset.save(update_fields=["state"])
+        asset.vehicle_id = None
+        asset.save(update_fields=["state", "vehicle"])
         operations._move(
             ctx, StockMovement.Kind.SALE_CANCEL, context, op_line, Decimal(1), asset=asset
         )
@@ -428,6 +494,10 @@ def cancel(ctx: CommandContext, company_id: UUID, line_id: UUID, reason: str) ->
             lot=lot,
             piece=piece,
         )
+    if line.for_vehicle_id is not None:
+        # Taken back: it is no cost of the vehicle any more.
+        op_line.cancelled_quantity = op_line.quantity
+        op_line.save(update_fields=["cancelled_quantity"])
     line.state = SaleLine.State.CANCELLED
     line.cancelled_at = timezone.now()
     line.cancel_reason = reason
