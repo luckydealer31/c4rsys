@@ -52,6 +52,14 @@ def _file(content: bytes, content_type: str) -> dict[str, Any]:
 
 
 def read(content: bytes, content_type: str) -> dict[str, Any]:
+    return ask(content, content_type, recognition.INSTRUCTION, recognition.SCHEMA)
+
+
+def ask(
+    content: bytes, content_type: str, instruction: str, schema: dict[str, Any]
+) -> dict[str, Any]:
+    """A file read by the instruction, the answer held to the schema. The papers of vehicles are
+    read through it too (fleet/recognition.py)."""
     import anthropic
 
     client = anthropic.Anthropic(timeout=TIMEOUT_SECONDS, max_retries=1)
@@ -59,11 +67,11 @@ def read(content: bytes, content_type: str) -> dict[str, Any]:
         "role": "user",
         "content": [_file(content, content_type), {"type": "text", "text": "Read this document."}],
     }
-    output = {"format": {"type": "json_schema", "schema": _schema(recognition.SCHEMA)}}
+    output = {"format": {"type": "json_schema", "schema": _schema(schema)}}
     response = client.messages.create(
         model=settings.C4R_ANTHROPIC_MODEL,
         max_tokens=MAX_TOKENS,
-        system=recognition.INSTRUCTION,
+        system=instruction,
         messages=[cast("MessageParam", message)],
         output_config=cast("OutputConfigParam", output),
     )
@@ -78,3 +86,8 @@ def read(content: bytes, content_type: str) -> dict[str, Any]:
 def register() -> None:
     if os.environ.get("ANTHROPIC_API_KEY"):
         recognition.register(NAME, read)
+
+
+def available() -> bool:
+    """Whether the service has its key: another module registers its own reading by it."""
+    return bool(os.environ.get("ANTHROPIC_API_KEY"))

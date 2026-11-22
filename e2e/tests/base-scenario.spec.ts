@@ -141,7 +141,38 @@ test("base example from registration to closing survives a restart", async ({ pa
 
   // Vehicle, daily tariff 1 000 THB from 1 day, terms «unlimited, no deposit».
   await page.goto(`${base}/vehicles`);
+  // A paper of the vehicle is read into the steps (customer's decision of 22.11.2026). The outer
+  // service is not connected here: its answer is put in its place.
+  await page.route("**/api/catalog/vehicle-options", async (route) => {
+    const answer = await route.fetch();
+    await route.fulfill({ response: answer, json: { ...(await answer.json()), paper_recognition: true } });
+  });
+  await page.route("**/vehicles/recognize", (route) =>
+    route.fulfill({
+      json: {
+        vehicle_type: "passenger_car", make: "Toyotaa", model: "Yariss", year: 2022, plate: "AB 1234",
+        plate_country: "TH", vin: "MR2K29F30N1234567", body_number: "", chassis_number: "",
+        frame_number: "", engine_number: "3NR-1234567", color: "White", body_type: "sedan",
+        fuel_type: "petrol", transmission: "", drive: "", engine_volume_cc: 1197, power_hp: null,
+        seats: 5, doors: null, curb_weight_kg: null, gross_weight_kg: null,
+        make_code: null, model_code: null, catalog_type: null,
+      },
+    }),
+  );
   await page.getByRole("link", { name: t("vehicles.create_button") }).click();
+  await page.locator(".paper-reading input[type=file]").setInputFiles({
+    name: "book.png",
+    mimeType: "image/png",
+    buffer: Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(64)]),
+  });
+  const paper = page.locator(".paper-read");
+  await expect(paper).toContainText("White");
+  await expect(paper).toContainText("3NR-1234567");
+  await expect(paper).toContainText(t("vehicles.fuel.petrol"));
+  // A value read wrong is taken out; the rest is written with the card.
+  await paper.locator(".paper-fact", { hasText: t("vehicles.seats") }).getByRole("button").click();
+  await expect(paper.locator(".paper-fact", { hasText: t("vehicles.seats") })).toHaveCount(0);
+  const made = page.waitForRequest((r) => r.method() === "POST" && r.url().endsWith("/vehicles"));
   // The creation goes step by step: type, then make, model, year, VIN and plate are skipped.
   const next = page.getByRole("button", { name: t("wizard.next"), exact: true });
   await next.click();
@@ -155,6 +186,10 @@ test("base example from registration to closing survives a restart", async ({ pa
   await next.click();
   await page.getByLabel(t("vehicles.location")).selectOption({ label: "Пхукет" });
   await page.getByRole("button", { name: t("vehicles.create") }).click();
+  const sent = (await made).postDataJSON() as Record<string, unknown>;
+  expect(sent.color).toBe("White");
+  expect(sent.engine_volume_cc).toBe(1197);
+  expect(sent.seats).toBeUndefined();
   await expect(page.getByRole("heading", { name: "Toyota Yaris" })).toBeVisible();
 
   // A tariff is created step by step: name, currency, unit (a day from the issue), the ranges

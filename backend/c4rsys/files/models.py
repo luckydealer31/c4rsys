@@ -31,6 +31,9 @@ class StoredFile(models.Model):
         DOCUMENT_SIGNATURE = "document_signature"
         # A version of a global document of a vehicle, uploaded by its owner (§ 8.2.3).
         VEHICLE_DOCUMENT = "vehicle_document"
+        # A photo or a PDF of a paper of a vehicle, read to fill the card of a new vehicle
+        # (customer's decision of 22.11.2026).
+        VEHICLE_PAPER = "vehicle_paper"
 
     class State(models.TextChoices):
         """Decision В-8.1: an inspection video is compressed on the server after its upload; until

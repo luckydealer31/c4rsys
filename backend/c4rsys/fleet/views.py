@@ -14,6 +14,8 @@ from c4rsys.companies import access, locations
 from c4rsys.companies import services as companies
 from c4rsys.companies.models import Employment
 from c4rsys.companies.views import run_and_respond
+from c4rsys.files import services as files
+from c4rsys.files.models import StoredFile
 from c4rsys.fleet import (
     card_documents,
     characteristics,
@@ -24,6 +26,7 @@ from c4rsys.fleet import (
     merges,
     moves,
     owners,
+    recognition,
     services,
 )
 from c4rsys.fleet.catalog.match import in_text as catalog_match_in_text
@@ -362,6 +365,43 @@ def catalog_options(request: HttpRequest) -> JsonResponse:
             "fuel_types": characteristics.FUEL_TYPES,
             "transmissions": characteristics.TRANSMISSIONS,
             "drives": characteristics.DRIVES,
+            # Whether a paper of a vehicle can be read into the card of a new one.
+            "paper_recognition": recognition.configured(),
+        }
+    )
+
+
+@require_POST
+def vehicle_recognize(request: HttpRequest, cmp: str) -> JsonResponse:
+    """What an outer service has read from a paper of a vehicle (customer's decision of
+    22.11.2026), with the make and the model looked for in the catalog. Nothing is written: the
+    answer fills the form of a new vehicle, and the employee checks it before making the card."""
+    context, actor = _actor(request, cmp)
+    # As for a client vehicle, which has no location: the right counts anywhere in the company.
+    if not access.RightsResolver().has_permission(actor, "vehicle.create", location_id=None):
+        raise errors.permission_denied("vehicle.create")
+    try:
+        file_id = UUID(str(parse_json(request).get("document_id")))
+    except ValueError as exc:
+        raise errors.validation_error("document_id") from exc
+    item = files.readable(actor.user_id, file_id)
+    if (
+        item is None
+        or item.purpose != StoredFile.Purpose.VEHICLE_PAPER
+        or item.company_id not in (None, context.company.id)
+    ):
+        raise errors.validation_error("document_id", code="FILE_NOT_USABLE")
+    paper = recognition.read(files.content(item), item.content_type)
+    named = " ".join(filter(None, [paper.texts["make"], paper.texts["model"]]))
+    match = next(iter(catalog_match_in_text(named)), None)
+    return JsonResponse(
+        {
+            **paper.texts,
+            **paper.numbers,
+            # The make and the model of the catalog, when they are found there.
+            "make_code": match.make if match else None,
+            "model_code": match.model if match else None,
+            "catalog_type": match.vehicle_type if match else None,
         }
     )
 

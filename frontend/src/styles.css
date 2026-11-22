@@ -1036,3 +1036,14 @@ table.fit { width: auto; }
 .free-goods-row > span { flex: 1 1 260px; }
 .free-goods-row > select { flex: 0 1 240px; width: auto; }
 .free-goods-row > button { flex: 0 0 auto; width: auto; }
+
+/* «Fill in from a photo of a document» above the form of a new vehicle. */
+.paper-reading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.paper-read { margin-bottom: 12px; }
+.paper-read .paper-fact { display: contents; }

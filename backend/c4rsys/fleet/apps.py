@@ -56,3 +56,15 @@ class FleetConfig(AppConfig):
         from c4rsys.parties import history as client_history
 
         client_history.register_owned_vehicles(owners.vehicles_of_clients)
+        # The papers of vehicles are read by the service that reads the documents of suppliers
+        # (customer's decision of 22.11.2026).
+        from c4rsys.fleet import recognition
+        from c4rsys.warehouse import recognition_anthropic as outer
+
+        if outer.available():
+            recognition.register(
+                outer.NAME,
+                lambda content, kind: outer.ask(
+                    content, kind, recognition.INSTRUCTION, recognition.SCHEMA
+                ),
+            )

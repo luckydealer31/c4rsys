@@ -888,6 +888,8 @@ export type VehicleOptions = {
   fuel_types: string[];
   transmissions: string[];
   drives: string[];
+  /** Whether a paper of a vehicle can be read into the card of a new one. */
+  paper_recognition?: boolean;
 };
 
 export type CatalogMake = {

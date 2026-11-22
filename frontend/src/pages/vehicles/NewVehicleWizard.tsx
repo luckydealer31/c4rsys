@@ -3,12 +3,14 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useSearchParams } from "react-router";
 
+import { uploadFile } from "../../api/client";
 import { useApi } from "../../api/queries";
 import type { CatalogMake, CatalogModel, Client, Vehicle, VehicleOptions } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
+import { Card, ErrorMessage, Field, Info, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { clientName } from "../clients/ClientsPage";
+import { countries } from "../settings/CompanyProfilePage";
 import { useLocations } from "../settings/LocationsPage";
 
 const OTHER = "__other";
@@ -43,6 +45,36 @@ type Form = {
   client_owner_kind: string;
   odometer_unit: string;
   location_id: string;
+};
+
+/** What is read from a paper of a vehicle: an empty text or null — not read. */
+type Paper = Record<string, string | number | null>;
+// What the steps do not ask: read from the paper, it is written into the card with the rest.
+const PAPER_MORE = [
+  "plate_country",
+  "color",
+  "body_number",
+  "chassis_number",
+  "frame_number",
+  "engine_number",
+  "body_type",
+  "fuel_type",
+  "transmission",
+  "drive",
+  "engine_volume_cc",
+  "power_hp",
+  "seats",
+  "doors",
+  "curb_weight_kg",
+  "gross_weight_kg",
+] as const;
+const PAPER_WHOLE = new Set<string>(["engine_volume_cc", "power_hp", "seats", "doors", "curb_weight_kg", "gross_weight_kg"]);
+// The lists of values and where their names are.
+const PAPER_NAMES: Record<string, string> = {
+  body_type: "vehicles.body",
+  fuel_type: "vehicles.fuel",
+  transmission: "vehicles.gearbox",
+  drive: "vehicles.drives",
 };
 
 const OWNER_KINDS = ["profile", "person", "organization", "none"] as const;
@@ -95,6 +127,41 @@ export function NewVehiclePage() {
     "POST",
   );
   const set = (changes: Partial<Form>) => setForm({ ...form, ...changes });
+  // A paper of the vehicle — a registration certificate, a blue book — is read into the steps
+  // (customer's decision of 22.11.2026): what the steps ask is put into them, the rest is shown
+  // to be checked and is written with the card. Nothing is made until the last step.
+  const reading = useCommand<{ document_id: string }, Paper>(`/c/${company.public_id}/vehicles/recognize`);
+  const [uploading, setUploading] = useState(false);
+  const [more, setMore] = useState<Record<string, string> | null>(null);
+  const [nothing, setNothing] = useState(false);
+  async function readPaper(file: File) {
+    setNothing(false);
+    setUploading(true);
+    let id = "";
+    try {
+      id = (await uploadFile("vehicle_paper", file)).id;
+    } finally {
+      setUploading(false);
+    }
+    const paper = await reading.run({ document_id: id });
+    if (!paper) return;
+    const text = (key: string) => (paper[key] === null || paper[key] === undefined ? "" : String(paper[key]));
+    const type = text("catalog_type") || text("vehicle_type") || form.vehicle_type;
+    const inCatalog = text("make_code") !== "" && (options.data?.catalog_types ?? []).includes(type);
+    const step: Partial<Form> = { vehicle_type: type };
+    if (text("make")) {
+      step.make = inCatalog ? text("make_code") : OTHER;
+      step.make_other = inCatalog ? "" : text("make");
+      step.model = inCatalog ? text("model_code") || (text("model") ? OTHER : "") : "";
+      step.model_other = inCatalog && text("model_code") ? "" : text("model");
+    }
+    for (const key of ["year", "vin", "plate"] as const) if (text(key)) step[key] = text(key);
+    const rest = Object.fromEntries(PAPER_MORE.filter((key) => text(key)).map((key) => [key, text(key)]));
+    setForm({ ...form, ...step });
+    setCustomName(null);
+    setMore(rest);
+    setNothing(Object.keys(rest).length === 0 && !text("make") && !text("year") && !text("vin") && !text("plate"));
+  }
 
   const hasCatalog = options.data?.catalog_types.includes(form.vehicle_type) ?? false;
   const makes = useApi<{ makes: CatalogMake[] }>(
@@ -175,6 +242,7 @@ export function NewVehiclePage() {
       body.make_other = form.make_other;
       body.model_other = form.model_other;
     }
+    for (const [key, value] of Object.entries(more ?? {})) body[key] = PAPER_WHOLE.has(key) ? Number(value) : value;
     const result = await create.run(body);
     if (result !== null) {
       await client.invalidateQueries({ queryKey: ["vehicles", company.public_id] });
@@ -493,6 +561,64 @@ export function NewVehiclePage() {
         {t("wizard.step", { n: index + 1, total: steps.length })}
         {name.trim() && step !== "name" ? ` · ${name}` : ""}
       </p>
+      {o.paper_recognition ? (
+        <div className="paper-reading">
+          <label className={`button secondary${uploading || reading.pending ? " disabled" : ""}`}>
+            {uploading || reading.pending ? t("vehicles.paper_reading") : t("vehicles.paper_read")}
+            <input
+              type="file"
+              hidden
+              aria-label={t("vehicles.paper_read")}
+              accept="image/png,image/jpeg,image/webp,application/pdf"
+              disabled={uploading || reading.pending}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (file) void readPaper(file);
+              }}
+            />
+          </label>
+          <Info text={t("vehicles.paper_hint")} />
+          {nothing ? (
+            <span className="small" role="status">
+              {t("vehicles.paper_nothing")}
+            </span>
+          ) : null}
+          <ErrorMessage error={reading.error} />
+        </div>
+      ) : null}
+      {more && !nothing ? (
+        <section className="card paper-read" role="status">
+          <p className="small">
+            {t("vehicles.paper_done")} <Info text={t("vehicles.paper_more_hint")} />
+          </p>
+          {Object.keys(more).length ? (
+            <dl className="facts">
+              {Object.entries(more).map(([key, value]) => (
+                <div key={key} className="paper-fact">
+                  <dt>{t(`vehicles.${key}`)}</dt>
+                  <dd>
+                    {PAPER_NAMES[key]
+                      ? t(`${PAPER_NAMES[key]}.${value}`)
+                      : key === "plate_country"
+                        ? (countries(i18n.language).find((c) => c.code === value)?.name ?? value)
+                        : value}{" "}
+                    <button
+                      type="button"
+                      className="link"
+                      aria-label={t("rights.remove")}
+                      title={t("rights.remove")}
+                      onClick={() => setMore(Object.fromEntries(Object.entries(more).filter(([k]) => k !== key)))}
+                    >
+                      ×
+                    </button>
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
+        </section>
+      ) : null}
       <form onSubmit={next} key={step}>
         <Card title={titles[step]}>
           {content}

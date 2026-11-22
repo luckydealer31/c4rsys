@@ -46,6 +46,7 @@ urlpatterns = [
     path("catalog/vehicle-makes/<str:make>/models", views.catalog_models),
     path("c/<str:cmp>/vehicles", views.vehicle_list),
     path("c/<str:cmp>/vehicles/schedule", views.vehicle_schedule),
+    path("c/<str:cmp>/vehicles/recognize", views.vehicle_recognize),
     path("c/<str:cmp>/vehicles/<uuid:card_id>", views.vehicle_detail),
     path("c/<str:cmp>/vehicles/<uuid:card_id>/details", views.vehicle_details),
     # В-12.2: the card applies the owner's newer data.
