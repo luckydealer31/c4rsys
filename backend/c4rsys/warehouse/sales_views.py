@@ -7,6 +7,7 @@ Adding goods needs «Sell» in the warehouse they come from (§ 11.9.4); a new o
 from typing import Any
 from uuid import UUID
 
+from django.db.models import Q
 from django.http import HttpRequest, JsonResponse
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
@@ -93,14 +94,41 @@ def start(request: HttpRequest, cmp: str) -> JsonResponse:
 
 @require_GET
 def open_orders(request: HttpRequest, cmp: str) -> JsonResponse:
-    """Open client orders goods can be added to."""
+    """Open client orders goods can be added to: the newest first, found by the number, by the
+    name of the client or by a phone; each with the phone, the date and the vehicles of its
+    rentals and services, so that it is told from the others (customer's decision of
+    22.11.2026)."""
+    from c4rsys.rentals import rentals
+    from c4rsys.service import operations as service
+
     context, actor = _actor(request, cmp)
     _require(actor, "warehouse.sell")
-    found = (
-        orders.orders_of(context.company.id)
-        .filter(state=Order.State.OPEN, client__isnull=False)
-        .select_related("client")[:100]
-    )
+    company_id = context.company.id
+    query = orders.orders_of(company_id).filter(state=Order.State.OPEN, client__isnull=False)
+    text = request.GET.get("q", "").strip()[:100]
+    if text:
+        match = (
+            Q(client__first_name__icontains=text)
+            | Q(client__last_name__icontains=text)
+            | Q(client__company_name__icontains=text)
+        )
+        digits = "".join(ch for ch in text if ch.isdigit())
+        if digits:
+            match |= Q(client__contacts__value_normalized__contains=digits)
+            if digits == text:
+                match |= Q(number=int(digits))
+        query = query.filter(match).distinct()
+    found = list(query.select_related("client")[:100])
+    ids = {o.id for o in found}
+    cards: dict[UUID, set[UUID]] = {}
+    for part in (
+        rentals.vehicles_of_orders(company_id, ids),
+        service.vehicles_of_orders(company_id, ids),
+    ):
+        for order_id, of_order in part.items():
+            cards.setdefault(order_id, set()).update(of_order)
+    names = fleet.card_names(company_id, {card for of_order in cards.values() for card in of_order})
+    phones = clients.phones_of(company_id, {o.client_id for o in found if o.client_id})
     return JsonResponse(
         {
             "orders": [
@@ -108,6 +136,11 @@ def open_orders(request: HttpRequest, cmp: str) -> JsonResponse:
                     "id": str(o.id),
                     "number": o.number,
                     "client": clients.display_name(o.client) if o.client else "",
+                    "phone": phones.get(o.client_id, "") if o.client_id else "",
+                    "created_at": o.created_at.isoformat(),
+                    "vehicles": sorted(
+                        names[card] for card in cards.get(o.id, ()) if card in names
+                    ),
                 }
                 for o in found
             ]

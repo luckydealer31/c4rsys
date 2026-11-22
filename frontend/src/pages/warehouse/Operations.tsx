@@ -43,7 +43,7 @@ export function useReasons() {
   );
 }
 
-function useWarehouses() {
+export function useWarehouses() {
   const company = useCompany();
   const storages = useApi<{ storages: Storage[] }>(
     ["warehouse-storages", company.public_id],

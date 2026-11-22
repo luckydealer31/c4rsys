@@ -80,6 +80,18 @@ def operations_of(company_id: UUID) -> QuerySet[ServiceOperation]:
     return ServiceOperation.objects.filter(company_id=company_id)
 
 
+def vehicles_of_orders(company_id: UUID, order_ids: set[UUID]) -> dict[UUID, set[UUID]]:
+    """The vehicles served in the orders — for other modules that show an order."""
+    found: dict[UUID, set[UUID]] = {}
+    for order_id, card_id in (
+        operations_of(company_id)
+        .filter(order_id__in=order_ids)
+        .values_list("order_id", "vehicle_card_id")
+    ):
+        found.setdefault(order_id, set()).add(card_id)
+    return found
+
+
 def get_operation(company_id: UUID, operation_id: UUID) -> ServiceOperation:
     operation = operations_of(company_id).filter(pk=operation_id).first()
     if operation is None:

@@ -6655,5 +6655,24 @@
     "name": "Name of the place",
     "archived": "archived",
     "no_place": "No place"
+  },
+  "send": {
+    "to_order": "To an order",
+    "to_service": "To a service",
+    "order_hint": "In the order the goods are reserved; the sale happens when the order is closed. Before that they can simply be taken out of the order.",
+    "order_search": "Order number, name or phone",
+    "open_orders": "Open orders",
+    "new_order": "New order",
+    "new_order_hint": "Find the client by name or phone — an order with the marked goods will be created.",
+    "no_clients": "No client found.",
+    "service_hint": "The service must already exist. The goods are added to a work or to the order of this service.",
+    "no_services": "No open services in this location.",
+    "order_number": "order № {{number}}",
+    "other_service": "Choose another",
+    "to_work": "To a work",
+    "no_works": "No unfinished works.",
+    "without_work": "Without a work",
+    "without_work_hint": "The goods go into the order of this service; a work is chosen later.",
+    "internal_later": "The order of this service is internal — the goods can only be added to a work."
   }
 }

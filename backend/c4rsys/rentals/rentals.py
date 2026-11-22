@@ -470,3 +470,16 @@ def inspection_link(company_id: UUID, rental_id: UUID) -> Any:
         issued=rental.state in (Rental.State.ACTIVE, Rental.State.RETURNED),
         closed=rental.formalization_completed_at is not None,
     )
+
+
+def vehicles_of_orders(company_id: UUID, order_ids: set[UUID]) -> dict[UUID, set[UUID]]:
+    """The vehicles rented in the orders — for other modules that show an order."""
+    found: dict[UUID, set[UUID]] = {}
+    for order_id, card_id in (
+        rentals_of(company_id)
+        .filter(order_id__in=order_ids)
+        .values_list("order_id", "vehicle_card_id")
+    ):
+        if card_id is not None:
+            found.setdefault(order_id, set()).add(card_id)
+    return found

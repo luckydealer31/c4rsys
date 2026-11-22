@@ -13,8 +13,15 @@ import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { RowTags, useTagsOf } from "../tags/Tags";
 import { useVehicles } from "../vehicles/VehiclesPage";
 import { useCategoryLabel } from "./Categories";
-import { NEW_KINDS, RIGHT } from "./Operations";
+import { NEW_KINDS, RIGHT, useWarehouses } from "./Operations";
 import { PlaceSelect } from "./Places";
+import { ToOrderModal, ToServiceModal } from "./SendTo";
+import { serviceLocations } from "../service/hooks";
+import { useLocations } from "../settings/LocationsPage";
+
+// The marked units are moved or written off from their card; they are issued through an order
+// or a service, not «to a vehicle» (customer's decision of 22.11.2026).
+const UNIT_KINDS = ["move", "write_off"] as const;
 import { AssetPrice, PricesCard, VehiclePrice } from "./Prices";
 
 /** A quantity with the short unit; trailing zeros of hundredths are dropped. */
@@ -535,7 +542,10 @@ function PlaceDetails({ item, place }: { item: WarehouseItem; place: ItemStock["
   // Several units are marked and changed at once (customer's decision of 21.11.2026).
   const [marked, setMarked] = useState<Set<string>>(new Set());
   const marking =
-    can("warehouse.price.set") || can("warehouse.tags.edit") || NEW_KINDS.some((kind) => can(RIGHT[kind]));
+    can("warehouse.price.set") ||
+    can("warehouse.tags.edit") ||
+    can("warehouse.sell") ||
+    NEW_KINDS.some((kind) => can(RIGHT[kind]));
   const here = place.assets.filter((asset) => marked.has(asset.id)).map((asset) => asset.id);
   const mark = (id: string, on: boolean) => {
     const next = new Set(marked);
@@ -679,6 +689,12 @@ function UnitsBar({
   const price = useCommand<Record<string, unknown>, unknown>(`${base}/price`);
   const places = useCommand<Record<string, unknown>, unknown>(`${base}/tags`);
   const [what, setWhat] = useState<"price" | "place" | null>(null);
+  // Goods leave the warehouse into an order or into a service (customer's decision of
+  // 22.11.2026); a service is offered where the location of the warehouse has one.
+  const [sending, setSending] = useState<"order" | "service" | null>(null);
+  const locationId = useWarehouses().find((w) => w.context_id === contextId)?.location_id ?? "";
+  const withService = serviceLocations(useLocations().data?.locations).some((l) => l.id === locationId);
+  const marked = { item, contextId, ids };
   const [amount, setAmount] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const navigate = useNavigate();
@@ -710,7 +726,17 @@ function UnitsBar({
               {t("stock.tags")}
             </button>
           ) : null}
-          {NEW_KINDS.filter((kind) => can(RIGHT[kind])).map((kind) => (
+          {can("warehouse.sell") ? (
+            <button type="button" className="secondary" onClick={() => setSending("order")}>
+              {t("send.to_order")}
+            </button>
+          ) : null}
+          {withService && can("service.view") && (can("warehouse.sell") || can("warehouse.issue")) ? (
+            <button type="button" className="secondary" onClick={() => setSending("service")}>
+              {t("send.to_service")}
+            </button>
+          ) : null}
+          {UNIT_KINDS.filter((kind) => can(RIGHT[kind])).map((kind) => (
             <button key={kind} type="button" className="secondary" onClick={() => operate(kind)}>
               {t(`operations.new_${kind}`)}
             </button>
@@ -753,6 +779,10 @@ function UnitsBar({
         </button>
       ) : null}
       <ErrorMessage error={price.error ?? places.error} />
+      {sending === "order" ? <ToOrderModal marked={marked} onClose={() => setSending(null)} /> : null}
+      {sending === "service" ? (
+        <ToServiceModal marked={marked} locationId={locationId} onClose={() => setSending(null)} />
+      ) : null}
     </div>
   );
 }

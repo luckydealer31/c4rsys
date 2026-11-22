@@ -191,3 +191,36 @@ def test_today_is_in_the_company_time_zone() -> None:
     with mock.patch("django.utils.timezone.now", return_value=evening):
         assert dashboard.company_today(Company(timezone="Asia/Bangkok")) == date(2026, 10, 26)
         assert dashboard.company_today(Company(timezone="")) == date(2026, 10, 25)
+
+
+def test_open_orders_are_found_and_told_apart(owner: Client, cmp: str) -> None:
+    """Customer's decision of 22.11.2026: an open order shows the phone and the date and is found
+    by the number, the name or the phone; the newest stands first."""
+
+    def order_of(first: str, phone: str) -> str:
+        client = post(
+            owner,
+            f"/api/c/{cmp}/clients",
+            {
+                "kind": "person",
+                "first_name": first,
+                "last_name": "Buyer",
+                "contacts": [{"kind": "phone", "value": phone}],
+            },
+            key(),
+        ).json()["client"]["id"]
+        started = post(owner, f"/api/c/{cmp}/warehouse/sales/start", {"client_id": client}, key())
+        return str(started.json()["order"]["id"])
+
+    older = order_of("Anna", "+66811111111")
+    newer = order_of("Boris", "+66822222222")
+    url = f"/api/c/{cmp}/warehouse/sales/open-orders"
+    listed = owner.get(url).json()["orders"]
+    assert [o["id"] for o in listed] == [newer, older]
+    assert listed[0]["phone"] == "+66822222222" and listed[0]["created_at"]
+    assert listed[0]["vehicles"] == []
+    assert [o["id"] for o in owner.get(url, {"q": "2222"}).json()["orders"]] == [newer]
+    assert [o["id"] for o in owner.get(url, {"q": "anna"}).json()["orders"]] == [older]
+    number = str(listed[1]["number"])
+    assert older in [o["id"] for o in owner.get(url, {"q": number}).json()["orders"]]
+    assert owner.get(url, {"q": "nobody"}).json()["orders"] == []

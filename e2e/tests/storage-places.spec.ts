@@ -211,9 +211,35 @@ test("storage places are a list of the warehouse", async ({ page }) => {
   // it opens with the warehouse, the item and the units already chosen.
   const stockCard = page.url();
   await page.getByRole("checkbox", { name: t("stock.mark_all"), exact: true }).check();
-  for (const kind of ["issue", "consume", "move", "write_off"]) {
+  for (const kind of ["move", "write_off"]) {
     await expect(page.locator(".units-bar").getByRole("button", { name: t(`operations.new_${kind}`), exact: true })).toBeVisible();
   }
+  // Goods are not issued «to a vehicle» from here: they leave into an order or into a service
+  // (customer's decision of 22.11.2026). This location has no service, so only the order is
+  // offered. The order is found by the phone; it shows the phone and the date.
+  for (const kind of ["issue", "consume"]) {
+    await expect(page.locator(".units-bar").getByRole("button", { name: t(`operations.new_${kind}`), exact: true })).toHaveCount(0);
+  }
+  await expect(page.locator(".units-bar").getByRole("button", { name: t("send.to_service"), exact: true })).toHaveCount(0);
+  const buyer = ((await ok(page, "POST", `/c/${s.cmp}/clients`, {
+    kind: "person",
+    first_name: "Иван",
+    last_name: "Покупатель",
+    contacts: [{ kind: "phone", value: "+66812223344" }],
+  })).client as { id: string }).id;
+  const bought = ((await ok(page, "POST", `/c/${s.cmp}/warehouse/sales/start`, { client_id: buyer })).order as { id: string }).id;
+  await page.locator(".units-bar").getByRole("button", { name: t("send.to_order"), exact: true }).click();
+  const toOrder = page.getByRole("dialog", { name: t("send.to_order") });
+  await toOrder.getByRole("textbox", { name: t("send.order_search") }).fill("2223344");
+  await expect(toOrder.locator(".pick-list li").first()).toContainText("+66812223344");
+  await toOrder.locator(".pick-list").first().getByRole("button").first().click();
+  await expect(page).toHaveURL(new RegExp(`/orders/${bought}$`));
+  await expect(page.locator("main")).toContainText("Колодки");
+  // Before the order is closed the goods are simply taken out of it.
+  const sold = ((await ok(page, "GET", `/c/${s.cmp}/warehouse/orders/${bought}/sale-lines`)).lines as { id: string }[])[0].id;
+  await ok(page, "DELETE", `/c/${s.cmp}/warehouse/orders/${bought}/sale-lines/${sold}`);
+  await page.goto(stockCard);
+  await page.getByRole("checkbox", { name: t("stock.mark_all"), exact: true }).check();
   await page.locator(".units-bar").getByRole("button", { name: t("operations.new_write_off"), exact: true }).click();
   await expect(page.getByRole("heading", { level: 1, name: t("operations.new_write_off") })).toBeVisible();
   await expect(page.locator(".line-card input[type=checkbox]")).toBeChecked();

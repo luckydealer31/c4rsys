@@ -450,6 +450,20 @@ def require_operable(company_id: UUID, client_id: UUID, field: str = "client_id"
 # --- Reading ----------------------------------------------------------------------------------
 
 
+def phones_of(company_id: UUID, client_ids: set[UUID]) -> dict[UUID, str]:
+    """One phone of each client, for a list where a client is told from the others."""
+    found: dict[UUID, str] = {}
+    for client_id, value in (
+        ClientContact.objects.filter(
+            company_id=company_id, client_id__in=client_ids, kind=ClientContact.Kind.PHONE
+        )
+        .order_by("client_id", "id")
+        .values_list("client_id", "value")
+    ):
+        found.setdefault(client_id, value)
+    return found
+
+
 def display_name(card: ClientCard) -> str:
     """Name of a client for other modules: company name or «First Last»."""
     if card.company_name:
