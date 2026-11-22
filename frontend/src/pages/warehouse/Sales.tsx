@@ -202,7 +202,6 @@ export function SaleGoods({ order, onChange }: { order: Order; onChange: () => P
                   open &&
                   can("warehouse.sale.correct") &&
                   !line.vehicle &&
-                  !line.for_vehicle &&
                   (!line.installed || line.taken_off_at) ? (
                     <>
                       <button
@@ -274,7 +273,7 @@ export function SaleGoods({ order, onChange }: { order: Order; onChange: () => P
       {returning ? (
         <div className="line-card">
           <div className="row compact">
-            <Field label={t("returns.valuation")} hint={t("returns.valuation_hint")}>
+            <Field label={t("returns.valuation")} hint={t(order.is_internal ? "returns.valuation_hint_internal" : "returns.valuation_hint")}>
               <input inputMode="decimal" autoFocus value={valuation} onChange={(e) => setValuation(e.target.value)} />
             </Field>
             <Field label={t("warehouse.comment")}>

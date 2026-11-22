@@ -3363,7 +3363,8 @@
     "returned": "returned to the supplier: {{value}}",
     "give_back": "Return",
     "valuation": "Valuation",
-    "valuation_hint": "The amount returned to the client. The goods come into the stock at it."
+    "valuation_hint": "The amount returned to the client. The goods come into the stock at it.",
+    "valuation_hint_internal": "The goods come into the stock at this amount. The costs of the vehicle keep the difference."
   },
   "dashboard": {
     "title": "Dashboard «Warehouse»",

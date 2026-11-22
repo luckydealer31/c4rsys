@@ -297,3 +297,27 @@ def test_goods_of_an_internal_order_are_used_on_a_vehicle(
     costs = f"/api/c/{cmp}/warehouse/vehicles/{{}}/material-costs"
     assert owner.get(costs.format(setup["car"])).json()["total"] == "500.00"
     assert owner.get(costs.format(other)).json()["total"] == "640.00"
+
+    # Customer's decision of 22.11.2026: goods of an internal order are returned too — say, they
+    # were put there by mistake. Back into the stock at the valuation; the vehicle keeps the
+    # difference: 500 used, 300 returned — 200.
+    version = Order.objects.get(pk=order).version
+    reopened = post(
+        owner,
+        f"/api/c/{cmp}/orders/{order}/reopen",
+        {"expected_version": version, "reason": "Mistake"},
+        key(),
+    )
+    assert reopened.status_code == 200, reopened.content
+    back = post(
+        owner,
+        f"{lines_url}/{by_car[setup['car']]['id']}/return",
+        {"amount": "300", "comment": "Not needed"},
+        key(),
+    )
+    assert back.status_code == 200, back.content
+    unit = Asset.objects.get(pk=own)
+    assert unit.state == Asset.State.IN_STOCK and unit.purchase_cost == Decimal("300")
+    assert unit.vehicle_id is None
+    assert owner.get(costs.format(setup["car"])).json()["total"] == "200.00"
+    assert owner.get(costs.format(other)).json()["total"] == "640.00"

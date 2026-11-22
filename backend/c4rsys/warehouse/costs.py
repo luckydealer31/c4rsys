@@ -84,15 +84,20 @@ def of_vehicle(company_id: UUID, card_id: UUID, currency: str) -> dict[str, Any]
     from c4rsys.warehouse.models import SaleLine
     from c4rsys.warehouse.stock import money_text
 
-    priced = dict(
-        SaleLine.objects.filter(
-            company_id=company_id,
-            for_vehicle_id=card_id,
-            at_cost=False,
-            state=SaleLine.State.SOLD,
-            operation_line__isnull=False,
-        ).values_list("operation_line_id", "amount")
-    )
+    priced: dict[UUID, Decimal] = {}
+    for sale in SaleLine.objects.filter(
+        company_id=company_id,
+        for_vehicle_id=card_id,
+        state__in=(SaleLine.State.SOLD, SaleLine.State.RETURNED),
+        operation_line__isnull=False,
+    ):
+        if sale.operation_line_id is None:
+            continue
+        if sale.state == SaleLine.State.RETURNED:
+            # Returned with a valuation: the vehicle keeps the difference.
+            priced[sale.operation_line_id] = sale.amount - (sale.return_amount or ZERO)
+        elif not sale.at_cost:
+            priced[sale.operation_line_id] = sale.amount
     rows = []
     total = ZERO
     incomplete = False

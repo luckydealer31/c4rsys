@@ -562,7 +562,10 @@ def return_goods(
     goods come into the stock of their warehouse."""
     line = _lock_line(company.id, line_id)
     order = _order(company.id, line.order_id)
-    if line.state != SaleLine.State.SOLD or line.vehicle_id is not None or order.is_internal:
+    # Goods of an internal order — used on a vehicle of the company — are returned the same way
+    # (customer's decision of 22.11.2026): there is no client, so nothing is paid back; the
+    # cost of the vehicle keeps only the difference between what was used and the valuation.
+    if line.state != SaleLine.State.SOLD or line.vehicle_id is not None:
         raise errors.business_rule("SALE_LINE_STATE", state=line.state)
     if installed(line) and line.taken_off_at is None:
         raise errors.business_rule("SALE_LINE_INSTALLED")
