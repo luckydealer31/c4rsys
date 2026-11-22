@@ -229,6 +229,13 @@ test("storage places are a list of the warehouse", async ({ page }) => {
   })).client as { id: string }).id;
   const bought = ((await ok(page, "POST", `/c/${s.cmp}/warehouse/sales/start`, { client_id: buyer })).order as { id: string }).id;
   await page.locator(".units-bar").getByRole("button", { name: t("send.to_order"), exact: true }).click();
+  // «New order» is a button of its own, there at once: a client of the base or a new one
+  // (customer's remark of 22.11.2026). The search looks only among the open orders.
+  const newOrder = page.getByRole("dialog", { name: t("send.new_order") });
+  await page.getByRole("dialog").getByRole("button", { name: t("send.new_order"), exact: true }).click();
+  await newOrder.getByRole("combobox").click();
+  await expect(newOrder.getByText(t("rentals.new_client"), { exact: false })).toBeVisible();
+  await newOrder.getByRole("button", { name: `← ${t("send.open_orders")}` }).click();
   const toOrder = page.getByRole("dialog", { name: t("send.to_order") });
   await toOrder.getByRole("textbox", { name: t("send.order_search") }).fill("2223344");
   await expect(toOrder.locator(".pick-list li").first()).toContainText("+66812223344");

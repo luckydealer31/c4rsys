@@ -6663,8 +6663,6 @@
     "order_search": "Order number, name or phone",
     "open_orders": "Open orders",
     "new_order": "New order",
-    "new_order_hint": "Find the client by name or phone — an order with the marked goods will be created.",
-    "no_clients": "No client found.",
     "service_hint": "The service must already exist. The goods are added to a work or to the order of this service.",
     "no_services": "No open services in this location.",
     "order_number": "order № {{number}}",
@@ -6673,6 +6671,7 @@
     "no_works": "No unfinished works.",
     "without_work": "Without a work",
     "without_work_hint": "The goods go into the order of this service; a work is chosen later.",
-    "internal_later": "The order of this service is internal — the goods can only be added to a work."
+    "internal_later": "The order of this service is internal — the goods can only be added to a work.",
+    "nothing_found": "Nothing found."
   }
 }

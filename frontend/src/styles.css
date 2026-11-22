@@ -1027,3 +1027,4 @@ table.fit { width: auto; }
 /* A list to pick one from: an order, a client, a service or a work. */
 .pick-list { list-style: none; margin: 0 0 12px; padding: 0; max-height: 240px; overflow-y: auto; }
 .pick-list > li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.finder-room { min-height: 300px; }
