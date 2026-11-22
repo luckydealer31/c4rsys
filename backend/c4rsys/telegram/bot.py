@@ -182,7 +182,16 @@ class Talk:
             return self.say("off")
         if not _may_create(actor, None) and not _places(context, actor):
             return self.say("no_right")
-        _save(self.link, {"step": "photo"})
+        # Whose the vehicle is, is asked first (customer's decision of 23.11.2026): the answer goes
+        # both to the vehicle made here and to the form opened on the site.
+        _save(self.link, {"step": "whose"})
+        row = [(t(self.lang, f"rel_{relation}"), f"rel:{relation}") for relation in RELATIONS]
+        self.say("whose", _buttons(row))
+
+    def whose(self, relation: str) -> None:
+        if self.link.state.get("step") != "whose" or relation not in RELATIONS:
+            return self.say("start_over")
+        _save(self.link, {"step": "photo", "relation": relation})
         self.say("send_photo")
 
     def _file(self, message: dict[str, Any], purpose: str) -> tuple[UUID, bytes, str] | None:
@@ -243,6 +252,7 @@ class Talk:
             return self.invoice_photo(message)
         if step != "photo":
             return self.menu()
+        relation = str(self.link.state.get("relation") or VehicleCard.Relation.OWN)
         taken = self._file(message, StoredFile.Purpose.VEHICLE_PAPER)
         if taken is None:
             return None
@@ -269,6 +279,7 @@ class Talk:
             data["model_other"] = model
         state = {
             "step": "confirm",
+            "relation": relation,
             "data": data,
             "name": name,
             "owner": {"name": read["owner_name"], "kind": read["owner_kind"] or "person"},
@@ -287,29 +298,18 @@ class Talk:
             return None
         site = (
             f"{settings.C4R_PUBLIC_URL.rstrip('/')}/c/{acting[0].company.public_id}"
-            f"/vehicles/new?paper={file_id}"
+            f"/vehicles/new?relation={relation}&paper={file_id}"
         )
         markup = _buttons([(t(self.lang, "create_now"), "ok")], [(t(self.lang, "cancel"), "no")])
         markup["inline_keyboard"].insert(1, [{"text": t(self.lang, "check_on_site"), "url": site}])
         api.send(self.link.chat_id, text, markup)
 
     def confirmed(self) -> None:
-        state = self.link.state
-        if state.get("step") != "confirm":
-            return self.say("start_over")
-        _save(self.link, {**state, "step": "whose"})
-        row = [(t(self.lang, f"rel_{relation}"), f"rel:{relation}") for relation in RELATIONS]
-        self.say("whose", _buttons(row))
-
-    def cancel(self) -> None:
-        _save(self.link, {})
-        self.say("cancelled")
-        self.menu()
-
-    def whose(self, relation: str) -> None:
+        """«Create now»: the location is asked when there are several, then the vehicle is made."""
         state = self.link.state
         acting = self._acting()
-        if state.get("step") != "whose" or relation not in RELATIONS or acting is None:
+        relation = str(state.get("relation"))
+        if state.get("step") != "confirm" or relation not in RELATIONS or acting is None:
             return self.say("start_over")
         context, actor = acting
         if relation == VehicleCard.Relation.CLIENT:
@@ -319,9 +319,14 @@ class Talk:
             return self.say("no_location")
         if len(places) == 1:
             return self.create(relation, UUID(places[0][0]))
-        _save(self.link, {**state, "step": "where", "relation": relation})
+        _save(self.link, {**state, "step": "where"})
         rows = [[(name, f"loc:{place_id}")] for place_id, name in places]
         self.say("where", _buttons(*rows))
+
+    def cancel(self) -> None:
+        _save(self.link, {})
+        self.say("cancelled")
+        self.menu()
 
     def where(self, place_id: str) -> None:
         state = self.link.state

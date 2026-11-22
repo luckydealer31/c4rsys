@@ -189,7 +189,10 @@ def test_a_vehicle_is_made_by_a_photo_after_the_confirmation(
     menu = telegram[-1][1]
     assert menu["reply_markup"]["inline_keyboard"][0][0]["callback_data"] == "veh"
 
+    # Whose the vehicle is, is asked first; then the photo.
     _press("veh")
+    assert "Чьё" in _texts(telegram)[-1]
+    _press("rel:managed")
     assert "Пришлите фото" in _texts(telegram)[-1]
     _message(photo=[{"file_id": "small", "file_size": 10}, {"file_id": "big", "file_size": 72}])
     read = telegram[-1][1]
@@ -198,7 +201,7 @@ def test_a_vehicle_is_made_by_a_photo_after_the_confirmation(
     rows = read["reply_markup"]["inline_keyboard"]
     assert [row[0].get("callback_data") for row in rows] == ["ok", None, "no"]
     # The other way: the form of a new vehicle on the site, filled from the same paper.
-    assert f"/c/{cmp}/vehicles/new?paper=" in rows[1][0]["url"]
+    assert f"/c/{cmp}/vehicles/new?relation=managed&paper=" in rows[1][0]["url"]
     paper_id = rows[1][0]["url"].split("paper=")[1]
     again = post(owner, f"/api/c/{cmp}/vehicles/recognize", {"document_id": paper_id}, key())
     assert again.status_code == 200 and again.json()["vin"] == "MR2K29F30N1234567"
@@ -208,8 +211,6 @@ def test_a_vehicle_is_made_by_a_photo_after_the_confirmation(
     assert owner.get(f"/api/c/{cmp}/vehicles").json()["vehicles"] == []
 
     _press("ok")
-    assert "Чьё" in _texts(telegram)[-1]
-    _press("rel:managed")
     vehicles = owner.get(f"/api/c/{cmp}/vehicles").json()["vehicles"]
     assert len(vehicles) == 1
     card = owner.get(f"/api/c/{cmp}/vehicles/{vehicles[0]['id']}").json()["vehicle"]
@@ -225,12 +226,14 @@ def test_a_vehicle_is_made_by_a_photo_after_the_confirmation(
 
     # «Cancel» makes nothing.
     _press("veh")
+    _press("rel:own")
     _message(document={"file_id": "doc", "file_size": 72})
     _press("no")
     assert len(owner.get(f"/api/c/{cmp}/vehicles").json()["vehicles"]) == 1
     # A paper nothing is read from.
     reader["answer"] = {}
     _press("veh")
+    _press("rel:own")
     _message(photo=[{"file_id": "big", "file_size": 72}])
     assert "Не удалось прочитать" in _texts(telegram)[-1]
 
