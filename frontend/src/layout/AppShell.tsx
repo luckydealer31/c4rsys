@@ -22,6 +22,8 @@ export function RailLink({ to, icon, label, also = [] }: { to: string; icon: Ico
 
 /** Frame of the B2B interface: sections in a menu on the left, top to bottom; the user's own
  * menu at the top right. Without a chosen company the menu holds only «My companies». */
+import { isMini } from "../mini";
+
 export function AppShell({
   user,
   sidebar,
@@ -35,6 +37,15 @@ export function AppShell({
 }) {
   const { t } = useTranslation();
   const online = useOnline();
+  // The window of the Telegram bot: no menu of the site, no search, no profile — only the page.
+  if (isMini()) {
+    return (
+      <main className="shell-main mini-shell">
+        {online ? null : <div className="alert warn offline-banner">{t("offline.banner")}</div>}
+        {children}
+      </main>
+    );
+  }
   return (
     <div className="shell">
       <header className="topbar">

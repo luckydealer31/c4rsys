@@ -1062,3 +1062,6 @@ table.fit { width: auto; }
   font-weight: 600;
   text-decoration: none;
 }
+.mini-shell { min-height: 100vh; }
+.mini-shell .tiles { grid-template-columns: 1fr; }
+.mini-bar { margin: 0; padding: 12px 16px 0; }

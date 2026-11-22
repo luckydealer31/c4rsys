@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "../../api/client";
 import { ME_KEY } from "../../auth";
 import { Loading } from "../../components/ui";
+import { enterMini } from "../../mini";
 
 type Proxy = { postEvent?: (name: string, data: string) => void };
 
@@ -35,6 +36,8 @@ export function TelegramEntry() {
         if (!gone) setFailed(true);
         return;
       }
+      // The window shows the short version of the site.
+      enterMini();
       await client.invalidateQueries({ queryKey: ME_KEY });
       // A full load of the page asked for: the session and the lists start anew.
       window.location.replace(to);

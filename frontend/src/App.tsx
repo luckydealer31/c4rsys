@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router";
+import { Navigate, Route, Routes, useLocation } from "react-router";
 
 import { useEffect } from "react";
 
@@ -76,7 +76,8 @@ import { NewVehiclePage } from "./pages/vehicles/NewVehicleWizard";
 import { VehiclePage, VehiclesPage } from "./pages/vehicles/VehiclesPage";
 import { SchedulePage } from "./pages/vehicles/SchedulePage";
 import { DamagePage } from "./pages/inspections/DamagePage";
-import { AppHome, MiniInspections, MiniMenu } from "./pages/telegram/MiniApp";
+import { isMini } from "./mini";
+import { AppHome, MiniInspections, MiniMenu, MiniReceipts } from "./pages/telegram/MiniApp";
 import { TelegramEntry } from "./pages/telegram/TelegramEntry";
 import { InspectionPage } from "./pages/inspections/InspectionPage";
 import { InspectionsPage } from "./pages/inspections/InspectionsPage";
@@ -101,6 +102,7 @@ export function App() {
 
 function MainApp({ cabinet }: { cabinet: boolean }) {
   const me = useMe();
+  const { pathname } = useLocation();
   useProfilePreferences(me.data);
 
   // Local drafts kept longer than 7 days after their last change are deleted (§ 10.4.4).
@@ -147,6 +149,10 @@ function MainApp({ cabinet }: { cabinet: boolean }) {
       </Routes>
     );
   }
+
+  // The window of the Telegram bot shows the short version only (customer's decision of
+  // 23.11.2026): the profile, the list of companies and the rest lead back to its menu.
+  if (isMini() && !/^\/(app$|c\/)/.test(pathname)) return <Navigate to="/app" replace />;
 
   // The domain of the personal cabinet shows only the cabinet (decision of 30.10.2026).
   if (cabinet) return <CabinetApp user={user} />;
@@ -207,6 +213,7 @@ function MainApp({ cabinet }: { cabinet: boolean }) {
         <Route path="vehicles/:id/edit" element={<EditVehiclePage />} />
         <Route path="app" element={<MiniMenu />} />
         <Route path="app/inspections" element={<MiniInspections />} />
+        <Route path="app/receipts" element={<MiniReceipts />} />
         <Route path="inspections" element={<InspectionsPage />} />
         <Route path="inspections/new" element={<NewInspectionPage />} />
         <Route path="inspections/drafts/:draftId" element={<OnlineDraftPage />} />

@@ -169,8 +169,23 @@ test("base example from registration to closing survives a restart", async ({ pa
     await route.fulfill({ json: { status: "signed_in" } });
   });
   await page.goto(`/tg?to=${base}/inspections#tgWebAppData=${encodeURIComponent("user=1&hash=abc")}`);
-  await expect(page).toHaveURL(/\/vehicles/); // the old address of the inspections leads to the garage
+  // The window shows the short version of the site (customer's decision of 23.11.2026): a page
+  // that is not its own leads to its menu, and there is no menu of the site.
+  await expect(page).toHaveURL(new RegExp(`${base}/app$`));
   expect(launch).toBe("user=1&hash=abc");
+  await expect(page.locator(".sidebar")).toHaveCount(0);
+  await expect(page.locator(".topbar")).toHaveCount(0);
+  for (const closed of ["/rentals", "/finance", "/settings", "/vehicles"]) {
+    await page.goto(`${base}${closed}`);
+    await expect(page).toHaveURL(new RegExp(`${base}/app$`));
+  }
+  await page.goto("/profile");
+  await expect(page).toHaveURL(new RegExp(`${base}/app$`));
+  await page.getByRole("link", { name: t("miniapp.add_receipt"), exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`${base}/app/receipts$`));
+  await expect(page.getByLabel(t("drafts.add"))).toBeAttached();
+  await page.getByRole("link", { name: `← ${t("miniapp.menu")}` }).click();
+  await expect(page).toHaveURL(new RegExp(`${base}/app$`));
   // The menu of the window: with one company it opens at once; a vehicle, a delivery note, a
   // receipt and the inspections — all of them, to be made and made, in two tabs.
   await page.goto("/tg?to=/app#tgWebAppData=x");
@@ -185,7 +200,10 @@ test("base example from registration to closing survives a restart", async ({ pa
   await expect(page.getByText(t("miniapp.none_done"))).toBeVisible();
   await page.goto(`/tg?to=https://example.com/#tgWebAppData=x`);
   await expect(page).not.toHaveURL(/example\.com/);
+  await expect(page).toHaveURL(new RegExp(`${base}/app$`));
   await page.unroute("**/api/telegram/webapp/session");
+  // The window is closed: the full site again.
+  await page.evaluate(() => window.sessionStorage.removeItem("c4r-mini"));
 
   // Drafts of expenses (customer's decisions of 23.11.2026): a receipt sent to the Telegram bot is
   // a draft of its author in «Finance». The bot is not connected here: a draft is put in its place.

@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { createContext, useContext, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { NavLink, Outlet, useLocation, useParams } from "react-router";
+import { Navigate, NavLink, Outlet, useLocation, useParams } from "react-router";
+
+import { isMini, miniPage } from "../mini";
 
 import { api, ApiError } from "../api/client";
 import type { Company, ContextType, User } from "../api/types";
@@ -124,6 +126,17 @@ function CompanyLink({ company }: { company: Company }) {
   );
 }
 
+/** The line above a page of the window of the bot: the way back to its menu. */
+function MiniBar({ cmp, rest }: { cmp: string; rest: string }) {
+  const { t } = useTranslation();
+  if (rest === "/app") return null;
+  return (
+    <p className="mini-bar">
+      <NavLink to={`/c/${cmp}/app`}>← {t("miniapp.menu")}</NavLink>
+    </p>
+  );
+}
+
 export function CompanyShell({ user }: { user: User }) {
   const { t } = useTranslation();
   const { cmp = "" } = useParams();
@@ -146,6 +159,8 @@ export function CompanyShell({ user }: { user: User }) {
     if (company.data) rememberCompany(user.public_id, company.data.company, canInspect);
   }, [company.data, user.public_id, canInspect]);
 
+  const mini = isMini();
+  const rest = useLocation().pathname.slice(`/c/${cmp}`.length).replace(/\/$/, "");
   const data = company.data?.company;
   const sidebar = data ? (
     // The menu knows the rights and the tabs of the sections, as the pages do.
@@ -181,7 +196,18 @@ export function CompanyShell({ user }: { user: User }) {
                 <NavLink to={`/c/${cmp}/settings/state`}>{t("company_state.banner_link")}</NavLink>
               </div>
             ) : null}
-            <Outlet />
+            {mini ? <MiniBar cmp={cmp} rest={rest} /> : null}
+            {mini && !miniPage(rest) ? (
+              // The window opens only its own pages: anything else leads back to its menu. A
+              // vehicle just made says so there.
+              <Navigate
+                to={`/c/${cmp}/app`}
+                replace
+                state={/^\/vehicles\/[0-9a-f-]{36}$/.test(rest) ? { done: "vehicle" } : null}
+              />
+            ) : (
+              <Outlet />
+            )}
           </ScopeContext.Provider>
         </CompanyContext.Provider>
       ) : null}

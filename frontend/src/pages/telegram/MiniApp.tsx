@@ -1,13 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, Navigate } from "react-router";
+import { Link, Navigate, useLocation } from "react-router";
 
 import { api } from "../../api/client";
 import { useApi } from "../../api/queries";
 import type { CompanySummary, Inspection } from "../../api/types";
 import { Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
+import { ExpenseDrafts } from "../finance/ExpenseDrafts";
+import { useCashAccounts } from "../finance/FinancePage";
 import { InspectionList } from "../inspections/InspectionsPage";
 
 /** The first page of the window of the Telegram bot (customer's decision of 23.11.2026): with one
@@ -49,15 +51,21 @@ export function MiniMenu() {
   const { t } = useTranslation();
   const company = useCompany();
   const can = useCan();
+  const done = (useLocation().state as { done?: string } | null)?.done;
   const items: [boolean, string, string][] = [
     [can("vehicle.create"), "/vehicles/new", t("miniapp.add_vehicle")],
     [can("warehouse.receive"), "/warehouse/receipts/new", t("miniapp.add_invoice")],
-    [true, "/finance?tab=drafts", t("miniapp.add_receipt")],
+    [true, "/app/receipts", t("miniapp.add_receipt")],
     [true, "/app/inspections", t("miniapp.inspections")],
   ];
   return (
     <div className="page">
       <h1>{company.display_name}</h1>
+      {done === "vehicle" ? (
+        <p className="saved-mark" role="status">
+          {t("miniapp.vehicle_made")}
+        </p>
+      ) : null}
       <div className="tiles">
         {items
           .filter(([may]) => may)
@@ -70,6 +78,18 @@ export function MiniMenu() {
       <p>
         <Link to="/app">{t("miniapp.other_company")}</Link>
       </p>
+    </div>
+  );
+}
+
+/** «Add a receipt» of the window: the drafts of expenses alone, without the rest of «Finance». */
+export function MiniReceipts() {
+  const { t } = useTranslation();
+  const accounts = useCashAccounts();
+  return (
+    <div className="page">
+      <h1>{t("money.tab_drafts")}</h1>
+      <ExpenseDrafts accounts={accounts.data?.cash_accounts ?? []} />
     </div>
   );
 }
@@ -89,9 +109,6 @@ export function MiniInspections() {
   const items = (list.data?.inspections ?? []).filter((i) => WAITING.has(i.state) === (tab === "waiting"));
   return (
     <div className="page">
-      <p>
-        <Link to={companyPath(company, "/app")}>← {company.display_name}</Link>
-      </p>
       <h1>{t("miniapp.inspections")}</h1>
       <div className="tabs" role="tablist">
         {(["waiting", "done"] as const).map((key) => (

@@ -6752,6 +6752,8 @@
     "tab_waiting": "To be made",
     "tab_done": "Made",
     "none_waiting": "There are no inspections to be made.",
-    "none_done": "There are no inspections made."
+    "none_done": "There are no inspections made.",
+    "menu": "Menu",
+    "vehicle_made": "The vehicle is created."
   }
 }
