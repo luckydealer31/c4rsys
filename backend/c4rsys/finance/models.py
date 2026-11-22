@@ -825,3 +825,38 @@ class PaymentClientChange(models.Model):
 
     def __str__(self) -> str:
         return f"{self.money_movement_id}: {self.previous_client_id} → {self.client_id}"
+
+
+class ExpenseDraft(models.Model):
+    """A draft of an expense made by a photo of a receipt (customer's decisions of 23.11.2026):
+    what was read from the receipt, and the photo. It changes no money; its author checks it and
+    records the expense, and only the author sees it."""
+
+    class State(models.TextChoices):
+        DRAFT = "draft"
+        RECORDED = "recorded"
+        REMOVED = "removed"
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    author_user_id = models.UUIDField()
+    file_id = models.UUIDField()
+    spent_on = models.DateField(null=True, blank=True)
+    amount = models.DecimalField(max_digits=20, decimal_places=4, null=True, blank=True)
+    currency = models.CharField(max_length=3, blank=True, default="")
+    seller = models.CharField(max_length=200, blank=True, default="")
+    purpose = models.CharField(max_length=500, blank=True, default="")
+    # Where the receipt came from: «telegram».
+    through = models.CharField(max_length=20, blank=True, default="")
+    state = models.CharField(max_length=10, choices=State.choices, default=State.DRAFT)
+    movement = models.ForeignKey(
+        "MoneyMovement", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    created_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "expense_draft"
+        indexes = [models.Index(fields=["company", "author_user_id", "state"])]
+
+    def __str__(self) -> str:
+        return f"expense-draft:{self.id}"

@@ -9,6 +9,8 @@ from typing import Any
 import pytest
 from django.test import Client
 
+from c4rsys.finance import expense_drafts
+from c4rsys.finance.models import ExpenseDraft
 from c4rsys.fleet import recognition
 from c4rsys.platform.models import AuditEvent
 from c4rsys.telegram import api
@@ -16,7 +18,7 @@ from c4rsys.telegram.models import TelegramLink
 from c4rsys.warehouse import recognition as invoices
 from c4rsys.warehouse.models import Receipt
 from tests.accounts.helpers import post
-from tests.companies.helpers import create_company, key, named_user
+from tests.companies.helpers import create_company, hire, key, named_user
 from tests.files.helpers import PNG
 
 pytestmark = pytest.mark.django_db
@@ -264,7 +266,7 @@ def test_a_document_of_a_supplier_becomes_a_draft_of_a_receipt(
     assert supplier.status_code == 201, supplier.content
     _bind(owner)
     menu = telegram[-1][1]["reply_markup"]["inline_keyboard"]
-    assert [row[0]["callback_data"] for row in menu] == ["veh", "inv"]
+    assert [row[0]["callback_data"] for row in menu] == ["veh", "inv", "exp"]
 
     _press("inv")
     assert "Склад: Phuket" in _texts(telegram)[-1]
@@ -293,3 +295,69 @@ def test_a_document_of_a_supplier_becomes_a_draft_of_a_receipt(
     _message(photo=[{"file_id": "big", "file_size": 72}])
     assert "черновик не создан" in _texts(telegram)[-2]
     assert Receipt.objects.count() == 1
+
+
+def test_a_receipt_becomes_a_draft_of_an_expense_seen_by_its_author(
+    owner: Client, telegram: list[tuple[str, dict[str, Any]]], settings: Any
+) -> None:
+    answer = {
+        "spent_on": "2026-11-20",
+        "amount": "1 250,50",
+        "currency": "thb",
+        "seller": "PTT Station",
+        "purpose": "Fuel",
+    }
+    expense_drafts.register("test", lambda content, kind: answer)
+    settings.C4R_INVOICE_RECOGNITION = "test"
+    try:
+        cmp = create_company(owner, timezone="Asia/Bangkok", main_currency="THB").json()["company"][
+            "public_id"
+        ]
+        _bind(owner)
+        _press("exp")
+        assert "фото чека" in _texts(telegram)[-1]
+        _message(photo=[{"file_id": "big", "file_size": 72}])
+    finally:
+        expense_drafts._recognizers.pop("test", None)
+    said = "\n".join(_texts(telegram))
+    assert "Сумма: 1250.5 THB" in said and f"/c/{cmp}/finance?tab=drafts" in said
+    drafts = owner.get(f"/api/c/{cmp}/expense-drafts").json()["drafts"]
+    assert len(drafts) == 1
+    draft = drafts[0]
+    assert (draft["spent_on"], draft["amount"], draft["currency"]) == (
+        "2026-11-20",
+        "1250.5",
+        "THB",
+    )
+    assert (draft["seller"], draft["purpose"]) == ("PTT Station", "Fuel")
+    # The author opens the photo; nobody else sees the draft.
+    assert owner.get(f"/api/files/{draft['file_id']}").status_code == 200
+    other, _ = hire(owner, cmp, "second@example.com", [{"type": "set", "set": "rental_manager"}])
+    assert other.get(f"/api/c/{cmp}/expense-drafts").json()["drafts"] == []
+    account = post(
+        owner,
+        f"/api/c/{cmp}/cash-accounts",
+        {"name": "Cash", "type": "cash", "currency": "THB"},
+        key(),
+    )
+    assert account.status_code == 201, account.content
+    articles = owner.get(f"/api/c/{cmp}/finance-articles").json()["articles"]
+    article = next(a for a in articles if a["kind"] == "expense")
+    body = {
+        "cash_account_id": account.json()["cash_account"]["id"],
+        "amount": "1250.50",
+        "currency": "THB",
+        "article_id": article["id"],
+        "note": "PTT Station — Fuel",
+    }
+    refused = post(other, f"/api/c/{cmp}/expense-drafts/{draft['id']}/record", body, key())
+    assert refused.status_code in (403, 404)
+    done = post(owner, f"/api/c/{cmp}/expense-drafts/{draft['id']}/record", body, key())
+    assert done.status_code == 201, done.content
+    assert done.json()["record"]["direction"] == "out"
+    assert owner.get(f"/api/c/{cmp}/expense-drafts").json()["drafts"] == []
+    kept = ExpenseDraft.objects.get()
+    assert kept.state == "recorded" and kept.movement_id is not None
+    # A closed draft is not recorded twice.
+    again = post(owner, f"/api/c/{cmp}/expense-drafts/{draft['id']}/record", body, key())
+    assert again.status_code == 422

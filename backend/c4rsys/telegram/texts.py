@@ -105,6 +105,17 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "The draft of the receipt could not be made ({code}). Make it on the site.",
         "th": "ไม่สามารถสร้างร่างใบรับสินค้าได้ ({code}) โปรดทำบนเว็บไซต์",
     },
+    "menu_expense": {"ru": "Чек", "en": "Receipt of an expense", "th": "ใบเสร็จค่าใช้จ่าย"},
+    "send_receipt": {
+        "ru": "Пришлите фото чека. Можно фото или файл (PDF, картинка).",
+        "en": "Send a photo of the receipt. A photo or a file (PDF, picture) will do.",
+        "th": "ส่งรูปถ่ายใบเสร็จ ส่งเป็นรูปถ่ายหรือไฟล์ (PDF, รูปภาพ) ได้",
+    },
+    "receipt_made": {
+        "ru": "Черновик расхода создан.\nДата: {date}\nСумма: {amount}\nПродавец: {seller}\nЗа что: {purpose}\nПроверьте и проведите на сайте:\n{url}",
+        "en": "The draft of the expense is made.\nDate: {date}\nAmount: {amount}\nSeller: {seller}\nFor: {purpose}\nCheck and record it on the site:\n{url}",
+        "th": "สร้างร่างค่าใช้จ่ายแล้ว\nวันที่: {date}\nจำนวนเงิน: {amount}\nผู้ขาย: {seller}\nรายการ: {purpose}\nตรวจสอบและบันทึกบนเว็บไซต์:\n{url}",
+    },
     "menu_company": {
         "ru": "Сменить компанию",
         "en": "Another company",

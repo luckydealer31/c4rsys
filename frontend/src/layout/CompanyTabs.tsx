@@ -99,8 +99,8 @@ export function ProductivityTabs({ current }: { current: "dashboards" | "tasks" 
   return <Strip section="productivity" label={t("nav.productivity")} tabs={useProductivityTabs()} current={current} />;
 }
 
-export type FinanceTab = "money" | "orders" | "settlements" | "accounts" | "articles";
-export const FINANCE_TABS: FinanceTab[] = ["money", "orders", "settlements", "accounts", "articles"];
+export type FinanceTab = "money" | "orders" | "settlements" | "accounts" | "articles" | "drafts";
+export const FINANCE_TABS: FinanceTab[] = ["money", "orders", "settlements", "accounts", "articles", "drafts"];
 
 /** The registry of orders is a tab of «Finance» (decision of 14.11.2026); it keeps its address. */
 export function useFinanceTabs(): StripTab[] {

@@ -7,7 +7,7 @@ from uuid import UUID
 
 from django.db.models import Q
 from django.http import HttpRequest, JsonResponse
-from django.views.decorators.http import require_http_methods, require_POST
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from c4rsys.accounts.middleware import require_user
 from c4rsys.companies import access
@@ -749,3 +749,84 @@ def transfer_create(request: HttpRequest, cmp: str) -> JsonResponse:
         "note": new.note,
     }
     return run_and_respond(request, "money.transfer", actor, payload, handler)
+
+
+# --- Drafts of expenses (customer's decisions of 23.11.2026) -------------------------------------
+
+
+def _draft_payload(draft: Any) -> dict[str, Any]:
+    return {
+        "id": str(draft.id),
+        "file_id": str(draft.file_id),
+        "spent_on": draft.spent_on.isoformat() if draft.spent_on else None,
+        "amount": format(draft.amount.normalize(), "f") if draft.amount is not None else None,
+        "currency": draft.currency,
+        "seller": draft.seller,
+        "purpose": draft.purpose,
+        "created_at": draft.created_at.isoformat(),
+    }
+
+
+@require_GET
+def expense_drafts(request: HttpRequest, cmp: str) -> JsonResponse:
+    """The open drafts of the person asking: a draft is seen by its author only."""
+    from c4rsys.finance import expense_drafts as drafts
+
+    context, actor = _actor(request, cmp)
+    found = drafts.of_author(context.company.id, actor.user_id)[:200]
+    return JsonResponse({"drafts": [_draft_payload(d) for d in found]})
+
+
+@require_http_methods(["DELETE"])
+def expense_draft(request: HttpRequest, cmp: str, draft_id: UUID) -> JsonResponse:
+    from c4rsys.finance import expense_drafts as drafts
+
+    context, actor = _actor(request, cmp)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        drafts.remove(ctx, context.company.id, draft_id)
+        return CommandResult(200, {"status": "removed"})
+
+    return run_and_respond(
+        request, "expense_draft.remove", actor, {"draft_id": str(draft_id)}, handler
+    )
+
+
+@require_POST
+def expense_draft_record(request: HttpRequest, cmp: str, draft_id: UUID) -> JsonResponse:
+    """The expense of a draft is recorded as a payout from the chosen account, by the rights of a
+    payout (§ 23.7.1–23.7.2); the draft is closed in the same command."""
+    from c4rsys.finance import expense_drafts as drafts
+
+    context, actor = _actor(request, cmp)
+    data = parse_json(request)
+    account_id = _uuid(data.get("cash_account_id"), "cash_account_id")
+    if not _visible(actor, account_id):
+        raise errors.not_found()
+    if not _can(actor, PAYOUT, account_id):
+        raise errors.permission_denied(PAYOUT)
+    currency = _currency(data)
+    record = records.ManualRecord(
+        cash_account_id=account_id,
+        direction=MoneyMovement.Direction.OUT,
+        amount=_amount(data.get("amount"), "amount", currency.minor_units),
+        currency=currency.code,
+        article_id=_uuid(data.get("article_id"), "article_id"),
+        location_id=_optional_uuid(data, "location_id"),
+        note=get_str(data, "note", max_length=NOTE_MAX, required=False),
+    )
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        movement = drafts.record(ctx, context.company.id, draft_id, record)
+        return CommandResult(201, {"record": _movement_payload(movement)})
+
+    payload = {
+        "draft_id": str(draft_id),
+        "cash_account_id": str(account_id),
+        "amount": str(record.amount),
+        "currency": record.currency,
+        "article_id": str(record.article_id),
+        "location_id": str(record.location_id) if record.location_id else None,
+        "note": record.note,
+    }
+    return run_and_respond(request, "expense_draft.record", actor, payload, handler)

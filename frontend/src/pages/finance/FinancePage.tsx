@@ -17,6 +17,7 @@ import { ClientFinder } from "../rentals/IssuePage";
 import { Articles, useArticleName, useArticles } from "./Articles";
 import { RelinkAllocation } from "./Corrections";
 import { CashReceipt, usePayments } from "./CashReceipt";
+import { ExpenseDrafts } from "./ExpenseDrafts";
 import { AccountRecords, MoneyRecordForm } from "./MoneyRecords";
 import { SectionSearch } from "../search/SearchPage";
 import { Settlements } from "./Settlements";
@@ -30,8 +31,8 @@ export function useCashAccounts() {
   );
 }
 
-type Tab = "money" | "settlements" | "accounts" | "articles";
-const TABS: Tab[] = ["money", "settlements", "accounts", "articles"];
+type Tab = "money" | "settlements" | "accounts" | "articles" | "drafts";
+const TABS: Tab[] = ["money", "settlements", "accounts", "articles", "drafts"];
 
 /** Finance (ТЗ гл. 17): money records — client payments and manual receipts and payouts; cash
  * desks and accounts with their balances (§ 17.2.1, § 17.2.5, § 22.1.7); income and expense
@@ -79,6 +80,7 @@ export function FinancePage() {
       ) : null}
       {tab === "accounts" ? <CashAccountsEditor creation={false} /> : null}
       {tab === "settlements" ? <Settlements /> : null}
+      {tab === "drafts" ? <ExpenseDrafts accounts={accounts.data?.cash_accounts ?? []} /> : null}
       {tab === "articles" ? <Articles adding={doing === "article"} onAdded={() => open("")} /> : null}
         </div>
         {allowed.length ? (

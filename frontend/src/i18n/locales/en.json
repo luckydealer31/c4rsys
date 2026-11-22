@@ -1375,7 +1375,8 @@
     "return_amount_range": "The valuation cannot be more than the amount of the sale.",
     "telegram_not_configured": "The Telegram bot is not connected.",
     "telegram_link_expired": "The link is out of date. Get a new one.",
-    "telegram_taken": "This Telegram account is already bound to another profile."
+    "telegram_taken": "This Telegram account is already bound to another profile.",
+    "expense_draft_closed": "This draft is already recorded or removed."
   },
   "history": {
     "action": "Action",
@@ -1561,7 +1562,8 @@
     "filter_from": "From",
     "filter_to": "To",
     "filter_all_accounts": "All desks and accounts",
-    "filter_all_articles": "All articles"
+    "filter_all_articles": "All articles",
+    "tab_drafts": "Drafts of expenses"
   },
   "moves": {
     "actual_end": "Actual end",
@@ -6722,5 +6724,15 @@
     "open_bot": "Open the bot in Telegram",
     "done": "Done, check",
     "disconnect": "Disconnect"
+  },
+  "drafts": {
+    "own": "Your drafts of expenses.",
+    "empty": "There are no drafts of expenses.",
+    "hint": "A draft appears when you send a photo of a receipt to the c4rsys bot in Telegram («Receipt of an expense»). The system reads the date, the amount, the currency, the seller and what was paid for. Only you see the draft, and it changes no money: check the data, choose the cash desk or account and the article, and press «Record the expense».",
+    "receipt": "Receipt",
+    "nothing_read": "nothing was read from the receipt",
+    "other_currency": "The receipt is in {{currency}}: enter the amount in the currency of the chosen cash desk or account.",
+    "record": "Record the expense",
+    "remove": "Remove the draft"
   }
 }

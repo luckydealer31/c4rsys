@@ -45,4 +45,7 @@ urlpatterns = [
     path("c/<str:cmp>/payments", views.payment_list),
     path("c/<str:cmp>/payments/cash", views.payment_cash),
     path("c/<str:cmp>/clients/<uuid:client_id>/balance", views.client_balance),
+    path("c/<str:cmp>/expense-drafts", views.expense_drafts),
+    path("c/<str:cmp>/expense-drafts/<uuid:draft_id>", views.expense_draft),
+    path("c/<str:cmp>/expense-drafts/<uuid:draft_id>/record", views.expense_draft_record),
 ]

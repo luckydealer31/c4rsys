@@ -22,6 +22,7 @@ from c4rsys.companies.models import ActivityContext, Employment
 from c4rsys.files import checks
 from c4rsys.files import services as files
 from c4rsys.files.models import StoredFile
+from c4rsys.finance import expense_drafts
 from c4rsys.fleet import characteristics, owners, recognition
 from c4rsys.fleet import services as fleet
 from c4rsys.fleet.catalog.match import in_text as catalog_match
@@ -145,7 +146,11 @@ class Talk:
                 return self.say("no_company")
             rows = [[(c.company.display_name, f"co:{c.company.public_id}")] for c in contexts]
             return self.say("choose_company", _buttons(*rows))
-        rows = [[(t(self.lang, "menu_vehicle"), "veh")], [(t(self.lang, "menu_invoice"), "inv")]]
+        rows = [
+            [(t(self.lang, "menu_vehicle"), "veh")],
+            [(t(self.lang, "menu_invoice"), "inv")],
+            [(t(self.lang, "menu_expense"), "exp")],
+        ]
         if len(contexts) > 1:
             rows.append([(t(self.lang, "menu_company"), "cos")])
         self.say("menu", _buttons(*rows), company=current.company.display_name)
@@ -250,6 +255,8 @@ class Talk:
         step = self.link.state.get("step")
         if step == "invoice":
             return self.invoice_photo(message)
+        if step == "expense":
+            return self.expense_photo(message)
         if step != "photo":
             return self.menu()
         relation = str(self.link.state.get("relation") or VehicleCard.Relation.OWN)
@@ -526,6 +533,61 @@ class Talk:
             self.say("invoice_missed", missed="\n".join(f"— {name}" for name in missed[:30]))
         self.menu()
 
+    # --- A receipt of an expense ----------------------------------------------------------------
+
+    def expense(self) -> None:
+        if self._acting() is None:
+            return
+        if not expense_drafts.configured():
+            return self.say("off")
+        _save(self.link, {"step": "expense"})
+        self.say("send_receipt")
+
+    def expense_photo(self, message: dict[str, Any]) -> None:
+        """The receipt becomes a draft of an expense (customer's decisions of 23.11.2026): what
+        is read, and the photo. The account and the article are chosen on the site by the author,
+        who records the expense there; no money changes here."""
+        acting = self._acting()
+        if acting is None:
+            return
+        context, actor = acting
+        taken = self._file(message, StoredFile.Purpose.EXPENSE_RECEIPT)
+        if taken is None:
+            return None
+        file_id, content, content_type = taken
+        try:
+            read = expense_drafts.read(content, content_type)
+        except errors.ApiError as exc:
+            if exc.code == "RECOGNITION_NOT_CONFIGURED":
+                return self.say("off")
+            # The photo is kept all the same: the draft is filled in by hand on the site.
+            read = expense_drafts.Read()
+
+        def handler(ctx: CommandContext) -> CommandResult:
+            draft = expense_drafts.create(ctx, context.company, file_id, read, "telegram")
+            return CommandResult(201, {"id": str(draft.id)})
+
+        run_command(
+            command="expense_draft.create",
+            actor=actor,
+            idempotency_key=self.key("expense"),
+            payload={"file_id": str(file_id)},
+            handler=handler,
+        )
+        _save(self.link, {})
+        amount = f"{read.amount.normalize():f} {read.currency}".strip() if read.amount else "—"
+        site = settings.C4R_PUBLIC_URL.rstrip("/")
+        url = f"{site}/c/{context.company.public_id}/finance?tab=drafts"
+        self.say(
+            "receipt_made",
+            date=read.spent_on.isoformat() if read.spent_on else "—",
+            amount=amount,
+            seller=read.seller or "—",
+            purpose=read.purpose or "—",
+            url=url,
+        )
+        self.menu()
+
 
 def _unbound(update_id: int, sender: dict[str, Any], chat_id: int, message: dict[str, Any]) -> None:
     """Somebody the bot does not know: only the link of the profile and the number are taken."""
@@ -617,6 +679,8 @@ def handle(update: dict[str, Any]) -> None:
             talk.vehicle()
         elif data == "inv":
             talk.invoice()
+        elif data == "exp":
+            talk.expense()
         elif data.startswith("wh:"):
             talk.invoice(data[3:])
         elif data == "ok":

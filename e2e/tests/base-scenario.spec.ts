@@ -160,6 +160,32 @@ test("base example from registration to closing survives a restart", async ({ pa
   await page.getByRole("button", { name: t("cash.create"), exact: true }).click();
   await expect(card(page, t("cash.title")).getByRole("cell", { name: "Касса Пхукет" })).toBeVisible();
 
+  // Drafts of expenses (customer's decisions of 23.11.2026): a receipt sent to the Telegram bot is
+  // a draft of its author in «Finance». The bot is not connected here: a draft is put in its place.
+  await page.route("**/expense-drafts", (route) =>
+    route.fulfill({
+      json: {
+        drafts: [
+          {
+            id: "0190a000-0000-7000-8000-00000000d001", file_id: "0190a000-0000-7000-8000-00000000f001",
+            spent_on: "2026-11-20", amount: "1250.5", currency: "THB", seller: "PTT Station",
+            purpose: "Fuel", created_at: "2026-11-20T10:00:00Z",
+          },
+        ],
+      },
+    }),
+  );
+  await page.goto(`${base}/finance?tab=drafts`);
+  const draft = page.locator(".expense-draft");
+  await expect(draft).toContainText("PTT Station");
+  await expect(draft.getByRole("link", { name: t("drafts.receipt"), exact: true })).toBeVisible();
+  await expect(draft.getByLabel(t("payments.amount", { currency: "THB" }))).toHaveValue("1250.5");
+  const recordIt = draft.getByRole("button", { name: t("drafts.record"), exact: true });
+  await expect(recordIt).toBeDisabled(); // the article is not chosen yet
+  await draft.getByLabel(t("money.article")).selectOption({ index: 1 });
+  await expect(recordIt).toBeEnabled();
+  await page.unroute("**/expense-drafts");
+
   // Vehicle, daily tariff 1 000 THB from 1 day, terms «unlimited, no deposit».
   await page.goto(`${base}/vehicles`);
   // A paper of the vehicle is read into the steps (customer's decision of 22.11.2026). The outer
