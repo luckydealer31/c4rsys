@@ -1949,6 +1949,9 @@ export type ServiceGoods = {
   currency: string;
   state: "reserved" | "sold";
   job_id: string | null;
+  /** Linked to a done work: the goods are on the vehicle. */
+  installed: boolean;
+  taken_off_at: string | null;
 };
 
 export type ServiceOperation = {

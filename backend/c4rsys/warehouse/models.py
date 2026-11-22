@@ -734,6 +734,8 @@ class StockMovement(models.Model):
         SALE = "sale"  # a sale at the closing of its order (§ 11.9.1)
         SALE_CANCEL = "sale_cancel"  # a wrongly closed sale cancelled (§ 11.9.5)
         SUPPLIER_RETURN = "supplier_return"  # goods returned to the supplier (§ 11.4.2)
+        # Goods taken back from the client of an order with a valuation (22.11.2026).
+        CUSTOMER_RETURN = "customer_return"
         REMOVAL = "removal"  # a part removed from a vehicle taken into stock (§ 11.2.2)
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
@@ -1317,6 +1319,9 @@ class SaleLine(models.Model):
         SOLD = "sold"
         REMOVED = "removed"
         CANCELLED = "cancelled"
+        # Customer's decision of 22.11.2026: the sale stays posted, the goods are taken back
+        # with a valuation, which is the amount returned to the client.
+        RETURNED = "returned"
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
@@ -1365,6 +1370,11 @@ class SaleLine(models.Model):
     removed_at = models.DateTimeField(null=True, blank=True)
     cancelled_at = models.DateTimeField(null=True, blank=True)
     cancel_reason = models.TextField(blank=True, default="")
+    # Goods used by a done work are taken off the vehicle before they are returned.
+    taken_off_at = models.DateTimeField(null=True, blank=True)
+    returned_at = models.DateTimeField(null=True, blank=True)
+    return_amount = models.DecimalField(max_digits=14, decimal_places=4, null=True, blank=True)
+    return_comment = models.TextField(blank=True, default="")
 
     class Meta:
         db_table = "warehouse_sale_line"

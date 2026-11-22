@@ -496,10 +496,11 @@ function useGoodsLink() {
     (b) => `/c/${company.public_id}/service/jobs/${b.job_id}/goods`,
   );
   const unlink = useCommand<{ line_id: string }, unknown>((b) => `/c/${company.public_id}/service/goods/${b.line_id}/unlink`);
+  const takeOff = useCommand<{ line_id: string }, unknown>((b) => `/c/${company.public_id}/service/goods/${b.line_id}/take-off`);
   const done = async (result: unknown) => {
     if (result !== null) await refresh();
   };
-  return { link, unlink, done, may: can("service.create") || can("service.work") };
+  return { link, unlink, takeOff, done, may: can("service.create") || can("service.work") };
 }
 
 function goodsText(g: ServiceOperation["goods"][number]) {
@@ -509,7 +510,7 @@ function goodsText(g: ServiceOperation["goods"][number]) {
 /** The goods of the order linked to this work. */
 function JobGoods({ op, job }: { op: ServiceOperation; job: ServiceJob }) {
   const { t } = useTranslation();
-  const { unlink, done, may } = useGoodsLink();
+  const { unlink, takeOff, done, may } = useGoodsLink();
   const items = op.goods.filter((g) => g.job_id === job.id);
   if (items.length === 0) return null;
   return (
@@ -522,9 +523,18 @@ function JobGoods({ op, job }: { op: ServiceOperation; job: ServiceJob }) {
               {t("goods.unlink")}
             </button>
           ) : null}
+          {g.taken_off_at ? <span className="muted">{t("goods.taken_off")}</span> : null}
+          {may && g.state === "sold" && g.installed && !g.taken_off_at && op.order_state === "open" ? (
+            <>
+              <button type="button" className="link" disabled={takeOff.pending} onClick={async () => done(await takeOff.run({ line_id: g.id }))}>
+                {t("goods.take_off")}
+              </button>{" "}
+              <Info text={t("goods.take_off_hint")} />
+            </>
+          ) : null}
         </div>
       ))}
-      <ErrorMessage error={unlink.error} />
+      <ErrorMessage error={unlink.error ?? takeOff.error} />
     </div>
   );
 }

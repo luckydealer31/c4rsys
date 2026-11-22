@@ -55,6 +55,12 @@ def _line_payload(line: SaleLine, vehicles: dict[UUID, str]) -> dict[str, Any]:
         "at_cost": line.at_cost,
         "job_id": str(line.job_id) if line.job_id else None,
         "installed": sales.installed(line),
+        "taken_off_at": line.taken_off_at.isoformat() if line.taken_off_at else None,
+        "returned_at": line.returned_at.isoformat() if line.returned_at else None,
+        "return_amount": stock.money_text(line.return_amount, line.currency)
+        if line.return_amount is not None
+        else None,
+        "return_comment": line.return_comment,
         "asset": line.asset.public_id if line.asset else None,
         "lot": line.lot.public_id if line.lot else None,
         "packaging_quantity": str(line.packaging.quantity)
@@ -268,6 +274,37 @@ def order_line_remove(
 
     return run_and_respond(
         request, "warehouse.remove_sale", actor, {"line_id": str(line_id)}, handler
+    )
+
+
+@require_POST
+def order_line_return(
+    request: HttpRequest, cmp: str, order_id: UUID, line_id: UUID
+) -> JsonResponse:
+    """Sold goods are taken back with a valuation (customer's decisions of 22.11.2026).
+    PROPOSAL: the right «Correct a closed sale», as the cancellation of a sale."""
+    context, actor, order = _order_for(request, cmp, order_id)
+    line = _line_for(context, line_id, order)
+    if not _has(actor, "warehouse.sale.correct", line.context):
+        raise errors.permission_denied("warehouse.sale.correct")
+    data = parse_json(request)
+    amount = stock.money(
+        data.get("amount"), "amount", stock.company_currency(context.company).minor_units
+    )
+    if amount is None:
+        raise errors.validation_error("amount", code="FIELD_REQUIRED")
+    comment = get_str(data, "comment", max_length=COMMENT_MAX, required=False)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        sales.return_goods(ctx, context.company, line_id, amount, comment)
+        return CommandResult(200, _lines(context.company.id, order.id))
+
+    return run_and_respond(
+        request,
+        "warehouse.return_sale",
+        actor,
+        {"line_id": str(line_id), "amount": str(amount), "comment": comment},
+        handler,
     )
 
 

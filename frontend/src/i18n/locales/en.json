@@ -1371,7 +1371,8 @@
     "place_name_taken": "This warehouse already has a place with this name.",
     "order_not_internal": "A vehicle is given only in an internal order.",
     "sale_line_other_order": "The goods are of another order.",
-    "sale_line_installed": "The goods were used in a done work: the sale cannot be cancelled; a removal and a return with a valuation are needed."
+    "sale_line_installed": "The goods were used in a done work: the sale cannot be cancelled; a removal and a return with a valuation are needed.",
+    "return_amount_range": "The valuation cannot be more than the amount of the sale."
   },
   "history": {
     "action": "Action",
@@ -3349,7 +3350,8 @@
     "reopen_title": "Cancel the closing of the order",
     "reopen_reason": "Reason",
     "reopen_hint": "The order opens for corrections; they need their own rights, then the order is closed again.",
-    "reopen": "Cancel the closing"
+    "reopen": "Cancel the closing",
+    "state_returned": "Returned"
   },
   "returns": {
     "start": "Return to the supplier",
@@ -3358,7 +3360,10 @@
     "comment": "Reason or comment",
     "hint": "Only what this receipt brought goes back. A refund, a smaller debt or a replacement is settled separately.",
     "submit": "Post the return",
-    "returned": "returned to the supplier: {{value}}"
+    "returned": "returned to the supplier: {{value}}",
+    "give_back": "Return",
+    "valuation": "Valuation",
+    "valuation_hint": "The amount returned to the client. The goods come into the stock at it."
   },
   "dashboard": {
     "title": "Dashboard «Warehouse»",
@@ -6691,6 +6696,9 @@
     "free_hint": "The goods are in the order of this service. They can be linked to a work and unlinked again — they stay in the order with the same price.",
     "work": "Work",
     "link": "Link",
-    "installed_hint": "The goods were used in a done work — they are on the vehicle. The sale is not simply cancelled: a removal and a return with a valuation are needed."
+    "installed_hint": "The goods were used in a done work — they are on the vehicle. The sale is not simply cancelled: the service first marks «Taken off the vehicle», then a return with a valuation is made.",
+    "take_off": "Taken off the vehicle",
+    "taken_off": "taken off the vehicle",
+    "take_off_hint": "Mark it when the part is taken off. After that a return with a valuation can be made in the order. A paid removal is added as a work of its own."
   }
 }

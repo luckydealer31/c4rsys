@@ -35,6 +35,7 @@ from c4rsys.warehouse.models import (
     Asset,
     Item,
     Lot,
+    LotLayer,
     LotStock,
     OpenedPackage,
     OperationLine,
@@ -533,6 +534,91 @@ def cancel(ctx: CommandContext, company_id: UUID, line_id: UUID, reason: str) ->
     return line
 
 
+def take_off(ctx: CommandContext, company_id: UUID, line_id: UUID) -> SaleLine:
+    """Customer's decision of 22.11.2026: goods a done work used are taken off the vehicle by
+    the service before they are returned."""
+    line = _lock_line(company_id, line_id)
+    order = _order(company_id, line.order_id)
+    if line.state != SaleLine.State.SOLD or not installed(line) or line.taken_off_at is not None:
+        raise errors.business_rule("SALE_LINE_STATE", state=line.state)
+    line.taken_off_at = timezone.now()
+    line.save(update_fields=["taken_off_at"])
+    ctx.audit(
+        "warehouse.sale_taken_off",
+        object_type="order",
+        object_id=order.id,
+        after={"line": str(line.id), "job": str(line.job_id)},
+    )
+    return line
+
+
+def return_goods(
+    ctx: CommandContext, company: Company, line_id: UUID, valuation: Decimal, comment: str
+) -> SaleLine:
+    """Customer's decisions of 22.11.2026: sold goods are taken back with a valuation — the same
+    for installed and not installed ones; the installed are taken off the vehicle first. The
+    sale stays posted. The valuation is what the client gets back — the charge of the line goes
+    down by it, a payment made stays and becomes an overpayment — and the cost at which the
+    goods come into the stock of their warehouse."""
+    line = _lock_line(company.id, line_id)
+    order = _order(company.id, line.order_id)
+    if line.state != SaleLine.State.SOLD or line.vehicle_id is not None or order.is_internal:
+        raise errors.business_rule("SALE_LINE_STATE", state=line.state)
+    if installed(line) and line.taken_off_at is None:
+        raise errors.business_rule("SALE_LINE_INSTALLED")
+    if valuation < 0 or valuation > line.amount:
+        raise errors.validation_error("amount", code="RETURN_AMOUNT_RANGE")
+    op_line = line.operation_line
+    if op_line is None:
+        raise errors.business_rule("SALE_LINE_STATE", state=line.state)
+    context = op_line.operation.context
+    now = timezone.now()
+    if line.asset_id is not None:
+        asset = Asset.objects.select_for_update().get(pk=line.asset_id)
+        asset.state = Asset.State.IN_STOCK
+        asset.vehicle_id = None
+        asset.purchase_cost = valuation
+        asset.save(update_fields=["state", "vehicle", "purchase_cost"])
+        operations._move(
+            ctx, StockMovement.Kind.CUSTOMER_RETURN, context, op_line, Decimal(1), asset=asset
+        )
+    else:
+        lot = operations._lot_of(op_line)
+        # A new layer of the lot at the valuation: what was sold stays sold at its own cost.
+        LotLayer.objects.create(
+            company_id=line.company_id,
+            lot=lot,
+            received_quantity=line.quantity,
+            remaining=line.quantity,
+            unit_cost=valuation / line.quantity,
+            received_at=now,
+        )
+        piece = operations._put_back(lot, line.packaging, line.opened_package, line.quantity)
+        operations._move(
+            ctx,
+            StockMovement.Kind.CUSTOMER_RETURN,
+            context,
+            op_line,
+            line.quantity,
+            lot=lot,
+            piece=piece,
+        )
+    line.state = SaleLine.State.RETURNED
+    line.returned_at = now
+    line.return_amount = valuation
+    line.return_comment = comment
+    line.save(update_fields=["state", "returned_at", "return_amount", "return_comment"])
+    _charge(ctx, order, line, line.amount - valuation, "sale_returned")
+    ctx.audit(
+        "warehouse.sale_returned",
+        object_type="order",
+        object_id=order.id,
+        after={"line": str(line.id), "valuation": str(valuation)},
+        reason=comment,
+    )
+    return line
+
+
 def _cancel_vehicle(ctx: CommandContext, order: Any, line: SaleLine, reason: str) -> SaleLine:
     """§ 11.9.5 for a vehicle: allowed only while the ownership did not pass to the buyer or after
     the new owner confirmed the error (§ 8.3.9); the vehicle returns to the seller's warehouse."""
@@ -654,6 +740,7 @@ def goods_of_order(company_id: UUID, order_id: UUID) -> list[dict[str, Any]]:
             "state": line.state,
             "job_id": str(line.job_id) if line.job_id else None,
             "installed": installed(line),
+            "taken_off_at": line.taken_off_at.isoformat() if line.taken_off_at else None,
         }
         for line in lines_of_order(company_id, order_id)
         if line.item_id is not None and line.state in (SaleLine.State.RESERVED, SaleLine.State.SOLD)

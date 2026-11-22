@@ -263,3 +263,11 @@ def test_goods_of_a_done_work_are_not_simply_cancelled(
     SaleLine.objects.filter(pk=line["id"]).update(state=SaleLine.State.SOLD)
     refused = post(owner, f"{lines_url}/{line['id']}/cancel", {"reason": "mistake"}, key())
     assert _code(refused) == "SALE_LINE_INSTALLED"
+    # Nor returned while it is on the vehicle: the service takes it off first.
+    early = post(owner, f"{lines_url}/{line['id']}/return", {"amount": "100"}, key())
+    assert _code(early) == "SALE_LINE_INSTALLED"
+    taken = post(owner, f"/api/c/{s.cmp}/service/goods/{line['id']}/take-off", {}, key())
+    assert taken.status_code == 200, taken.content
+    assert [bool(g["taken_off_at"]) for g in taken.json()["operation"]["goods"]] == [True]
+    twice = post(owner, f"/api/c/{s.cmp}/service/goods/{line['id']}/take-off", {}, key())
+    assert _code(twice) == "SALE_LINE_STATE"

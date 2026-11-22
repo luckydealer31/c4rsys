@@ -16,7 +16,7 @@ import { useMoney, useQuantity } from "./Stock";
 
 export type SaleLine = {
   id: string;
-  state: "reserved" | "sold" | "removed" | "cancelled";
+  state: "reserved" | "sold" | "removed" | "cancelled" | "returned";
   context: { id: string; location_name: string };
   item: ItemBrief | null;
   vehicle: { id: string; name: string } | null;
@@ -26,6 +26,10 @@ export type SaleLine = {
   /** Linked to a work of a service; with the work done the goods are installed. */
   job_id: string | null;
   installed: boolean;
+  /** Goods of a done work taken off the vehicle: they can be returned. */
+  taken_off_at: string | null;
+  return_amount: string | null;
+  return_comment: string;
   asset: string | null;
   lot: string | null;
   packaging_quantity: string | null;
@@ -119,6 +123,12 @@ export function SaleGoods({ order, onChange }: { order: Order; onChange: () => P
   const cancel = useCommand<{ id: string; reason: string }, unknown>((b) => `${base}/${b.id}/cancel`);
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [reason, setReason] = useState("");
+  // Sold goods are taken back with a valuation (customer's decisions of 22.11.2026): the sale
+  // stays posted, the valuation is returned to the client.
+  const giveBack = useCommand<{ id: string; amount: string; comment: string }, unknown>((b) => `${base}/${b.id}/return`);
+  const [returning, setReturning] = useState<string | null>(null);
+  const [valuation, setValuation] = useState("");
+  const [note, setNote] = useState("");
   // The only position of its order: the order is offered to be cancelled with it (decision of
   // 16–17.11.2026).
   const offer = useOrderOffer(cancelling ? order.id : null, cancelling ? [cancelling] : []);
@@ -151,7 +161,7 @@ export function SaleGoods({ order, onChange }: { order: Order; onChange: () => P
           </thead>
           <tbody>
             {all.map((line) => (
-              <tr key={line.id} className={line.state === "removed" || line.state === "cancelled" ? "muted" : ""}>
+              <tr key={line.id} className={line.state === "removed" || line.state === "cancelled" || line.state === "returned" ? "muted" : ""}>
                 <td>
                   {line.vehicle?.name ?? line.item?.name}
                   {line.for_vehicle ? (
@@ -174,6 +184,12 @@ export function SaleGoods({ order, onChange }: { order: Order; onChange: () => P
                 <td>
                   {line.for_vehicle && line.state === "sold" ? t("send.state_used") : t(`sales.state_${line.state}`)}
                   {line.cancel_reason ? <div className="small muted">{line.cancel_reason}</div> : null}
+                  {line.return_amount !== null ? (
+                    <div className="small muted">
+                      {t("returns.valuation")}: {money(line.return_amount, line.currency)}
+                      {line.return_comment ? ` · ${line.return_comment}` : ""}
+                    </div>
+                  ) : null}
                 </td>
                 <td>
                   {line.state === "reserved" && open && can(order.is_internal ? "warehouse.issue" : "warehouse.sell") ? (
@@ -181,7 +197,27 @@ export function SaleGoods({ order, onChange }: { order: Order; onChange: () => P
                       {t("receipts.remove_line")}
                     </button>
                   ) : null}
-                  {line.installed && line.state === "sold" && open ? <Info text={t("goods.installed_hint")} /> : null}
+                  {line.installed && !line.taken_off_at && line.state === "sold" && open ? <Info text={t("goods.installed_hint")} /> : null}
+                  {line.state === "sold" &&
+                  open &&
+                  can("warehouse.sale.correct") &&
+                  !line.vehicle &&
+                  !line.for_vehicle &&
+                  (!line.installed || line.taken_off_at) ? (
+                    <>
+                      <button
+                        type="button"
+                        className="link"
+                        onClick={() => {
+                          setReturning(line.id);
+                          setValuation("");
+                          setNote("");
+                        }}
+                      >
+                        {t("returns.give_back")}
+                      </button>{" "}
+                    </>
+                  ) : null}
                   {line.state === "sold" && open && can("warehouse.sale.correct") && !line.vehicle && !line.installed ? (
                     <button type="button" className="link" onClick={() => setCancelling(line.id)}>
                       {t("sales.cancel")}
@@ -235,7 +271,35 @@ export function SaleGoods({ order, onChange }: { order: Order; onChange: () => P
           </div>
         </div>
       ) : null}
-      <ErrorMessage error={remove.error ?? cancel.error} />
+      {returning ? (
+        <div className="line-card">
+          <div className="row compact">
+            <Field label={t("returns.valuation")} hint={t("returns.valuation_hint")}>
+              <input inputMode="decimal" autoFocus value={valuation} onChange={(e) => setValuation(e.target.value)} />
+            </Field>
+            <Field label={t("warehouse.comment")}>
+              <input value={note} onChange={(e) => setNote(e.target.value)} />
+            </Field>
+          </div>
+          <div className="actions">
+            <button
+              type="button"
+              disabled={valuation.trim() === "" || giveBack.pending}
+              onClick={async () => {
+                const result = await giveBack.run({ id: returning, amount: valuation, comment: note });
+                if (result !== null) setReturning(null);
+                await refresh(result);
+              }}
+            >
+              {t("returns.give_back")}
+            </button>
+            <button type="button" className="secondary" onClick={() => setReturning(null)}>
+              {t("common.cancel")}
+            </button>
+          </div>
+        </div>
+      ) : null}
+      <ErrorMessage error={remove.error ?? cancel.error ?? giveBack.error} />
       {open && can("warehouse.sell") && order.client_id ? <SaleAdder orderId={order.id} onAdded={refresh} /> : null}
       <p className="muted small">{t("sales.hint")}</p>
     </Card>

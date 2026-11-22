@@ -242,9 +242,19 @@ test("storage places are a list of the warehouse", async ({ page }) => {
   await toOrder.locator(".pick-list").first().getByRole("button").first().click();
   await expect(page).toHaveURL(new RegExp(`/orders/${bought}$`));
   await expect(page.locator("main")).toContainText("Колодки");
-  // Before the order is closed the goods are simply taken out of it.
-  const sold = ((await ok(page, "GET", `/c/${s.cmp}/warehouse/orders/${bought}/sale-lines`)).lines as { id: string }[])[0].id;
-  await ok(page, "DELETE", `/c/${s.cmp}/warehouse/orders/${bought}/sale-lines/${sold}`);
+  // Sold goods are taken back with a valuation (customer's decisions of 22.11.2026): the order
+  // is closed, its closing is cancelled, and «Return» takes the valuation — what the client gets
+  // back and the cost at which the unit comes into the stock again. The sale stays posted.
+  const version = async () => ((await ok(page, "GET", `/c/${s.cmp}/orders/${bought}`)).order as { version: number }).version;
+  await ok(page, "POST", `/c/${s.cmp}/orders/${bought}/close`, { expected_version: await version() });
+  await ok(page, "POST", `/c/${s.cmp}/orders/${bought}/reopen`, { expected_version: await version(), reason: "возврат" });
+  await page.reload();
+  const goods = page.locator("section.card", { has: page.getByRole("heading", { name: t("sales.goods"), exact: true }) });
+  await goods.getByRole("button", { name: t("returns.give_back"), exact: true }).click();
+  await goods.locator(".line-card input").first().fill("60");
+  await goods.locator(".line-card").getByRole("button", { name: t("returns.give_back"), exact: true }).click();
+  await expect(goods).toContainText(t("sales.state_returned"));
+  await expect(goods).toContainText("60.00");
   await page.goto(stockCard);
   await page.getByRole("checkbox", { name: t("stock.mark_all"), exact: true }).check();
   // Goods used on a vehicle of the company go into an internal order (customer's decisions of
@@ -260,7 +270,8 @@ test("storage places are a list of the warehouse", async ({ page }) => {
   await expect(page.locator("main")).toContainText(t("send.at_cost"));
   const internal = page.url().split("/").pop()!;
   const used = ((await ok(page, "GET", `/c/${s.cmp}/warehouse/orders/${internal}/sale-lines`)).lines as { id: string; amount: string }[])[0];
-  expect(used.amount).toBe("100.00");
+  // The purchase cost of the unit is now the valuation of its return.
+  expect(used.amount).toBe("60.00");
   await ok(page, "DELETE", `/c/${s.cmp}/warehouse/orders/${internal}/sale-lines/${used.id}`);
   await page.goto(stockCard);
   await page.getByRole("checkbox", { name: t("stock.mark_all"), exact: true }).check();
@@ -341,7 +352,8 @@ test("storage places are a list of the warehouse", async ({ page }) => {
   await expect(head("stock.cost")).toHaveCount(0);
   await page.getByRole("button", { name: t("stock.more_columns"), exact: true }).click();
   await expect(head("stock.cost")).toBeVisible();
-  await expect(lines.first()).toContainText("100 THB");
+  // The unit was returned by its client with the valuation 60: that is its cost now.
+  await expect(lines.first()).toContainText("60 THB");
   await expect(head("warehouse.comment")).toBeVisible();
   await expect(head("warehouse.country")).toBeVisible();
   await expect(head("tags.title")).toBeVisible();

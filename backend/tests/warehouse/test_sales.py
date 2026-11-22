@@ -303,3 +303,61 @@ def test_vehicle_sale_ends_ownership(owner: Client, cmp: str, setup: dict[str, A
     )
     assert closing.status_code == 200, closing.content
     assert VehicleCard.objects.get(pk=car).state == "archived"
+
+
+def test_sold_goods_are_returned_with_a_valuation(
+    owner: Client, cmp: str, setup: dict[str, Any]
+) -> None:
+    """Customer's decisions of 22.11.2026: the sale stays posted; the goods come back into the
+    stock at the valuation, and the valuation is what the client gets back."""
+    url = lines_url(cmp, setup["order"])
+    pad = Asset.objects.first()
+    assert pad is not None
+    line = post(
+        owner,
+        url,
+        {"context_id": setup["ctx"], "item_id": setup["pads"], "asset_ids": [str(pad.id)]},
+        key(),
+    ).json()["lines"][0]
+    price = Decimal(line["amount"])
+
+    def order() -> dict[str, Any]:
+        found: dict[str, Any] = owner.get(f"/api/c/{cmp}/orders/{setup['order']}").json()["order"]
+        return found
+
+    # Not sold yet: nothing to return.
+    early = post(owner, f"{url}/{line['id']}/return", {"amount": "100"}, key())
+    assert early.json()["error"]["code"] == "SALE_LINE_STATE"
+    post(
+        owner,
+        f"/api/c/{cmp}/orders/{setup['order']}/close",
+        {"expected_version": order()["version"]},
+        key(),
+    )
+    post(
+        owner,
+        f"/api/c/{cmp}/orders/{setup['order']}/reopen",
+        {"expected_version": order()["version"], "reason": "Return"},
+        key(),
+    )
+    over = post(owner, f"{url}/{line['id']}/return", {"amount": str(price + 1)}, key())
+    assert over.status_code == 400 and "RETURN_AMOUNT_RANGE" in over.content.decode()
+    back = post(
+        owner, f"{url}/{line['id']}/return", {"amount": "200", "comment": "Box opened"}, key()
+    )
+    assert back.status_code == 200, back.content
+    returned = back.json()["lines"][0]
+    assert returned["state"] == "returned" and returned["return_amount"] == "200.00"
+    assert returned["amount"] == line["amount"]
+    pad.refresh_from_db()
+    assert pad.state == "in_stock" and pad.purchase_cost == Decimal("200")
+    sale = SaleLine.objects.get(pk=line["id"])
+    assert charged_for_order(sale.company_id, sale.order_id) == {"THB": price - Decimal("200")}
+    # The unit is free again: it can be sold anew.
+    again = post(
+        owner,
+        url,
+        {"context_id": setup["ctx"], "item_id": setup["pads"], "asset_ids": [str(pad.id)]},
+        key(),
+    )
+    assert again.status_code == 201, again.content

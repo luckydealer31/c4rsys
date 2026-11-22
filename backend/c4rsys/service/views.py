@@ -1648,6 +1648,29 @@ def job_goods(request: HttpRequest, cmp: str, job_id: UUID) -> JsonResponse:
 
 
 @require_POST
+def goods_take_off(request: HttpRequest, cmp: str, line_id: UUID) -> JsonResponse:
+    """Goods a done work used are taken off the vehicle, so that they can be returned
+    (customer's decision of 22.11.2026). PROPOSAL: who does the works."""
+    context, actor = _actor(request, cmp)
+    line = sale_goods.get_line(context.company.id, line_id)
+    if line.job_id is None:
+        raise errors.not_found()
+    job = operations.get_job(context.company.id, line.job_id)
+    if not _visible(actor, job.operation):
+        raise errors.not_found()
+    _may_link(actor, job.operation)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        sale_goods.take_off(ctx, context.company.id, line_id)
+        op = operations.get_operation(context.company.id, job.operation_id)
+        return CommandResult(200, {"operation": _operation_payload(op)})
+
+    return run_and_respond(
+        request, "service_goods.take_off", actor, {"line_id": str(line_id)}, handler
+    )
+
+
+@require_POST
 def goods_unlink(request: HttpRequest, cmp: str, line_id: UUID) -> JsonResponse:
     """The goods leave the work and stay in the order (customer's decision of 22.11.2026)."""
     context, actor = _actor(request, cmp)
