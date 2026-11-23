@@ -2913,7 +2913,12 @@
     "already_here": "The company already keeps this vehicle: “{{name}}”. A second card is not made.",
     "already_here_open": "Open the card",
     "conflict_merge": "Merge",
-    "conflicts_hint_own": "An identifier of this card matches another card of your company. If it is one vehicle, merge the cards — the verification of c4rsys is not needed for it. The work with the card goes on."
+    "conflicts_hint_own": "An identifier of this card matches another card of your company. If it is one vehicle, merge the cards — the verification of c4rsys is not needed for it. The work with the card goes on.",
+    "delete_is_archive": "The card cannot be deleted: it will be moved to the archive.",
+    "delete_ok": "OK",
+    "archive_title": "Move to the archive",
+    "archive_confirm": "Move to the archive",
+    "delete_button": "Delete"
   },
   "warehouse": {
     "action_create": "Create",

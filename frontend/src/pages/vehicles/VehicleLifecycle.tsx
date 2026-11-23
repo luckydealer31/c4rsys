@@ -7,7 +7,7 @@ import { DocumentChecklist } from "./VehicleDocuments";
 import type { Vehicle, VehicleRestriction } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { FilePreview } from "../../components/FilePreview";
-import { Card, ErrorMessage, Field } from "../../components/ui";
+import { Card, ErrorMessage, Field, Modal } from "../../components/ui";
 import { useCan, useCompany } from "../../layout/CompanyShell";
 import { formatMoment, fromLocalInput, toLocalInput } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
@@ -413,9 +413,16 @@ export function RelationCard({ vehicle }: { vehicle: Vehicle }) {
   const restore = useVehicleCommand(vehicle, "restore");
   const active = (locations.data?.locations ?? []).filter((l) => l.state !== "deactivated");
   const archived = vehicle.state === "archived";
+  const [action, setAction] = useState<"" | "end" | "take" | "delete" | "archive">("");
+  const open = (next: typeof action) => {
+    setReason("");
+    setAction(next);
+  };
+  const close = () => setAction("");
   const run = async (command: ReturnType<typeof useVehicleCommand>, body: Record<string, unknown>) => {
     if ((await command.run({ ...body, reason, expected_version: vehicle.version })) !== null) {
       setReason("");
+      setAction("");
       await refresh();
     }
   };
@@ -433,6 +440,11 @@ export function RelationCard({ vehicle }: { vehicle: Vehicle }) {
           </option>
         ))}
       </select>
+    </Field>
+  );
+  const reasonField = (
+    <Field label={t("vehicles.lifecycle_reason")}>
+      <input value={reason} onChange={(e) => setReason(e.target.value)} />
     </Field>
   );
   return (
@@ -474,49 +486,90 @@ export function RelationCard({ vehicle }: { vehicle: Vehicle }) {
         </>
       ) : (
         <>
-          <div className="row">
-            <Field label={t("vehicles.lifecycle_reason")}>
-              <input value={reason} onChange={(e) => setReason(e.target.value)} />
-            </Field>
-            {vehicle.relation === "client" ? locationField : null}
-          </div>
-          <p className="muted small">
-            {vehicle.relation === "managed" ? t("vehicles.end_management_hint") : t("vehicles.archive_hint")}
-          </p>
-          {vehicle.relation === "managed" && mayRelation && passable.length ? (
-            vehicle.documents_recipient ? (
-              <>
-                <h3>{t("vehicles.documents_pass_owner")}</h3>
-                <p className="muted small">{t("vehicles.documents_pass_owner_hint")}</p>
-                <DocumentChecklist items={passable} chosen={passed} onChange={setPassed} />
-              </>
-            ) : (
-              <p className="muted small">{t("vehicles.documents_pass_nobody")}</p>
-            )
-          ) : null}
-          <ErrorMessage error={archive.error ?? end.error ?? take.error} />
-          <div className="actions">
+          {/* Every action has its own small button and asks what it needs in its own window
+              (customer's remark of 23.11.2026). */}
+          <div className="row-actions" style={{ justifyContent: "flex-start" }}>
             {vehicle.relation === "managed" && mayRelation ? (
-              <button type="button" disabled={!reason.trim() || end.pending} onClick={() => void run(end, { then, document_ids: passed })}>
+              <button type="button" className="secondary small-button" onClick={() => open("end")}>
                 {t("vehicles.end_management_button")}
               </button>
             ) : null}
             {vehicle.relation === "client" && mayRelation ? (
-              <button
-                type="button"
-                className="secondary"
-                disabled={!reason.trim() || !location || take.pending}
-                onClick={() => void run(take, { location_id: location, owner_kind: "none" })}
-              >
+              <button type="button" className="secondary small-button" onClick={() => open("take")}>
                 {t("vehicles.take_into_management_button")}
               </button>
             ) : null}
             {vehicle.relation === "client" && mayArchive ? (
-              <button type="button" className="secondary" disabled={!reason.trim() || archive.pending} onClick={() => void run(archive, {})}>
-                {t("vehicles.archive_button")}
+              <button type="button" className="secondary small-button" onClick={() => open("delete")}>
+                {t("vehicles.delete_button")}
               </button>
             ) : null}
           </div>
+          {action === "delete" ? (
+            <Modal title={t("vehicles.delete_button")} onClose={close}>
+              <p>{t("vehicles.delete_is_archive")}</p>
+              <div className="actions">
+                <button type="button" onClick={() => open("archive")}>
+                  {t("vehicles.delete_ok")}
+                </button>
+              </div>
+            </Modal>
+          ) : null}
+          {action === "archive" ? (
+            <Modal title={t("vehicles.archive_title")} onClose={close}>
+              {reasonField}
+              <p className="muted small">{t("vehicles.archive_hint")}</p>
+              <ErrorMessage error={archive.error} />
+              <div className="actions">
+                <button type="button" disabled={!reason.trim() || archive.pending} onClick={() => void run(archive, {})}>
+                  {t("vehicles.archive_confirm")}
+                </button>
+              </div>
+            </Modal>
+          ) : null}
+          {action === "take" ? (
+            <Modal title={t("vehicles.take_into_management_button")} onClose={close}>
+              {locationField}
+              {reasonField}
+              <ErrorMessage error={take.error} />
+              <div className="actions">
+                <button
+                  type="button"
+                  disabled={!reason.trim() || !location || take.pending}
+                  onClick={() => void run(take, { location_id: location, owner_kind: "none" })}
+                >
+                  {t("vehicles.take_into_management_button")}
+                </button>
+              </div>
+            </Modal>
+          ) : null}
+          {action === "end" ? (
+            <Modal title={t("vehicles.end_management_button")} onClose={close}>
+              {reasonField}
+              <p className="muted small">{t("vehicles.end_management_hint")}</p>
+              {passable.length ? (
+                vehicle.documents_recipient ? (
+                  <>
+                    <h3>{t("vehicles.documents_pass_owner")}</h3>
+                    <p className="muted small">{t("vehicles.documents_pass_owner_hint")}</p>
+                    <DocumentChecklist items={passable} chosen={passed} onChange={setPassed} />
+                  </>
+                ) : (
+                  <p className="muted small">{t("vehicles.documents_pass_nobody")}</p>
+                )
+              ) : null}
+              <ErrorMessage error={end.error} />
+              <div className="actions">
+                <button
+                  type="button"
+                  disabled={!reason.trim() || end.pending}
+                  onClick={() => void run(end, { then, document_ids: passed })}
+                >
+                  {t("vehicles.end_management_button")}
+                </button>
+              </div>
+            </Modal>
+          ) : null}
         </>
       )}
     </Card>

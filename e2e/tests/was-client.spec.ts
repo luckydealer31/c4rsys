@@ -50,11 +50,31 @@ test("a managed vehicle kept as a client one is not doubled", async ({ page }) =
   // The management is ended by its button in the history of the ownership: the vehicle becomes
   // a client one, the card stays.
   await page.goto(`/c/${s.cmp}/vehicles/${earlier.id}?tab=history&part=ownership`);
-  await page.getByRole("main").getByLabel(t("vehicles.lifecycle_reason")).fill("Owner took it back");
+  // Every action is a small button that asks what it needs in its own window (customer's remark
+  // of 23.11.2026).
+  await expect(page.getByRole("main").getByLabel(t("vehicles.lifecycle_reason"))).toHaveCount(0);
   await page.getByRole("button", { name: t("vehicles.end_management_button"), exact: true }).click();
+  const asking = page.getByRole("dialog");
+  await asking.getByLabel(t("vehicles.lifecycle_reason")).fill("Owner took it back");
+  await asking.getByRole("button", { name: t("vehicles.end_management_button"), exact: true }).click();
   await expect
     .poll(async () => ((await ok(page, "GET", `/c/${s.cmp}/vehicles/${earlier.id}`)).vehicle as { relation: string }).relation)
     .toBe("client");
+  // A client card: «Take into management» asks the location and the reason; «Delete» says the
+  // card is moved to the archive and then asks the reason.
+  await page.getByRole("button", { name: t("vehicles.take_into_management_button"), exact: true }).click();
+  await expect(asking.getByLabel(t("vehicles.location"))).toBeVisible();
+  await expect(asking.getByLabel(t("vehicles.lifecycle_reason"))).toBeVisible();
+  await asking.getByRole("button", { name: t("common.cancel"), exact: true }).click();
+  await page.getByRole("button", { name: t("vehicles.delete_button"), exact: true }).click();
+  await expect(asking).toContainText(t("vehicles.delete_is_archive"));
+  await asking.getByRole("button", { name: t("vehicles.delete_ok"), exact: true }).click();
+  await expect(asking.getByLabel(t("vehicles.location"))).toHaveCount(0);
+  await asking.getByLabel(t("vehicles.lifecycle_reason")).fill("Not our client any more");
+  await asking.getByRole("button", { name: t("vehicles.archive_confirm"), exact: true }).click();
+  await expect
+    .poll(async () => ((await ok(page, "GET", `/c/${s.cmp}/vehicles/${earlier.id}`)).vehicle as { state: string }).state)
+    .toBe("archived");
 
   // Two cards of the company that match are merged by the company itself, from the conflict
   // shown in the card — the verification of c4rsys decides the matches between companies only
