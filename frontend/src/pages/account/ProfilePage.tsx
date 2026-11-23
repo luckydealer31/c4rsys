@@ -8,7 +8,7 @@ import { useCommand } from "../../api/useCommand";
 import { ME_KEY } from "../../auth";
 import { Avatar, ImagePicker } from "../../components/images";
 import { TimeZoneSelect } from "../../components/TimeZoneSelect";
-import { Card, ErrorMessage, Field, Info, Loading } from "../../components/ui";
+import { Card, ErrorMessage, Field, IconButton, Info, Loading } from "../../components/ui";
 import { UI_LANGUAGES } from "../../i18n";
 import { deviceTimeZone } from "../../time";
 
@@ -164,9 +164,7 @@ function PersonalCard({ user }: { user: User }) {
           <dd>{formatDate(user.document_expires_on, i18n.language)}</dd>
         </dl>
         <div className="actions">
-          <button type="button" className="secondary" onClick={() => setEditing(true)}>
-            {t("common.edit")}
-          </button>
+          <IconButton icon="edit" label={t("common.edit")} onClick={() => setEditing(true)} />
         </div>
       </Card>
     );

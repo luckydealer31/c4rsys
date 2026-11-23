@@ -324,6 +324,7 @@ const MAIN = [
  * another vehicle is shown as a reason to check (§ 8.6.3). */
 function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const c = vehicle.characteristics;
   const option = (prefix: string, value: string) => (value ? t(`${prefix}.${value}`) : "");
   const can = useCan();
@@ -446,7 +447,19 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
             </dl>
   );
   return (
-    <Card title={t("vehicles.card_main")}>
+    <Card>
+      {/* The pencil stands beside the title of the block, as everywhere (customer's remark of
+          24.11.2026). */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <h2 style={{ margin: 0 }}>{t("vehicles.card_main")}</h2>
+        {can("vehicle.edit") && vehicle.state !== "archived" ? (
+          <IconButton
+            icon="edit"
+            label={t("common.edit")}
+            onClick={() => navigate(companyPath(company, `/vehicles/${vehicle.id}/edit`))}
+          />
+        ) : null}
+      </div>
       {c.identifier_matches.length ? (
         <div className="alert warn">
           {c.identifier_matches.map((m) => t(`vehicles.match_${m}`)).join(" ")}
@@ -473,13 +486,6 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
       </div>
       {vehicle.changes_global === false ? (
         <p className="muted small">{t("vehicles.not_owner_hint")}</p>
-      ) : null}
-      {can("vehicle.edit") && vehicle.state !== "archived" ? (
-        <div className="actions">
-          <Link className="button secondary" to={companyPath(company, `/vehicles/${vehicle.id}/edit`)}>
-            {t("common.edit")}
-          </Link>
-        </div>
       ) : null}
     </Card>
   );

@@ -7,7 +7,7 @@ import type { ApiError } from "../../api/client";
 import { useApi } from "../../api/queries";
 import type { MaintenanceRule, ServiceJob, Vehicle } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
+import { Card, ErrorMessage, Field, IconButton, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { formatMoment } from "../../time";
 import { useVehicles } from "../vehicles/VehiclesPage";
@@ -94,9 +94,7 @@ function Maintenance({ vehicle }: { vehicle: Vehicle }) {
             {t("service.due", { when: dueText(rule, unit, t) })}
           </div>
           {can("vehicle.maintenance.rules") || can("vehicle.maintenance.record") ? (
-            <button type="button" className="secondary small" onClick={() => setEditing(rule)}>
-              {t("common.edit")}
-            </button>
+            <IconButton icon="edit" label={t("common.edit")} onClick={() => setEditing(rule)} />
           ) : null}
         </div>
       ))}

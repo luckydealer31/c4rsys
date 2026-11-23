@@ -335,7 +335,14 @@ test("base example from registration to closing survives a restart", async ({ pa
   await expect(page.locator("dl.facts", { hasText: t("vehicles.plate_region") })).toContainText("Phuket");
   await expect(page.getByRole("heading", { name: "Toyota Yaris" })).toBeVisible();
   // The region is typed by hand in the edit form, beside the plate and its country.
-  await page.getByRole("link", { name: t("common.edit"), exact: true }).click();
+  // «Change» is a pencil everywhere (customer's remark of 24.11.2026).
+  await card(page, t("vehicles.card_main")).getByRole("button", { name: t("common.edit"), exact: true }).click();
+  // The form has the head of the card: «Back» and the title in one line.
+  await expect(page.getByRole("heading", { name: t("vehicles.edit_title"), exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: t("common.back"), exact: true })).toBeVisible();
+  // One form without named blocks; a make out of the catalog stands in the field of the make.
+  await expect(page.getByRole("main")).not.toContainText(t("vehicles.section_identification"));
+  await expect(page.locator('input[list="vehicle-makes"]')).toHaveValue("Toyotaa");
   await page.getByLabel(t("vehicles.plate_region"), { exact: true }).fill("Krabi");
   // The bodies are those of the type: a passenger car has no van (it is a body of a truck).
   const bodies = page.locator('select:has(option[value="sedan"])');

@@ -5,7 +5,7 @@ import { Link } from "react-router";
 
 import type { Location, ServicePost, ServiceRate, ServiceWork } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { Card, ErrorMessage, Field, Loading, UnconfiguredConfirm } from "../../components/ui";
+import { Card, ErrorMessage, Field, IconButton, Loading, UnconfiguredConfirm } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { ServiceActCard } from "../documents/Requirements";
 import { useLocations } from "../settings/LocationsPage";
@@ -47,9 +47,7 @@ export function ServiceCatalogPage() {
               {work.system_names ? ` · ${t("service.linked_to", { name: work.system_names[lang] ?? work.system_work })}` : ""}
             </div>
             {can("service.catalog") ? (
-              <button type="button" className="secondary small" onClick={() => setEditing(work)}>
-                {t("common.edit")}
-              </button>
+              <IconButton icon="edit" label={t("common.edit")} onClick={() => setEditing(work)} />
             ) : null}
           </div>
         ))}

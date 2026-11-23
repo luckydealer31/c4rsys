@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import type { ApiError } from "../api/client";
 import { useApi } from "../api/queries";
 import { useCommand } from "../api/useCommand";
-import { Card, ErrorMessage, Field, Loading } from "../components/ui";
+import { Card, ErrorMessage, Field, IconButton, Loading } from "../components/ui";
 import { BlockHistory } from "./Directory";
 import { ReasonForm, useStaff, useStaffCan, useWhen, type Block } from "./common";
 
@@ -129,9 +129,7 @@ function MemberRow({ member: m, roles, onChanged }: { member: Member; roles: Rol
       </div>
       {m.state === "active" && !editing && !revoking ? (
         <div className="actions">
-          <button type="button" className="secondary" onClick={() => setEditing(true)}>
-            {t("common.edit")}
-          </button>
+          <IconButton icon="edit" label={t("common.edit")} onClick={() => setEditing(true)} />
           {m.id !== me.member.id ? (
             <button type="button" className="secondary" onClick={() => setRevoking(true)}>
               {t("staff.member_revoke")}

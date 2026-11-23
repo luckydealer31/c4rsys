@@ -7,7 +7,7 @@ import type { ApiError } from "../../api/client";
 import { useApi } from "../../api/queries";
 import type { ContextType, Location } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
+import { Card, ErrorMessage, Field, IconButton, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { Icon, type IconName } from "../../components/icons";
 import { TimeZoneSelect } from "../../components/TimeZoneSelect";
@@ -174,6 +174,7 @@ const CONTEXT_ICONS: Record<ContextType, IconName> = {
 /** A small card of a location (decision of 24.10.2026): name, address, its contexts as icons
  * and «Edit», which opens the location's own page. */
 function LocationTile({ location }: { location: Location }) {
+  const navigate = useNavigate();
   const { t } = useTranslation();
   const company = useCompany();
   return (
@@ -202,9 +203,11 @@ function LocationTile({ location }: { location: Location }) {
         ))}
       </div>
       <div className="actions">
-        <Link className="button secondary" to={companyPath(company, `/company/locations/${location.id}`)}>
-          {t("common.edit")}
-        </Link>
+        <IconButton
+          icon="edit"
+          label={t("common.edit")}
+          onClick={() => navigate(companyPath(company, `/company/locations/${location.id}`))}
+        />
       </div>
     </section>
   );

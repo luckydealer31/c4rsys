@@ -1,12 +1,12 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 
 import { useApi } from "../../api/queries";
 import type { CatalogMake, CatalogModel, Client, Vehicle, VehicleOptions } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
+import { Card, ErrorMessage, Field, IconButton, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { clientName } from "../clients/ClientsPage";
 import { countries } from "../settings/CompanyProfilePage";
@@ -207,6 +207,7 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
   const company = useCompany();
   const client = useQueryClient();
   const navigate = useNavigate();
+  const route = useLocation();
   const locations = useLocations();
   const can = useCan();
   const options = useApi<VehicleOptions>(["vehicle-options"], "/catalog/vehicle-options");
@@ -262,6 +263,30 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
       ? (models.data?.models.find((m) => m.code === form.model)?.name ?? "")
       : form.model_other.trim();
   const autoName = [makeName, modelName, form.plate.trim()].filter(Boolean).join(" ");
+  // What stands in the fields of the make and the model: a name of the catalog or the typed one.
+  const makeText = usesCatalogMake ? makeName : form.make_other;
+  const modelText =
+    usesCatalogMake && form.model !== OTHER && form.model !== "" ? modelName : form.model_other;
+  const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+  const typeMake = (text: string) => {
+    const found = hasCatalog ? makes.data?.makes.find((m) => same(m.name, text)) : undefined;
+    if (found) {
+      if (found.code !== form.make) set({ make: found.code, make_other: "", model: "", model_other: "" });
+      return;
+    }
+    // A make out of the catalog: the model is kept as a text too.
+    set({
+      make: hasCatalog && text.trim() ? OTHER : "",
+      make_other: text,
+      model: "",
+      model_other: usesCatalogMake ? modelName : form.model_other,
+    });
+  };
+  const typeModel = (text: string) => {
+    const found = usesCatalogMake ? models.data?.models.find((m) => same(m.name, text)) : undefined;
+    if (found) set({ model: found.code, model_other: "" });
+    else set({ model: usesCatalogMake && text.trim() ? OTHER : "", model_other: text });
+  };
   const name = customName ?? autoName;
 
   async function submit(event: FormEvent) {
@@ -342,7 +367,10 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
       }
       await client.invalidateQueries({ queryKey: ["vehicles", company.public_id] });
       await client.invalidateQueries({ queryKey: ["readiness", company.public_id] });
-      navigate(companyPath(company, `/vehicles/${result.vehicle.id}`));
+      // Back to the card the form was opened from, so that «Back» of the card leads on to the
+      // list and not into the form again.
+      if (vehicle && route.key !== "default") navigate(-1);
+      else navigate(companyPath(company, `/vehicles/${result.vehicle.id}`), { replace: true });
     }
   }
 
@@ -373,17 +401,31 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
 
   return (
     <div className="page">
-      <p>
-        <Link to={companyPath(company, vehicle ? `/vehicles/${vehicle.id}` : "/vehicles")}>
-          ← {vehicle ? vehicle.name : t("nav.garage")}
-        </Link>
-      </p>
-      <h1>{vehicle ? t("vehicles.edit_title") : t("vehicles.create_title")}</h1>
+      {/* The same head as of the card (customer's remark of 24.11.2026): the button «Back» and
+          the title in one line; it leads back to where the form was opened from. */}
+      <div className="card-head">
+        <IconButton
+          icon="back"
+          label={t("common.back")}
+          onClick={() =>
+            route.key !== "default"
+              ? navigate(-1)
+              : navigate(companyPath(company, vehicle ? `/vehicles/${vehicle.id}` : "/vehicles"))
+          }
+        />
+        <h1>{vehicle ? t("vehicles.edit_title") : t("vehicles.create_title")}</h1>
+        {vehicle ? <span className="muted">{vehicle.name}</span> : null}
+      </div>
       {confirmed.size ? <div className="alert">{t("vehicles.confirmed_locked_hint")}</div> : null}
       {/* В-12.2: only the owner changes the shared values; others change their card. */}
       {vehicle?.changes_global === false ? <div className="alert">{t("vehicles.not_owner_hint")}</div> : null}
-      <form className="stack" onSubmit={submit}>
-        <Card title={t("vehicles.section_kind")}>
+      <form onSubmit={submit}>
+        {/* One form without named blocks (customer's remark of 24.11.2026): the fields follow
+            one another — what the vehicle is, its numbers, the characteristics, the
+            registration, the owner and the name. */}
+        <Card>
+        <div className="stack">
+        <div className="row">
           {/* Only ground transport exists for now, so its class is not asked (decision of
               24.10.2026); the choice returns with air and water. */}
           <Field label={t("vehicles.vehicle_type")}>
@@ -408,62 +450,42 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
               ))}
             </select>
           </Field>
-        </Card>
-
-        <Card title={t("vehicles.section_make")}>
-          <div className="row">
-            {hasCatalog ? (
-              <Field label={t("vehicles.make")}>
-                <select
-                  value={form.make}
-                  disabled={locked("make")}
-                  onChange={(e) => set({ make: e.target.value, model: "", model_other: "" })}
-                >
-                  <option value="">—</option>
-                  {popular.length ? (
-                    <optgroup label={t("vehicles.popular_makes")}>
-                      {popular.map((m) => (
-                        <option key={`p-${m.code}`} value={m.code}>
-                          {makeLabel(m)}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ) : null}
-                  <optgroup label={t("vehicles.all_makes")}>
-                    {(makes.data?.makes ?? []).map((m) => (
-                      <option key={m.code} value={m.code}>
-                        {makeLabel(m)}
-                      </option>
-                    ))}
-                  </optgroup>
-                  <option value={OTHER}>{t("vehicles.other_value")}</option>
-                </select>
-              </Field>
-            ) : null}
-            {!hasCatalog || form.make === OTHER ? (
-              <Field label={hasCatalog ? t("vehicles.make_other") : t("vehicles.make")}>
-                <input value={form.make_other} disabled={locked("make")} onChange={(e) => set({ make_other: e.target.value })} />
-              </Field>
-            ) : null}
-            {usesCatalogMake ? (
-              <Field label={t("vehicles.model")}>
-                <select value={form.model} disabled={locked("model")} onChange={(e) => set({ model: e.target.value })}>
-                  <option value="">—</option>
-                  {(models.data?.models ?? []).map((m) => (
-                    <option key={m.code} value={m.code}>
-                      {m.name}
-                      {m.year_from ? ` (${m.year_from}–${m.year_to ?? ""})` : ""}
+            {/* One field for a make: a name of the catalog is taken from the list, any other is
+                typed in the same field (customer's remark of 24.11.2026). */}
+            <Field label={t("vehicles.make")}>
+              <input
+                list={hasCatalog ? "vehicle-makes" : undefined}
+                value={makeText}
+                disabled={locked("make")}
+                onChange={(e) => typeMake(e.target.value)}
+              />
+              {hasCatalog ? (
+                <datalist id="vehicle-makes">
+                  {[...popular, ...(makes.data?.makes ?? []).filter((m) => !m.popular)].map((m) => (
+                    <option key={m.code} value={m.name}>
+                      {makeLabel(m)}
                     </option>
                   ))}
-                  <option value={OTHER}>{t("vehicles.other_value")}</option>
-                </select>
-              </Field>
-            ) : null}
-            {!usesCatalogMake || form.model === OTHER ? (
-              <Field label={usesCatalogMake ? t("vehicles.model_other") : t("vehicles.model")}>
-                <input value={form.model_other} disabled={locked("model")} onChange={(e) => set({ model_other: e.target.value })} />
-              </Field>
-            ) : null}
+                </datalist>
+              ) : null}
+            </Field>
+            <Field label={t("vehicles.model")}>
+              <input
+                list={usesCatalogMake ? "vehicle-models" : undefined}
+                value={modelText}
+                disabled={locked("model")}
+                onChange={(e) => typeModel(e.target.value)}
+              />
+              {usesCatalogMake ? (
+                <datalist id="vehicle-models">
+                  {(models.data?.models ?? []).map((m) => (
+                    <option key={m.code} value={m.name}>
+                      {m.year_from ? `${m.name} (${m.year_from}–${m.year_to ?? ""})` : m.name}
+                    </option>
+                  ))}
+                </datalist>
+              ) : null}
+            </Field>
             <Field label={t("vehicles.year")}>
               <input
                 type="number"
@@ -474,16 +496,10 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
               />
             </Field>
           </div>
-          {!hasCatalog ? <p className="muted small">{t("vehicles.catalog_later")}</p> : null}
-        </Card>
-
-        <Card title={t("vehicles.section_identification")}>
           <div className="row">
-            <Field label={t("vehicles.vin")} hint={t("vehicles.vin_hint")}>
+            <Field label={t("vehicles.vin")} info={t("vehicles.vin_hint")}>
               <input value={form.vin} disabled={locked("vin")} onChange={(e) => set({ vin: e.target.value })} />
             </Field>
-          </div>
-          <div className="row">
             <Field label={t("vehicles.body_number")}>
               <input value={form.body_number} disabled={locked("body_number")} onChange={(e) => set({ body_number: e.target.value })} />
             </Field>
@@ -497,54 +513,6 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
               <input value={form.engine_number} disabled={locked("engine_number")} onChange={(e) => set({ engine_number: e.target.value })} />
             </Field>
           </div>
-        </Card>
-        {/* The registration is not identification (decision of 12.11.2026): the plate and its
-            country change, and the region is not asked. */}
-        <Card title={t("vehicles.section_registration")}>
-          <div className="row">
-            <Field label={t("vehicles.plate")}>
-              <input value={form.plate} onChange={(e) => set({ plate: e.target.value })} />
-            </Field>
-            <Field label={t("vehicles.plate_country")}>
-              <select
-                value={otherCountry ? OTHER_COUNTRY : form.plate_country}
-                onChange={(e) => {
-                  const other = e.target.value === OTHER_COUNTRY;
-                  setOtherCountry(other);
-                  set({ plate_country: other ? "" : e.target.value, plate_country_other: "" });
-                }}
-              >
-                <option value="">—</option>
-                {countryList.map((c) => (
-                  <option key={c.code} value={c.code}>
-                    {c.name}
-                  </option>
-                ))}
-                <option value={OTHER_COUNTRY}>{t("vehicles.plate_country_other_option")}</option>
-              </select>
-            </Field>
-            {otherCountry ? (
-              <Field label={t("vehicles.plate_country_other")}>
-                <input
-                  maxLength={60}
-                  value={form.plate_country_other}
-                  onChange={(e) => set({ plate_country_other: e.target.value })}
-                />
-              </Field>
-            ) : null}
-            {/* Part of the registration: beside the plate and its country, typed by hand
-                (customer's decision of 23.11.2026). */}
-            <Field label={t("vehicles.plate_region")}>
-              <input
-                maxLength={60}
-                value={form.plate_region}
-                onChange={(e) => set({ plate_region: e.target.value })}
-              />
-            </Field>
-          </div>
-        </Card>
-
-        <Card title={t("vehicles.section_characteristics")}>
           <div className="row">
             <Field label={t("vehicles.color")}>
               <input value={form.color} onChange={(e) => set({ color: e.target.value })} />
@@ -604,9 +572,50 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
               ))}
             </div>
           </details>
-        </Card>
-
-        <Card title={t("vehicles.section_owner")}>
+        {/* The registration is not identification (decision of 12.11.2026): the plate and its
+            country change, and the region is not asked. */}
+          <div className="row">
+            <Field label={t("vehicles.plate")}>
+              <input value={form.plate} onChange={(e) => set({ plate: e.target.value })} />
+            </Field>
+            <Field label={t("vehicles.plate_country")}>
+              <select
+                value={otherCountry ? OTHER_COUNTRY : form.plate_country}
+                onChange={(e) => {
+                  const other = e.target.value === OTHER_COUNTRY;
+                  setOtherCountry(other);
+                  set({ plate_country: other ? "" : e.target.value, plate_country_other: "" });
+                }}
+              >
+                <option value="">—</option>
+                {countryList.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.name}
+                  </option>
+                ))}
+                <option value={OTHER_COUNTRY}>{t("vehicles.plate_country_other_option")}</option>
+              </select>
+            </Field>
+            {otherCountry ? (
+              <Field label={t("vehicles.plate_country_other")}>
+                <input
+                  maxLength={60}
+                  value={form.plate_country_other}
+                  onChange={(e) => set({ plate_country_other: e.target.value })}
+                />
+              </Field>
+            ) : null}
+            {/* Part of the registration: beside the plate and its country, typed by hand
+                (customer's decision of 23.11.2026). */}
+            <Field label={t("vehicles.plate_region")}>
+              <input
+                maxLength={60}
+                value={form.plate_region}
+                onChange={(e) => set({ plate_region: e.target.value })}
+              />
+            </Field>
+          </div>
+        <div className="muted small">{t("vehicles.section_owner")}</div>
           <div className="choice-row">
             <label>
               <input
@@ -727,10 +736,9 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
               <p className="muted small">{t("vehicles.owner_managed_hint")}</p>
             </div>
           )}
-        </Card>
 
         {vehicle ? null : (
-        <Card title={t("vehicles.section_accounting")}>
+        <>
           <div className="row">
             {form.relation !== "client" ? (
             <Field label={t("vehicles.location")}>
@@ -751,10 +759,9 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
               </select>
             </Field>
           </div>
-        </Card>
+        </>
         )}
 
-        <Card title={t("vehicles.name")}>
           <Field label={t("vehicles.name")} hint={t("vehicles.name_auto_hint")}>
             <input value={name} onChange={(e) => setCustomName(e.target.value)} />
           </Field>
@@ -776,6 +783,7 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
               {vehicle ? t("common.save") : t("vehicles.create")}
             </button>
           </div>
+        </div>
         </Card>
       </form>
     </div>
