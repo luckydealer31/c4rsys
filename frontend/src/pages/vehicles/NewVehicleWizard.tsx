@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "rea
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useSearchParams } from "react-router";
 
-import { uploadFile } from "../../api/client";
+import { ApiError, uploadPages } from "../../api/client";
 import { useApi } from "../../api/queries";
 import type { CatalogMake, CatalogModel, Client, Vehicle, VehicleOptions } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
@@ -136,12 +136,17 @@ export function NewVehiclePage() {
   const [more, setMore] = useState<Record<string, string> | null>(null);
   const [nothing, setNothing] = useState(false);
   const [ownerRead, setOwnerRead] = useState("");
-  async function readPaper(file: File) {
+  const [refused, setRefused] = useState<ApiError | null>(null);
+  async function readPaper(files: File[]) {
     setNothing(false);
+    setRefused(null);
     setUploading(true);
     let id = "";
     try {
-      id = (await uploadFile("vehicle_paper", file)).id;
+      id = (await uploadPages("vehicle_paper", files)).id;
+    } catch (error) {
+      if (error instanceof ApiError) setRefused(error);
+      return;
     } finally {
       setUploading(false);
     }
@@ -596,13 +601,14 @@ export function NewVehiclePage() {
             <input
               type="file"
               hidden
+              multiple
               aria-label={t("vehicles.paper_read")}
               accept="image/png,image/jpeg,image/webp,application/pdf"
               disabled={uploading || reading.pending}
               onChange={(e) => {
-                const file = e.target.files?.[0];
+                const files = [...(e.target.files ?? [])];
                 e.target.value = "";
-                if (file) void readPaper(file);
+                if (files.length) void readPaper(files);
               }}
             />
           </label>
@@ -612,7 +618,7 @@ export function NewVehiclePage() {
               {t("vehicles.paper_nothing")}
             </span>
           ) : null}
-          <ErrorMessage error={reading.error} />
+          <ErrorMessage error={refused ?? reading.error} />
         </div>
       ) : null}
       {more && !nothing ? (

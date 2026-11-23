@@ -15,7 +15,7 @@ from django.http import FileResponse, HttpRequest, HttpResponse, JsonResponse, S
 from django.views.decorators.http import require_GET, require_POST
 
 from c4rsys.accounts.middleware import require_user
-from c4rsys.files import checks, services, video
+from c4rsys.files import checks, pages, services, video
 from c4rsys.files.models import StoredFile
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult, run_command
@@ -98,16 +98,31 @@ def upload(request: HttpRequest) -> JsonResponse:
     purpose = request.GET.get("purpose", "")
     if purpose not in StoredFile.Purpose.values:
         raise errors.validation_error("purpose")
-    uploaded = request.FILES.get("file")
+    several = request.FILES.getlist("file")
+    uploaded = several[0] if several else None
     if uploaded is None:
         raise errors.validation_error("file", code="FIELD_REQUIRED")
     limit = _limit(purpose)
-    if uploaded.size is not None and uploaded.size > limit:
-        raise services.too_large(limit)
-    if purpose == services.INSPECTION_VIDEO:
-        return _upload_video(request, user.id, session.id, uploaded)
-    data = uploaded.read()
-    content_type = _checked_type(purpose, data, user.id, session.id)
+    if len(several) > 1:
+        # Several photos are the pages of one document (files/pages.py).
+        if len(several) > pages.LIMITS.get(purpose, 1):
+            raise errors.validation_error(
+                "file", code="TOO_MANY_PAGES", max=pages.LIMITS.get(purpose, 1)
+            )
+        if sum(part.size or 0 for part in several) > limit:
+            raise services.too_large(limit)
+        data = pages.pdf([part.read() for part in several])
+        if len(data) > limit:
+            raise services.too_large(limit)
+        # The PDF is made here of the photos alone: it has nothing to be inspected for.
+        content_type = "application/pdf"
+    else:
+        if uploaded.size is not None and uploaded.size > limit:
+            raise services.too_large(limit)
+        if purpose == services.INSPECTION_VIDEO:
+            return _upload_video(request, user.id, session.id, uploaded)
+        data = uploaded.read()
+        content_type = _checked_type(purpose, data, user.id, session.id)
     payload = {"purpose": purpose, "sha256": hashlib.sha256(data).hexdigest()}
 
     def handler(ctx: CommandContext) -> CommandResult:

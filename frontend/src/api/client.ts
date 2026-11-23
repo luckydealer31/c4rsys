@@ -99,11 +99,12 @@ export async function uploadFile(
     | "vehicle_document"
     | "vehicle_paper"
     | "expense_receipt",
-  file: File,
+  file: File | Blob[],
   idempotencyKey: string = crypto.randomUUID(),
 ): Promise<{ id: string }> {
   const body = new FormData();
-  body.append("file", file);
+  if (Array.isArray(file)) file.forEach((page, n) => body.append("file", page, `${n + 1}.jpg`));
+  else body.append("file", file);
   let response: Response;
   try {
     response = await fetch(`/api/files?purpose=${purpose}`, {
@@ -124,6 +125,38 @@ export async function uploadFile(
     throw new ApiError(response.status, (data as ErrorBody | null)?.error ?? null);
   }
   return (data as { file: { id: string } }).file;
+}
+
+/** The longest side of a page in dots: enough to read a document, light enough to send ten. */
+const PAGE_SIDE = 2000;
+
+/** A photo made smaller and turned into a JPEG; what is not a picture goes as it is, and the
+ * server explains why it does not fit. */
+async function page(file: File): Promise<Blob> {
+  try {
+    const picture = await createImageBitmap(file);
+    const scale = Math.min(1, PAGE_SIDE / Math.max(picture.width, picture.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(picture.width * scale);
+    canvas.height = Math.round(picture.height * scale);
+    canvas.getContext("2d")?.drawImage(picture, 0, 0, canvas.width, canvas.height);
+    picture.close();
+    const made = await new Promise<Blob | null>((done) => canvas.toBlob(done, "image/jpeg", 0.85));
+    return made ?? file;
+  } catch {
+    return file;
+  }
+}
+
+/** A document of one file or of several photos (customer's decision of 23.11.2026): several
+ * photos are sent together and kept by the server as the pages of one document. */
+export async function uploadPages(
+  purpose: "warehouse_document" | "vehicle_paper" | "expense_receipt",
+  files: File[],
+): Promise<{ id: string }> {
+  const [only] = files;
+  if (files.length === 1 && only) return uploadFile(purpose, only);
+  return uploadFile(purpose, await Promise.all(files.map(page)));
 }
 
 export type UploadedFile = {

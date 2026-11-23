@@ -1376,7 +1376,9 @@
     "telegram_not_configured": "The Telegram bot is not connected.",
     "telegram_link_expired": "The link is out of date. Get a new one.",
     "telegram_taken": "This Telegram account is already bound to another profile.",
-    "expense_draft_closed": "This draft is already recorded or removed."
+    "expense_draft_closed": "This draft is already recorded or removed.",
+    "too_many_pages": "No more than {{max}} photos in one document.",
+    "pages_not_photos": "Several files at once must be photos. A PDF is uploaded as one file."
   },
   "history": {
     "action": "Action",
@@ -2870,7 +2872,7 @@
     "photos_from": "Inspection of {{when}}",
     "paper_read": "Fill in from a photo of a document",
     "paper_reading": "Reading the document…",
-    "paper_hint": "Upload a photo or a PDF of a document of the vehicle — a registration certificate, a registration book (blue book) or another one with the data of the vehicle. The system reads the make, the model, the year, the VIN, the plate, the numbers of the units, the colour and the characteristics. No vehicle is created by that: check what was read and go through the steps to the end.",
+    "paper_hint": "Upload a photo or a PDF of a document of the vehicle — a registration certificate, a registration book (blue book) or another one with the data of the vehicle. The system reads the make, the model, the year, the VIN, the plate, the numbers of the units, the colour and the characteristics. No vehicle is created by that: check what was read and go through the steps to the end. If the document has two sides or several pages, choose all the photos at once — up to 5.",
     "paper_done": "The document is read. The make, the model, the year, the VIN and the plate are put into the steps — check them on the way.",
     "paper_nothing": "Nothing could be read from the document.",
     "paper_more_hint": "The rest of what was read is written into the card of the vehicle when it is created. Remove a wrong value with the cross — the right one can be entered in the card of the vehicle.",
@@ -3038,7 +3040,7 @@
     "initial_hint": "Initial stock: no supplier is needed.",
     "by_purchase": "By purchase No. {{number}}",
     "document": "Invoice, receipt or other document",
-    "document_hint": "Optional: an image or a PDF.",
+    "document_hint": "Optional: an image or a PDF. Several pages — choose all the photos at once, up to 10.",
     "document_open": "Open document",
     "lines": "Lines",
     "no_lines": "Add at least one line.",
@@ -6730,7 +6732,7 @@
   "drafts": {
     "own": "Drafts of expenses.",
     "empty": "There are no drafts of expenses.",
-    "hint": "A draft appears when a photo of a receipt is sent to the c4rsys bot in Telegram («Receipt of an expense»). The system reads the date, the amount, the currency, the seller and what was paid for. The draft is seen by its author and by the employees who may pay out; it changes no money. Check the data, choose the cash desk or account and the article, and press «Record the expense» — the expense is recorded by the date of the receipt.",
+    "hint": "A draft appears when a photo of a receipt is sent to the c4rsys bot in Telegram («Receipt of an expense»). The system reads the date, the amount, the currency, the seller and what was paid for. The draft is seen by its author and by the employees who may pay out; it changes no money. Check the data, choose the cash desk or account and the article, and press «Record the expense» — the expense is recorded by the date of the receipt. A long receipt — up to 3 photos at once.",
     "receipt": "Receipt",
     "nothing_read": "nothing was read from the receipt",
     "other_currency": "The receipt is in {{currency}}: enter the amount in the currency of the chosen cash desk or account.",

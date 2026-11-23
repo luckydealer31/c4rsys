@@ -2,7 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { uploadFile } from "../../api/client";
+import { ApiError, uploadPages } from "../../api/client";
 import { useApi } from "../../api/queries";
 import type { CashAccount } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
@@ -40,11 +40,16 @@ export function ExpenseDrafts({ accounts }: { accounts: CashAccount[] }) {
   const client = useQueryClient();
   const add = useCommand<{ file_id: string }, unknown>(`/c/${company.public_id}/expense-drafts`);
   const [uploading, setUploading] = useState(false);
-  async function receipt(file: File) {
+  const [refused, setRefused] = useState<ApiError | null>(null);
+  async function receipt(files: File[]) {
+    setRefused(null);
     setUploading(true);
     let id = "";
     try {
-      id = (await uploadFile("expense_receipt", file)).id;
+      id = (await uploadPages("expense_receipt", files)).id;
+    } catch (error) {
+      if (error instanceof ApiError) setRefused(error);
+      return;
     } finally {
       setUploading(false);
     }
@@ -62,18 +67,19 @@ export function ExpenseDrafts({ accounts }: { accounts: CashAccount[] }) {
           <input
             type="file"
             hidden
+            multiple
             aria-label={t("drafts.add")}
             accept="image/png,image/jpeg,image/webp,application/pdf"
             disabled={busy}
             onChange={(e) => {
-              const file = e.target.files?.[0];
+              const files = [...(e.target.files ?? [])];
               e.target.value = "";
-              if (file) void receipt(file);
+              if (files.length) void receipt(files);
             }}
           />
         </label>
       </p>
-      <ErrorMessage error={add.error} />
+      <ErrorMessage error={refused ?? add.error} />
       <p className="small muted">
         {drafts.data.drafts.length ? t("drafts.own") : t("drafts.empty")} <Info text={t("drafts.hint")} />
       </p>

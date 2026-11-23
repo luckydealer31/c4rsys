@@ -262,11 +262,22 @@ test("base example from registration to closing survives a restart", async ({ pa
   await expect(page.locator(".paper-read")).toContainText("3NR-1234567");
   await page.goto(`${base}/vehicles`);
   await page.getByRole("link", { name: t("vehicles.create_button") }).click();
-  await page.locator(".paper-reading input[type=file]").setInputFiles({
-    name: "book.png",
+  // Two sides of a paper are chosen at once and kept as one document of two pages; more than
+  // five photos are refused (customer's decision of 23.11.2026).
+  const side = (name: string) => ({
+    name,
     mimeType: "image/png",
-    buffer: Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(64)]),
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+      "base64",
+    ),
   });
+  const chooser = page.locator(".paper-reading input[type=file]");
+  await chooser.setInputFiles(["1", "2", "3", "4", "5", "6"].map((n) => side(`${n}.png`)));
+  await expect(page.locator(".paper-reading")).toContainText(t("errors.too_many_pages", { max: 5 }));
+  const kept = page.waitForResponse((r) => r.url().includes("/api/files?purpose=vehicle_paper") && r.status() === 201);
+  await chooser.setInputFiles([side("front.png"), side("back.png")]);
+  expect((await (await kept).json()).file.content_type).toBe("application/pdf");
   const paper = page.locator(".paper-read");
   await expect(paper).toContainText("White");
   await expect(paper).toContainText("3NR-1234567");

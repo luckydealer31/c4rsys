@@ -3,7 +3,7 @@ import { Fragment, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 
-import { uploadFile } from "../../api/client";
+import { ApiError, uploadPages } from "../../api/client";
 import { useApi } from "../../api/queries";
 import type {
   Counterparty,
@@ -223,6 +223,7 @@ function ReceiptEditor({ receipt }: { receipt?: Receipt }) {
   // The name a new supplier starts with: the one read from the document.
   const [readSupplier, setReadSupplier] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [refused, setRefused] = useState<ApiError | null>(null);
   const options = useApi<WarehouseOptions>(["warehouse-options"], "/catalog/warehouse-options");
 
   // One warehouse is chosen by default when it is the only one.
@@ -380,20 +381,25 @@ function ReceiptEditor({ receipt }: { receipt?: Receipt }) {
           <Field label={t("receipts.document")} hint={t("receipts.document_hint")}>
             <input
               type="file"
+              multiple
               accept="image/png,image/jpeg,image/webp,application/pdf"
               disabled={uploading}
               onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
+                const files = [...(e.target.files ?? [])];
+                if (!files.length) return;
+                setRefused(null);
                 setUploading(true);
                 try {
-                  const uploaded = await uploadFile("warehouse_document", file);
+                  const uploaded = await uploadPages("warehouse_document", files);
                   setHead((h) => ({ ...h, document_id: uploaded.id }));
+                } catch (error) {
+                  if (error instanceof ApiError) setRefused(error);
                 } finally {
                   setUploading(false);
                 }
               }}
             />
+            <ErrorMessage error={refused} />
           </Field>
           {head.document_id ? (
             <p style={{ alignSelf: "end" }}>
