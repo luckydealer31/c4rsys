@@ -66,13 +66,16 @@ INSTRUCTION = (
     "the plate as written, the country that issued the plate, the VIN, the numbers of the body, "
     "the chassis, the frame and the engine, the colour in English, and the characteristics. "
     "Leave out whatever cannot be read with confidence: do not guess, and do not work out a "
-    "value from another one. Read the owner too: the name as written, and whether the owner is "
+    "value from another one: give an empty text instead. "
+    "Read the owner too: the name as written, and whether the owner is "
     "a person or an organization. Other people named in the document are not asked for."
 )
 
 
-def _nullable(kind: str, description: str) -> dict[str, Any]:
-    return {"type": [kind, "null"], "description": description}
+def _field(description: str) -> dict[str, Any]:
+    """Every field is a text, and an empty one means "not read": the outer service takes no more
+    than 16 fields that may be of two types, and a paper has more."""
+    return {"type": "string", "description": description + "; an empty text if not read"}
 
 
 SCHEMA: dict[str, Any] = {
@@ -80,11 +83,11 @@ SCHEMA: dict[str, Any] = {
     "additionalProperties": False,
     "required": ["year", "plate_country", *CHOICES, *TEXTS, *NUMBERS],
     "properties": {
-        "year": _nullable("integer", "the year of manufacture"),
-        "plate_country": _nullable("string", "ISO 3166-1 alpha-2"),
-        **{k: _nullable("string", "one of: " + ", ".join(v)) for k, v in CHOICES.items()},
-        **{k: _nullable("string", f"up to {v} characters") for k, v in TEXTS.items()},
-        **{k: _nullable("integer", "a positive whole number") for k in NUMBERS},
+        "year": _field("the year of manufacture in digits"),
+        "plate_country": _field("ISO 3166-1 alpha-2"),
+        **{k: _field("one of: " + ", ".join(v)) for k, v in CHOICES.items()},
+        **{k: _field(f"up to {v} characters") for k, v in TEXTS.items()},
+        **{k: _field("a positive whole number in digits") for k in NUMBERS},
     },
 }
 

@@ -9,6 +9,7 @@ import type { CatalogMake, CatalogModel, Client, Vehicle, VehicleOptions } from 
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Info, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
+import { isMini } from "../../mini";
 import { clientName } from "../clients/ClientsPage";
 import { countries } from "../settings/CompanyProfilePage";
 import { useLocations } from "../settings/LocationsPage";
@@ -578,9 +579,11 @@ export function NewVehiclePage() {
 
   return (
     <div className="page">
-      <p>
-        <Link to={companyPath(company, "/vehicles")}>← {t("nav.garage")}</Link>
-      </p>
+      {isMini() ? null : (
+        <p>
+          <Link to={companyPath(company, "/vehicles")}>← {t("nav.garage")}</Link>
+        </p>
+      )}
       <h1>{t("vehicles.create_title")}</h1>
       <p className="muted">
         {t("wizard.step", { n: index + 1, total: steps.length })}

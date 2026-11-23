@@ -131,3 +131,21 @@ def test_a_failure_of_the_service_and_a_wrong_file(owner: Client, cmp: str, serv
     refused = _read(owner, cmp, other)
     assert refused.status_code == 400
     assert refused.json()["error"]["code"] == "FILE_NOT_USABLE"
+
+
+def test_schemas_stay_within_the_limit_of_the_outer_service() -> None:
+    """The service refuses a schema with more than 16 fields of two types (it did so with the
+    paper of a vehicle on 23.11.2026), so every schema sent to it is counted."""
+    from c4rsys.finance import expense_drafts
+    from c4rsys.warehouse import recognition as invoices
+    from c4rsys.warehouse.recognition_anthropic import _schema
+
+    def unions(node: object) -> int:
+        if isinstance(node, list):
+            return sum(unions(v) for v in node)
+        if not isinstance(node, dict):
+            return 0
+        return ("anyOf" in node) + sum(unions(v) for v in node.values())
+
+    for schema in (recognition.SCHEMA, invoices.SCHEMA, expense_drafts.SCHEMA):
+        assert unions(_schema(schema)) <= 16
