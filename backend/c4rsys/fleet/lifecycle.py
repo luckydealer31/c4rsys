@@ -300,6 +300,27 @@ def _reset_contexts(card: VehicleCard) -> None:
 # --- Relation (§ 8.1.6, § 8.3.17) ----------------------------------------------------------------
 
 
+def earlier_client_card(company_id: UUID, details: Any) -> VehicleCard | None:
+    """The client card of the company for the same vehicle (customer's decision of 23.11.2026):
+    a vehicle added as managed is not doubled — the earlier card is taken into management and
+    keeps its history. PROPOSAL: the same vehicle is one with the same VIN or the same number
+    of the frame, the body or the chassis; a plate alone is not enough."""
+    same = Q()
+    for key in ("vin", "frame_number", "body_number", "chassis_number"):
+        value = getattr(details, key)
+        if value:
+            same |= Q(**{f"vehicle__{key}": value})
+    if not same:
+        return None
+    return (
+        VehicleCard.objects.filter(
+            same, company_id=company_id, relation=Relation.CLIENT, state=VehicleCard.State.ACTIVE
+        )
+        .order_by("created_at")
+        .first()
+    )
+
+
 def end_management(
     ctx: CommandContext,
     company_id: UUID,
@@ -369,6 +390,8 @@ def take_into_management(
     if identity.operational_elsewhere(card.vehicle_id, company.id):
         raise errors.business_rule("VEHICLE_OPERATIONAL_ELSEWHERE")
     now = timezone.now()
+    # Open orders are closed first, as before a sale (customer's decision of 23.11.2026).
+    _require_free(card, now)
     close_period(card, "management_started", reason, ctx.actor.user_id, now)
     card.relation = Relation.MANAGED
     card.accounting_location_id = location_id

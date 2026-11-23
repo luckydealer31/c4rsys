@@ -267,6 +267,17 @@ def vehicle_list(request: HttpRequest, cmp: str) -> JsonResponse:
     read = _read_documents(data)
 
     def handler(ctx: CommandContext) -> CommandResult:
+        if relation == VehicleCard.Relation.MANAGED:
+            from c4rsys.fleet import lifecycle
+
+            earlier = lifecycle.earlier_client_card(context.company.id, details)
+            if earlier is not None:
+                raise errors.business_rule(
+                    "VEHICLE_WAS_CLIENT",
+                    card_id=str(earlier.id),
+                    name=earlier.name,
+                    version=earlier.version,
+                )
         card = services.create_vehicle(ctx, context.company, new)
         for document in read:
             card_documents.add(ctx, context.company.id, card.id, document)

@@ -144,6 +144,12 @@ export function NewVehiclePage() {
     `/c/${company.public_id}/vehicles`,
     "POST",
   );
+  // A vehicle added as managed that the company already keeps as a client one is not doubled
+  // (customer's decision of 23.11.2026): the earlier card is taken into management.
+  const take = useCommand<Record<string, unknown>, unknown>(
+    (body) => `/c/${company.public_id}/vehicles/${String(body.card_id)}/take-into-management`,
+    "POST",
+  );
   const set = (changes: Partial<Form>) => setForm({ ...form, ...changes });
   // A paper of the vehicle — a registration certificate, a blue book — is read into the steps
   // (customer's decision of 22.11.2026): what the steps ask is put into them, the rest is shown
@@ -341,6 +347,48 @@ export function NewVehiclePage() {
       navigate(companyPath(company, `/vehicles/${result.vehicle.id}`));
     }
   }
+
+  const earlier =
+    create.error?.code === "VEHICLE_WAS_CLIENT"
+      ? (create.error.params as { card_id: string; name: string; version: number })
+      : null;
+  async function takeEarlier() {
+    if (!earlier) return;
+    const body: Record<string, unknown> = {
+      card_id: earlier.card_id,
+      location_id: form.location_id,
+      owner_kind: form.owner_kind,
+      reason: t("vehicles.was_client_reason"),
+      expected_version: earlier.version,
+    };
+    if (form.owner_kind === "profile") body.owner_lookup = form.owner_lookup;
+    if (form.owner_kind === "person" || form.owner_kind === "organization") {
+      body.owner_name = form.owner_name;
+      body.owner_contact = form.owner_contact;
+      body.owner_address = form.owner_address;
+    }
+    if ((await take.run(body)) !== null) {
+      await client.invalidateQueries({ queryKey: ["vehicles", company.public_id] });
+      navigate(companyPath(company, `/vehicles/${earlier.card_id}`));
+    }
+  }
+  const failure = earlier ? (
+    <div className="stack" data-testid="was-client">
+      <p>{t("vehicles.was_client", { name: earlier.name })}</p>
+      {can("vehicle.relation") ? (
+        <div className="actions">
+          <button type="button" disabled={take.pending} onClick={() => void takeEarlier()}>
+            {t("vehicles.take_into_management_button")}
+          </button>
+        </div>
+      ) : (
+        <p className="muted small">{t("vehicles.was_client_no_right")}</p>
+      )}
+      <ErrorMessage error={take.error} />
+    </div>
+  ) : (
+    <ErrorMessage error={create.error} />
+  );
 
   function next(event: FormEvent) {
     event.preventDefault();
@@ -783,7 +831,7 @@ export function NewVehiclePage() {
               })}
             </div>
             <p className="muted small">{t("vehicles.wizard_later")}</p>
-            <ErrorMessage error={create.error} />
+            {failure}
             <div className="actions">
               <button type="submit" disabled={!complete || create.pending}>
                 {t("vehicles.create")}
@@ -841,7 +889,7 @@ export function NewVehiclePage() {
           {content}
           {optional ? <p className="muted small">{t("wizard.optional")}</p> : null}
           {last ? <p className="muted small">{t("vehicles.wizard_later")}</p> : null}
-          {last ? <ErrorMessage error={create.error} /> : null}
+          {last ? failure : null}
           <div className="actions">
             {index > 0 ? (
               <button type="button" className="secondary" onClick={() => setIndex(index - 1)}>

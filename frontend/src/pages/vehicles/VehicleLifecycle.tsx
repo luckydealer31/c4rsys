@@ -400,7 +400,8 @@ export function RelationCard({ vehicle }: { vehicle: Vehicle }) {
   const refresh = useRefresh(vehicle.id);
   const locations = useLocations();
   const [reason, setReason] = useState("");
-  const [then, setThen] = useState("archive");
+  // The vehicle becomes a client one and the card stays (customer's decision of 23.11.2026).
+  const then = "client";
   const [location, setLocation] = useState(vehicle.location_id ?? "");
   const [relation, setRelation] = useState("managed");
   // Copies of the company's documents the owner gets at the end of the management.
@@ -477,14 +478,6 @@ export function RelationCard({ vehicle }: { vehicle: Vehicle }) {
             <Field label={t("vehicles.lifecycle_reason")}>
               <input value={reason} onChange={(e) => setReason(e.target.value)} />
             </Field>
-            {vehicle.relation === "managed" ? (
-              <Field label={t("vehicles.end_management_then")}>
-                <select value={then} onChange={(e) => setThen(e.target.value)}>
-                  <option value="archive">{t("vehicles.end_management_archive")}</option>
-                  <option value="client">{t("vehicles.end_management_client")}</option>
-                </select>
-              </Field>
-            ) : null}
             {vehicle.relation === "client" ? locationField : null}
           </div>
           <p className="muted small">

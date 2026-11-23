@@ -2673,7 +2673,7 @@
     "end_management_then": "After that",
     "end_management_archive": "archive the card",
     "end_management_client": "keep it as a client vehicle",
-    "end_management_hint": "The vehicle returns to the owner without the warehouse. Running and future operations must be finished first.",
+    "end_management_hint": "The vehicle becomes a client one; the card and its history stay. Finish the running and future operations first.",
     "archive_hint": "The archived card stays for its history only. Running and future operations must be finished first.",
     "end_management_button": "End the management",
     "take_into_management_button": "Take into management",
@@ -2906,7 +2906,10 @@
     "paper_documents_hint": "The marked documents appear in the card of the vehicle together with it: the paper that was read, with its photo, and the vehicle passport if its number is named. The name, the number, the issuer and the date can be corrected here or later in the card.",
     "owner_short_managed": "Managed",
     "owner_short_client": "Client's",
-    "plate_region": "Region of registration"
+    "plate_region": "Region of registration",
+    "was_client": "This vehicle is already kept as a client one: “{{name}}”. A second card is not made — the earlier one is taken into management and keeps its history.",
+    "was_client_no_right": "An employee with the right “Change the relation and end the management” can take it into management.",
+    "was_client_reason": "Added as a managed vehicle"
   },
   "warehouse": {
     "action_create": "Create",

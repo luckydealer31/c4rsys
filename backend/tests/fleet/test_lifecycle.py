@@ -354,3 +354,51 @@ def test_history_of_owners_and_plates_and_more_characteristics(owner: Client, s:
         ("person", "", False),
     ]
     assert VehicleCardPeriod.objects.filter(vehicle_card__pk=s.vehicle).count() == 1
+
+
+def test_managed_vehicle_kept_as_a_client_one_is_not_doubled(owner: Client, s: Scenario) -> None:
+    """Customer's decision of 23.11.2026: a vehicle added as managed that the company keeps as
+    a client one gets no second card — the earlier card is taken into management with its
+    history."""
+    url = f"/api/c/{s.cmp}/vehicles"
+    client_card = post(
+        owner,
+        url,
+        {
+            "name": "Client Forza",
+            "odometer_unit": "km",
+            "relation": "client",
+            "frame_number": "mlhnf0975",
+        },
+        key(),
+    ).json()["vehicle"]
+    body = {
+        "name": "Managed Forza",
+        "location_id": s.location,
+        "odometer_unit": "km",
+        "relation": "managed",
+        "frame_number": "MLHNF0975",
+    }
+
+    refused = post(owner, url, body, key())
+
+    assert refused.status_code == 422
+    error = refused.json()["error"]
+    assert error["code"] == "VEHICLE_WAS_CLIENT"
+    assert error["params"]["card_id"] == client_card["id"]
+    assert error["params"]["name"] == "Client Forza"
+    assert VehicleCard.objects.filter(company__public_id=s.cmp, name="Managed Forza").count() == 0
+    taken = _do(
+        owner,
+        s,
+        {"id": client_card["id"], "version": error["params"]["version"]},
+        "take-into-management",
+        reason="Added as managed",
+        location_id=s.location,
+        owner_kind="none",
+    )
+    assert taken.status_code == 200
+    assert taken.json()["vehicle"]["relation"] == "managed"
+    # Another vehicle is made as before; own vehicles are not touched by the rule.
+    other = post(owner, url, {**body, "name": "Other", "frame_number": "ZZZ1"}, key())
+    assert other.status_code == 201
