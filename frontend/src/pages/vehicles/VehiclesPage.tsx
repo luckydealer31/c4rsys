@@ -386,6 +386,21 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
     [t("vehicles.inventory_number"), c.inventory_number ?? ""],
     [t("vehicles.barcode"), c.barcode ?? ""],
   ];
+  // A value chosen from a list is named, not shown by its code.
+  const lists: Record<string, string> = {
+    body_type: "vehicles.body",
+    fuel_type: "vehicles.fuel",
+    transmission: "vehicles.gearbox",
+    drive: "vehicles.drives",
+  };
+  const named = (field: string, display: string) =>
+    !display
+      ? "—"
+      : field === "vehicle_type"
+        ? t(`vehicles.type_${display}`)
+        : lists[field]
+          ? option(lists[field], display)
+          : display;
   const renderFacts = (column: [string, string, string?][]) => (
             <dl className="facts">
               {column
@@ -399,10 +414,10 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
                 <dd>
                   {own ? (
                     <>
-                      {own.display || "—"}{" "}
+                      {named(field ?? "", own.display)}{" "}
                       <span className="badge warn">
                         {t(own.owner_newer ? "vehicles.owner_newer_mark" : "vehicles.working_value_mark", {
-                          value: own.global.display || "—",
+                          value: named(field ?? "", own.global.display),
                         })}
                       </span>
                     </>

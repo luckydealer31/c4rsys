@@ -41,11 +41,11 @@ export function VehiclePhotos({ vehicle }: { vehicle: Vehicle }) {
     return (
       <div className="vehicle-photos">
         <div className="vehicle-photo-main none">
+          {/* The same picture as in the lists (customer's remark of 23.11.2026). */}
           <VehicleTypeIcon
             type={vehicle.characteristics.vehicle_type}
             body={vehicle.characteristics.body_type}
             size={240}
-            vector
           />
         </div>
       </div>

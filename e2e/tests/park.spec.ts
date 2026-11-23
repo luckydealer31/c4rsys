@@ -124,6 +124,8 @@ test("the park is filtered by the occupancy and begins a booking; the card shows
   // The card of a vehicle without photos: the picture of its type stands in their place.
   await page.goto(`${s.base}/vehicles/${honda.id}`);
   await expect(page.locator(".vehicle-photo-main.none")).toBeVisible();
+  // The same picture as in the lists stands there (customer's remark of 23.11.2026).
+  await expect(page.locator(".vehicle-photo-main.none img.vehicle-type-icon")).toBeVisible();
 
   // An inspection with the photos of two angles.
   const inspection = await startIssueInspection(page, s, rental);
