@@ -62,6 +62,7 @@ type ReadDocument = {
 };
 // What the steps do not ask: read from the paper, it is written into the card with the rest.
 const PAPER_MORE = [
+  "plate_region",
   "plate_country",
   "color",
   "body_number",

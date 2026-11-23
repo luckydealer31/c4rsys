@@ -49,6 +49,7 @@ type Form = {
   plate: string;
   plate_country: string;
   plate_country_other: string;
+  plate_region: string;
   vin: string;
   body_number: string;
   chassis_number: string;
@@ -92,6 +93,7 @@ const EMPTY: Form = {
   plate: "",
   plate_country: "",
   plate_country_other: "",
+  plate_region: "",
   vin: "",
   body_number: "",
   chassis_number: "",
@@ -181,6 +183,7 @@ function formOf(vehicle: Vehicle): Form {
     owner_client_id: o?.client?.id ?? "",
     client_owner_kind: o && vehicle.relation === "client" && o.kind !== "none" ? o.kind : "client",
     plate_country_other: c.plate_country_other ?? "",
+    plate_region: c.plate_region ?? "",
   };
   // § 8.2.1: the card's own working values are edited in place of the global ones.
   const values = form as unknown as Record<string, string>;
@@ -274,8 +277,8 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
       plate: form.plate,
       plate_country: form.plate_country,
       plate_country_other: form.plate_country ? "" : form.plate_country_other,
-      // The region of registration is no longer kept (decision of 12.11.2026).
-      plate_region: "",
+      // The region is kept again (customer's decision of 23.11.2026): a paper read fills it.
+      plate_region: form.plate_region,
       vin: form.vin,
       body_number: form.body_number,
       chassis_number: form.chassis_number,
@@ -521,6 +524,15 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
                 />
               </Field>
             ) : null}
+            {/* Part of the registration: beside the plate and its country, typed by hand
+                (customer's decision of 23.11.2026). */}
+            <Field label={t("vehicles.plate_region")}>
+              <input
+                maxLength={60}
+                value={form.plate_region}
+                onChange={(e) => set({ plate_region: e.target.value })}
+              />
+            </Field>
           </div>
         </Card>
 

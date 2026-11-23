@@ -353,6 +353,7 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
     [t("vehicles.color"), c.color, "color"],
     // Only the number: the country of registration is kept but not shown (decision of 12.11.2026).
     [t("vehicles.plate"), c.plate, "#plate"],
+    [t("vehicles.plate_region"), c.plate_region ?? ""],
     [t("vehicles.vin"), c.vin, "vin"],
     [t("vehicles.body_number"), c.body_number, "body_number"],
     [t("vehicles.chassis_number"), c.chassis_number, "chassis_number"],

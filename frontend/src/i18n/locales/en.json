@@ -2890,7 +2890,8 @@
     "paper_document_file": "the photo of the paper is attached",
     "paper_documents_hint": "The marked documents appear in the card of the vehicle together with it: the paper that was read, with its photo, and the vehicle passport if its number is named. The name, the number, the issuer and the date can be corrected here or later in the card.",
     "owner_short_managed": "Managed",
-    "owner_short_client": "Client's"
+    "owner_short_client": "Client's",
+    "plate_region": "Region of registration"
   },
   "warehouse": {
     "action_create": "Create",

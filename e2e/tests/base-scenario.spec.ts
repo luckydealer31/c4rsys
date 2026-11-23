@@ -255,7 +255,7 @@ test("base example from registration to closing survives a restart", async ({ pa
         make_code: null, model_code: null, catalog_type: null, owner_name: "Somchai Jaidee", owner_kind: "person",
         power_kw: "63.0", vehicle_category: "B", eco_class: "Euro 5", type_approval: "", special_marks: "",
         owner_address: "Phuket, 1 Beach Rd", paper_name: "Registration book", paper_number: "RB-778",
-        paper_issued_on: "2022-05-01", paper_issued_by: "DLT", passport_number: "PS-42", paper_keepable: true,
+        paper_issued_on: "2022-05-01", paper_issued_by: "DLT", passport_number: "PS-42", paper_keepable: true, plate_region: "Phuket",
       },
     }),
   );
@@ -325,12 +325,20 @@ test("base example from registration to closing survives a restart", async ({ pa
   expect(sent.seats).toBeUndefined();
   expect(sent.power_kw).toBe("64.5");
   expect(sent.vehicle_category).toBe("B");
+  // The province of the plate is kept apart from it and shown in the card.
+  expect(sent.plate_region).toBe("Phuket");
   expect((sent.documents as { name: string; number: string }[]).map((d) => [d.name, d.number])).toEqual([
     ["Registration book", "RB-778"],
   ]);
   // The document is in the card with the photo of the paper.
   await expect(page.locator(".document-summary")).toContainText("Registration book");
+  await expect(page.locator("dl.facts", { hasText: t("vehicles.plate_region") })).toContainText("Phuket");
   await expect(page.getByRole("heading", { name: "Toyota Yaris" })).toBeVisible();
+  // The region is typed by hand in the edit form, beside the plate and its country.
+  await page.getByRole("link", { name: t("common.edit"), exact: true }).click();
+  await page.getByLabel(t("vehicles.plate_region"), { exact: true }).fill("Krabi");
+  await page.getByRole("button", { name: t("common.save"), exact: true }).click();
+  await expect(page.locator("dl.facts", { hasText: t("vehicles.plate_region") })).toContainText("Krabi");
 
   // A tariff is created step by step: name, currency, unit (a day from the issue), the ranges
   // without a price, availability, then the vehicles — the marked one gets its price of the

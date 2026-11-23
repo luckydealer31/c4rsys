@@ -48,6 +48,9 @@ TEXTS: dict[str, int] = {
     "color": 40,
     # The owner named in the paper (customer's decision of 22.11.2026).
     "owner_name": 200,
+    # The province or the region of the plate, kept apart from it (customer's decision of
+    # 23.11.2026).
+    "plate_region": 60,
     # What a registration paper names besides (customer's decision of 23.11.2026), as written.
     "vehicle_category": 40,
     "eco_class": 40,
@@ -76,7 +79,9 @@ INSTRUCTION = (
     "(such as the Thai blue or green book), a title or a similar document. It may be in "
     "Russian, Thai or English, printed or handwritten. Read the data of the vehicle itself: its "
     "make and model in Latin letters as the manufacturer writes them, the year of manufacture, "
-    "the plate as written, the country that issued the plate, the VIN, the numbers of the body, "
+    "the plate as written but without the province or the region it names, that province or "
+    "region apart as written (the digits of a region inside a plate, as on a Russian one, stay "
+    "in the plate), the country that issued the plate, the VIN, the numbers of the body, "
     "the chassis, the frame and the engine, the colour in English, and the characteristics. "
     "Leave out whatever cannot be read with confidence: do not guess, and do not work out a "
     "value from another one: give an empty text instead. "
