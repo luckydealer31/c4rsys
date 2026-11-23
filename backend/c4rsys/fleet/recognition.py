@@ -114,7 +114,7 @@ SCHEMA: dict[str, Any] = {
         "plate_country": _field("ISO 3166-1 alpha-2"),
         **{k: _field("one of: " + ", ".join(v)) for k, v in CHOICES.items()},
         **{k: _field(f"up to {v} characters") for k, v in TEXTS.items()},
-        **{k: _field("a positive whole number in digits") for k in NUMBERS},
+        **{k: _field("a positive number in digits, as written") for k in NUMBERS},
         "power_kw": _field("the power in kilowatts as written, a number"),
         "paper_issued_on": _field("the date the paper was issued, YYYY-MM-DD"),
     },
