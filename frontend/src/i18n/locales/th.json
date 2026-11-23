@@ -2473,7 +2473,7 @@
     "owner_client_hint": "A client vehicle is not bound to a location and is not used for rental or the warehouse; the location is given in the service operation (§ 8.1.2).",
     "owner_company": "The company «{{company}}» — own vehicle",
     "owner_contact": "Contact (optional)",
-    "owner_kind": "Who is the owner",
+    "owner_kind": "เจ้าของ",
     "owner_kind_client": "A client from the client base",
     "owner_kind_none": "Not given yet",
     "owner_kind_organization": "An organization — enter by hand",

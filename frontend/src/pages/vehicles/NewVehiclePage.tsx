@@ -649,8 +649,8 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
             </label>
           </div>
           {form.relation === "own" ? null : form.relation === "client" ? (
-            <div className="stack" style={{ marginTop: 12 }}>
-              <Field label={t("vehicles.owner_kind")}>
+            <div className="row short-fields" style={{ marginTop: 12 }}>
+              <Field label={t("vehicles.owner_kind")} info={t("vehicles.owner_client_hint")}>
                 <select
                   value={form.client_owner_kind}
                   onChange={(e) => set({ client_owner_kind: e.target.value })}
@@ -678,7 +678,7 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
                 </Field>
               ) : null}
               {form.client_owner_kind === "person" || form.client_owner_kind === "organization" ? (
-                <div className="row">
+                <>
                   <Field label={t(`vehicles.owner_name_${form.client_owner_kind}`)}>
                     <input value={form.owner_name} onChange={(e) => set({ owner_name: e.target.value })} />
                   </Field>
@@ -694,13 +694,12 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
                       onChange={(e) => set({ owner_address: e.target.value })}
                     />
                   </Field>
-                </div>
+                </>
               ) : null}
-              <p className="muted small">{t("vehicles.owner_client_hint")}</p>
             </div>
           ) : (
-            <div className="stack" style={{ marginTop: 12 }}>
-              <Field label={t("vehicles.owner_kind")}>
+            <div className="row short-fields" style={{ marginTop: 12 }}>
+              <Field label={t("vehicles.owner_kind")} info={t("vehicles.owner_managed_hint")}>
                 <select value={form.owner_kind} onChange={(e) => set({ owner_kind: e.target.value })}>
                   {OWNER_KINDS.map((kind) => (
                     <option key={kind} value={kind}>
@@ -710,12 +709,12 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
                 </select>
               </Field>
               {form.owner_kind === "profile" ? (
-                <Field label={t("vehicles.owner_lookup")} hint={t("vehicles.owner_lookup_hint")}>
+                <Field label={t("vehicles.owner_lookup")} info={t("vehicles.owner_lookup_hint")}>
                   <input value={form.owner_lookup} onChange={(e) => set({ owner_lookup: e.target.value })} />
                 </Field>
               ) : null}
               {form.owner_kind === "person" || form.owner_kind === "organization" ? (
-                <div className="row">
+                <>
                   <Field label={t(`vehicles.owner_name_${form.owner_kind}`)}>
                     <input value={form.owner_name} onChange={(e) => set({ owner_name: e.target.value })} />
                   </Field>
@@ -731,9 +730,8 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
                       onChange={(e) => set({ owner_address: e.target.value })}
                     />
                   </Field>
-                </div>
+                </>
               ) : null}
-              <p className="muted small">{t("vehicles.owner_managed_hint")}</p>
             </div>
           )}
 
@@ -762,14 +760,16 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
         </>
         )}
 
-          <Field label={t("vehicles.name")} hint={t("vehicles.name_auto_hint")}>
-            <input value={name} onChange={(e) => setCustomName(e.target.value)} />
-          </Field>
-          {customName !== null && customName !== autoName ? (
-            <button type="button" className="secondary" onClick={() => setCustomName(null)}>
-              {t("vehicles.name_reset")}
-            </button>
-          ) : null}
+          {/* The name is short, and the automatic one is returned by a small button at its right
+              (customer's remark of 24.11.2026). */}
+          <div className="row short-fields" style={{ alignItems: "flex-end" }}>
+            <Field label={t("vehicles.name")} info={t("vehicles.name_auto_hint")}>
+              <input value={name} onChange={(e) => setCustomName(e.target.value)} />
+            </Field>
+            {customName !== null && customName !== autoName ? (
+              <IconButton icon="restore" label={t("vehicles.name_reset")} onClick={() => setCustomName(null)} />
+            ) : null}
+          </div>
           <ErrorMessage error={create.error} />
           <div className="actions">
             <button

@@ -75,6 +75,12 @@ h3 { font-size: 1rem; margin: 0 0 8px; }
 .stack > * + * { margin-top: 12px; }
 .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
 .row > * { flex: 1 1 180px; }
+/* Short values — a choice of a few words, a name — do not take the whole line. */
+.row.short-fields > * { flex: 1 1 200px; }
+/* The first one is as wide as the three choices of the owner above it (customer's remark of
+   24.11.2026). */
+.row.short-fields > :first-child { flex: 0 1 440px; }
+.row.short-fields > .icon-button { flex: none; }
 .muted { color: var(--muted); }
 .small { font-size: 0.875rem; }
 
