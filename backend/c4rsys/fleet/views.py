@@ -404,7 +404,8 @@ def catalog_options(request: HttpRequest) -> JsonResponse:
             "catalog_types": sorted(
                 set(VehicleMake.objects.values_list("vehicle_type", flat=True))
             ),
-            "body_types": characteristics.BODY_TYPES,
+            "body_types": characteristics.ALL_BODY_TYPES,
+            "body_types_by_type": characteristics.BODY_TYPES,
             "fuel_types": characteristics.FUEL_TYPES,
             "transmissions": characteristics.TRANSMISSIONS,
             "drives": characteristics.DRIVES,

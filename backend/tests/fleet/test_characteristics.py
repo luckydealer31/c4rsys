@@ -96,7 +96,7 @@ def test_country_of_registration_typed_by_hand(owner: Client, cmp: str, location
 
 def test_manual_name_and_other_make_as_text(owner: Client, cmp: str, location: str) -> None:
     response = create(
-        owner, cmp, location, name="Белый скутер", vehicle_type="moped", make_other="Vespa"
+        owner, cmp, location, name="Белый скутер", vehicle_type="motorcycle", make_other="Vespa"
     )
 
     vehicle = response.json()["vehicle"]
@@ -378,3 +378,23 @@ def test_client_is_set_later_on_a_client_vehicle(owner: Client, cmp: str) -> Non
 
     assert response.json()["vehicle"]["owner"]["name"] == "Сидоров Пётр"
     assert VehicleOwnerClaim.objects.filter(vehicle_card_id=created["id"]).count() == 2
+
+
+def test_body_belongs_to_the_type(owner: Client, cmp: str, location: str) -> None:
+    """Customer's decision of 23.11.2026: every type has its own bodies; a moped and a scooter
+    are bodies of «motorcycle», a truck has no car bodies, a bus has none at all."""
+    options = owner.get("/api/catalog/vehicle-options").json()
+    assert "moped" not in options["vehicle_types"]
+    assert "maxi_scooter" in options["body_types_by_type"]["motorcycle"]
+    assert "sedan" not in options["body_types_by_type"]["truck"]
+    assert "bus" not in options["body_types_by_type"]
+
+    bike = create(
+        owner, cmp, location, name="Forza", vehicle_type="motorcycle", body_type="maxi_scooter"
+    )
+    assert bike.json()["vehicle"]["characteristics"]["body_type"] == "maxi_scooter"
+    for kind, body in (("motorcycle", "sedan"), ("truck", "sedan"), ("bus", "van")):
+        refused = create(owner, cmp, location, name="X", vehicle_type=kind, body_type=body)
+        assert refused.json()["error"]["field"] == "body_type"
+    former = create(owner, cmp, location, name="Y", vehicle_type="moped")
+    assert former.json()["error"]["field"] == "vehicle_type"

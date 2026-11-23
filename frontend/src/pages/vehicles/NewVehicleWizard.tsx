@@ -318,6 +318,8 @@ export function NewVehiclePage() {
       body.model_other = form.model_other;
     }
     for (const [key, value] of Object.entries(more ?? {})) {
+      // A body of another type is not sent: the type may have been changed after the reading.
+      if (key === "body_type" && !(options.data?.body_types_by_type[form.vehicle_type] ?? []).includes(value)) continue;
       if (value.trim() !== "") body[key] = PAPER_WHOLE.has(key) ? Number(value) : value.trim();
     }
     if (more) {
@@ -645,7 +647,7 @@ export function NewVehiclePage() {
   // it is checked, corrected and the vehicle is made at once, without the steps.
   if (more && !nothing) {
     const lists: Record<string, string[]> = {
-      body_type: o.body_types,
+      body_type: o.body_types_by_type[form.vehicle_type] ?? [],
       fuel_type: o.fuel_types,
       transmission: o.transmissions,
       drive: o.drives,
@@ -700,7 +702,7 @@ export function NewVehiclePage() {
               ))}
             </div>
             <div className="paper-facts">
-              {Object.entries(more).map(([key, value]) => (
+              {Object.entries(more).filter(([key]) => !lists[key] || lists[key].length > 0).map(([key, value]) => (
                 <Field key={key} label={t(`vehicles.${key}`)}>
                   {lists[key] ? (
                     <select value={value} onChange={(e) => change(key, e.target.value)}>

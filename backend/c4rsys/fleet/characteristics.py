@@ -23,24 +23,42 @@ VEHICLE_TYPES = {
         "passenger_car",
         "truck",
         "bus",
+        # «Motorcycles and bikes»: a moped and a scooter are its bodies (decision of 23.11.2026).
         "motorcycle",
-        "moped",
         "other",
     ],
 }
-BODY_TYPES = [
-    "sedan",
-    "hatchback",
-    "wagon",
-    "suv",
-    "crossover",
-    "coupe",
-    "convertible",
-    "minivan",
-    "pickup",
-    "van",
-    "other",
-]
+# The bodies of every type (customer's decision of 23.11.2026); a type without a list is not
+# asked for a body.
+BODY_TYPES: dict[str, list[str]] = {
+    "passenger_car": [
+        "sedan",
+        "hatchback",
+        "wagon",
+        "suv",
+        "crossover",
+        "coupe",
+        "convertible",
+        "minivan",
+        "pickup",
+        "other",
+    ],
+    "motorcycle": [
+        "moped",
+        "scooter",
+        "maxi_scooter",
+        "classic",
+        "naked",
+        "sport",
+        "cruiser",
+        "touring",
+        "enduro",
+        "cross",
+        "other",
+    ],
+    "truck": ["flatbed", "van", "refrigerator", "dump", "tractor", "tow", "other"],
+}
+ALL_BODY_TYPES = list(dict.fromkeys(code for codes in BODY_TYPES.values() for code in codes))
 FUEL_TYPES = ["petrol", "diesel", "hybrid", "plug_in_hybrid", "electric", "gas", "other"]
 TRANSMISSIONS = ["manual", "automatic", "robot", "cvt"]
 DRIVES = ["fwd", "rwd", "awd"]
@@ -231,7 +249,7 @@ def parse(data: dict[str, Any], this_year: int) -> Characteristics:
         plate_country_other="" if plate_country else _text(data, "plate_country_other", 60),
         plate_region=_text(data, "plate_region", 60),
         color=_text(data, "color", 60),
-        body_type=_choice(data, "body_type", BODY_TYPES),
+        body_type=_choice(data, "body_type", BODY_TYPES.get(vehicle_type, [])),
         fuel_type=_choice(data, "fuel_type", FUEL_TYPES),
         transmission=_choice(data, "transmission", TRANSMISSIONS),
         drive=_choice(data, "drive", DRIVES),

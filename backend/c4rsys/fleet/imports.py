@@ -135,8 +135,8 @@ class VehiclesTemplate:
             "km",
         ),
         "vehicle_type": (
-            "passenger_car, truck, bus, motorcycle, moped, other",
-            "passenger_car, truck, bus, motorcycle, moped, other — вид транспорта",
+            "passenger_car, truck, bus, motorcycle, other",
+            "passenger_car, truck, bus, motorcycle, other — вид транспорта",
             "passenger_car",
         ),
         "make": ("Make: code or name of the catalog, or any name", "Марка", "Toyota"),
@@ -151,10 +151,14 @@ class VehiclesTemplate:
         "engine_number": ("Engine number", "Номер двигателя", ""),
         "color": ("Color", "Цвет", "white"),
         "body_type": (
-            "sedan, hatchback, wagon, suv, crossover, coupe, convertible, minivan, pickup, van,"
-            " other",
-            "Тип кузова: sedan, hatchback, wagon, suv, crossover, coupe, convertible, minivan,"
-            " pickup, van, other",
+            "Body of the type; a car: sedan, hatchback, wagon, suv, crossover, coupe,"
+            " convertible, minivan, pickup, other; a motorcycle: moped, scooter, maxi_scooter,"
+            " classic, naked, sport, cruiser, touring, enduro, cross, other; a truck: flatbed,"
+            " van, refrigerator, dump, tractor, tow, other",
+            "Тип кузова по виду; легковой: sedan, hatchback, wagon, suv, crossover, coupe,"
+            " convertible, minivan, pickup, other; мотоцикл: moped, scooter, maxi_scooter,"
+            " classic, naked, sport, cruiser, touring, enduro, cross, other; грузовик: flatbed,"
+            " van, refrigerator, dump, tractor, tow, other",
             "sedan",
         ),
         "fuel_type": (

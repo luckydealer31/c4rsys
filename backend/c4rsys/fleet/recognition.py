@@ -29,7 +29,7 @@ TYPES = characteristics.VEHICLE_TYPES[Vehicle.TransportClass.GROUND]
 # The fields with a list of values, and the lists.
 CHOICES: dict[str, list[str]] = {
     "vehicle_type": TYPES,
-    "body_type": characteristics.BODY_TYPES,
+    "body_type": characteristics.ALL_BODY_TYPES,
     "fuel_type": characteristics.FUEL_TYPES,
     "transmission": characteristics.TRANSMISSIONS,
     "drive": characteristics.DRIVES,
@@ -92,7 +92,10 @@ INSTRUCTION = (
     "Read about the paper itself: its name as printed, its series and number, the date and the "
     "authority of its issue; and the series and the number of the vehicle passport if the paper "
     "names it. Other people named in the document are not "
-    "asked for."
+    "asked for. The type «motorcycle» is any two-wheeler, a moped and a scooter too. The body "
+    "is one of the type: "
+    + "; ".join(f"{k} — {', '.join(v)}" for k, v in characteristics.BODY_TYPES.items())
+    + "; another type has no body."
 )
 
 
@@ -185,7 +188,18 @@ def parse(answer: Any) -> Paper:
     except ValueError:
         texts["paper_issued_on"] = ""
     numbers["year"] = _whole(answer.get("year"), 1900, timezone.localdate().year + 1)
-    return Paper(texts=texts, numbers=numbers)
+    return Paper(texts=_fitted(texts), numbers=numbers)
+
+
+def _fitted(texts: dict[str, str]) -> dict[str, str]:
+    """A body belongs to the type (decision of 23.11.2026); a reading kept before it may name
+    the former type «moped»."""
+    if texts.get("vehicle_type") == "moped":
+        texts["vehicle_type"] = "motorcycle"
+    allowed = characteristics.BODY_TYPES.get(texts.get("vehicle_type", ""), [])
+    if texts.get("body_type") and texts["body_type"] not in allowed:
+        texts["body_type"] = ""
+    return texts
 
 
 def read(content: bytes, content_type: str) -> Paper:
@@ -206,7 +220,7 @@ def read_kept(file_id: UUID, content: bytes, content_type: str) -> Paper:
     gets it without another request to the service."""
     kept = PaperReading.objects.filter(pk=file_id).first()
     if kept is not None:
-        return Paper(texts=dict(kept.texts), numbers=dict(kept.numbers))
+        return Paper(texts=_fitted(dict(kept.texts)), numbers=dict(kept.numbers))
     paper = read(content, content_type)
     PaperReading.objects.update_or_create(
         pk=file_id, defaults={"texts": paper.texts, "numbers": paper.numbers}

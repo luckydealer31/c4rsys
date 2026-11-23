@@ -84,7 +84,8 @@ const SHAPES: Record<string, Shape> = {
 /** The shape for a type and a body: a passenger car is shown by its body; a truck with the body
  * of a pickup or a van is shown as one. Without data there is no picture. */
 export function shapeOf(type: string, body: string): string | null {
-  if (type === "motorcycle" || type === "moped" || type === "bus") return type;
+  if (type === "motorcycle") return ["moped", "scooter", "maxi_scooter"].includes(body) ? "moped" : type;
+  if (type === "moped" || type === "bus") return type;
   if (type === "truck") return body === "pickup" || body === "van" ? body : "truck";
   if (body && SHAPES[body]) return body;
   return type === "passenger_car" ? "sedan" : null;

@@ -16,8 +16,8 @@ TH: dict[str, str] = {
         "ชื่อของบัตรรถ; หากว่างจะสร้างจากยี่ห้อ รุ่น และทะเบียน"
     ),
     "Odometer unit: km or mi; required": "หน่วยของมาตรวัดระยะทาง: km หรือ mi; จำเป็น",
-    "passenger_car, truck, bus, motorcycle, moped, other": (
-        "passenger_car, truck, bus, motorcycle, moped, other — ประเภทรถ"
+    "passenger_car, truck, bus, motorcycle, other": (
+        "passenger_car, truck, bus, motorcycle, other — ประเภทรถ"
     ),
     "Make: code or name of the catalog, or any name": "ยี่ห้อ: รหัสหรือชื่อจากแคตตาล็อก หรือชื่อใดก็ได้",
     "Model": "รุ่น",
@@ -30,9 +30,16 @@ TH: dict[str, str] = {
     "Frame number": "หมายเลขโครงรถ",
     "Engine number": "หมายเลขเครื่องยนต์",
     "Color": "สี",
-    "sedan, hatchback, wagon, suv, crossover, coupe, convertible, minivan, pickup, van, other": (
-        "sedan, hatchback, wagon, suv, crossover, coupe, convertible, minivan, pickup, van, other"
-        " — ประเภทตัวถัง"
+    (
+        "Body of the type; a car: sedan, hatchback, wagon, suv, crossover, coupe,"
+        " convertible, minivan, pickup, other; a motorcycle: moped, scooter, maxi_scooter,"
+        " classic, naked, sport, cruiser, touring, enduro, cross, other; a truck: flatbed,"
+        " van, refrigerator, dump, tractor, tow, other"
+    ): (
+        "ประเภทตัวถังตามประเภทรถ; รถยนต์: sedan, hatchback, wagon, suv, crossover, coupe,"
+        " convertible, minivan, pickup, other; รถจักรยานยนต์: moped, scooter, maxi_scooter,"
+        " classic, naked, sport, cruiser, touring, enduro, cross, other; รถบรรทุก: flatbed,"
+        " van, refrigerator, dump, tractor, tow, other"
     ),
     "petrol, diesel, hybrid, plug_in_hybrid, electric, gas, other": (
         "petrol, diesel, hybrid, plug_in_hybrid, electric, gas, other — ประเภทเชื้อเพลิง"

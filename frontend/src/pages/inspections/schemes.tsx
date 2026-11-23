@@ -46,8 +46,11 @@ type Point = [number, number];
 export function schemeFor(vehicleType: string, bodyType: string): SchemeId | null {
   if (vehicleType === "truck") return "truck";
   if (vehicleType === "bus") return "bus";
-  if (vehicleType === "motorcycle") return "motorcycle";
+  // A moped and a scooter are bodies of a motorcycle (decision of 23.11.2026).
   if (vehicleType === "moped") return "scooter";
+  if (vehicleType === "motorcycle") {
+    return ["moped", "scooter", "maxi_scooter"].includes(bodyType) ? "scooter" : "motorcycle";
+  }
   if (vehicleType !== "passenger_car") return null;
   // One conventional picture for a passenger car of any body (customer's decision of
   // 14.11.2026); pictures by body will be drawn later. The outlines by body below stay for the

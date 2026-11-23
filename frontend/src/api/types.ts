@@ -893,6 +893,7 @@ export type VehicleOptions = {
   vehicle_types: string[];
   catalog_types: string[];
   body_types: string[];
+  body_types_by_type: Record<string, string[]>;
   fuel_types: string[];
   transmissions: string[];
   drives: string[];

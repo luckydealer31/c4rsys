@@ -354,6 +354,7 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
     );
   }
   const o = options.data;
+  const bodies = o.body_types_by_type[form.vehicle_type] ?? [];
   const popular = (makes.data?.makes ?? []).filter((m) => m.popular);
   const choose = (key: Exclude<keyof Form, "extra">, list: string[], prefix: string) => (
     <select value={form[key]} disabled={locked(key)} onChange={(e) => set({ [key]: e.target.value })}>
@@ -390,7 +391,14 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
               value={form.vehicle_type}
               disabled={locked("vehicle_type")}
               onChange={(e) =>
-                set({ vehicle_type: e.target.value, make: "", model: "", make_other: "", model_other: "" })
+                set({
+                  vehicle_type: e.target.value,
+                  make: "",
+                  model: "",
+                  make_other: "",
+                  model_other: "",
+                  body_type: "",
+                })
               }
             >
               {o.vehicle_types.map((code) => (
@@ -541,7 +549,11 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
             <Field label={t("vehicles.color")}>
               <input value={form.color} onChange={(e) => set({ color: e.target.value })} />
             </Field>
-            <Field label={t("vehicles.body_type")}>{choose("body_type", o.body_types, "vehicles.body")}</Field>
+            {/* Every type has its own bodies; a type without them is not asked (decision of
+                23.11.2026). */}
+            {bodies.length ? (
+              <Field label={t("vehicles.body_type")}>{choose("body_type", bodies, "vehicles.body")}</Field>
+            ) : null}
             <Field label={t("vehicles.fuel_type")}>{choose("fuel_type", o.fuel_types, "vehicles.fuel")}</Field>
             <Field label={t("vehicles.transmission")}>
               {choose("transmission", o.transmissions, "vehicles.gearbox")}
@@ -604,7 +616,7 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
                 checked={form.relation === "own"}
                 onChange={() => set({ relation: "own" })}
               />{" "}
-              {t("vehicles.owner_company", { company: company.display_name })}
+              {company.display_name}
             </label>
             <label>
               <input
@@ -614,7 +626,7 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
                 checked={form.relation === "managed"}
                 onChange={() => set({ relation: "managed" })}
               />{" "}
-              {t("vehicles.owner_other")}
+              {t("vehicles.owner_short_managed")}
             </label>
             <label>
               <input
@@ -624,19 +636,10 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
                 checked={form.relation === "client"}
                 onChange={() => set({ relation: "client" })}
               />{" "}
-              {t("vehicles.owner_client")}
+              {t("vehicles.owner_short_client")}
             </label>
           </div>
-          {form.relation === "own" ? (
-            <dl className="facts" style={{ marginTop: 12 }}>
-              <dt>{t("companies.display_name")}</dt>
-              <dd>{company.display_name}</dd>
-              <dt>{t("company.legal_name")}</dt>
-              <dd>{company.legal_name || "—"}</dd>
-              <dt>{t("companies.company_id")}</dt>
-              <dd>{company.public_id}</dd>
-            </dl>
-          ) : form.relation === "client" ? (
+          {form.relation === "own" ? null : form.relation === "client" ? (
             <div className="stack" style={{ marginTop: 12 }}>
               <Field label={t("vehicles.owner_kind")}>
                 <select

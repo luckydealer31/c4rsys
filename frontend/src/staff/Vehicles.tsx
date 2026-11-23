@@ -794,7 +794,7 @@ export function CatalogPage() {
         <div className="row">
           <Field label={t("vehicles.vehicle_type")}>
             <select value={type} onChange={(e) => setType(e.target.value)}>
-              {["passenger_car", "truck", "bus", "motorcycle", "moped", "other"].map((code) => (
+              {["passenger_car", "truck", "bus", "motorcycle", "other"].map((code) => (
                 <option key={code} value={code}>
                   {t(`vehicles.type_${code}`)}
                 </option>

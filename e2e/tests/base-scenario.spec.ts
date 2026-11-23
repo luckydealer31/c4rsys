@@ -337,6 +337,14 @@ test("base example from registration to closing survives a restart", async ({ pa
   // The region is typed by hand in the edit form, beside the plate and its country.
   await page.getByRole("link", { name: t("common.edit"), exact: true }).click();
   await page.getByLabel(t("vehicles.plate_region"), { exact: true }).fill("Krabi");
+  // The bodies are those of the type: a passenger car has no van (it is a body of a truck).
+  const bodies = page.locator('select:has(option[value="sedan"])');
+  await expect(bodies.locator("option")).toHaveCount(11);
+  await expect(bodies.locator('option[value="van"]')).toHaveCount(0);
+  // The owner is named shortly, without the facts of the company.
+  await expect(page.getByLabel(t("vehicles.owner_short_managed"), { exact: true })).toBeVisible();
+  await expect(page.getByLabel(t("vehicles.owner_short_client"), { exact: true })).toBeVisible();
+  await expect(page.getByRole("main")).not.toContainText(t("companies.company_id"));
   await page.getByRole("button", { name: t("common.save"), exact: true }).click();
   await expect(page.locator("dl.facts", { hasText: t("vehicles.plate_region") })).toContainText("Krabi");
 
