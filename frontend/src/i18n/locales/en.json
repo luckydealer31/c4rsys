@@ -2909,7 +2909,11 @@
     "plate_region": "Region of registration",
     "was_client": "This vehicle is already kept as a client one: “{{name}}”. A second card is not made — the earlier one is taken into management and keeps its history.",
     "was_client_no_right": "An employee with the right “Change the relation and end the management” can take it into management.",
-    "was_client_reason": "Added as a managed vehicle"
+    "was_client_reason": "Added as a managed vehicle",
+    "already_here": "The company already keeps this vehicle: “{{name}}”. A second card is not made.",
+    "already_here_open": "Open the card",
+    "conflict_merge": "Merge",
+    "conflicts_hint_own": "An identifier of this card matches another card of your company. If it is one vehicle, merge the cards — the verification of c4rsys is not needed for it. The work with the card goes on."
   },
   "warehouse": {
     "action_create": "Create",

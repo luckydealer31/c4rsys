@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { createCompany, ok, registerUser, uniqueEmail, waitForServer } from "../lib/api";
+import { mailCode } from "../lib/docker";
 import { t } from "../lib/i18n";
 
 // Customer's decision of 23.11.2026: a vehicle added as managed that the company already keeps
@@ -9,7 +10,8 @@ import { t } from "../lib/i18n";
 
 test("a managed vehicle kept as a client one is not doubled", async ({ page }) => {
   await waitForServer(page);
-  await registerUser(page, uniqueEmail("wasclient"), "Анна", "Петрова");
+  const email = uniqueEmail("wasclient");
+  await registerUser(page, email, "Анна", "Петрова");
   const s = await createCompany(page);
   const earlier = (
     await ok(page, "POST", `/c/${s.cmp}/vehicles`, {
@@ -53,4 +55,49 @@ test("a managed vehicle kept as a client one is not doubled", async ({ page }) =
   await expect
     .poll(async () => ((await ok(page, "GET", `/c/${s.cmp}/vehicles/${earlier.id}`)).vehicle as { relation: string }).relation)
     .toBe("client");
+
+  // Two cards of the company that match are merged by the company itself, from the conflict
+  // shown in the card — the verification of c4rsys decides the matches between companies only
+  // (customer's decision of 23.11.2026).
+  const make = async (name: string, frame: string) =>
+    (
+      await ok(page, "POST", `/c/${s.cmp}/vehicles`, {
+        name,
+        location_id: s.location,
+        odometer_unit: "km",
+        relation: "managed",
+        vehicle_type: "motorcycle",
+        frame_number: frame,
+      })
+    ).vehicle as { id: string; version: number };
+  const first = await make("Forza old", "MLHNF0975S5339652");
+  // A second card of the same vehicle is not made by a creation: it appears when an identifier
+  // of another card is corrected to the same value.
+  const second = await make("Forza new", "MLHNF0000000000");
+  await ok(page, "PUT", `/c/${s.cmp}/vehicles/${second.id}/details`, {
+    expected_version: second.version,
+    name: "Forza new",
+    vehicle_type: "motorcycle",
+    frame_number: "MLHNF0975S5339652",
+  });
+
+  await page.goto(`/c/${s.cmp}/vehicles/${first.id}`);
+  const conflicts = page.locator(".card", { hasText: t("vehicles.conflicts_title") });
+  await expect(conflicts).toContainText(t("vehicles.conflicts_hint_own"));
+  await conflicts.getByRole("link", { name: t("vehicles.conflict_merge"), exact: true }).click();
+  const merge = page.locator(".card", { hasText: t("vehicles.merge_title") });
+  await merge.getByRole("radio").first().check();
+  const sentBefore = await mailCode(email);
+  await merge.getByRole("button", { name: t("vehicles.merge_send_code"), exact: true }).click();
+  await merge.getByLabel(t("vehicles.merge_code")).fill(await mailCode(email, sentBefore));
+  await merge.getByLabel(t("vehicles.merge_reason")).fill("One bike");
+  await merge.getByRole("button", { name: t("vehicles.merge_submit"), exact: true }).click();
+  // The duplicate is merged into the main card and the conflict is closed.
+  await expect(page.getByRole("main")).toContainText("«Forza new» → «Forza old»");
+  const merged = (await ok(page, "GET", `/c/${s.cmp}/vehicles/${second.id}`)).vehicle as { state: string };
+  expect(merged.state).toBe("merged");
+  const main = (await ok(page, "GET", `/c/${s.cmp}/vehicles/${first.id}`)).vehicle as {
+    identifier_conflicts: { open: boolean }[];
+  };
+  expect(main.identifier_conflicts.filter((c) => c.open)).toEqual([]);
 });

@@ -745,6 +745,123 @@ def link(main: Vehicle, others: list[UUID], now: datetime) -> dict[str, Any]:
     }
 
 
+# --- Duplicates inside one company (customer's decision of 23.11.2026) ---------------------------
+
+
+def _shared_open(a: UUID, b: UUID) -> list[IdentifierConflict]:
+    """The open conflicts both entities are parties of."""
+    of_b = IdentifierConflictParty.objects.filter(
+        vehicle_id__in=family(b), left_at__isnull=True, conflict__is_open=True
+    ).values("conflict_id")
+    return list(
+        IdentifierConflict.objects.filter(
+            is_open=True,
+            parties__vehicle_id__in=family(a),
+            parties__left_at__isnull=True,
+            pk__in=of_b,
+        ).distinct()
+    )
+
+
+def own_match(
+    company_id: UUID, card_id: UUID, conflicts: list[IdentifierConflict]
+) -> VehicleCard | None:
+    """Another card of the same company among the parties of the conflicts a new card has just
+    joined: the same vehicle is not kept twice by one company."""
+    party = (
+        IdentifierConflictParty.objects.select_related("vehicle_card")
+        .filter(
+            conflict__in=[c for c in conflicts if c.is_open],
+            company_id=company_id,
+            left_at__isnull=True,
+            vehicle_card__isnull=False,
+        )
+        .exclude(vehicle_card_id=card_id)
+        .exclude(vehicle_card__state=VehicleCard.State.MERGED)
+        .order_by("joined_at")
+        .first()
+    )
+    return party.vehicle_card if party is not None else None
+
+
+def local_pair(company_id: UUID, a_vehicle_id: UUID, b_vehicle_id: UUID) -> bool:
+    """Two different entities that match and are kept by this company only: the company merges
+    its own duplicates itself, without the system verification (customer's decision of
+    23.11.2026). A match between companies stays with the verification."""
+    a, b = resolve(a_vehicle_id), resolve(b_vehicle_id)
+    if a == b:
+        return False
+    if (
+        VehicleCard.objects.filter(vehicle_id__in=[*family(a), *family(b)])
+        .exclude(company_id=company_id)
+        .exists()
+    ):
+        return False
+    return bool(_shared_open(a, b))
+
+
+def own_duplicates(card: VehicleCard) -> list[VehicleCard]:
+    """The other active cards of the company the card matches by an open conflict and may be
+    merged with by the company itself."""
+    mine = IdentifierConflictParty.objects.filter(
+        vehicle_card=card, left_at__isnull=True, conflict__is_open=True
+    ).values("conflict_id")
+    others = (
+        VehicleCard.objects.filter(
+            company_id=card.company_id,
+            state=VehicleCard.State.ACTIVE,
+            pk__in=IdentifierConflictParty.objects.filter(
+                conflict_id__in=mine, left_at__isnull=True, company_id=card.company_id
+            ).values("vehicle_card_id"),
+        )
+        .exclude(pk=card.id)
+        .order_by("created_at")
+    )
+    return [c for c in others if local_pair(card.company_id, card.vehicle_id, c.vehicle_id)]
+
+
+def link_local(
+    company_id: UUID,
+    main_vehicle_id: UUID,
+    other_vehicle_id: UUID,
+    *,
+    by_user_id: UUID,
+    reason: str,
+    now: datetime,
+) -> None:
+    """The company found its two cards to be one vehicle: the entities are linked as by the
+    decision «one physical vehicle», made by the employee who merges the cards."""
+    if not local_pair(company_id, main_vehicle_id, other_vehicle_id):
+        raise errors.business_rule("VEHICLE_MERGE_NOT_ALLOWED", obstacles=["different_entities"])
+    main_id, other_id = resolve(main_vehicle_id), resolve(other_vehicle_id)
+    shared = _shared_open(main_id, other_id)
+    locked = {
+        v.id: v
+        for v in Vehicle.objects.select_for_update()
+        .filter(pk__in=[main_id, other_id])
+        .order_by("id")
+    }
+    main = locked[main_id]
+    details = link(main, [other_id], now)
+    for conflict in shared:
+        IdentifierConflictDecision.objects.create(
+            conflict=conflict,
+            outcome=Outcome.SAME_VEHICLE,
+            reason=reason,
+            primary_vehicle=main,
+            details={**details, "by_company": str(company_id)},
+            revises=_last(conflict),
+            decided_by_user_id=by_user_id,
+            decided_at=now,
+        )
+        if len(_entities(conflict)) < 2:
+            _close(conflict, Review.SAME_VEHICLE, now)
+    for conflict in IdentifierConflict.objects.filter(
+        is_open=True, parties__vehicle_id__in=[main_id, other_id]
+    ).distinct():
+        close_if_resolved(conflict, now)
+
+
 def _notify(
     conflict: IdentifierConflict, decision: IdentifierConflictDecision, now: datetime
 ) -> None:

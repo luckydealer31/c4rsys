@@ -233,8 +233,19 @@ def create_vehicle(ctx: CommandContext, company: Company, data: NewVehicle) -> V
             "identifier_matches": characteristics.matches(vehicle),
         },
     )
-    # A match is recorded as a conflict; it never blocks the card (§ 8.6.3).
-    identity.refresh(vehicle, now, data.details.originals)
+    # A match with a vehicle of another company is recorded as a conflict and never blocks the
+    # card (§ 8.6.3). A match with a card of the same company is not made a second card
+    # (customer's decision of 23.11.2026): the earlier card is named instead.
+    conflicts = identity.refresh(vehicle, now, data.details.originals)
+    earlier = identity.own_match(company.id, card.id, conflicts)
+    if earlier is not None:
+        raise errors.business_rule(
+            "VEHICLE_ALREADY_HERE",
+            card_id=str(earlier.id),
+            name=earlier.name,
+            relation=earlier.relation,
+            state=earlier.state,
+        )
     owners.declare(ctx, company, card, data.owner)
     return card
 

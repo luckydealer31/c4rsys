@@ -89,6 +89,14 @@ def details(owner: Client, cmp: str, vehicle: dict[str, Any], **changes: Any) ->
     )
 
 
+def twin(owner: Client, cmp: str, location: str, vin: str = VIN, **data: Any) -> dict[str, Any]:
+    """A second card of the same vehicle in one company. A creation no longer makes it
+    (customer's decision of 23.11.2026), so it comes from a correction of the identifier."""
+    made = create(owner, cmp, location, vin="JTDBR32E720999999", **data).json()["vehicle"]
+    assert details(owner, cmp, made, vin=vin).status_code == 200
+    return card(owner, cmp, made["id"])
+
+
 # --- Detection and what a company sees (§ 8.6.1, § 8.6.3) --------------------------------------
 
 
@@ -126,7 +134,8 @@ def test_a_plate_matches_within_its_country_and_region(owner: Client, two: dict[
     assert not IdentifierConflict.objects.exists()
     create(owner, two["b"], two["lb"], plate="กข1234", plate_country="TH", plate_region="Bangkok")
     assert not IdentifierConflict.objects.exists()
-    create(owner, two["b"], two["lb"], plate="กข 1234", plate_country="TH")
+    c, lc = company(owner, "Gamma Fleet", "c-c")
+    create(owner, c, lc, plate="กข 1234", plate_country="TH")
     conflict = IdentifierConflict.objects.get()
     assert (conflict.kind, conflict.country) == ("plate", "TH")
 
@@ -135,7 +144,8 @@ def test_body_numbers_of_other_countries_do_not_match(owner: Client, two: dict[s
     create(owner, two["a"], two["la"], body_number="KZJ95-0001", plate="A1", plate_country="TH")
     create(owner, two["b"], two["lb"], body_number="kzj95-0001", plate="B2", plate_country="RU")
     assert not IdentifierConflict.objects.exists()
-    create(owner, two["b"], two["lb"], body_number="KZJ95-0001")
+    c, lc = company(owner, "Gamma Fleet", "c-c")
+    create(owner, c, lc, body_number="KZJ95-0001")
     assert IdentifierConflict.objects.get().kind == "body_number"
 
 
@@ -205,7 +215,8 @@ def test_different_vehicles_get_an_exception(
     assert details(owner, two["b"], vehicle, color="Red").status_code == 200
     assert IdentifierConflict.objects.count() == 1
     # A third vehicle with the plate opens a new conflict.
-    create(owner, two["a"], two["la"], plate="1กก 777", plate_country="TH", name="Third")
+    c, lc = company(owner, "Gamma Fleet", "c-c")
+    create(owner, c, lc, plate="1กก 777", plate_country="TH", name="Third")
     assert IdentifierConflict.objects.filter(is_open=True).count() == 1
     # Both companies were told the decision by the number of the conflict.
     told = Notification.objects.filter(event="vehicle.identifier_conflict_decided")
@@ -325,7 +336,7 @@ def pair(owner: Client, two: dict[str, str], verifier: Member) -> dict[str, Any]
     """Two cards of one company found to be one vehicle: the second waits for the merge."""
     cmp, location = two["a"], two["la"]
     first = create(owner, cmp, location, vin=VIN, name="Yaris 1", color="White").json()["vehicle"]
-    second = create(owner, cmp, location, vin=VIN, name="Yaris 2", color="Red").json()["vehicle"]
+    second = twin(owner, cmp, location, name="Yaris 2", color="Red")
     conflict = IdentifierConflict.objects.get()
     shown = card(owner, cmp, second["id"])["identifier_conflicts"][0]
     # The company sees its own other card in the conflict.
@@ -399,14 +410,66 @@ def test_merge_needs_the_comparison_choices_and_a_code(owner: Client, pair: dict
     assert AuditEvent.objects.filter(action="vehicle.merged").count() == 2
 
 
-def test_different_entities_are_not_merged(owner: Client, two: dict[str, str]) -> None:
+def test_the_same_vehicle_is_not_made_twice_in_a_company(
+    owner: Client, two: dict[str, str]
+) -> None:
+    """Customer's decision of 23.11.2026: a match inside one company does not make a second
+    card with a conflict — the earlier card is named; between companies nothing changes."""
     cmp, location = two["a"], two["la"]
     first = create(owner, cmp, location, vin=VIN).json()["vehicle"]
-    second = create(owner, cmp, location, vin=VIN, name="Other").json()["vehicle"]
-    preview = owner.get(
-        f"/api/c/{cmp}/vehicles/{first['id']}/merge/preview?duplicate={second['id']}"
-    ).json()["comparison"]
-    assert "different_entities" in preview["obstacles"]
+
+    refused = create(owner, cmp, location, vin=VIN.lower(), name="Other")
+
+    assert refused.status_code == 422
+    error = refused.json()["error"]
+    assert (error["code"], error["params"]["card_id"]) == ("VEHICLE_ALREADY_HERE", first["id"])
+    assert error["params"]["name"] == "Toyota Yaris"
+    assert VehicleCard.objects.filter(company__public_id=cmp).count() == 1
+    assert Vehicle.objects.count() == 1
+    assert not IdentifierConflict.objects.exists()
+    assert create(owner, two["b"], two["lb"], vin=VIN).status_code == 201
+
+
+def test_own_matching_cards_are_merged_without_the_verification(
+    owner: Client, two: dict[str, str]
+) -> None:
+    """Customer's decision of 23.11.2026: two cards of one company that match are merged by the
+    company itself; the verification of c4rsys decides matches between companies only."""
+    cmp, location = two["a"], two["la"]
+    first = create(owner, cmp, location, vin="", frame_number="MLH1", name="Forza 1").json()[
+        "vehicle"
+    ]
+    second = twin(owner, cmp, location, vin="", name="Forza 2")
+    changed = details(owner, cmp, second, vin=VIN, frame_number="mlh1")
+    assert changed.status_code == 200, changed.content
+    assert IdentifierConflict.objects.filter(is_open=True).count() == 1
+    assert card(owner, cmp, first["id"])["merge_candidates"][0]["id"] == second["id"]
+    url = f"/api/c/{cmp}/vehicles/{first['id']}/merge"
+    preview = owner.get(f"{url}/preview?duplicate={second['id']}").json()["comparison"]
+    assert preview["obstacles"] == []
+    differing = sorted(f["key"] for f in preview["fields"] if not f["same"])
+    assert differing == ["characteristic.vin", "name"]
+    assert post(owner, f"{url}/code", {"duplicate_id": second["id"]}, key()).status_code == 200
+
+    done = post(
+        owner,
+        url,
+        {
+            "duplicate_id": second["id"],
+            "code": CODE,
+            "choices": {"name": "primary", "characteristic.vin": "primary"},
+        },
+        key(),
+    )
+
+    assert done.status_code == 201, done.content
+    duplicate = VehicleCard.objects.get(pk=second["id"])
+    assert (duplicate.state, str(duplicate.merged_into_id)) == ("merged", first["id"])
+    assert not IdentifierConflict.objects.filter(is_open=True).exists()
+    decision = IdentifierConflictDecision.objects.filter(outcome="same_vehicle").get()
+    assert decision.details["by_company"]
+    # The value the employee kept stays, though the link fills the empty ones.
+    assert card(owner, cmp, first["id"])["working_values"]["vin"]["value"] == ""
 
 
 def test_merge_and_split_need_their_rights(owner: Client, pair: dict[str, Any]) -> None:

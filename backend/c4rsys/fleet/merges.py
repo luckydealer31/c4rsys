@@ -266,8 +266,11 @@ def _obstacles(primary: VehicleCard, duplicate: VehicleCard) -> list[str]:
     found = []
     if primary.state != State.ACTIVE or duplicate.state != State.ACTIVE:
         found.append("card_not_active")
-    if identity.resolve(primary.vehicle_id) != identity.resolve(duplicate.vehicle_id):
-        # Different system entities are never merged (§ 8.6.6).
+    if identity.resolve(primary.vehicle_id) != identity.resolve(
+        duplicate.vehicle_id
+    ) and not identity.local_pair(primary.company_id, primary.vehicle_id, duplicate.vehicle_id):
+        # Different system entities are never merged (§ 8.6.6) — but the company's own matching
+        # duplicates, which it links itself (customer's decision of 23.11.2026).
         found.append("different_entities")
     if primary.relation != duplicate.relation:
         found.append("relation_differs")
@@ -333,13 +336,15 @@ def preview(company_id: UUID, primary_id: UUID, duplicate_id: UUID) -> dict[str,
 def candidates(card: VehicleCard) -> list[dict[str, Any]]:
     """Other cards of the company of the same system entity (§ 8.6.2)."""
     entity = identity.resolve(card.vehicle_id)
-    found = (
+    found = list(
         VehicleCard.objects.filter(
             company_id=card.company_id, vehicle_id__in=identity.family(entity), state=State.ACTIVE
         )
         .exclude(pk=card.id)
         .order_by("created_at")
     )
+    # The company's own matching duplicates are merged without the verification.
+    found += [c for c in identity.own_duplicates(card) if c not in found]
     return [{"id": str(c.id), "name": c.name, "relation": c.relation} for c in found]
 
 
@@ -369,6 +374,21 @@ def merge(
         )
     now = timezone.now()
     taken = {k: other[k] for k in differing if choices[k] == "duplicate"}
+    if identity.resolve(primary.vehicle_id) != identity.resolve(duplicate.vehicle_id):
+        identity.link_local(
+            company.id,
+            primary.vehicle_id,
+            duplicate.vehicle_id,
+            by_user_id=ctx.actor.user_id,
+            reason=reason,
+            now=now,
+        )
+        primary.refresh_from_db()
+        # The link fills the empty values of the main vehicle from the other one: what the
+        # employee chose to keep stays as chosen.
+        for key in differing:
+            if choices[key] == "primary" and key.startswith("characteristic."):
+                _set_working(ctx, primary, key.split(".", 1)[1], main[key], now)
     _apply(ctx, company, primary, duplicate, taken, now)
     duplicate.state = State.MERGED
     duplicate.merged_into = primary

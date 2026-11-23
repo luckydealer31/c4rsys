@@ -110,7 +110,7 @@ def test_name_is_required_when_nothing_forms_it(owner: Client, cmp: str, locatio
     assert response.json()["error"]["field"] == "name"
 
 
-def test_vin_and_plate_matches_are_marked_not_blocked(
+def test_vin_and_plate_match_in_one_company_is_refused(
     owner: Client, cmp: str, location: str
 ) -> None:
     first = create(owner, cmp, location, name="A", vin="jtdkb20u093123456", plate="AB 123")
@@ -118,8 +118,12 @@ def test_vin_and_plate_matches_are_marked_not_blocked(
 
     second = create(owner, cmp, location, name="B", vin=" JTDKB20U093123456 ", plate="ab-123")
 
-    assert second.status_code == 201
-    assert second.json()["vehicle"]["characteristics"]["identifier_matches"] == ["vin", "plate"]
+    # Inside one company the same vehicle is not made twice (customer's decision of
+    # 23.11.2026); between companies a match is only marked (tests of the identity).
+    assert second.status_code == 422
+    error = second.json()["error"]
+    assert error["code"] == "VEHICLE_ALREADY_HERE"
+    assert error["params"]["card_id"] == first.json()["vehicle"]["id"]
 
 
 def test_unusual_vin_is_only_a_warning(owner: Client, cmp: str, location: str) -> None:

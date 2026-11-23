@@ -372,7 +372,19 @@ export function NewVehiclePage() {
       navigate(companyPath(company, `/vehicles/${earlier.card_id}`));
     }
   }
-  const failure = earlier ? (
+  const here =
+    create.error?.code === "VEHICLE_ALREADY_HERE"
+      ? (create.error.params as { card_id: string; name: string })
+      : null;
+  const failure = here ? (
+    // The same vehicle is not kept twice by one company (customer's decision of 23.11.2026).
+    <div className="stack" data-testid="already-here">
+      <p>{t("vehicles.already_here", { name: here.name })}</p>
+      <p>
+        <Link to={companyPath(company, `/vehicles/${here.card_id}`)}>{t("vehicles.already_here_open")}</Link>
+      </p>
+    </div>
+  ) : earlier ? (
     <div className="stack" data-testid="was-client">
       <p>{t("vehicles.was_client", { name: earlier.name })}</p>
       {can("vehicle.relation") ? (

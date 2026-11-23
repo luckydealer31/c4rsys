@@ -36,12 +36,19 @@ export function ConflictsCard({ vehicle }: { vehicle: Vehicle }) {
   const { t } = useTranslation();
   const company = useCompany();
   const when = useWhen();
+  const can = useCan();
   const items = vehicle.identifier_conflicts ?? [];
   if (!items.length) return null;
   const open = items.filter((c) => c.open && !c.left_at);
+  // The company's own matching cards are merged by the company itself (customer's decision of
+  // 23.11.2026): the merge is offered beside such a card.
+  const mergeable = new Set((vehicle.merge_candidates ?? []).map((c) => c.id));
+  const own = open.some((c) => c.own_cards.some((o) => mergeable.has(o.id)));
   return (
     <Card title={t("vehicles.conflicts_title")}>
-      {open.length ? <div className="alert warn">{t("vehicles.conflicts_hint")}</div> : null}
+      {open.length ? (
+        <div className="alert warn">{t(own ? "vehicles.conflicts_hint_own" : "vehicles.conflicts_hint")}</div>
+      ) : null}
       <ul className="plain">
         {items.map((c) => (
           <li key={c.id} style={{ marginBottom: 8 }}>
@@ -62,6 +69,14 @@ export function ConflictsCard({ vehicle }: { vehicle: Vehicle }) {
                   <span key={o.id}>
                     {i ? ", " : ""}
                     <Link to={companyPath(company, `/vehicles/${o.id}`)}>{o.name}</Link>
+                    {c.open && !c.left_at && mergeable.has(o.id) && can("vehicle.merge") && vehicle.state === "active" ? (
+                      <>
+                        {" · "}
+                        <Link to={companyPath(company, `/vehicles/${vehicle.id}?merge=${o.id}`)}>
+                          {t("vehicles.conflict_merge")}
+                        </Link>
+                      </>
+                    ) : null}
                   </span>
                 ))}
               </div>

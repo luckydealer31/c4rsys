@@ -347,6 +347,16 @@ test("base example from registration to closing survives a restart", async ({ pa
   await expect(page.getByRole("main")).not.toContainText(t("companies.company_id"));
   await page.getByRole("button", { name: t("common.save"), exact: true }).click();
   await expect(page.locator("dl.facts", { hasText: t("vehicles.plate_region") })).toContainText("Krabi");
+  // The same paper again: the company already keeps this vehicle, so no second card is made —
+  // the earlier one is named with a link to it (customer's decision of 23.11.2026).
+  const yaris = page.url();
+  await page.goto(`${base}/vehicles/new?paper=0190a000-0000-7000-8000-000000000000`);
+  await paper.getByRole("textbox", { name: new RegExp(`^${t("vehicles.name")}`) }).first().fill("Yaris again");
+  await paper.getByLabel(t("vehicles.location")).selectOption({ label: "Пхукет" });
+  await page.getByRole("button", { name: t("vehicles.create") }).click();
+  await expect(page.getByTestId("already-here")).toContainText("Toyota Yaris");
+  await page.getByTestId("already-here").getByRole("link").click();
+  await expect(page).toHaveURL(yaris);
 
   // A tariff is created step by step: name, currency, unit (a day from the issue), the ranges
   // without a price, availability, then the vehicles — the marked one gets its price of the

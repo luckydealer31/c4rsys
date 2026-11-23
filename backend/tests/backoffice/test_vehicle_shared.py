@@ -29,7 +29,7 @@ from c4rsys.notifications.models import Notification
 from c4rsys.platform.models import AuditEvent
 from tests.accounts.helpers import post
 from tests.backoffice.helpers import Member, err, member, sp
-from tests.backoffice.test_vehicle_identity import VIN, card, create, details
+from tests.backoffice.test_vehicle_identity import VIN, card, create, details, twin
 from tests.backoffice.test_vehicle_identity import company as new_company
 from tests.companies.helpers import key
 
@@ -293,14 +293,16 @@ def test_a_client_card_does_not_open_a_dispute(owner: Client, linked: dict[str, 
 # --- В-12.1, В-12.4 ---------------------------------------------------------------------------
 
 
-def test_two_cards_of_a_company_are_merged_only_after_the_verification(
+def test_two_cards_of_a_company_do_not_wait_for_the_verification(
     owner: Client, two: dict[str, str], verifier: Member
 ) -> None:
+    """Customer's decision of 23.11.2026: the company merges its own matching cards itself; the
+    decision of the verification is still possible."""
     cmp, location = two["a"], two["la"]
     first = create(owner, cmp, location, vin=VIN, name="Yaris 1").json()["vehicle"]
-    second = create(owner, cmp, location, vin=VIN, name="Yaris 2").json()["vehicle"]
+    second = twin(owner, cmp, location, name="Yaris 2")
     url = f"/api/c/{cmp}/vehicles/{first['id']}/merge/preview?duplicate={second['id']}"
-    assert "different_entities" in owner.get(url).json()["comparison"]["obstacles"]
+    assert "different_entities" not in owner.get(url).json()["comparison"]["obstacles"]
     assert same_vehicle(verifier, first["vehicle_id"]).status_code == 200
     assert "different_entities" not in owner.get(url).json()["comparison"]["obstacles"]
 
