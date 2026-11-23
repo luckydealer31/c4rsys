@@ -297,6 +297,11 @@ def test_history_of_owners_and_plates_and_more_characteristics(owner: Client, s:
         "gross_weight_kg": 1500,
         "payload_kg": 450,
         "cargo_volume_m3": "0.35",
+        "power_kw": "81",
+        "vehicle_category": "B / M1",
+        "eco_class": "Euro 5",
+        "type_approval": "TS-1",
+        "special_marks": "Leasing",
         "inventory_number": "INV-7",
         "barcode": "QR-123",
     }
@@ -308,6 +313,11 @@ def test_history_of_owners_and_plates_and_more_characteristics(owner: Client, s:
     )
     assert first.status_code == 200, first.content
     facts = first.json()["vehicle"]["characteristics"]
+    assert (facts["power_kw"], facts["vehicle_category"], facts["special_marks"]) == (
+        "81.0",
+        "B / M1",
+        "Leasing",
+    )
     assert (facts["manufacture_country"], facts["tank_volume_l"], facts["cargo_volume_m3"]) == (
         "TH",
         "42.0",

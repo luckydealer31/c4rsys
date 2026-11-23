@@ -46,7 +46,7 @@ TRANSMISSIONS = ["manual", "automatic", "robot", "cvt"]
 DRIVES = ["fwd", "rwd", "awd"]
 
 # Characteristics kept as decimals; in the API they are strings.
-DECIMAL_FIELDS = ("tank_volume_l", "battery_kwh", "cargo_volume_m3")
+DECIMAL_FIELDS = ("tank_volume_l", "battery_kwh", "cargo_volume_m3", "power_kw")
 # The optional characteristics added in block 12, part Б (§ 8.1.12).
 EXTRA_FIELDS = (
     "manufacturer",
@@ -60,6 +60,12 @@ EXTRA_FIELDS = (
     "gross_weight_kg",
     "payload_kg",
     "cargo_volume_m3",
+    # Of a registration paper (customer's decision of 23.11.2026).
+    "power_kw",
+    "vehicle_category",
+    "eco_class",
+    "type_approval",
+    "special_marks",
 )
 # Labels of the company kept in its card (PROPOSAL), not in the global vehicle.
 CARD_FIELDS = ("inventory_number", "barcode")
@@ -169,6 +175,11 @@ class Characteristics:
     gross_weight_kg: int | None = None
     payload_kg: int | None = None
     cargo_volume_m3: Decimal | None = None
+    power_kw: Decimal | None = None
+    vehicle_category: str = ""
+    eco_class: str = ""
+    type_approval: str = ""
+    special_marks: str = ""
     # Labels of the company's card, not of the global vehicle (PROPOSAL).
     inventory_number: str = ""
     barcode: str = ""
@@ -239,6 +250,11 @@ def parse(data: dict[str, Any], this_year: int) -> Characteristics:
         gross_weight_kg=_int(data, "gross_weight_kg", 1, 1000000),
         payload_kg=_int(data, "payload_kg", 1, 1000000),
         cargo_volume_m3=_decimal(data, "cargo_volume_m3", "99999.99", "0.01"),
+        power_kw=_decimal(data, "power_kw", "9999.9"),
+        vehicle_category=_text(data, "vehicle_category", 40),
+        eco_class=_text(data, "eco_class", 40),
+        type_approval=_text(data, "type_approval", 100),
+        special_marks=_text(data, "special_marks", 500),
         inventory_number=_text(data, "inventory_number", 60),
         barcode=_text(data, "barcode", 120),
     )

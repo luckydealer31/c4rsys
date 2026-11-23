@@ -68,6 +68,11 @@ const PAPER_MORE = [
   "doors",
   "curb_weight_kg",
   "gross_weight_kg",
+  "power_kw",
+  "vehicle_category",
+  "eco_class",
+  "type_approval",
+  "special_marks",
 ] as const;
 const PAPER_WHOLE = new Set<string>(["engine_volume_cc", "power_hp", "seats", "doors", "curb_weight_kg", "gross_weight_kg"]);
 // The lists of values and where their names are.
@@ -273,7 +278,9 @@ export function NewVehiclePage() {
       body.make_other = form.make_other;
       body.model_other = form.model_other;
     }
-    for (const [key, value] of Object.entries(more ?? {})) body[key] = PAPER_WHOLE.has(key) ? Number(value) : value;
+    for (const [key, value] of Object.entries(more ?? {})) {
+      if (value.trim() !== "") body[key] = PAPER_WHOLE.has(key) ? Number(value) : value.trim();
+    }
     const result = await create.run(body);
     if (result !== null) {
       await client.invalidateQueries({ queryKey: ["vehicles", company.public_id] });
@@ -350,6 +357,8 @@ export function NewVehiclePage() {
     location: t("vehicles.location"),
   };
 
+  /** What one step asks. In the form made after a paper is read all of them stand together. */
+  const part = (step: Step, focus: boolean): ReactNode => {
   let content: ReactNode = null;
   if (step === "type") {
     content = (
@@ -375,7 +384,7 @@ export function NewVehiclePage() {
         {hasCatalog ? (
           <Field label={t("vehicles.make")}>
             <select
-              autoFocus
+              autoFocus={focus}
               value={form.make}
               onChange={(e) => set({ make: e.target.value, model: "", model_other: "" })}
             >
@@ -403,7 +412,7 @@ export function NewVehiclePage() {
         {!hasCatalog || form.make === OTHER ? (
           <Field label={t("vehicles.make_other")}>
             <input
-              autoFocus={!hasCatalog}
+              autoFocus={focus && !hasCatalog}
               value={form.make_other}
               onChange={(e) => set({ make_other: e.target.value })}
             />
@@ -417,7 +426,7 @@ export function NewVehiclePage() {
       <div className="stack">
         {usesCatalogMake ? (
           <Field label={t("vehicles.model")}>
-            <select autoFocus value={form.model} onChange={(e) => set({ model: e.target.value })}>
+            <select autoFocus={focus} value={form.model} onChange={(e) => set({ model: e.target.value })}>
               <option value="">—</option>
               {(models.data?.models ?? []).map((m) => (
                 <option key={m.code} value={m.code}>
@@ -432,7 +441,7 @@ export function NewVehiclePage() {
         {!usesCatalogMake || form.model === OTHER ? (
           <Field label={t("vehicles.model_other")}>
             <input
-              autoFocus={!usesCatalogMake}
+              autoFocus={focus && !usesCatalogMake}
               value={form.model_other}
               onChange={(e) => set({ model_other: e.target.value })}
             />
@@ -444,7 +453,7 @@ export function NewVehiclePage() {
     content = (
       <Field label={t("vehicles.year")}>
         <input
-          autoFocus
+          autoFocus={focus}
           type="number"
           inputMode="numeric"
           value={form.year}
@@ -455,13 +464,13 @@ export function NewVehiclePage() {
   } else if (step === "vin") {
     content = (
       <Field label={t("vehicles.vin")} hint={t("vehicles.vin_hint")}>
-        <input autoFocus value={form.vin} onChange={(e) => set({ vin: e.target.value })} />
+        <input autoFocus={focus} value={form.vin} onChange={(e) => set({ vin: e.target.value })} />
       </Field>
     );
   } else if (step === "plate") {
     content = (
       <Field label={t("vehicles.plate")}>
-        <input autoFocus value={form.plate} onChange={(e) => set({ plate: e.target.value })} />
+        <input autoFocus={focus} value={form.plate} onChange={(e) => set({ plate: e.target.value })} />
       </Field>
     );
   } else if (step === "name") {
@@ -471,7 +480,7 @@ export function NewVehiclePage() {
           label={t("vehicles.name")}
           hint={autoName ? t("vehicles.name_auto_hint") : t("vehicles.wizard_name_required")}
         >
-          <input autoFocus value={name} onChange={(e) => setCustomName(e.target.value)} />
+          <input autoFocus={focus} value={name} onChange={(e) => setCustomName(e.target.value)} />
         </Field>
         {customName !== null && customName !== autoName && autoName ? (
           <button type="button" className="secondary" onClick={() => setCustomName(null)}>
@@ -570,7 +579,7 @@ export function NewVehiclePage() {
   } else {
     content = (
       <Field label={t("vehicles.location")} hint={t("vehicles.wizard_location_hint")}>
-        <select autoFocus value={form.location_id} onChange={(e) => set({ location_id: e.target.value })}>
+        <select autoFocus={focus} value={form.location_id} onChange={(e) => set({ location_id: e.target.value })}>
           <option value="">—</option>
           {(locations.data?.locations ?? []).map((l) => (
             <option key={l.id} value={l.id}>
@@ -581,6 +590,124 @@ export function NewVehiclePage() {
       </Field>
     );
   }
+  return content;
+  };
+
+  // After a paper is read everything stands in one form (customer's decision of 23.11.2026):
+  // it is checked, corrected and the vehicle is made at once, without the steps.
+  if (more && !nothing) {
+    const lists: Record<string, string[]> = {
+      body_type: o.body_types,
+      fuel_type: o.fuel_types,
+      transmission: o.transmissions,
+      drive: o.drives,
+    };
+    const change = (key: string, value: string) => setMore({ ...more, [key]: value });
+    const complete = name.trim() !== "" && (form.relation === "client" || form.location_id !== "");
+    return (
+      <div className="page">
+        {isMini() ? null : (
+          <p>
+            <Link to={companyPath(company, "/vehicles")}>← {t("nav.garage")}</Link>
+          </p>
+        )}
+        <h1>{t("vehicles.create_title")}</h1>
+        <form
+          className="paper-read"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (complete && !create.pending) void save();
+          }}
+        >
+          <Card title={t("vehicles.paper_form")}>
+            <p className="small" role="status">
+              {t("vehicles.paper_done")}
+            </p>
+            {ownerRead ? (
+              <p className="small">
+                {t("vehicles.paper_owner", { name: ownerRead })} <Info text={t("vehicles.paper_owner_hint")} />
+              </p>
+            ) : null}
+            <div className="paper-facts">
+              <Field label={titles.type}>
+                <select
+                  value={form.vehicle_type}
+                  onChange={(e) =>
+                    set({ vehicle_type: e.target.value, make: "", model: "", make_other: "", model_other: "" })
+                  }
+                >
+                  {o.vehicle_types.map((code) => (
+                    <option key={code} value={code}>
+                      {t(`vehicles.type_${code}`)}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              {(["make", "model", "year", "vin", "plate", "name"] as const).map((one) => (
+                <div key={one}>{part(one, false)}</div>
+              ))}
+            </div>
+            <div className="paper-facts">
+              {Object.entries(more).map(([key, value]) => (
+                <Field key={key} label={t(`vehicles.${key}`)}>
+                  {lists[key] ? (
+                    <select value={value} onChange={(e) => change(key, e.target.value)}>
+                      <option value="">—</option>
+                      {(lists[key] ?? []).map((code) => (
+                        <option key={code} value={code}>
+                          {t(`${PAPER_NAMES[key]}.${code}`)}
+                        </option>
+                      ))}
+                    </select>
+                  ) : key === "plate_country" ? (
+                    <select value={value} onChange={(e) => change(key, e.target.value)}>
+                      <option value="">—</option>
+                      {countries(i18n.language).map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      value={value}
+                      inputMode={PAPER_WHOLE.has(key) ? "numeric" : key === "power_kw" ? "decimal" : undefined}
+                      onChange={(e) => change(key, e.target.value)}
+                    />
+                  )}
+                </Field>
+              ))}
+            </div>
+            <div className="paper-part">
+              <p className="small muted">{titles.owner}</p>
+              {part("owner", false)}
+            </div>
+            <div className="paper-facts">
+              <Field label={titles.odometer}>
+                <select value={form.odometer_unit} onChange={(e) => set({ odometer_unit: e.target.value })}>
+                  {(["km", "mi"] as const).map((unit) => (
+                    <option key={unit} value={unit}>
+                      {t(`vehicles.unit_${unit}`)}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              {form.relation === "client" ? null : <div>{part("location", false)}</div>}
+            </div>
+            <p className="muted small">{t("vehicles.wizard_later")}</p>
+            <ErrorMessage error={create.error} />
+            <div className="actions">
+              <button type="submit" disabled={!complete || create.pending}>
+                {t("vehicles.create")}
+              </button>
+            </div>
+          </Card>
+        </form>
+      </div>
+    );
+  }
+
+  const content = part(step, true);
 
   return (
     <div className="page">
@@ -620,43 +747,6 @@ export function NewVehiclePage() {
           ) : null}
           <ErrorMessage error={refused ?? reading.error} />
         </div>
-      ) : null}
-      {more && !nothing ? (
-        <section className="card paper-read" role="status">
-          <p className="small">
-            {t("vehicles.paper_done")} <Info text={t("vehicles.paper_more_hint")} />
-          </p>
-          {ownerRead ? (
-            <p className="small">
-              {t("vehicles.paper_owner", { name: ownerRead })} <Info text={t("vehicles.paper_owner_hint")} />
-            </p>
-          ) : null}
-          {Object.keys(more).length ? (
-            <dl className="facts">
-              {Object.entries(more).map(([key, value]) => (
-                <div key={key} className="paper-fact">
-                  <dt>{t(`vehicles.${key}`)}</dt>
-                  <dd>
-                    {PAPER_NAMES[key]
-                      ? t(`${PAPER_NAMES[key]}.${value}`)
-                      : key === "plate_country"
-                        ? (countries(i18n.language).find((c) => c.code === value)?.name ?? value)
-                        : value}{" "}
-                    <button
-                      type="button"
-                      className="link"
-                      aria-label={t("rights.remove")}
-                      title={t("rights.remove")}
-                      onClick={() => setMore(Object.fromEntries(Object.entries(more).filter(([k]) => k !== key)))}
-                    >
-                      ×
-                    </button>
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          ) : null}
-        </section>
       ) : null}
       <form onSubmit={next} key={step}>
         <Card title={titles[step]}>

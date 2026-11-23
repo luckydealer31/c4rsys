@@ -874,6 +874,12 @@ export type VehicleCharacteristics = {
   gross_weight_kg?: number | null;
   payload_kg?: number | null;
   cargo_volume_m3?: string | null;
+  /** Of a registration paper (customer's decision of 23.11.2026). */
+  power_kw?: string | null;
+  vehicle_category?: string;
+  eco_class?: string;
+  type_approval?: string;
+  special_marks?: string;
   inventory_number?: string;
   barcode?: string;
   /** Identifiers that coincide with another vehicle: a reason to check (§ 8.6.3). */

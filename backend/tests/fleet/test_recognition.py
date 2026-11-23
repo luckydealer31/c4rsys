@@ -149,3 +149,23 @@ def test_schemas_stay_within_the_limit_of_the_outer_service() -> None:
 
     for schema in (recognition.SCHEMA, invoices.SCHEMA, expense_drafts.SCHEMA):
         assert unions(_schema(schema)) <= 16
+
+
+def test_what_a_registration_paper_names_besides_is_read() -> None:
+    """Customer's decision of 23.11.2026: the power in kilowatts, the category, the ecological
+    class, the approval of the type and the special marks are read as written."""
+    paper = recognition.parse(
+        {
+            "power_kw": "81,0",
+            "vehicle_category": " B / M1 ",
+            "eco_class": "пятый",
+            "type_approval": "ТС RU E-RU.MT02.00003.И5",
+            "special_marks": "Договор лизинга",
+        }
+    )
+    assert paper.texts["power_kw"] == "81.0"
+    assert paper.texts["vehicle_category"] == "B / M1"
+    assert paper.texts["eco_class"] == "пятый"
+    assert paper.texts["type_approval"].startswith("ТС RU")
+    assert paper.texts["special_marks"] == "Договор лизинга"
+    assert recognition.parse({"power_kw": "about 80"}).texts["power_kw"] == ""

@@ -106,6 +106,14 @@ class Vehicle(models.Model):
     gross_weight_kg = models.PositiveIntegerField(null=True, blank=True)
     payload_kg = models.PositiveIntegerField(null=True, blank=True)
     cargo_volume_m3 = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True)
+    # What a registration paper names besides (customer's decision of 23.11.2026), as written
+    # there: the power in kilowatts, the category of the vehicle, the ecological class, the
+    # approval of the type and the special marks.
+    power_kw = models.DecimalField(max_digits=6, decimal_places=1, null=True, blank=True)
+    vehicle_category = models.CharField(max_length=40, blank=True, default="")
+    eco_class = models.CharField(max_length=40, blank=True, default="")
+    type_approval = models.CharField(max_length=100, blank=True, default="")
+    special_marks = models.CharField(max_length=500, blank=True, default="")
     # Factory characteristics confirmed by the c4rsys staff (§ 8.2.1): not changed by a direct
     # edit of a company; the history of each change is `VehicleCharacteristicEvent`.
     confirmed_fields = models.JSONField(default=list, blank=True)

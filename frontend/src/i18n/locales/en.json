@@ -2873,11 +2873,16 @@
     "paper_read": "Fill in from a photo of a document",
     "paper_reading": "Reading the document…",
     "paper_hint": "Upload a photo or a PDF of a document of the vehicle — a registration certificate, a registration book (blue book) or another one with the data of the vehicle. The system reads the make, the model, the year, the VIN, the plate, the numbers of the units, the colour and the characteristics. No vehicle is created by that: check what was read and go through the steps to the end. If the document has two sides or several pages, choose all the photos at once — up to 5.",
-    "paper_done": "The document is read. The make, the model, the year, the VIN and the plate are put into the steps — check them on the way.",
+    "paper_done": "The document is read. Check the data, correct it if needed and press «Create».",
     "paper_nothing": "Nothing could be read from the document.",
-    "paper_more_hint": "The rest of what was read is written into the card of the vehicle when it is created. Remove a wrong value with the cross — the right one can be entered in the card of the vehicle.",
     "paper_owner": "The owner in the document: {{name}}",
-    "paper_owner_hint": "The name is put into the step of the owner. It is written for a managed or a client vehicle; the owner of an own vehicle is the company."
+    "paper_owner_hint": "The name is put into the block «Owner». It is written if the vehicle is managed or a client's one; an own vehicle is owned by the company.",
+    "power_kw": "Power, kW",
+    "vehicle_category": "Vehicle category",
+    "eco_class": "Ecological class",
+    "type_approval": "Type approval",
+    "special_marks": "Special marks",
+    "paper_form": "Data of the document"
   },
   "warehouse": {
     "action_create": "Create",

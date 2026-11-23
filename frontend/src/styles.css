@@ -1046,7 +1046,13 @@ table.fit { width: auto; }
   margin-bottom: 12px;
 }
 .paper-read { margin-bottom: 12px; }
-.paper-read .paper-fact { display: contents; }
+.paper-read .paper-part { margin-bottom: 12px; }
+.paper-read .paper-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px 12px;
+  margin-bottom: 12px;
+}
 .expense-draft { margin-bottom: 12px; }
 
 /* The menu of the window of the Telegram bot: large buttons for a thumb. */

@@ -47,6 +47,11 @@ TEXTS: dict[str, int] = {
     "color": 40,
     # The owner named in the paper (customer's decision of 22.11.2026).
     "owner_name": 200,
+    # What a registration paper names besides (customer's decision of 23.11.2026), as written.
+    "vehicle_category": 40,
+    "eco_class": 40,
+    "type_approval": 100,
+    "special_marks": 500,
 }
 # Whole numbers and their largest value.
 NUMBERS: dict[str, int] = {
@@ -68,7 +73,10 @@ INSTRUCTION = (
     "Leave out whatever cannot be read with confidence: do not guess, and do not work out a "
     "value from another one: give an empty text instead. "
     "Read the owner too: the name as written, and whether the owner is "
-    "a person or an organization. Other people named in the document are not asked for."
+    "a person or an organization. Read as written, where the paper has them: the power in "
+    "kilowatts and in horsepower, the category of the vehicle, the ecological class, the "
+    "approval of the type and the special marks. Other people named in the document are not "
+    "asked for."
 )
 
 
@@ -81,13 +89,14 @@ def _field(description: str) -> dict[str, Any]:
 SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["year", "plate_country", *CHOICES, *TEXTS, *NUMBERS],
+    "required": ["year", "plate_country", "power_kw", *CHOICES, *TEXTS, *NUMBERS],
     "properties": {
         "year": _field("the year of manufacture in digits"),
         "plate_country": _field("ISO 3166-1 alpha-2"),
         **{k: _field("one of: " + ", ".join(v)) for k, v in CHOICES.items()},
         **{k: _field(f"up to {v} characters") for k, v in TEXTS.items()},
         **{k: _field("a positive whole number in digits") for k in NUMBERS},
+        "power_kw": _field("the power in kilowatts as written, a number"),
     },
 }
 
@@ -140,6 +149,9 @@ def parse(answer: Any) -> Paper:
     country = _text(answer.get("plate_country"), 2).upper()
     texts["plate_country"] = country if len(country) == 2 and country.isalpha() else ""
     numbers = {key: _whole(answer.get(key), 1, high) for key, high in NUMBERS.items()}
+    # The power in kilowatts is a number with one digit after the point at most.
+    kw = _text(answer.get("power_kw"), 12).replace(",", ".")
+    texts["power_kw"] = kw if re.fullmatch(r"[1-9]\d{0,3}(\.\d)?", kw) else ""
     numbers["year"] = _whole(answer.get("year"), 1900, timezone.localdate().year + 1)
     return Paper(texts=texts, numbers=numbers)
 

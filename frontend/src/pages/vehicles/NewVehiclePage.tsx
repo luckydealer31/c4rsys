@@ -28,6 +28,11 @@ const EXTRA = [
   ["gross_weight_kg", "int"],
   ["payload_kg", "int"],
   ["cargo_volume_m3", "decimal"],
+  ["power_kw", "decimal"],
+  ["vehicle_category", "text"],
+  ["eco_class", "text"],
+  ["type_approval", "text"],
+  ["special_marks", "text"],
   ["inventory_number", "text"],
   ["barcode", "text"],
 ] as const;

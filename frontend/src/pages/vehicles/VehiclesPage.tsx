@@ -377,6 +377,11 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
     [t("vehicles.gross_weight_kg"), c.gross_weight_kg ? String(c.gross_weight_kg) : "", "gross_weight_kg"],
     [t("vehicles.payload_kg"), c.payload_kg ? String(c.payload_kg) : "", "payload_kg"],
     [t("vehicles.cargo_volume_m3"), c.cargo_volume_m3 ?? "", "cargo_volume_m3"],
+    [t("vehicles.power_kw"), c.power_kw ?? "", "power_kw"],
+    [t("vehicles.vehicle_category"), c.vehicle_category ?? "", "vehicle_category"],
+    [t("vehicles.eco_class"), c.eco_class ?? "", "eco_class"],
+    [t("vehicles.type_approval"), c.type_approval ?? "", "type_approval"],
+    [t("vehicles.special_marks"), c.special_marks ?? "", "special_marks"],
     [t("vehicles.inventory_number"), c.inventory_number ?? ""],
     [t("vehicles.barcode"), c.barcode ?? ""],
   ];
