@@ -33,6 +33,8 @@ class Owner:
     name: str = ""
     contact: str = ""
     client_id: UUID | None = None
+    # In one line (customer's decision of 23.11.2026).
+    address: str = ""
 
     def payload(self) -> dict[str, str]:
         return {
@@ -40,6 +42,7 @@ class Owner:
             "lookup": self.lookup,
             "name": self.name,
             "contact": self.contact,
+            "address": self.address,
             "client_id": str(self.client_id) if self.client_id else "",
         }
 
@@ -106,7 +109,12 @@ def parse(data: dict[str, Any], relation: str) -> Owner:
         name = _text(data, "owner_name", 300)
         if not name:
             raise errors.validation_error("owner_name", code="FIELD_REQUIRED")
-        return Owner(kind=kind, name=name, contact=_text(data, "owner_contact", 254))
+        return Owner(
+            kind=kind,
+            name=name,
+            contact=_text(data, "owner_contact", 254),
+            address=_text(data, "owner_address", 500),
+        )
     return Owner(kind=kind)
 
 
@@ -136,6 +144,7 @@ def declare(ctx: CommandContext, company: Company, card: VehicleCard, owner: Own
         client=client,
         manual_name=owner.name,
         manual_contact=owner.contact,
+        manual_address=owner.address,
         created_by_user_id=ctx.actor.user_id,
     )
     # The request to the previous owner is not answered any more (§ 8.3.13).
@@ -158,7 +167,8 @@ def is_current(card: VehicleCard, owner: Owner) -> bool:
         claim.manual_name,
         claim.manual_contact,
         claim.client_id,
-    ) == (owner.kind, owner.lookup, owner.name, owner.contact, owner.client_id)
+        claim.manual_address,
+    ) == (owner.kind, owner.lookup, owner.name, owner.contact, owner.client_id, owner.address)
 
 
 def describe(card: VehicleCard, batch: "Batch | None" = None) -> dict[str, Any] | None:
@@ -174,6 +184,7 @@ def describe(card: VehicleCard, batch: "Batch | None" = None) -> dict[str, Any] 
         "lookup": claim.lookup,
         "name": claim.manual_name,
         "contact": claim.manual_contact,
+        "address": claim.manual_address,
         # «ownership_change»: declared by the system after the ownership passed (§ 8.3.10).
         "source": claim.source,
         # The answers to the request of § 8.3.1: three «yes» confirm the management.

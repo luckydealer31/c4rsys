@@ -254,6 +254,8 @@ test("base example from registration to closing survives a restart", async ({ pa
         seats: 5, doors: null, curb_weight_kg: null, gross_weight_kg: null,
         make_code: null, model_code: null, catalog_type: null, owner_name: "Somchai Jaidee", owner_kind: "person",
         power_kw: "63.0", vehicle_category: "B", eco_class: "Euro 5", type_approval: "", special_marks: "",
+        owner_address: "Phuket, 1 Beach Rd", paper_name: "Registration book", paper_number: "RB-778",
+        paper_issued_on: "2022-05-01", paper_issued_by: "DLT", passport_number: "PS-42", paper_keepable: true,
       },
     }),
   );
@@ -296,11 +298,25 @@ test("base example from registration to closing survives a restart", async ({ pa
   await expect(paper.getByLabel(t("vehicles.eco_class"))).toHaveValue("Euro 5");
   await expect(paper).toContainText(t("vehicles.paper_owner", { name: "Somchai Jaidee" }));
   await expect(page.getByRole("button", { name: t("wizard.next"), exact: true })).toHaveCount(0);
+  // The owner is chosen first, by three short choices; the name read from the paper is put
+  // into the owner of a managed vehicle (customer's remark of 23.11.2026).
+  await paper.getByRole("radio", { name: t("vehicles.owner_short_managed"), exact: true }).check();
+  await expect(paper.getByLabel(t("vehicles.owner_name_person"))).toHaveValue("Somchai Jaidee");
+  await expect(paper.getByLabel(t("vehicles.owner_address"))).toHaveValue("Phuket, 1 Beach Rd");
+  await paper.getByRole("radio", { name: "Тест Аренда", exact: true }).check();
   // A value read wrong is cleared or corrected; the rest is written with the card.
-  await paper.getByLabel(t("vehicles.seats")).fill("");
+  await paper.getByLabel(t("vehicles.seats"), { exact: true }).fill("");
   await paper.getByLabel(t("vehicles.power_kw")).fill("64.5");
+  // The paper and the vehicle passport it names are offered as documents of the card; the
+  // passport is not wanted here.
+  const offered = paper.locator(".paper-document");
+  await expect(offered).toHaveCount(2);
+  await expect(offered.nth(0).getByLabel(t("vehicles.document_number"))).toHaveValue("RB-778");
+  await expect(offered.nth(0)).toContainText(t("vehicles.paper_document_file"));
+  await expect(offered.nth(1).getByLabel(t("vehicles.document_number"))).toHaveValue("PS-42");
+  await offered.nth(1).getByRole("checkbox").uncheck();
   const made = page.waitForRequest((r) => r.method() === "POST" && r.url().endsWith("/vehicles"));
-  await paper.getByRole("textbox", { name: new RegExp(`^${t("vehicles.name")}`) }).fill("Toyota Yaris");
+  await paper.getByRole("textbox", { name: new RegExp(`^${t("vehicles.name")}`) }).first().fill("Toyota Yaris");
   await paper.getByLabel(t("vehicles.location")).selectOption({ label: "Пхукет" });
   await page.getByRole("button", { name: t("vehicles.create") }).click();
   const sent = (await made).postDataJSON() as Record<string, unknown>;
@@ -309,6 +325,11 @@ test("base example from registration to closing survives a restart", async ({ pa
   expect(sent.seats).toBeUndefined();
   expect(sent.power_kw).toBe("64.5");
   expect(sent.vehicle_category).toBe("B");
+  expect((sent.documents as { name: string; number: string }[]).map((d) => [d.name, d.number])).toEqual([
+    ["Registration book", "RB-778"],
+  ]);
+  // The document is in the card with the photo of the paper.
+  await expect(page.locator(".document-summary")).toContainText("Registration book");
   await expect(page.getByRole("heading", { name: "Toyota Yaris" })).toBeVisible();
 
   // A tariff is created step by step: name, currency, unit (a day from the issue), the ranges

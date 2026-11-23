@@ -2882,7 +2882,15 @@
     "eco_class": "Ecological class",
     "type_approval": "Type approval",
     "special_marks": "Special marks",
-    "paper_form": "Data of the document"
+    "paper_form": "Data of the document",
+    "owner_address": "Address (optional)",
+    "paper_document": "Paper of the vehicle",
+    "paper_passport": "Vehicle passport",
+    "paper_document_add": "Add to the documents of the card",
+    "paper_document_file": "the photo of the paper is attached",
+    "paper_documents_hint": "The marked documents appear in the card of the vehicle together with it: the paper that was read, with its photo, and the vehicle passport if its number is named. The name, the number, the issuer and the date can be corrected here or later in the card.",
+    "owner_short_managed": "Managed",
+    "owner_short_client": "Client's"
   },
   "warehouse": {
     "action_create": "Create",

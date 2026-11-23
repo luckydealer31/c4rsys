@@ -1,6 +1,6 @@
 """HTTP API of the company garage (ТЗ § 8.1, § 8.7.7, § 23.5)."""
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 from uuid import UUID
 
@@ -264,8 +264,12 @@ def vehicle_list(request: HttpRequest, cmp: str) -> JsonResponse:
         owner=owner,
     )
 
+    read = _read_documents(data)
+
     def handler(ctx: CommandContext) -> CommandResult:
         card = services.create_vehicle(ctx, context.company, new)
+        for document in read:
+            card_documents.add(ctx, context.company.id, card.id, document)
         return CommandResult(
             201,
             {
@@ -280,9 +284,48 @@ def vehicle_list(request: HttpRequest, cmp: str) -> JsonResponse:
         "odometer_unit": unit,
         "relation": relation,
         "owner": owner.payload(),
+        "documents": [
+            {**d.__dict__, "file_id": str(d.file_id or ""), "valid_from": str(d.valid_from or "")}
+            for d in read
+        ],
         **details.payload(),
     }
     return run_and_respond(request, "vehicle.create", actor, payload, handler)
+
+
+MAX_READ_DOCUMENTS = 5
+
+
+def _read_documents(data: dict[str, Any]) -> list[card_documents.DocumentData]:
+    """The documents made with a new vehicle from the paper it was read from (customer's decision
+    of 23.11.2026): the paper itself and the vehicle passport it names."""
+    raw = data.get("documents")
+    if raw is None:
+        return []
+    if not isinstance(raw, list) or len(raw) > MAX_READ_DOCUMENTS:
+        raise errors.validation_error("documents")
+    found = []
+    for one in raw:
+        if not isinstance(one, dict):
+            raise errors.validation_error("documents")
+        try:
+            file_id = UUID(str(one["file_id"])) if one.get("file_id") else None
+            issued = one.get("valid_from")
+            valid_from = date.fromisoformat(str(issued)) if issued else None
+        except ValueError as exc:
+            raise errors.validation_error("documents") from exc
+        found.append(
+            card_documents.DocumentData(
+                name=get_str(one, "name", max_length=200),
+                number=get_str(one, "number", max_length=150, required=False),
+                issued_by=get_str(one, "issued_by", max_length=200, required=False),
+                valid_from=valid_from,
+                valid_until=None,
+                file_id=file_id,
+                file_name=get_str(one, "file_name", max_length=255, required=False),
+            )
+        )
+    return found
 
 
 @require_http_methods(["GET"])
@@ -402,6 +445,8 @@ def vehicle_recognize(request: HttpRequest, cmp: str) -> JsonResponse:
             "make_code": match.make if match else None,
             "model_code": match.model if match else None,
             "catalog_type": match.vehicle_type if match else None,
+            # Whether the paper may be kept as a document of the card: a JPEG or a PDF.
+            "paper_keepable": item.content_type in card_documents.FILE_TYPES,
         }
     )
 

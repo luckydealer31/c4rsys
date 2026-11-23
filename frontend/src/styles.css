@@ -1047,6 +1047,12 @@ table.fit { width: auto; }
 }
 .paper-read { margin-bottom: 12px; }
 .paper-read .paper-part { margin-bottom: 12px; }
+.paper-read .paper-document { margin: 6px 0 10px; }
+.owner-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+}
 .paper-read .paper-facts {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));

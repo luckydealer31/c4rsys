@@ -169,3 +169,65 @@ def test_what_a_registration_paper_names_besides_is_read() -> None:
     assert paper.texts["type_approval"].startswith("ТС RU")
     assert paper.texts["special_marks"] == "Договор лизинга"
     assert recognition.parse({"power_kw": "about 80"}).texts["power_kw"] == ""
+
+
+def test_the_paper_becomes_documents_of_the_new_card(owner: Client, cmp: str, service: Any) -> None:
+    """Customer's decisions of 23.11.2026: the paper a vehicle was read from and the vehicle
+    passport it names are made documents of the card with the vehicle; the address of the owner
+    is kept in one line."""
+    service["answer"] = {
+        **ANSWER,
+        "owner_address": " Екатеринбург,  ул. Малышева, 1 ",
+        "paper_name": "Свидетельство о регистрации ТС",
+        "paper_number": "99 12 345678",
+        "paper_issued_on": "2021-03-15",
+        "paper_issued_by": "ГИБДД 1165009",
+        "passport_number": "78 РК 123456",
+        "power_hp": "110.1",
+    }
+    made = upload(owner, "vehicle_paper", content=b"%PDF-1.4\n%%EOF\n", key="paper-pdf")
+    paper = str(made.json()["file"]["id"])
+    read = _read(owner, cmp, paper).json()
+    assert read["owner_address"] == "Екатеринбург, ул. Малышева, 1"
+    assert (read["paper_number"], read["paper_issued_on"]) == ("99 12 345678", "2021-03-15")
+    assert read["passport_number"] == "78 РК 123456"
+    assert read["paper_keepable"] is True
+    assert read["power_hp"] == 110
+
+    created = post(
+        owner,
+        f"/api/c/{cmp}/vehicles",
+        {
+            "name": "Polo",
+            "relation": "client",
+            "odometer_unit": "km",
+            "owner_kind": "organization",
+            "owner_name": "ООО Ромашка",
+            "owner_address": read["owner_address"],
+            "documents": [
+                {
+                    "name": read["paper_name"],
+                    "number": read["paper_number"],
+                    "issued_by": read["paper_issued_by"],
+                    "valid_from": read["paper_issued_on"],
+                    "file_id": paper,
+                    "file_name": "sts",
+                },
+                {"name": "ПТС", "number": read["passport_number"]},
+            ],
+        },
+        key(),
+    )
+    assert created.status_code == 201, created.content
+    vehicle = created.json()["vehicle"]
+    assert vehicle["owner"]["address"] == "Екатеринбург, ул. Малышева, 1"
+    documents = vehicle["card_documents"]
+    assert [(d["name"], d["number"], d["has_file"]) for d in documents] == [
+        ("Свидетельство о регистрации ТС", "99 12 345678", True),
+        ("ПТС", "78 РК 123456", False),
+    ]
+    assert documents[0]["valid_from"] == "2021-03-15"
+    file = owner.get(
+        f"/api/c/{cmp}/vehicles/{vehicle['id']}/card-documents/{documents[0]['id']}/file"
+    )
+    assert file.status_code == 200

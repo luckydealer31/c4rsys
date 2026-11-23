@@ -42,6 +42,7 @@ type Form = {
   owner_lookup: string;
   owner_name: string;
   owner_contact: string;
+  owner_address: string;
   owner_client_id: string;
   client_owner_kind: string;
   odometer_unit: string;
@@ -49,7 +50,16 @@ type Form = {
 };
 
 /** What is read from a paper of a vehicle: an empty text or null — not read. */
-type Paper = Record<string, string | number | null>;
+type Paper = Record<string, string | number | boolean | null>;
+/** A document of the card offered after a paper is read. */
+type ReadDocument = {
+  on: boolean;
+  name: string;
+  number: string;
+  issued_by: string;
+  valid_from: string;
+  file_id: string;
+};
 // What the steps do not ask: read from the paper, it is written into the card with the rest.
 const PAPER_MORE = [
   "plate_country",
@@ -121,6 +131,7 @@ export function NewVehiclePage() {
     owner_lookup: "",
     owner_name: "",
     owner_contact: "",
+    owner_address: "",
     owner_client_id: "",
     client_owner_kind: "client",
     odometer_unit: "km",
@@ -141,6 +152,7 @@ export function NewVehiclePage() {
   const [more, setMore] = useState<Record<string, string> | null>(null);
   const [nothing, setNothing] = useState(false);
   const [ownerRead, setOwnerRead] = useState("");
+  const [documents, setDocuments] = useState<ReadDocument[]>([]);
   const [refused, setRefused] = useState<ApiError | null>(null);
   async function readPaper(files: File[]) {
     setNothing(false);
@@ -181,7 +193,31 @@ export function NewVehiclePage() {
       step.owner_name = text("owner_name");
       step.owner_kind = kind;
       step.client_owner_kind = kind;
+      step.owner_address = text("owner_address");
     }
+    // The documents of the card made with the vehicle (customer's decision of 23.11.2026): the
+    // paper itself, with its file, and the vehicle passport the paper names.
+    const made: ReadDocument[] = [
+      {
+        on: true,
+        name: text("paper_name") || t("vehicles.paper_document"),
+        number: text("paper_number"),
+        issued_by: text("paper_issued_by"),
+        valid_from: text("paper_issued_on"),
+        file_id: paper.paper_keepable ? id : "",
+      },
+    ];
+    if (text("passport_number")) {
+      made.push({
+        on: true,
+        name: t("vehicles.paper_passport"),
+        number: text("passport_number"),
+        issued_by: "",
+        valid_from: "",
+        file_id: "",
+      });
+    }
+    setDocuments(made);
     setOwnerRead(text("owner_name"));
     const rest = Object.fromEntries(PAPER_MORE.filter((key) => text(key)).map((key) => [key, text(key)]));
     setForm({ ...form, ...step });
@@ -260,6 +296,7 @@ export function NewVehiclePage() {
       if (kind === "person" || kind === "organization") {
         body.owner_name = form.owner_name;
         body.owner_contact = form.owner_contact;
+        body.owner_address = form.owner_address;
       }
     }
     if (form.relation === "managed") {
@@ -268,6 +305,7 @@ export function NewVehiclePage() {
       if (form.owner_kind === "person" || form.owner_kind === "organization") {
         body.owner_name = form.owner_name;
         body.owner_contact = form.owner_contact;
+        body.owner_address = form.owner_address;
       }
     }
     if (usesCatalogMake) {
@@ -280,6 +318,18 @@ export function NewVehiclePage() {
     }
     for (const [key, value] of Object.entries(more ?? {})) {
       if (value.trim() !== "") body[key] = PAPER_WHOLE.has(key) ? Number(value) : value.trim();
+    }
+    if (more) {
+      body.documents = documents
+        .filter((d) => d.on && d.name.trim() !== "")
+        .map((d) => ({
+          name: d.name.trim(),
+          number: d.number.trim(),
+          issued_by: d.issued_by.trim(),
+          valid_from: d.valid_from || null,
+          file_id: d.file_id || null,
+          file_name: d.file_id ? d.name.trim() : "",
+        }));
     }
     const result = await create.run(body);
     if (result !== null) {
@@ -329,6 +379,9 @@ export function NewVehiclePage() {
         </Field>
         <Field label={t("vehicles.owner_contact")}>
           <input value={form.owner_contact} onChange={(e) => set({ owner_contact: e.target.value })} />
+        </Field>
+        <Field label={t("vehicles.owner_address")}>
+          <input value={form.owner_address} onChange={(e) => set({ owner_address: e.target.value })} />
         </Field>
       </div>
     ) : null;
@@ -492,21 +545,17 @@ export function NewVehiclePage() {
   } else if (step === "owner") {
     content = (
       <div className="stack">
-        <div className="stack">
-          {relationChoice("own", t("vehicles.owner_company", { company: company.display_name }))}
-          {relationChoice("managed", t("vehicles.owner_other"))}
-          {relationChoice("client", t("vehicles.owner_client"))}
+        {/* Three short choices (customer's remark of 23.11.2026): the company itself by its name,
+            a managed vehicle, a client's one. */}
+        <div className="owner-choice">
+          {relationChoice("own", company.display_name)}
+          {relationChoice("managed", t("vehicles.owner_short_managed"))}
+          {relationChoice("client", t("vehicles.owner_short_client"))}
+          {form.relation === "own" ? null : (
+            <Info text={t(`vehicles.owner_${form.relation === "client" ? "client" : "managed"}_hint`)} />
+          )}
         </div>
-        {form.relation === "own" ? (
-          <dl className="facts">
-            <dt>{t("companies.display_name")}</dt>
-            <dd>{company.display_name}</dd>
-            <dt>{t("company.legal_name")}</dt>
-            <dd>{company.legal_name || "—"}</dd>
-            <dt>{t("companies.company_id")}</dt>
-            <dd>{company.public_id}</dd>
-          </dl>
-        ) : form.relation === "client" ? (
+        {form.relation === "own" ? null : form.relation === "client" ? (
           <>
             <Field label={t("vehicles.owner_kind")}>
               <select
@@ -536,7 +585,6 @@ export function NewVehiclePage() {
               </Field>
             ) : null}
             {ownerManual(form.client_owner_kind)}
-            <p className="muted small">{t("vehicles.owner_client_hint")}</p>
           </>
         ) : (
           <>
@@ -555,7 +603,6 @@ export function NewVehiclePage() {
               </Field>
             ) : null}
             {ownerManual(form.owner_kind)}
-            <p className="muted small">{t("vehicles.owner_managed_hint")}</p>
           </>
         )}
       </div>
@@ -611,7 +658,6 @@ export function NewVehiclePage() {
             <Link to={companyPath(company, "/vehicles")}>← {t("nav.garage")}</Link>
           </p>
         )}
-        <h1>{t("vehicles.create_title")}</h1>
         <form
           className="paper-read"
           onSubmit={(event) => {
@@ -619,15 +665,20 @@ export function NewVehiclePage() {
             if (complete && !create.pending) void save();
           }}
         >
-          <Card title={t("vehicles.paper_form")}>
+          <Card title={t("vehicles.create_title")}>
             <p className="small" role="status">
               {t("vehicles.paper_done")}
             </p>
-            {ownerRead ? (
-              <p className="small">
-                {t("vehicles.paper_owner", { name: ownerRead })} <Info text={t("vehicles.paper_owner_hint")} />
-              </p>
-            ) : null}
+            <div className="paper-part">
+              <p className="small muted">{titles.owner}</p>
+              {ownerRead && form.relation === "own" ? (
+                <p className="small">
+                  {t("vehicles.paper_owner", { name: ownerRead })} <Info text={t("vehicles.paper_owner_hint")} />
+                </p>
+              ) : null}
+              {part("owner", false)}
+            </div>
+            <p className="small muted">{t("vehicles.paper_form")}</p>
             <div className="paper-facts">
               <Field label={titles.type}>
                 <select
@@ -678,10 +729,6 @@ export function NewVehiclePage() {
                 </Field>
               ))}
             </div>
-            <div className="paper-part">
-              <p className="small muted">{titles.owner}</p>
-              {part("owner", false)}
-            </div>
             <div className="paper-facts">
               <Field label={titles.odometer}>
                 <select value={form.odometer_unit} onChange={(e) => set({ odometer_unit: e.target.value })}>
@@ -693,6 +740,44 @@ export function NewVehiclePage() {
                 </select>
               </Field>
               {form.relation === "client" ? null : <div>{part("location", false)}</div>}
+            </div>
+            <div className="paper-part">
+              <p className="small muted">
+                {t("vehicles.documents_title")} <Info text={t("vehicles.paper_documents_hint")} />
+              </p>
+              {documents.map((d, n) => {
+                const edit = (changes: Partial<ReadDocument>) =>
+                  setDocuments(documents.map((one, i) => (i === n ? { ...one, ...changes } : one)));
+                return (
+                  <div key={n} className="paper-document">
+                    <label>
+                      <input type="checkbox" checked={d.on} onChange={(e) => edit({ on: e.target.checked })} />{" "}
+                      {t("vehicles.paper_document_add")}
+                      {d.file_id ? ` · ${t("vehicles.paper_document_file")}` : ""}
+                    </label>
+                    {d.on ? (
+                      <div className="paper-facts">
+                        <Field label={t("vehicles.document_name")}>
+                          <input value={d.name} onChange={(e) => edit({ name: e.target.value })} />
+                        </Field>
+                        <Field label={t("vehicles.document_number")}>
+                          <input value={d.number} onChange={(e) => edit({ number: e.target.value })} />
+                        </Field>
+                        <Field label={t("vehicles.document_issued_by")}>
+                          <input value={d.issued_by} onChange={(e) => edit({ issued_by: e.target.value })} />
+                        </Field>
+                        <Field label={t("vehicles.document_valid_from")}>
+                          <input
+                            type="date"
+                            value={d.valid_from}
+                            onChange={(e) => edit({ valid_from: e.target.value })}
+                          />
+                        </Field>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
             <p className="muted small">{t("vehicles.wizard_later")}</p>
             <ErrorMessage error={create.error} />

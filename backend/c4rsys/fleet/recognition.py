@@ -14,6 +14,7 @@ before the vehicle is made."""
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import date
 from typing import Any
 from uuid import UUID
 
@@ -52,6 +53,13 @@ TEXTS: dict[str, int] = {
     "eco_class": 40,
     "type_approval": 100,
     "special_marks": 500,
+    # The address of the owner in one line, and what the documents of the card are made of: the
+    # paper itself and the vehicle passport it names (customer's decisions of 23.11.2026).
+    "owner_address": 500,
+    "paper_name": 200,
+    "paper_number": 150,
+    "paper_issued_by": 200,
+    "passport_number": 150,
 }
 # Whole numbers and their largest value.
 NUMBERS: dict[str, int] = {
@@ -75,7 +83,10 @@ INSTRUCTION = (
     "Read the owner too: the name as written, and whether the owner is "
     "a person or an organization. Read as written, where the paper has them: the power in "
     "kilowatts and in horsepower, the category of the vehicle, the ecological class, the "
-    "approval of the type and the special marks. Other people named in the document are not "
+    "approval of the type and the special marks. Read the address of the owner in one line. "
+    "Read about the paper itself: its name as printed, its series and number, the date and the "
+    "authority of its issue; and the series and the number of the vehicle passport if the paper "
+    "names it. Other people named in the document are not "
     "asked for."
 )
 
@@ -89,7 +100,15 @@ def _field(description: str) -> dict[str, Any]:
 SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["year", "plate_country", "power_kw", *CHOICES, *TEXTS, *NUMBERS],
+    "required": [
+        "year",
+        "plate_country",
+        "power_kw",
+        "paper_issued_on",
+        *CHOICES,
+        *TEXTS,
+        *NUMBERS,
+    ],
     "properties": {
         "year": _field("the year of manufacture in digits"),
         "plate_country": _field("ISO 3166-1 alpha-2"),
@@ -97,6 +116,7 @@ SCHEMA: dict[str, Any] = {
         **{k: _field(f"up to {v} characters") for k, v in TEXTS.items()},
         **{k: _field("a positive whole number in digits") for k in NUMBERS},
         "power_kw": _field("the power in kilowatts as written, a number"),
+        "paper_issued_on": _field("the date the paper was issued, YYYY-MM-DD"),
     },
 }
 
@@ -131,8 +151,9 @@ def _whole(value: Any, low: int, high: int) -> int | None:
     """A whole number within the bounds; anything else is as good as not read."""
     if isinstance(value, bool):
         return None
-    if isinstance(value, str) and re.fullmatch(r"\d{1,9}", value.strip()):
-        value = int(value.strip())
+    # «110.1» of a paper is 110: the characteristics are whole numbers.
+    if isinstance(value, str) and re.fullmatch(r"\d{1,9}([.,]\d{1,2})?", value.strip()):
+        value = round(float(value.strip().replace(",", ".")))
     return value if isinstance(value, int) and low <= value <= high else None
 
 
@@ -152,6 +173,12 @@ def parse(answer: Any) -> Paper:
     # The power in kilowatts is a number with one digit after the point at most.
     kw = _text(answer.get("power_kw"), 12).replace(",", ".")
     texts["power_kw"] = kw if re.fullmatch(r"[1-9]\d{0,3}(\.\d)?", kw) else ""
+    try:
+        texts["paper_issued_on"] = date.fromisoformat(
+            _text(answer.get("paper_issued_on"), 10)
+        ).isoformat()
+    except ValueError:
+        texts["paper_issued_on"] = ""
     numbers["year"] = _whole(answer.get("year"), 1900, timezone.localdate().year + 1)
     return Paper(texts=texts, numbers=numbers)
 

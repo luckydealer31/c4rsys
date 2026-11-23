@@ -231,6 +231,7 @@ export const vehicle: Vehicle = {
   "odometer": null,
   "odometer_unit": "km",
   "owner": {
+    "address": "",
     "company": {
       "display_name": "Test Rent",
       "legal_name": "",

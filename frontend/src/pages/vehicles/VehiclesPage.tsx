@@ -332,7 +332,7 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
         ? owner.lookup
         : owner.kind === "none"
           ? t("vehicles.owner_not_given")
-          : [owner.name, owner.contact].filter(Boolean).join(", ");
+          : [owner.name, owner.contact, owner.address].filter(Boolean).join(", ");
   const working = vehicle.working_values ?? {};
   const confirmed = new Set(vehicle.confirmed_fields ?? []);
   const facts: [string, string, string?][] = [

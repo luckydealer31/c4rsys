@@ -291,6 +291,9 @@ class VehicleOwnerClaim(models.Model):
     )
     manual_name = models.CharField(max_length=300, blank=True, default="")
     manual_contact = models.CharField(max_length=254, blank=True, default="")
+    # The address of the owner in one line, as a paper names it (customer's decision of
+    # 23.11.2026).
+    manual_address = models.CharField(max_length=500, blank=True, default="")
     # «ownership_change» — declared by the system when the ownership passed to another owner
     # (§ 8.3.10): the company does not learn who the new owner is.
     source = models.CharField(max_length=20, blank=True, default="")

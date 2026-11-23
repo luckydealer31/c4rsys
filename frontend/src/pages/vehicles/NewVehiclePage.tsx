@@ -72,6 +72,7 @@ type Form = {
   owner_lookup: string;
   owner_name: string;
   owner_contact: string;
+  owner_address: string;
   owner_client_id: string;
   client_owner_kind: string;
 };
@@ -113,6 +114,7 @@ const EMPTY: Form = {
   owner_lookup: "",
   owner_name: "",
   owner_contact: "",
+  owner_address: "",
   owner_client_id: "",
   client_owner_kind: "client",
 };
@@ -175,6 +177,7 @@ function formOf(vehicle: Vehicle): Form {
     owner_lookup: o?.lookup ?? "",
     owner_name: o?.name ?? "",
     owner_contact: o?.contact ?? "",
+    owner_address: o?.address ?? "",
     owner_client_id: o?.client?.id ?? "",
     client_owner_kind: o && vehicle.relation === "client" && o.kind !== "none" ? o.kind : "client",
     plate_country_other: c.plate_country_other ?? "",
@@ -302,6 +305,7 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
       if (kind === "person" || kind === "organization") {
         body.owner_name = form.owner_name;
         body.owner_contact = form.owner_contact;
+        body.owner_address = form.owner_address;
       }
     }
     if (form.relation === "managed") {
@@ -310,6 +314,7 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
       if (form.owner_kind === "person" || form.owner_kind === "organization") {
         body.owner_name = form.owner_name;
         body.owner_contact = form.owner_contact;
+        body.owner_address = form.owner_address;
       }
     }
     if (usesCatalogMake) {
@@ -659,6 +664,12 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
                       onChange={(e) => set({ owner_contact: e.target.value })}
                     />
                   </Field>
+                  <Field label={t("vehicles.owner_address")}>
+                    <input
+                      value={form.owner_address}
+                      onChange={(e) => set({ owner_address: e.target.value })}
+                    />
+                  </Field>
                 </div>
               ) : null}
               <p className="muted small">{t("vehicles.owner_client_hint")}</p>
@@ -688,6 +699,12 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
                     <input
                       value={form.owner_contact}
                       onChange={(e) => set({ owner_contact: e.target.value })}
+                    />
+                  </Field>
+                  <Field label={t("vehicles.owner_address")}>
+                    <input
+                      value={form.owner_address}
+                      onChange={(e) => set({ owner_address: e.target.value })}
                     />
                   </Field>
                 </div>

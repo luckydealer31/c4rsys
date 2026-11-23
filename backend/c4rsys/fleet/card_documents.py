@@ -92,9 +92,12 @@ def _check(ctx: CommandContext, company_id: UUID, data: DocumentData, kept: UUID
         raise errors.validation_error("valid_until", code="PERIOD_INVALID")
     if data.file_id is None or data.file_id == kept:
         return
+    # The paper a new vehicle was read from is kept as its document too (customer's decision of
+    # 23.11.2026).
+    read = StoredFile.objects.filter(pk=data.file_id, purpose=StoredFile.Purpose.VEHICLE_PAPER)
     files.usable(
         data.file_id,
-        purpose=files.VEHICLE_DOCUMENT,
+        purpose=StoredFile.Purpose.VEHICLE_PAPER if read.exists() else files.VEHICLE_DOCUMENT,
         user_id=ctx.actor.user_id,
         company_id=company_id,
     )

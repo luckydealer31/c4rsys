@@ -601,6 +601,8 @@ export type Vehicle = {
     lookup: string;
     name: string;
     contact: string;
+    /** In one line (customer's decision of 23.11.2026). */
+    address?: string;
     /** Three «yes» to the request of § 8.3.1. */
     confirmed: boolean;
     ownership_confirmed?: boolean;

@@ -210,6 +210,7 @@ def _owner(card: VehicleCard) -> dict[str, Any] | None:
         "lookup": claim.lookup,
         "name": claim.manual_name,
         "contact": claim.manual_contact,
+        "address": claim.manual_address,
         "client_id": str(claim.client_id) if claim.client_id else "",
     }
 
@@ -455,6 +456,7 @@ def _owner_of(claim: VehicleOwnerClaim) -> owners.Owner:
         name=claim.manual_name,
         contact=claim.manual_contact,
         client_id=claim.client_id,
+        address=claim.manual_address,
     )
 
 
