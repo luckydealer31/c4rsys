@@ -374,14 +374,22 @@ export function NewVehiclePage() {
   }
   const here =
     create.error?.code === "VEHICLE_ALREADY_HERE"
-      ? (create.error.params as { card_id: string; name: string })
+      ? (create.error.params as { card_id: string; name: string; state: string })
       : null;
   const failure = here ? (
     // The same vehicle is not kept twice by one company (customer's decision of 23.11.2026).
     <div className="stack" data-testid="already-here">
-      <p>{t("vehicles.already_here", { name: here.name })}</p>
+      {/* A card in the archive is offered to be restored (customer's decision of 24.11.2026). */}
+      <p>{t(here.state === "archived" ? "vehicles.already_archived" : "vehicles.already_here", { name: here.name })}</p>
       <p>
-        <Link to={companyPath(company, `/vehicles/${here.card_id}`)}>{t("vehicles.already_here_open")}</Link>
+        <Link
+          to={companyPath(
+            company,
+            `/vehicles/${here.card_id}${here.state === "archived" ? "?tab=history&part=ownership" : ""}`,
+          )}
+        >
+          {t(here.state === "archived" ? "vehicles.already_archived_open" : "vehicles.already_here_open")}
+        </Link>
       </p>
     </div>
   ) : earlier ? (

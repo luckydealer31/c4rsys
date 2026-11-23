@@ -63,7 +63,10 @@ export function Park() {
   const passes = (v: Vehicle) =>
     !status || (status === "limited" ? limited(v) : statusOf(v) === status && !(status === "free" && limited(v)));
 
-  const fleet = (vehicles.data?.vehicles ?? []).filter((v) => FLEET.some((r) => r === v.relation) && v.storage === null);
+  const fleet = (vehicles.data?.vehicles ?? []).filter(
+    // A card in the archive is not a part of the park.
+    (v) => FLEET.some((r) => r === v.relation) && v.storage === null && v.state !== "archived",
+  );
   const list = fleet.filter((v) => shown.has(v.relation) && passes(v));
   const groups = [
     ...locations.map((l) => ({ id: l.id, name: l.name, zone: l.timezone, vehicles: list.filter((v) => v.location_id === l.id) })),

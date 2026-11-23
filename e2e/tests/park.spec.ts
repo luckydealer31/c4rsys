@@ -3,6 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { bangkok, bangkokIso, createCompany, ok, registerUser, uniqueEmail, waitForServer, type Company } from "../lib/api";
 import { t } from "../lib/i18n";
 import { issueRental, startIssueInspection } from "../lib/mobile";
+import { ownershipScenario } from "../lib/ownership";
 
 // Customer's decisions of 17.11.2026. The park of the rental: the own and the managed vehicles,
 // filtered by the occupancy, with what restricts a vehicle and with a booking and a rental begun
@@ -50,7 +51,8 @@ async function picture(page: Page, text: string, color: string): Promise<Buffer>
 
 test("the park is filtered by the occupancy and begins a booking; the card shows the photos", async ({ page }) => {
   await waitForServer(page);
-  await registerUser(page, uniqueEmail("park"), "Анна", "Петрова");
+  const email = uniqueEmail("park");
+  await registerUser(page, email, "Анна", "Петрова");
   const s = await createCompany(page);
   const honda = await vehicle(page, s, "Honda Civic", "hatchback");
   const closed = await vehicle(page, s, "Mazda 3", "sedan");
@@ -420,4 +422,6 @@ test("the park is filtered by the occupancy and begins a booking; the card shows
   await expect(page.getByRole("switch", { name: t("trips.finished") })).toHaveCount(0);
   await which("all").click();
   await expect(page.getByRole("switch", { name: t("trips.finished") })).toBeVisible();
+  // The cards of one vehicle in the company: no doubles, the archive, the merge.
+  await ownershipScenario(page, s, email);
 });

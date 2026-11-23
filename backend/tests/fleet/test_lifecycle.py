@@ -155,8 +155,9 @@ def test_client_card_archive_and_restore_with_a_new_period(owner: Client, s: Sce
         headers=key(),
     )
     assert renamed.json()["error"]["code"] == "VEHICLE_ARCHIVED"
-    # § 8.7.6: the company becomes the manager: the earlier card comes back.
-    restored = _do(
+    # A card comes back as what it was archived from (customer's decision of 24.11.2026): not
+    # straight into the management.
+    other = _do(
         owner,
         s,
         body,
@@ -166,25 +167,22 @@ def test_client_card_archive_and_restore_with_a_new_period(owner: Client, s: Sce
         reason="Owner gave it to management",
         owner_kind="none",
     )
+    assert other.json()["error"]["code"] == "VEHICLE_RESTORE_RELATION"
+    # § 8.7.6: the earlier card comes back with a new period.
+    restored = _do(
+        owner, s, body, "restore", relation="client", reason="The client is back", owner_kind="none"
+    )
     assert restored.status_code == 200, restored.content
     body = restored.json()["vehicle"]
-    assert (body["state"], body["relation"], body["location_id"]) == (
-        "active",
-        "managed",
-        s.location,
-    )
+    assert (body["state"], body["relation"], body["location_id"]) == ("active", "client", None)
     assert [p["start_basis"] for p in body["periods"]] == ["restored", "created"]
     assert VehicleCard.objects.filter(vehicle__public_id=body["vehicle_id"]).count() == 1
 
 
 def test_restore_refused_while_another_company_runs_it(owner: Client, s: Scenario) -> None:
-    created = post(
-        owner,
-        f"/api/c/{s.cmp}/vehicles",
-        {"name": "Client Jazz", "relation": "client", "odometer_unit": "km"},
-        key(),
-    ).json()["vehicle"]
-    body = _do(owner, s, created, "archive", reason="done").json()["vehicle"]
+    created = _managed(owner, s, "Managed Jazz")
+    body = _do(owner, s, created, "end-management", reason="done").json()["vehicle"]
+    assert body["state"] == "archived"
     other = create_company(owner, key="c-2", display_name="Other").json()["company"]
     vehicle = Vehicle.objects.get(public_id=body["vehicle_id"])
     from c4rsys.companies.models import Company, Location

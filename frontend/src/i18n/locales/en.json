@@ -2918,7 +2918,11 @@
     "delete_ok": "OK",
     "archive_title": "Move to the archive",
     "archive_confirm": "Move to the archive",
-    "delete_button": "Delete"
+    "delete_button": "Delete",
+    "restore_as": "The card comes back as “{{relation}}” — what it was before the archive.",
+    "already_archived": "The company keeps this vehicle in the archive: “{{name}}”. A second card is not made — restore the earlier one.",
+    "already_archived_open": "Open the card and restore it",
+    "archive_switch": "Archive"
   },
   "warehouse": {
     "action_create": "Create",

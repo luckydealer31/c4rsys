@@ -403,7 +403,6 @@ export function RelationCard({ vehicle }: { vehicle: Vehicle }) {
   // The vehicle becomes a client one and the card stays (customer's decision of 23.11.2026).
   const then = "client";
   const [location, setLocation] = useState(vehicle.location_id ?? "");
-  const [relation, setRelation] = useState("managed");
   // Copies of the company's documents the owner gets at the end of the management.
   const [passed, setPassed] = useState<string[]>([]);
   const passable = (vehicle.card_documents ?? []).filter((d) => d.state === "active");
@@ -413,7 +412,7 @@ export function RelationCard({ vehicle }: { vehicle: Vehicle }) {
   const restore = useVehicleCommand(vehicle, "restore");
   const active = (locations.data?.locations ?? []).filter((l) => l.state !== "deactivated");
   const archived = vehicle.state === "archived";
-  const [action, setAction] = useState<"" | "end" | "take" | "delete" | "archive">("");
+  const [action, setAction] = useState<"" | "end" | "take" | "delete" | "archive" | "restore">("");
   const open = (next: typeof action) => {
     setReason("");
     setAction(next);
@@ -451,38 +450,38 @@ export function RelationCard({ vehicle }: { vehicle: Vehicle }) {
     <Card title={archived ? t("vehicles.restore_title") : t("vehicles.relation_title")}>
       {archived ? (
         <>
-          <p className="muted small">{t("vehicles.restore_hint")}</p>
-          <div className="row">
-            <Field label={t("vehicles.relation")}>
-              <select value={relation} onChange={(e) => setRelation(e.target.value)}>
-                {["own", "managed", "client"].map((r) => (
-                  <option key={r} value={r}>
-                    {t(`vehicles.relation_${r}`)}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            {relation === "client" ? null : locationField}
-            <Field label={t("vehicles.lifecycle_reason")}>
-              <input value={reason} onChange={(e) => setReason(e.target.value)} />
-            </Field>
-          </div>
-          <ErrorMessage error={restore.error} />
-          <div className="actions">
-            <button
-              type="button"
-              disabled={!mayArchive || !reason.trim() || (relation !== "client" && !location) || restore.pending}
-              onClick={() =>
-                void run(restore, {
-                  relation,
-                  location_id: relation === "client" ? null : location,
-                  owner_kind: relation === "client" ? "none" : relation === "managed" ? "none" : undefined,
-                })
-              }
-            >
+          {/* A card is restored as what it was archived from, with no choice (customer's
+              decision of 24.11.2026). */}
+          <div className="row-actions" style={{ justifyContent: "flex-start" }}>
+            <button type="button" className="secondary small-button" disabled={!mayArchive} onClick={() => open("restore")}>
               {t("vehicles.restore_button")}
             </button>
           </div>
+          {action === "restore" ? (
+            <Modal title={t("vehicles.restore_title")} onClose={close}>
+              <p className="muted small">
+                {t("vehicles.restore_as", { relation: t(`vehicles.relation_${vehicle.relation}`) })}
+              </p>
+              {vehicle.relation === "client" ? null : locationField}
+              {reasonField}
+              <ErrorMessage error={restore.error} />
+              <div className="actions">
+                <button
+                  type="button"
+                  disabled={!reason.trim() || (vehicle.relation !== "client" && !location) || restore.pending}
+                  onClick={() =>
+                    void run(restore, {
+                      relation: vehicle.relation,
+                      location_id: vehicle.relation === "client" ? null : location,
+                      owner_kind: vehicle.relation === "own" ? undefined : "none",
+                    })
+                  }
+                >
+                  {t("vehicles.restore_button")}
+                </button>
+              </div>
+            </Modal>
+          ) : null}
         </>
       ) : (
         <>

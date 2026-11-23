@@ -116,14 +116,18 @@ export function VehiclesPage() {
   const view: View = tab === "client" ? "client" : "list";
   const rel = params.get("rel") ?? (tab === "managed" || tab === "own" ? tab : "");
   const shown = new Set<Relation>(view === "client" ? ["client"] : rel === "own" || rel === "managed" ? [rel] : FLEET);
-  const go = (changes: { view?: View; rel?: string; q?: string }) => {
-    const next = { view, rel, q, ...changes };
+  // The cards in the archive are not shown until asked for, and then only they are (customer's
+  // decision of 24.11.2026).
+  const archive = params.get("archive") === "1";
+  const go = (changes: { view?: View; rel?: string; q?: string; archive?: boolean }) => {
+    const next = { view, rel, q, archive, ...changes };
     setParams(
       Object.fromEntries(
         Object.entries({
           tab: next.view === "client" ? "client" : "",
           rel: next.view === "client" ? "" : next.rel,
           q: next.q,
+          archive: next.archive ? "1" : "",
         }).filter(([, value]) => value),
       ),
     );
@@ -137,7 +141,10 @@ export function VehiclesPage() {
   // those without a location come last. Client vehicles have no location (§ 8.1.2).
   // Vehicles on a warehouse are stock items, shown in «Warehouse» (§ 8.1.5).
   const list = (vehicles.data?.vehicles ?? []).filter(
-    (v) => (only ? true : shown.has(v.relation as Relation)) && v.storage === null,
+    (v) =>
+      (only ? true : shown.has(v.relation as Relation)) &&
+      v.storage === null &&
+      (v.state === "archived") === archive,
   );
   const groups = (view === "client"
     ? [{ id: "client", name: "", vehicles: list }]
@@ -205,6 +212,9 @@ export function VehiclesPage() {
                     {t(`vehicles.tab_${key}`)}
                   </button>
                 ))}
+            <button type="button" className="toggle-chip" aria-pressed={archive} onClick={() => go({ archive: !archive })}>
+              {t("vehicles.archive_switch")}
+            </button>
             <SectionSearch compact value={q} onSearch={(text) => go({ q: text })} />
           </div>
           {only ? (

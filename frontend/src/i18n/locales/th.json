@@ -2918,7 +2918,11 @@
     "delete_ok": "ตกลง",
     "archive_title": "ย้ายไปที่เก็บถาวร",
     "archive_confirm": "ย้ายไปที่เก็บถาวร",
-    "delete_button": "ลบ"
+    "delete_button": "ลบ",
+    "restore_as": "การ์ดจะกลับมาเป็น «{{relation}}» — เหมือนก่อนเก็บถาวร",
+    "already_archived": "บริษัทมีรถคันนี้ในที่เก็บถาวร: «{{name}}» จะไม่สร้างการ์ดใบที่สอง — กู้คืนการ์ดเดิม",
+    "already_archived_open": "เปิดการ์ดและกู้คืน",
+    "archive_switch": "ที่เก็บถาวร"
   },
   "warehouse": {
     "action_create": "Create",

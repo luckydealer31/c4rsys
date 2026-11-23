@@ -1,18 +1,15 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 
-import { createCompany, ok, registerUser, uniqueEmail, waitForServer } from "../lib/api";
-import { mailCode } from "../lib/docker";
-import { t } from "../lib/i18n";
+import { ok, type Company } from "./api";
+import { mailCode } from "./docker";
+import { t } from "./i18n";
 
-// Customer's decision of 23.11.2026: a vehicle added as managed that the company already keeps
-// as a client one gets no second card — the earlier card is named and an employee with the
-// right takes it into management; its history stays in the same card.
-
-test("a managed vehicle kept as a client one is not doubled", async ({ page }) => {
-  await waitForServer(page);
-  const email = uniqueEmail("wasclient");
-  await registerUser(page, email, "Анна", "Петрова");
-  const s = await createCompany(page);
+// Customer's decisions of 23–24.11.2026 about the cards of one vehicle in a company: a vehicle
+// added as managed that is kept as a client one gets no second card; the management is ended
+// and a card is archived, shown in the archive and restored by small buttons with their own
+// windows; two matching cards are merged by the company itself. It runs inside a scenario that
+// has registered already: the hourly limit of registrations from one address stays as it is.
+export async function ownershipScenario(page: Page, s: Company, email: string): Promise<void> {
   const earlier = (
     await ok(page, "POST", `/c/${s.cmp}/vehicles`, {
       name: "Client Forza",
@@ -75,6 +72,27 @@ test("a managed vehicle kept as a client one is not doubled", async ({ page }) =
   await expect
     .poll(async () => ((await ok(page, "GET", `/c/${s.cmp}/vehicles/${earlier.id}`)).vehicle as { state: string }).state)
     .toBe("archived");
+  // The cards in the archive are not in the lists until asked for; then only they are shown
+  // (customer's decision of 24.11.2026).
+  await page.goto(`/c/${s.cmp}/vehicles?tab=client`);
+  await expect(page.getByText(t("vehicles.none"), { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: t("vehicles.archive_switch"), exact: true }).click();
+  await expect(page.getByRole("link", { name: "Client Forza" })).toBeVisible();
+  // A card is restored as what it was archived from, with no choice: a client one asks the
+  // reason only.
+  await page.getByRole("link", { name: "Client Forza" }).click();
+  await page.goto(`${page.url().split("?")[0]}?tab=history&part=ownership`);
+  await page.getByRole("button", { name: t("vehicles.restore_button"), exact: true }).click();
+  await expect(asking.getByLabel(t("vehicles.relation"))).toHaveCount(0);
+  await expect(asking.getByLabel(t("vehicles.location"))).toHaveCount(0);
+  await asking.getByLabel(t("vehicles.lifecycle_reason")).fill("The client is back");
+  await asking.getByRole("button", { name: t("vehicles.restore_button"), exact: true }).click();
+  await expect
+    .poll(async () => {
+      const v = (await ok(page, "GET", `/c/${s.cmp}/vehicles/${earlier.id}`)).vehicle as { state: string; relation: string };
+      return `${v.state} ${v.relation}`;
+    })
+    .toBe("active client");
 
   // Two cards of the company that match are merged by the company itself, from the conflict
   // shown in the card — the verification of c4rsys decides the matches between companies only
@@ -120,4 +138,4 @@ test("a managed vehicle kept as a client one is not doubled", async ({ page }) =
     identifier_conflicts: { open: boolean }[];
   };
   expect(main.identifier_conflicts.filter((c) => c.open)).toEqual([]);
-});
+}

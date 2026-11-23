@@ -241,6 +241,10 @@ def restore(
         raise errors.business_rule("VEHICLE_DISPOSED")
     if relation not in (Relation.OWN, Relation.MANAGED, Relation.CLIENT):
         raise errors.validation_error("relation", code="VALUE_UNKNOWN")
+    # A card comes back as what it was archived from; it is moved on from there by the actions
+    # of that relation (customer's decision of 24.11.2026).
+    if relation != card.relation:
+        raise errors.business_rule("VEHICLE_RESTORE_RELATION", relation=card.relation)
     if relation != Relation.CLIENT:
         if location_id is None:
             raise errors.validation_error("location_id", code="FIELD_REQUIRED")

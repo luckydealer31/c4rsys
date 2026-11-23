@@ -2918,7 +2918,11 @@
     "delete_ok": "Окей",
     "archive_title": "Перенос в архив",
     "archive_confirm": "Перенести в архив",
-    "delete_button": "Удалить"
+    "delete_button": "Удалить",
+    "restore_as": "Карточка вернётся как «{{relation}}» — тем, чем была до архива.",
+    "already_archived": "Это Т/С есть в архиве компании: «{{name}}». Вторая карточка не создаётся — восстановите прежнюю.",
+    "already_archived_open": "Открыть карточку и восстановить",
+    "archive_switch": "Архив"
   },
   "warehouse": {
     "action_create": "Создать",
