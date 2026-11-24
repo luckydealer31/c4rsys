@@ -6,6 +6,7 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 import type { Client, ServiceOperation } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
+import { BackTitle } from "../../layout/BackTitle";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { fromLocalInput } from "../../time";
 import { clientName } from "../clients/ClientsPage";
@@ -76,16 +77,17 @@ export function NewServiceOperationPage() {
     if (result) {
       await queryClient.invalidateQueries({ queryKey: ["service-operations"] });
       await queryClient.invalidateQueries({ queryKey: ["orders"] });
-      navigate(companyPath(company, `/service/operations/${result.operation.id}`));
+      // The form is replaced by the operation it has made, so «Back» of the operation leads to
+      // where the form was opened from — the card of the vehicle or the service.
+      navigate(companyPath(company, `/service/operations/${result.operation.id}`), { replace: true });
     }
   }
 
   return (
     <div className="page">
-      <p>
-        <Link to={companyPath(company, "/service?tab=work")}>← {t("nav.service")}</Link>
-      </p>
-      <h1>{t("service.new_operation")}</h1>
+      <BackTitle fallback={companyPath(company, "/service?tab=work")}>
+        <h1>{t("service.new_operation")}</h1>
+      </BackTitle>
       {locations.isLoading || vehicles.isLoading ? <Loading /> : null}
       <Card>
         <form className="stack" onSubmit={submit}>

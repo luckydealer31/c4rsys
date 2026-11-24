@@ -8,6 +8,7 @@ import { useApi } from "../../api/queries";
 import type { ServiceJob, ServiceMaterial, ServiceOperation } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Info, Loading } from "../../components/ui";
+import { BackTitle } from "../../layout/BackTitle";
 import { OrderLeft, OrderOffer, useOrderOffer } from "../orders/CancelWith";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { formatMoment, fromLocalInput, toLocalInput } from "../../time";
@@ -58,13 +59,12 @@ export function ServiceOperationPage() {
   const final = FINAL_STATES.includes(op.state);
   return (
     <div className="page">
-      <p>
-        <Link to={companyPath(company, "/service?tab=work")}>← {t("nav.service")}</Link>
-      </p>
+      <BackTitle fallback={companyPath(company, "/service?tab=work")}>
       <h1>
         {t("service.operation_title", { number: op.number })}{" "}
         <span className={`badge ${final ? "" : "warn"}`}>{t(`service.state_${op.state}`)}</span>
       </h1>
+      </BackTitle>
       <TagsLine kind="service_operation" id={op.id} />
       <Card>
         <dl className="facts">

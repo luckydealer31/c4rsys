@@ -490,7 +490,13 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
           {/* The photos stand above the plate: the documents under it may be many (decision of
               17.11.2026). */}
           <VehiclePhotos vehicle={vehicle} />
-          {renderFacts([...facts.filter(([, , field]) => field === "#plate"), ...facts.filter(([, , field]) => !field)])}
+          {/* The owner, then the registration number and its region — the order of the tab
+              «Ownership» (customer's remark of 24.11.2026); then the labels of the card. */}
+          {renderFacts([
+            ...facts.filter(([label]) => label === t("vehicles.section_owner")),
+            ...facts.filter(([, , field]) => field === "#plate"),
+            ...facts.filter(([label, , field]) => !field && label !== t("vehicles.section_owner")),
+          ])}
           <h3 style={{ marginTop: 20 }}>{t("nav.documents")}</h3>
           <GlobalDocumentsList vehicle={vehicle} />
           <VehicleDocumentsList vehicle={vehicle} />
