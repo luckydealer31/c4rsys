@@ -184,21 +184,25 @@ export function VehiclesPage() {
     <div className="page full">
       <h1 className="sr-only">{t("nav.garage")}</h1>
       <CompanyTabs current="garage" />
+      {/* The fleet and the client vehicles are two lists that never mix: tabs under the tabs of
+          the section, put in order by the same button (customer's decision of 24.11.2026). The
+          switches of one list — «own», «managed», «archive» — stay switches. */}
+      <SectionTabs
+        sub
+        section="garage_lists"
+        label={t("vehicles.scope_title")}
+        current={view}
+        tabs={[
+          { key: "list" as View, text: t("vehicles.scope_fleet") },
+          { key: "client" as View, text: t("vehicles.tab_client") },
+        ]}
+        onSelect={(key) => go(key === "client" ? { view: "client", rel: "" } : { view: "list" })}
+      />
       <div className={allowed.length ? "split" : ""}>
         <div>
           <div className="list-bar">
             {/* The list is either the fleet or the client vehicles; the two never mix. The
                 switches «own» / «managed» belong to the fleet only. */}
-            {(
-              <div className="segmented" role="group" aria-label={t("vehicles.scope_title")}>
-                <button type="button" aria-pressed={view === "list"} onClick={() => go({ view: "list" })}>
-                  {t("vehicles.scope_fleet")}
-                </button>
-                <button type="button" aria-pressed={view === "client"} onClick={() => go({ view: "client", rel: "" })}>
-                  {t("vehicles.tab_client")}
-                </button>
-              </div>
-            )}
             {view === "client"
               ? null
               : FLEET.map((key) => (
@@ -501,6 +505,7 @@ export function VehiclePage() {
   const client = useQueryClient();
   const [search, setSearch] = useSearchParams();
   const firstTab = useFirstTab("vehicle_card");
+  const firstPart = useFirstTab("vehicle_history");
   const navigate = useNavigate();
   const route = useLocation();
   const draftScope = useScope();
@@ -569,7 +574,7 @@ export function VehiclePage() {
   const asked = search.get("merge") || formerPart ? "history" : (old[named] ?? named);
   const tab: CardTab = tabs.find((key) => key === asked) ?? firstTab(tabs) ?? "main";
   const askedPart = search.get("merge") ? "ownership" : (formerPart ?? search.get("part"));
-  const part: HistoryPart = parts.find((key) => key === askedPart) ?? parts[0] ?? "changes";
+  const part: HistoryPart = parts.find((key) => key === askedPart) ?? firstPart(parts) ?? parts[0] ?? "changes";
   const openTab = (key: CardTab) => setSearch({ tab: key }, { replace: true });
   const openPart = (key: HistoryPart) => setSearch({ tab: "history", part: key }, { replace: true });
 
@@ -718,13 +723,15 @@ export function VehiclePage() {
         </div>
       ) : null}
       {tab === "history" ? (
-        <div className="segmented" role="group" style={{ marginBottom: 16 }}>
-          {parts.map((key) => (
-            <button key={key} type="button" aria-pressed={part === key} onClick={() => openPart(key)}>
-              {t(`vehicles.history_${key}`)}
-            </button>
-          ))}
-        </div>
+        // The parts of the history are tabs of their own, in the order the user has put — the
+        // same look as the tabs of the card (customer's remark of 24.11.2026).
+        <SectionTabs
+          sub
+          section="vehicle_history"
+          current={part}
+          tabs={parts.map((key) => ({ key, text: t(`vehicles.history_${key}`) }))}
+          onSelect={openPart}
+        />
       ) : null}
       {tab === "history" && part === "rentals" && can("rental.view") ? (
         <Card title={t("vehicles.rentals")}>

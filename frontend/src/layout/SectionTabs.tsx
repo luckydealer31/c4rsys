@@ -1,8 +1,32 @@
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type CSSProperties,
+  type KeyboardEvent,
+  type PointerEvent,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import { MotionIcon } from "../components/motion/MotionIcon";
 import { useTabOrder } from "./tabOrder";
+
+// The mode of putting the tabs in order is one for the whole page (customer's decision of
+// 24.11.2026): one button switches it on for the tabs and for the tabs under them at once.
+let orderingNow = false;
+const watchers = new Set<() => void>();
+function setOrderingNow(next: boolean) {
+  if (orderingNow === next) return;
+  orderingNow = next;
+  watchers.forEach((tell) => tell());
+}
+function watch(tell: () => void) {
+  watchers.add(tell);
+  return () => {
+    watchers.delete(tell);
+  };
+}
 
 /** The tabs of a section, one look everywhere, in the order the user has put (customer's
  * decisions of 17.11.2026). The order is changed in its own mode, switched on by the button at
@@ -17,6 +41,7 @@ export function SectionTabs<T extends string>({
   label,
   centered = false,
   style,
+  sub = false,
 }: {
   section: string;
   tabs: { key: T; text: string }[];
@@ -25,6 +50,9 @@ export function SectionTabs<T extends string>({
   label?: string;
   centered?: boolean;
   style?: CSSProperties;
+  /** The tabs under other tabs: they are put in order by the button of those, and have none
+   * of their own. */
+  sub?: boolean;
 }) {
   const { t } = useTranslation();
   const order = useTabOrder(
@@ -32,7 +60,9 @@ export function SectionTabs<T extends string>({
     tabs.map((tab) => tab.key),
   );
   const list = useRef<HTMLDivElement>(null);
-  const [ordering, setOrdering] = useState(false);
+  const ordering = useSyncExternalStore(watch, () => orderingNow);
+  // The mode does not outlive the page it was switched on at.
+  useEffect(() => (sub ? undefined : () => setOrderingNow(false)), [sub]);
   // The button has been pressed here: from then on its drawing plays when it changes.
   const [pressed, setPressed] = useState(false);
   // While a tab is dragged: the tab and the order as it is shown under the pointer.
@@ -47,7 +77,7 @@ export function SectionTabs<T extends string>({
   useEffect(() => {
     if (!ordering) return;
     const onKey = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape") setOrdering(false);
+      if (event.key === "Escape") setOrderingNow(false);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -143,6 +173,7 @@ export function SectionTabs<T extends string>({
           </button>
         ))}
       </div>
+      {sub ? null : (
       <button
         type="button"
         className={`icon-button tabs-order${ordering ? " primary" : ""}`}
@@ -151,13 +182,14 @@ export function SectionTabs<T extends string>({
         title={action}
         onClick={() => {
           setPressed(true);
-          setOrdering(!ordering);
+          setOrderingNow(!ordering);
         }}
       >
         {/* The animated drawings the customer chose (decision of 17.11.2026): the two arrows,
             and the check mark while the order is being changed. */}
         <MotionIcon key={ordering ? "check" : "swap"} name={ordering ? "check" : "swap"} size={18} autoplay={pressed} />
       </button>
+      )}
     </div>
   );
 }
