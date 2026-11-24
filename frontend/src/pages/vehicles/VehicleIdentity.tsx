@@ -32,21 +32,23 @@ function useRefreshVehicle(id: string) {
 
 /** § 8.6.1, § 8.6.4: conflicts of identifiers of the card — the fact of a match and its number
  * only; nothing of the other record. A conflict never blocks the card. */
-export function ConflictsCard({ vehicle }: { vehicle: Vehicle }) {
+export function ConflictsCard({ vehicle, only }: { vehicle: Vehicle; only: "open" | "closed" }) {
   const { t } = useTranslation();
   const company = useCompany();
   const when = useWhen();
   const can = useCan();
-  const items = vehicle.identifier_conflicts ?? [];
+  const every = vehicle.identifier_conflicts ?? [];
+  const open = every.filter((c) => c.open && !c.left_at);
+  // The conflicts being checked stand in the main tab; the closed ones — in the history.
+  const items = only === "open" ? open : every.filter((c) => !(c.open && !c.left_at));
   if (!items.length) return null;
-  const open = items.filter((c) => c.open && !c.left_at);
   // The company's own matching cards are merged by the company itself (customer's decision of
   // 23.11.2026): the merge is offered beside such a card.
   const mergeable = new Set((vehicle.merge_candidates ?? []).map((c) => c.id));
   const own = open.some((c) => c.own_cards.some((o) => mergeable.has(o.id)));
   return (
-    <Card title={t("vehicles.conflicts_title")}>
-      {open.length ? (
+    <Card title={t(only === "open" ? "vehicles.conflicts_title" : "vehicles.conflicts_closed_title")}>
+      {only === "open" ? (
         <div className="alert warn">{t(own ? "vehicles.conflicts_hint_own" : "vehicles.conflicts_hint")}</div>
       ) : null}
       <ul className="plain">
@@ -366,7 +368,9 @@ type SplitRecord = { key: string; kind: string; id: string; label: string; at: s
 
 /** § 8.6.5: the merges into this card and their split — one action with the manual assignment of
  * the records made after the merge. */
-export function MergesCard({ vehicle }: { vehicle: Vehicle }) {
+/** `split` — the merges that can be split, with the action (the settings); without it — the
+ * records of all the merges (the history). */
+export function MergesCard({ vehicle, split }: { vehicle: Vehicle; split: boolean }) {
   const { t } = useTranslation();
   const company = useCompany();
   const when = useWhen();
@@ -375,10 +379,11 @@ export function MergesCard({ vehicle }: { vehicle: Vehicle }) {
     `/c/${company.public_id}/vehicles/${vehicle.id}/merges`,
   );
   const [splitting, setSplitting] = useState<string | null>(null);
-  const items = merges.data?.merges ?? [];
-  if (!items.length) return null;
+  const can = useCan();
+  const items = (merges.data?.merges ?? []).filter((m) => !split || m.state === "merged");
+  if (!items.length || (split && !can("vehicle.split"))) return null;
   return (
-    <Card title={t("vehicles.merges_title")}>
+    <Card title={t(split ? "vehicles.split_title" : "vehicles.merges_title")}>
       <ul className="plain">
         {items.map((m) => (
           <li key={m.id} className="stack" style={{ marginBottom: 8 }}>
@@ -386,7 +391,7 @@ export function MergesCard({ vehicle }: { vehicle: Vehicle }) {
               «{m.duplicate.name}» → «{m.primary.name}» · {t(`vehicles.merge_state_${m.state}`)} · {when(m.merged_at)}
               {m.split_at ? ` · ${t("vehicles.split_at", { at: when(m.split_at) })}` : ""}
             </span>
-            {m.state === "merged" ? (
+            {split && m.state === "merged" ? (
               splitting === m.id ? (
                 <SplitForm vehicle={vehicle} merge={m} onDone={() => setSplitting(null)} />
               ) : (

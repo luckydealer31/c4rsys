@@ -675,6 +675,9 @@ button.calendar-day:hover:not(.edge) { background: color-mix(in srgb, var(--acce
 .inspections-split { display: grid; gap: 0 20px; align-items: start; }
 @media (min-width: 1000px) { .inspections-split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
 .document-summary li { margin-bottom: 8px; }
+/* The action of a block without a title: in its right top corner. */
+.card:has(> .corner-action) { position: relative; }
+.corner-action { position: absolute; top: 12px; right: 12px; z-index: 1; }
 .card-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-bottom: var(--gap); }
 .card-head h1 { margin: 0; }
 .facts-columns { display: grid; gap: 8px 48px; }

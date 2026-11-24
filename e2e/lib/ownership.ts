@@ -44,8 +44,7 @@ export async function ownershipScenario(page: Page, s: Company, email: string): 
   await expect(page.getByRole("heading", { name: "Client Forza" })).toBeVisible();
   const card = (await ok(page, "GET", `/c/${s.cmp}/vehicles/${earlier.id}`)).vehicle as { relation: string };
   expect(card.relation).toBe("managed");
-  // The management is ended by its button in the history of the ownership: the vehicle becomes
-  // a client one, the card stays.
+  // The history of the ownership is a part of the history.
   await page.goto(`/c/${s.cmp}/vehicles/${earlier.id}?tab=history&part=ownership`);
   // The parts of the history are tabs too, with their own order.
   await expect(page.getByRole("tab", { name: t("vehicles.history_ownership"), exact: true })).toHaveAttribute("aria-selected", "true");
@@ -57,9 +56,10 @@ export async function ownershipScenario(page: Page, s: Company, email: string): 
   await expect(page.locator(".tabs.ordering")).toHaveCount(2);
   await page.getByRole("button", { name: t("common.tabs_order_done"), exact: true }).click();
   await expect(page.locator(".tabs.ordering")).toHaveCount(0);
-  // Every action is a small button that asks what it needs in its own window (customer's remark
-  // of 23.11.2026).
-  await expect(page.getByRole("main").getByLabel(t("vehicles.lifecycle_reason"))).toHaveCount(0);
+  // The actions with the relation stand in the settings, not in the history (customer's remark
+  // of 24.11.2026); every action is a small button that asks what it needs in its own window.
+  await expect(page.getByRole("button", { name: t("vehicles.end_management_button"), exact: true })).toHaveCount(0);
+  await page.goto(`/c/${s.cmp}/vehicles/${earlier.id}?tab=settings`);
   await page.getByRole("button", { name: t("vehicles.end_management_button"), exact: true }).click();
   const asking = page.getByRole("dialog");
   await asking.getByLabel(t("vehicles.lifecycle_reason")).fill("Owner took it back");
@@ -93,7 +93,7 @@ export async function ownershipScenario(page: Page, s: Company, email: string): 
   // A card is restored as what it was archived from, with no choice: a client one asks the
   // reason only.
   await page.getByRole("link", { name: "Client Forza" }).click();
-  await page.goto(`${page.url().split("?")[0]}?tab=history&part=ownership`);
+  await page.goto(`${page.url().split("?")[0]}?tab=settings`);
   await page.getByRole("button", { name: t("vehicles.restore_button"), exact: true }).click();
   await expect(asking.getByLabel(t("vehicles.relation"))).toHaveCount(0);
   await expect(asking.getByLabel(t("vehicles.location"))).toHaveCount(0);
@@ -150,4 +150,15 @@ export async function ownershipScenario(page: Page, s: Company, email: string): 
     identifier_conflicts: { open: boolean }[];
   };
   expect(main.identifier_conflicts.filter((c) => c.open)).toEqual([]);
+  // A closed conflict leaves the main tab and stays in the history of the ownership.
+  await page.goto(`/c/${s.cmp}/vehicles/${first.id}`);
+  await expect(page.getByRole("heading", { name: "Forza old" })).toBeVisible();
+  await expect(page.getByRole("main")).not.toContainText(t("vehicles.conflicts_title"));
+  await page.goto(`/c/${s.cmp}/vehicles/${first.id}?tab=history&part=ownership`);
+  await expect(page.getByRole("heading", { name: t("vehicles.conflicts_closed_title"), exact: true })).toBeVisible();
+  // The history holds records only: the merge is named there, and it is split in the settings.
+  await expect(page.getByRole("main")).toContainText("«Forza new» → «Forza old»");
+  await expect(page.getByRole("button", { name: t("vehicles.split_open"), exact: true })).toHaveCount(0);
+  await page.goto(`/c/${s.cmp}/vehicles/${first.id}?tab=settings`);
+  await expect(page.getByRole("button", { name: t("vehicles.split_open"), exact: true })).toBeVisible();
 }

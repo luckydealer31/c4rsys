@@ -385,7 +385,7 @@ export function NewVehiclePage() {
         <Link
           to={companyPath(
             company,
-            `/vehicles/${here.card_id}${here.state === "archived" ? "?tab=history&part=ownership" : ""}`,
+            `/vehicles/${here.card_id}${here.state === "archived" ? "?tab=settings" : ""}`,
           )}
         >
           {t(here.state === "archived" ? "vehicles.already_archived_open" : "vehicles.already_here_open")}

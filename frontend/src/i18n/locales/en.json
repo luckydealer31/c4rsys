@@ -2922,7 +2922,9 @@
     "restore_as": "The card comes back as “{{relation}}” — what it was before the archive.",
     "already_archived": "The company keeps this vehicle in the archive: “{{name}}”. A second card is not made — restore the earlier one.",
     "already_archived_open": "Open the card and restore it",
-    "archive_switch": "Archive"
+    "archive_switch": "Archive",
+    "conflicts_closed_title": "Closed conflicts of identifiers",
+    "split_title": "Split of merged cards"
   },
   "warehouse": {
     "action_create": "Create",

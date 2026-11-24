@@ -336,7 +336,9 @@ test("base example from registration to closing survives a restart", async ({ pa
   await expect(page.getByRole("heading", { name: "Toyota Yaris" })).toBeVisible();
   // The region is typed by hand in the edit form, beside the plate and its country.
   // «Change» is a pencil everywhere (customer's remark of 24.11.2026).
-  await card(page, t("vehicles.card_main")).getByRole("button", { name: t("common.edit"), exact: true }).click();
+  // The tab «Main» has no second title «Main» inside it.
+  await expect(page.getByRole("heading", { name: t("vehicles.card_main"), exact: true })).toHaveCount(0);
+  await page.locator("section.card").first().getByRole("button", { name: t("common.edit"), exact: true }).click();
   // The form has the head of the card: «Back» and the title in one line.
   await expect(page.getByRole("heading", { name: t("vehicles.edit_title"), exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: t("common.back"), exact: true })).toBeVisible();
@@ -575,8 +577,8 @@ test("base example from registration to closing survives a restart", async ({ pa
   await page.goto(`${cardUrl}?tab=history&part=changes`);
   await expect(card(page, t("vehicles.journal_title"))).toContainText(t("vehicles.journal_actions.vehicle_document-added"));
   await page.goto(cardUrl);
-  await expect(card(page, t("vehicles.card_main"))).toContainText("Blue Book");
-  await expect(card(page, t("vehicles.card_main"))).toContainText("123456");
+  await expect(page.locator("section.card").first()).toContainText("Blue Book");
+  await expect(page.locator("section.card").first()).toContainText("123456");
 
   // The card of the client shows text; the data are changed in a window opened by the pencil.
   await page.goto(`${base}/clients`);

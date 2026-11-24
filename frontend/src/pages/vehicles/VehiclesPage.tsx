@@ -452,18 +452,17 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
   );
   return (
     <Card>
-      {/* The pencil stands beside the title of the block, as everywhere (customer's remark of
-          24.11.2026). */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-        <h2 style={{ margin: 0 }}>{t("vehicles.card_main")}</h2>
-        {can("vehicle.edit") && vehicle.state !== "archived" ? (
+      {/* The tab is named «Main» already, so the block has no title of its own; the pencil
+          stands in its right corner (customer's remark of 24.11.2026). */}
+      {can("vehicle.edit") && vehicle.state !== "archived" ? (
+        <div className="corner-action">
           <IconButton
             icon="edit"
             label={t("common.edit")}
             onClick={() => navigate(companyPath(company, `/vehicles/${vehicle.id}/edit`))}
           />
-        ) : null}
-      </div>
+        </div>
+      ) : null}
       {c.identifier_matches.length ? (
         <div className="alert warn">
           {c.identifier_matches.map((m) => t(`vehicles.match_${m}`)).join(" ")}
@@ -571,9 +570,10 @@ export function VehiclePage() {
   const old: Record<string, string> = { damages: "inspections", documents: "main", tasks: "main" };
   const named = search.get("tab") ?? "";
   const formerPart = parts.find((key) => key === named);
-  const asked = search.get("merge") || formerPart ? "history" : (old[named] ?? named);
+  // The merge of a duplicate is an action: it stands in the settings.
+  const asked = search.get("merge") ? "settings" : formerPart ? "history" : (old[named] ?? named);
   const tab: CardTab = tabs.find((key) => key === asked) ?? firstTab(tabs) ?? "main";
-  const askedPart = search.get("merge") ? "ownership" : (formerPart ?? search.get("part"));
+  const askedPart = formerPart ?? search.get("part");
   const part: HistoryPart = parts.find((key) => key === askedPart) ?? firstPart(parts) ?? parts[0] ?? "changes";
   const openTab = (key: CardTab) => setSearch({ tab: key }, { replace: true });
   const openPart = (key: HistoryPart) => setSearch({ tab: "history", part: key }, { replace: true });
@@ -621,7 +621,9 @@ export function VehiclePage() {
       {tab === "main" ? (
       <>
       <VehicleFacts vehicle={data} />
-      <ConflictsCard vehicle={data} />
+      {/* Only the conflicts being checked now; the closed ones are history (customer's remark of
+          24.11.2026). */}
+      <ConflictsCard vehicle={data} only="open" />
       <ProposalsCard vehicle={data} />
       </>
       ) : null}
@@ -692,6 +694,15 @@ export function VehiclePage() {
               a document by a template is not offered in the card of a vehicle. */}
           <VehicleDocumentsSettings vehicle={data} />
           <RestrictionCard vehicle={data} />
+          {/* To end the management, to archive and to restore are actions, not history: they
+              stand in the settings (customer's remark of 24.11.2026). */}
+          <RelationCard vehicle={data} />
+          <DisposeCard vehicle={data} />
+          <ReversalCard vehicle={data} />
+          {data.relation === "managed" ? <OwnerRequestCard vehicle={data} /> : null}
+          <DisclosureCard vehicle={data} />
+          <MergeCard key={search.get("merge") ?? ""} vehicle={data} preselected={search.get("merge")} />
+          <MergesCard vehicle={data} split />
           {/* The owner's documents and the company's copies of them (§ 8.2.3, § 8.2.7) — only
               when there are any. */}
           {data.global_documents?.documents.length || data.global_documents?.copies.length ? (
@@ -772,13 +783,10 @@ export function VehiclePage() {
       {tab === "history" && part === "ownership" ? (
         <>
           <HistoryCard vehicle={data} />
-          <RelationCard vehicle={data} />
-          <DisposeCard vehicle={data} />
-          <ReversalCard vehicle={data} />
-          <DisclosureCard vehicle={data} />
-          {data.relation === "managed" ? <OwnerRequestCard vehicle={data} /> : null}
-          <MergeCard key={search.get("merge") ?? ""} vehicle={data} preselected={search.get("merge")} />
-          <MergesCard vehicle={data} />
+          {/* Only records stand in the history: nothing here changes the card (customer's
+              decision of 24.11.2026). */}
+          <ConflictsCard vehicle={data} only="closed" />
+          <MergesCard vehicle={data} split={false} />
           <MergedHistory vehicle={data} />
         </>
       ) : null}

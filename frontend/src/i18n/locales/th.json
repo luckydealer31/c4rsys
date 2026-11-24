@@ -2922,7 +2922,9 @@
     "restore_as": "การ์ดจะกลับมาเป็น «{{relation}}» — เหมือนก่อนเก็บถาวร",
     "already_archived": "บริษัทมีรถคันนี้ในที่เก็บถาวร: «{{name}}» จะไม่สร้างการ์ดใบที่สอง — กู้คืนการ์ดเดิม",
     "already_archived_open": "เปิดการ์ดและกู้คืน",
-    "archive_switch": "ที่เก็บถาวร"
+    "archive_switch": "ที่เก็บถาวร",
+    "conflicts_closed_title": "ข้อขัดแย้งของตัวระบุที่ปิดแล้ว",
+    "split_title": "แยกการ์ดที่รวมแล้ว"
   },
   "warehouse": {
     "action_create": "Create",
