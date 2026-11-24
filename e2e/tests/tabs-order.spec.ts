@@ -90,12 +90,12 @@ test("the tabs of a section are put in the user's order in the mode of the order
   await page.goto(`${s.base}/vehicles/${s.vehicle}`);
   await expect(tabOf(page, t("vehicles.card_main"))).toBeVisible();
   await orderButton(page).click();
-  await dragTab(page, t("vehicles.card_history"), t("vehicles.card_main"), "before");
-  await expect.poll(async () => (await tabNames(page))[0]).toBe(t("vehicles.card_history"));
+  await dragTab(page, t("vehicles.card_ownership"), t("vehicles.card_main"), "before");
+  await expect.poll(async () => (await tabNames(page))[0]).toBe(t("vehicles.card_ownership"));
   // The card opens on its first tab too.
   await page.keyboard.press("Escape");
   await page.goto(`${s.base}/vehicles/${s.vehicle}`);
-  await expect(tabOf(page, t("vehicles.card_history"))).toHaveAttribute("aria-selected", "true");
+  await expect(tabOf(page, t("vehicles.card_ownership"))).toHaveAttribute("aria-selected", "true");
   await page.goto(`${s.base}/company`);
   await expect(tabOf(page, t("company.tab_about"))).toBeVisible();
   await orderButton(page).click();

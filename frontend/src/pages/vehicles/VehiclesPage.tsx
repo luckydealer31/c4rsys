@@ -76,10 +76,12 @@ type CardTab =
   | "rentals"
   | "moves"
   | "ownership"
-  | "history"
   | "settings";
 // The parts of the history of a vehicle: one tab instead of four (decision of 13.11.2026).
-type HistoryPart = "rentals" | "moves" | "finance" | "ownership" | "changes";
+type HistoryPart = "rentals" | "moves" | "finance" | "ownership";
+// The settings of the card are split into tabs under the tab (customer's decision of 24.11.2026).
+type SettingsPart = "general" | "documents" | "access" | "card" | "history";
+const SETTINGS_PARTS: SettingsPart[] = ["general", "documents", "access", "card", "history"];
 
 /** Garage (§ 8.7.2; customer's decisions of 24.10.2026 and 11.11.2026). Own and managed vehicles
  * are one list, grouped by location, with the switches «own» / «managed»; the schedule is the
@@ -519,6 +521,7 @@ export function VehiclePage() {
   const client = useQueryClient();
   const [search, setSearch] = useSearchParams();
   const firstTab = useFirstTab("vehicle_card");
+  const firstSettings = useFirstTab("vehicle_settings");
   const navigate = useNavigate();
   const route = useLocation();
   const draftScope = useScope();
@@ -577,7 +580,6 @@ export function VehiclePage() {
     ...(isClient ? [] : (["finance", "rentals", "moves"] as CardTab[])),
     ...(stored && data.state === "active" ? (["moves"] as CardTab[]) : []),
     "ownership",
-    "history",
     "settings",
   ];
   // Old addresses: damages are shown with the inspections, documents on the main tab; the
@@ -585,17 +587,24 @@ export function VehiclePage() {
   const old: Record<string, string> = { damages: "inspections", documents: "main", tasks: "main" };
   const named = search.get("tab") ?? "";
   const formerPart = named === "history" ? (search.get("part") ?? "") : "";
-  // The merge of a duplicate is an action: it stands in the settings.
+  // The merge of a duplicate is an action: it stands in the settings. The journal of changes —
+  // the former tab «History» — is a part of the settings too.
   const asked = search.get("merge")
     ? "settings"
-    : formerPart && formerPart !== "changes"
-      ? formerPart
+    : named === "history"
+      ? formerPart && formerPart !== "changes"
+        ? formerPart
+        : "settings"
       : (old[named] ?? named);
   const tab: CardTab = tabs.find((key) => key === asked) ?? firstTab(tabs) ?? "main";
   // What the blocks below are shown by.
   const part: HistoryPart | null =
-    tab === "history" ? "changes" : tab === "finance" || tab === "rentals" || tab === "moves" || tab === "ownership" ? tab : null;
+    tab === "finance" || tab === "rentals" || tab === "moves" || tab === "ownership" ? tab : null;
+  const askedSettings = search.get("merge") ? "card" : named === "history" ? "history" : search.get("part");
+  const settingsPart: SettingsPart =
+    SETTINGS_PARTS.find((key) => key === askedSettings) ?? firstSettings(SETTINGS_PARTS) ?? "general";
   const openTab = (key: CardTab) => setSearch({ tab: key }, { replace: true });
+  const openSettings = (key: SettingsPart) => setSearch({ tab: "settings", part: key }, { replace: true });
 
   return (
     <div className="page wide">
@@ -650,7 +659,16 @@ export function VehiclePage() {
           settings, not characteristics). */}
       {tab === "settings" ? (
         <>
-          <Card title={t("vehicles.card_settings")}>
+          <SectionTabs
+            sub
+            section="vehicle_settings"
+            current={settingsPart}
+            tabs={SETTINGS_PARTS.map((key) => ({ key, text: t(`vehicles.settings_${key}`) }))}
+            onSelect={openSettings}
+          />
+          {settingsPart === "general" ? (
+            <>
+          <Card>
         {can("vehicle.edit") && data.state !== "archived" ? (
           name === null ? (
             <p>
@@ -709,24 +727,39 @@ export function VehiclePage() {
             </Card>
           )}
           {isClient ? null : <VehicleTariffs vehicleId={data.id} />}
-          {/* Documents of the vehicle are added and changed here (decision of 12.11.2026); making
-              a document by a template is not offered in the card of a vehicle. */}
-          <VehicleDocumentsSettings vehicle={data} />
-          <RestrictionCard vehicle={data} />
-          {/* To end the management, to archive and to restore are actions, not history: they
-              stand in the settings (customer's remark of 24.11.2026). */}
-          <RelationCard vehicle={data} />
-          <DisposeCard vehicle={data} />
-          <ReversalCard vehicle={data} />
-          {data.relation === "managed" ? <OwnerRequestCard vehicle={data} /> : null}
-          <DisclosureCard vehicle={data} />
-          <MergeCard key={search.get("merge") ?? ""} vehicle={data} preselected={search.get("merge")} />
-          <MergesCard vehicle={data} split />
-          {/* The owner's documents and the company's copies of them (§ 8.2.3, § 8.2.7) — only
-              when there are any. */}
-          {data.global_documents?.documents.length || data.global_documents?.copies.length ? (
-            <GlobalDocumentsCard vehicle={data} />
+            </>
           ) : null}
+          {settingsPart === "documents" ? (
+            <>
+              {/* Documents of the vehicle are added and changed here (decision of 12.11.2026);
+                  making a document by a template is not offered in the card of a vehicle. */}
+              <VehicleDocumentsSettings vehicle={data} />
+              {/* The owner's documents and the company's copies of them (§ 8.2.3, § 8.2.7) — only
+                  when there are any. */}
+              {data.global_documents?.documents.length || data.global_documents?.copies.length ? (
+                <GlobalDocumentsCard vehicle={data} />
+              ) : null}
+            </>
+          ) : null}
+          {settingsPart === "access" ? (
+            <>
+              <RestrictionCard vehicle={data} />
+              {data.relation === "managed" ? <OwnerRequestCard vehicle={data} /> : null}
+              <DisclosureCard vehicle={data} />
+            </>
+          ) : null}
+          {/* To end the management, to archive, to restore, to merge and to split are actions with
+              the card itself (customer's remarks of 24.11.2026). */}
+          {settingsPart === "card" ? (
+            <>
+              <RelationCard vehicle={data} />
+              <DisposeCard vehicle={data} />
+              <ReversalCard vehicle={data} />
+              <MergeCard key={search.get("merge") ?? ""} vehicle={data} preselected={search.get("merge")} />
+              <MergesCard vehicle={data} split />
+            </>
+          ) : null}
+          {settingsPart === "history" ? <VehicleJournal vehicle={data} /> : null}
         </>
       ) : null}
       {tab === "service" ? (
@@ -766,7 +799,6 @@ export function VehiclePage() {
         </>
       ) : null}
       {part === "finance" ? <VehicleFinance vehicle={data} /> : null}
-      {part === "changes" ? <VehicleJournal vehicle={data} /> : null}
     </div>
   );
 }

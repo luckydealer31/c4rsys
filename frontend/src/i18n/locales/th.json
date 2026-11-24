@@ -2937,7 +2937,12 @@
     "peek_issue_place": "ส่งมอบ",
     "peek_return_place": "รับคืน",
     "peek_comment": "ความคิดเห็น",
-    "peek_cancel_reason": "เหตุผลที่ยกเลิก"
+    "peek_cancel_reason": "เหตุผลที่ยกเลิก",
+    "settings_general": "ทั่วไป",
+    "settings_documents": "เอกสาร",
+    "settings_access": "การเข้าถึง",
+    "settings_card": "การ์ด",
+    "settings_history": "ประวัติ"
   },
   "warehouse": {
     "action_create": "Create",

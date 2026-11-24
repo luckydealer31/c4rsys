@@ -2937,7 +2937,12 @@
     "peek_issue_place": "Выдача",
     "peek_return_place": "Возврат",
     "peek_comment": "Комментарий",
-    "peek_cancel_reason": "Причина отмены"
+    "peek_cancel_reason": "Причина отмены",
+    "settings_general": "Общее",
+    "settings_documents": "Документы",
+    "settings_access": "Доступ",
+    "settings_card": "Карточка",
+    "settings_history": "История"
   },
   "warehouse": {
     "action_create": "Создать",

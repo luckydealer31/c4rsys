@@ -517,7 +517,7 @@ test("base example from registration to closing survives a restart", async ({ pa
   await expect(page.getByRole("tab", { name: t("vehicles.card_settings") })).toBeVisible();
   const cardUrl = page.url().split("?")[0];
   // «Back» returns to the list the card was opened from, also after looking through its tabs.
-  await page.getByRole("tab", { name: t("vehicles.card_history") }).click();
+  await page.getByRole("tab", { name: t("vehicles.card_ownership") }).click();
   await page.getByRole("button", { name: t("common.back"), exact: true }).click();
   await expect(page).toHaveURL(/\/vehicles$/);
   // The garage is a tab of «Company»; the schedule and the trips are tabs of «Rental».
@@ -548,6 +548,9 @@ test("base example from registration to closing survives a restart", async ({ pa
   await expect(page.getByRole("tab", { name: t("rentals.tab_schedule") })).toHaveAttribute("aria-selected", "true");
   await page.goto(cardUrl);
   await page.getByRole("tab", { name: t("vehicles.card_settings") }).click();
+  // The settings are split into tabs under the tab; the documents are one of them (customer's
+  // decision of 24.11.2026).
+  await page.getByRole("tab", { name: t("vehicles.settings_documents"), exact: true }).click();
   await page.getByRole("button", { name: t("vehicles.document_add") }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel(t("vehicles.document_name")).fill("Blue Book");
@@ -588,7 +591,9 @@ test("base example from registration to closing survives a restart", async ({ pa
   await expect(page.getByRole("heading", { name: t("vehicles.plates_title"), exact: true })).toHaveCount(0);
   await expect(page.getByRole("main")).toContainText("AB 1234 TH");
   // Who added the document is written in the journal of the card.
+  // The journal is a part of the settings; the old address of the tab «History» leads to it.
   await page.goto(`${cardUrl}?tab=history`);
+  await expect(page.getByRole("tab", { name: t("vehicles.settings_history"), exact: true })).toHaveAttribute("aria-selected", "true");
   await expect(card(page, t("vehicles.journal_title"))).toContainText(t("vehicles.journal_actions.vehicle_document-added"));
   await page.goto(cardUrl);
   await expect(page.locator("section.card").first()).toContainText("Blue Book");

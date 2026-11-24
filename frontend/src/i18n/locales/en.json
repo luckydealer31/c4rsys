@@ -2937,7 +2937,12 @@
     "peek_issue_place": "Issue",
     "peek_return_place": "Return",
     "peek_comment": "Comment",
-    "peek_cancel_reason": "Reason of the cancel"
+    "peek_cancel_reason": "Reason of the cancel",
+    "settings_general": "General",
+    "settings_documents": "Documents",
+    "settings_access": "Access",
+    "settings_card": "Card",
+    "settings_history": "History"
   },
   "warehouse": {
     "action_create": "Create",
