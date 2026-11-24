@@ -30,8 +30,8 @@ import { VehicleMoves } from "./VehicleMoves";
 import { VehicleDamagesCard, VehicleInspectionsCard } from "../inspections/Blocks";
 import {
   ConflictsCard,
+  DuplicatesHistory,
   MergeCard,
-  MergedHistory,
   MergesCard,
   OperationalDisputeBanner,
   OwnerDataBanner,
@@ -782,9 +782,7 @@ export function VehiclePage() {
           <HistoryCard vehicle={data} />
           {/* Only records stand in the history: nothing here changes the card (customer's
               decision of 24.11.2026). */}
-          <ConflictsCard vehicle={data} only="closed" />
-          <MergesCard vehicle={data} split={false} />
-          <MergedHistory vehicle={data} />
+          <DuplicatesHistory vehicle={data} />
         </>
       ) : null}
       {part === "finance" ? <VehicleFinance vehicle={data} /> : null}

@@ -2928,7 +2928,8 @@
     "card_finance": "Финансы",
     "card_rentals": "Аренды",
     "card_moves": "Перемещения",
-    "card_ownership": "Владение"
+    "card_ownership": "Владение",
+    "duplicates_history_title": "Конфликты и объединения карточек"
   },
   "warehouse": {
     "action_create": "Создать",

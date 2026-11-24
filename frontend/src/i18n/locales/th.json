@@ -2928,7 +2928,8 @@
     "card_finance": "การเงิน",
     "card_rentals": "การเช่า",
     "card_moves": "การย้าย",
-    "card_ownership": "ความเป็นเจ้าของ"
+    "card_ownership": "ความเป็นเจ้าของ",
+    "duplicates_history_title": "ข้อขัดแย้งและการรวมการ์ด"
   },
   "warehouse": {
     "action_create": "Create",

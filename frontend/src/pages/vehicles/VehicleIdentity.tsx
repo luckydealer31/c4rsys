@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 
@@ -30,9 +30,44 @@ function useRefreshVehicle(id: string) {
   };
 }
 
+/** A block of its own, or — `bare` — a part with a small title inside another block. */
+function Block({ bare, title, children }: { bare?: boolean; title: string; children: ReactNode }) {
+  if (!bare) return <Card title={title}>{children}</Card>;
+  return (
+    <div>
+      <h3>{title}</h3>
+      {children}
+    </div>
+  );
+}
+
+/** What is left of the duplicates of the card — the closed conflicts, the merges and the merged
+ * cards — in one block, and only when there is any of it (customer's remark of 24.11.2026): a
+ * conflict appears on the main tab and a merge is made in the settings, not here. */
+export function DuplicatesHistory({ vehicle }: { vehicle: Vehicle }) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const merges = useApi<{ merges: Merge[] }>(
+    ["vehicle-merges", company.public_id, vehicle.id],
+    `/c/${company.public_id}/vehicles/${vehicle.id}/merges`,
+  );
+  const closed = (vehicle.identifier_conflicts ?? []).some((c) => !(c.open && !c.left_at));
+  const any = closed || (merges.data?.merges ?? []).length > 0 || (vehicle.merged_cards ?? []).length > 0;
+  if (!any) return null;
+  return (
+    <Card title={t("vehicles.duplicates_history_title")}>
+      <div className="stack">
+        <ConflictsCard vehicle={vehicle} only="closed" bare />
+        <MergesCard vehicle={vehicle} split={false} bare />
+        <MergedHistory vehicle={vehicle} bare />
+      </div>
+    </Card>
+  );
+}
+
 /** § 8.6.1, § 8.6.4: conflicts of identifiers of the card — the fact of a match and its number
  * only; nothing of the other record. A conflict never blocks the card. */
-export function ConflictsCard({ vehicle, only }: { vehicle: Vehicle; only: "open" | "closed" }) {
+export function ConflictsCard({ vehicle, only, bare }: { vehicle: Vehicle; only: "open" | "closed"; bare?: boolean }) {
   const { t } = useTranslation();
   const company = useCompany();
   const when = useWhen();
@@ -47,7 +82,7 @@ export function ConflictsCard({ vehicle, only }: { vehicle: Vehicle; only: "open
   const mergeable = new Set((vehicle.merge_candidates ?? []).map((c) => c.id));
   const own = open.some((c) => c.own_cards.some((o) => mergeable.has(o.id)));
   return (
-    <Card title={t(only === "open" ? "vehicles.conflicts_title" : "vehicles.conflicts_closed_title")}>
+    <Block bare={bare} title={t(only === "open" ? "vehicles.conflicts_title" : "vehicles.conflicts_closed_title")}>
       {only === "open" ? (
         <div className="alert warn">{t(own ? "vehicles.conflicts_hint_own" : "vehicles.conflicts_hint")}</div>
       ) : null}
@@ -86,7 +121,7 @@ export function ConflictsCard({ vehicle, only }: { vehicle: Vehicle; only: "open
           </li>
         ))}
       </ul>
-    </Card>
+    </Block>
   );
 }
 
@@ -370,7 +405,7 @@ type SplitRecord = { key: string; kind: string; id: string; label: string; at: s
  * the records made after the merge. */
 /** `split` — the merges that can be split, with the action (the settings); without it — the
  * records of all the merges (the history). */
-export function MergesCard({ vehicle, split }: { vehicle: Vehicle; split: boolean }) {
+export function MergesCard({ vehicle, split, bare }: { vehicle: Vehicle; split: boolean; bare?: boolean }) {
   const { t } = useTranslation();
   const company = useCompany();
   const when = useWhen();
@@ -383,7 +418,7 @@ export function MergesCard({ vehicle, split }: { vehicle: Vehicle; split: boolea
   const items = (merges.data?.merges ?? []).filter((m) => !split || m.state === "merged");
   if (!items.length || (split && !can("vehicle.split"))) return null;
   return (
-    <Card title={t(split ? "vehicles.split_title" : "vehicles.merges_title")}>
+    <Block bare={bare} title={t(split ? "vehicles.split_title" : "vehicles.merges_title")}>
       <ul className="plain">
         {items.map((m) => (
           <li key={m.id} className="stack" style={{ marginBottom: 8 }}>
@@ -401,7 +436,7 @@ export function MergesCard({ vehicle, split }: { vehicle: Vehicle; split: boolea
           </li>
         ))}
       </ul>
-    </Card>
+    </Block>
   );
 }
 
@@ -627,29 +662,38 @@ export function ProposalsCard({ vehicle }: { vehicle: Vehicle }) {
 
 /** § 8.6.6: the records of the duplicates merged into this card keep their origin and are shown
  * from it. */
-export function MergedHistory({ vehicle }: { vehicle: Vehicle }) {
+export function MergedHistory({ vehicle, bare }: { vehicle: Vehicle; bare?: boolean }) {
   const { t } = useTranslation();
   const when = useWhen();
   const items = vehicle.merged_cards ?? [];
   const [open, setOpen] = useState<string | null>(null);
   if (!items.length) return null;
   return (
-    <Card title={t("vehicles.merged_cards_title")}>
-      <p className="muted small">{t("vehicles.merged_cards_hint")}</p>
+    <Block bare={bare} title={t("vehicles.merged_cards_title")}>
+      {bare ? null : <p className="muted small">{t("vehicles.merged_cards_hint")}</p>}
       {items.map((m) => (
         <div key={m.id} className="stack">
-          <div className="row">
-            <span>
-              «{m.name}» · {m.vehicle_id} · {t("vehicles.merged_at", { at: when(m.merged_at) })}
-            </span>
-            <button type="button" className="secondary" onClick={() => setOpen(open === m.id ? null : m.id)}>
-              {open === m.id ? t("vehicles.merged_hide") : t("vehicles.merged_show")}
-            </button>
+          <div>
+            «{m.name}» · {m.vehicle_id} · {t("vehicles.merged_at", { at: when(m.merged_at) })}
           </div>
+          {/* The history of a merged card is unfolded by the wide chevrons under its line
+              (customer's remark of 24.11.2026). */}
+          <button
+            type="button"
+            className="expand-bar"
+            title={open === m.id ? t("vehicles.merged_hide") : t("vehicles.merged_show")}
+            aria-label={open === m.id ? t("vehicles.merged_hide") : t("vehicles.merged_show")}
+            aria-expanded={open === m.id}
+            onClick={() => setOpen(open === m.id ? null : m.id)}
+          >
+            <svg width="56" height="18" viewBox="0 0 56 18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d={open === m.id ? "M8 9l20-6 20 6M8 15l20-6 20 6" : "M8 3l20 6 20-6M8 9l20 6 20-6"} />
+            </svg>
+          </button>
           {open === m.id ? <MergedCardHistory id={m.id} /> : null}
         </div>
       ))}
-    </Card>
+    </Block>
   );
 }
 

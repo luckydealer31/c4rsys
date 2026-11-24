@@ -48,6 +48,7 @@ export async function ownershipScenario(page: Page, s: Company, email: string): 
   // address of the part of the history leads to it.
   await page.goto(`/c/${s.cmp}/vehicles/${earlier.id}?tab=history&part=ownership`);
   await expect(page.getByRole("tab", { name: t("vehicles.card_ownership"), exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("main")).not.toContainText(t("vehicles.duplicates_history_title"));
   for (const key of ["finance", "rentals", "moves", "history"]) {
     await expect(page.getByRole("tab", { name: t(`vehicles.card_${key}`), exact: true })).toBeVisible();
   }
@@ -158,7 +159,17 @@ export async function ownershipScenario(page: Page, s: Company, email: string): 
   await expect(page.getByRole("heading", { name: "Forza old" })).toBeVisible();
   await expect(page.getByRole("main")).not.toContainText(t("vehicles.conflicts_title"));
   await page.goto(`/c/${s.cmp}/vehicles/${first.id}?tab=ownership`);
-  await expect(page.getByRole("heading", { name: t("vehicles.conflicts_closed_title"), exact: true })).toBeVisible();
+  // The closed conflict, the merge and the merged card stand in one block; a card without any
+  // of them has no such block (customer's remark of 24.11.2026).
+  const duplicates = page.locator("section.card", { hasText: t("vehicles.duplicates_history_title") });
+  await expect(duplicates).toHaveCount(1);
+  await expect(duplicates).toContainText(t("vehicles.conflicts_closed_title"));
+  await expect(duplicates).toContainText(t("vehicles.merged_cards_title"));
+  // The history of the merged card is unfolded by the wide chevrons under its line.
+  await duplicates.getByRole("button", { name: t("vehicles.merged_show"), exact: true }).click();
+  await expect(duplicates.getByRole("button", { name: t("vehicles.merged_hide"), exact: true })).toBeVisible();
+  await duplicates.getByRole("button", { name: t("vehicles.merged_hide"), exact: true }).click();
+  await expect(page.getByRole("heading", { name: t("vehicles.history_title"), exact: true })).toHaveCount(0);
   // The history holds records only: the merge is named there, and it is split in the settings.
   await expect(page.getByRole("main")).toContainText("«Forza new» → «Forza old»");
   await expect(page.getByRole("button", { name: t("vehicles.split_open"), exact: true })).toHaveCount(0);

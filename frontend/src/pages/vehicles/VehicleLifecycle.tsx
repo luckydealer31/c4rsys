@@ -825,21 +825,19 @@ export function HistoryCard({ vehicle }: { vehicle: Vehicle }) {
   const owners = vehicle.owners_history ?? [];
   const plates = vehicle.plates_history ?? [];
   return (
-    <Card title={t("vehicles.history_title")}>
+    <Card>
       {vehicle.archive ? (
         <div className="alert">{t("vehicles.archived_banner", { at: when(vehicle.archive.at), reason: vehicle.archive.reason })}</div>
       ) : null}
       {vehicle.disposal ? (
         <div className="alert">{t(`vehicles.dispose_${vehicle.disposal.kind}`)} · {vehicle.disposal.reason}</div>
       ) : null}
-      <h3>{t("vehicles.periods_title")}</h3>
+      <h3>{t("vehicles.plates_title")}</h3>
+      {plates.length === 0 ? <p className="muted small">—</p> : null}
       <ul className="plain small">
-        {periods.map((p, i) => (
+        {plates.map((p, i) => (
           <li key={i}>
-            {t(`vehicles.relation_${p.relation}`)} · {when(p.started_at)} — {p.ended_at ? when(p.ended_at) : t("vehicles.period_now")} ·{" "}
-            {t(`vehicles.period_basis_${p.start_basis}`)}
-            {p.end_basis ? ` → ${t(`vehicles.period_basis_${p.end_basis}`)}` : ""}
-            {p.start_reason ? ` · ${p.start_reason}` : ""}
+            {p.number} {p.country} {p.region} · {when(p.valid_from)} — {p.valid_to ? when(p.valid_to) : t("vehicles.period_now")}
           </li>
         ))}
       </ul>
@@ -854,12 +852,14 @@ export function HistoryCard({ vehicle }: { vehicle: Vehicle }) {
           </li>
         ))}
       </ul>
-      <h3>{t("vehicles.plates_title")}</h3>
-      {plates.length === 0 ? <p className="muted small">—</p> : null}
+      <h3>{t("vehicles.periods_title")}</h3>
       <ul className="plain small">
-        {plates.map((p, i) => (
+        {periods.map((p, i) => (
           <li key={i}>
-            {p.number} {p.country} {p.region} · {when(p.valid_from)} — {p.valid_to ? when(p.valid_to) : t("vehicles.period_now")}
+            {t(`vehicles.relation_${p.relation}`)} · {when(p.started_at)} — {p.ended_at ? when(p.ended_at) : t("vehicles.period_now")} ·{" "}
+            {t(`vehicles.period_basis_${p.start_basis}`)}
+            {p.end_basis ? ` → ${t(`vehicles.period_basis_${p.end_basis}`)}` : ""}
+            {p.start_reason ? ` · ${p.start_reason}` : ""}
           </li>
         ))}
       </ul>

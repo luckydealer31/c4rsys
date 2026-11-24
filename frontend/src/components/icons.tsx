@@ -161,6 +161,10 @@ const PATHS: Record<string, ReactNode> = {
     </>
   ),
   back: <path d="M19 12H5M11 6l-6 6 6 6" />,
+  // To unfold what stands under a line and to fold it back: two chevrons (customer's remark of
+  // 24.11.2026).
+  expand: <path d="M6 6l6 6 6-6M6 13l6 6 6-6" />,
+  collapse: <path d="M6 11l6-6 6 6M6 18l6-6 6 6" />,
 };
 
 /** Still icons of Gentleface (https://gentleface.com, MIT licensed), kept as downloaded: the

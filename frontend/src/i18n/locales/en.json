@@ -2928,7 +2928,8 @@
     "card_finance": "Finance",
     "card_rentals": "Rentals",
     "card_moves": "Moves",
-    "card_ownership": "Ownership"
+    "card_ownership": "Ownership",
+    "duplicates_history_title": "Conflicts and merges of cards"
   },
   "warehouse": {
     "action_create": "Create",

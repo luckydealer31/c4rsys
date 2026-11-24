@@ -1107,3 +1107,8 @@ table.fit { width: auto; }
   .finance-split > .finance-list { grid-column: 1; grid-row: 2; }
   .finance-split > .finance-list > .card { max-height: none; overflow-y: visible; }
 }
+
+/* «Unfold» under a line: wide chevrons in a strip of the whole width, apart from the text. */
+.expand-bar { display: flex; justify-content: center; align-items: center; width: 100%; min-height: 0; height: 26px;
+  margin-top: 6px; padding: 0; background: transparent; border: 0; border-radius: 6px; color: var(--muted); cursor: pointer; }
+.expand-bar:hover { background: var(--bg); color: var(--accent); }
