@@ -2945,7 +2945,8 @@
     "settings_history": "История",
     "settings_tariffs": "Тарифы",
     "unit_change_to_km": "Сменить на километры",
-    "unit_change_to_mi": "Сменить на мили"
+    "unit_change_to_mi": "Сменить на мили",
+    "owner_name_profile": "ФИО или название владельца"
   },
   "warehouse": {
     "action_create": "Создать",

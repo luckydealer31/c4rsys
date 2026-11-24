@@ -104,7 +104,15 @@ def parse(data: dict[str, Any], relation: str) -> Owner:
             lookup = lookup.upper()
         elif not PHONE.match(lookup):
             raise errors.validation_error("owner_lookup", code="OWNER_LOOKUP_INVALID")
-        return Owner(kind=kind, lookup=lookup)
+        # The profile does not replace the name: the name, the contact and the address are kept
+        # with it for the contracts and the reports (customer's remark of 25.11.2026).
+        return Owner(
+            kind=kind,
+            lookup=lookup,
+            name=_text(data, "owner_name", 300),
+            contact=_text(data, "owner_contact", 254),
+            address=_text(data, "owner_address", 500),
+        )
     if kind in (VehicleOwnerClaim.Kind.PERSON, VehicleOwnerClaim.Kind.ORGANIZATION):
         name = _text(data, "owner_name", 300)
         if not name:

@@ -2945,7 +2945,8 @@
     "settings_history": "ประวัติ",
     "settings_tariffs": "อัตราค่าเช่า",
     "unit_change_to_km": "เปลี่ยนเป็นกิโลเมตร",
-    "unit_change_to_mi": "เปลี่ยนเป็นไมล์"
+    "unit_change_to_mi": "เปลี่ยนเป็นไมล์",
+    "owner_name_profile": "ชื่อเจ้าของ"
   },
   "warehouse": {
     "action_create": "Create",

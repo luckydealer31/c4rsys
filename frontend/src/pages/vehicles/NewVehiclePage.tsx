@@ -339,7 +339,7 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
     if (form.relation === "managed") {
       body.owner_kind = form.owner_kind;
       if (form.owner_kind === "profile") body.owner_lookup = form.owner_lookup;
-      if (form.owner_kind === "person" || form.owner_kind === "organization") {
+      if (form.owner_kind === "person" || form.owner_kind === "organization" || form.owner_kind === "profile") {
         body.owner_name = form.owner_name;
         body.owner_contact = form.owner_contact;
         body.owner_address = form.owner_address;
@@ -713,7 +713,9 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
                   <input value={form.owner_lookup} onChange={(e) => set({ owner_lookup: e.target.value })} />
                 </Field>
               ) : null}
-              {form.owner_kind === "person" || form.owner_kind === "organization" ? (
+              {/* A profile keeps the name, the contact and the address too (customer's remark
+                  of 25.11.2026). */}
+              {form.owner_kind === "person" || form.owner_kind === "organization" || form.owner_kind === "profile" ? (
                 <>
                   <Field label={t(`vehicles.owner_name_${form.owner_kind}`)}>
                     <input value={form.owner_name} onChange={(e) => set({ owner_name: e.target.value })} />

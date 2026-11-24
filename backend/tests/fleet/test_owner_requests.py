@@ -529,3 +529,42 @@ def test_a_confirmed_ownership_is_not_asked(owner: Client, cmp: str, location: s
     shown = owner.get(f"/api/c/{cmp}/vehicles/{card['id']}/owner-requests").json()["requests"][0]
     assert shown["state"] == "complete"
     assert owner.get(f"/api/c/{cmp}/vehicles/{card['id']}").json()["vehicle"]["owner"]["confirmed"]
+
+
+def test_the_profile_keeps_the_name_of_the_owner(owner: Client, cmp: str, location: str) -> None:
+    """Customer's remark of 25.11.2026: the profile is given in addition to the name, not
+    instead of it — the name, the contact and the address stay for the contracts and reports."""
+    _somchai, usr = person("somchai@example.com")
+    card = vehicle(
+        owner,
+        cmp,
+        location,
+        relation="managed",
+        owner_kind="person",
+        owner_name="Somchai Jaidee",
+        owner_contact="+66 81 000 0000",
+    )
+    sent = post(
+        owner, f"/api/c/{cmp}/vehicles/{card['id']}/owner-requests", {"owner_lookup": usr}, key()
+    )
+    assert sent.status_code == 201, sent.content
+    shown = owner.get(f"/api/c/{cmp}/vehicles/{card['id']}").json()["vehicle"]["owner"]
+    assert (shown["kind"], shown["lookup"], shown["name"], shown["contact"]) == (
+        "profile",
+        usr,
+        "Somchai Jaidee",
+        "+66 81 000 0000",
+    )
+    other = vehicle(
+        owner,
+        cmp,
+        location,
+        vin="JTDBT923771234570",
+        name="Civic",
+        relation="managed",
+        owner_kind="profile",
+        owner_lookup=usr,
+        owner_name="Somchai J.",
+        owner_address="Phuket",
+    )
+    assert (other["owner"]["name"], other["owner"]["address"]) == ("Somchai J.", "Phuket")

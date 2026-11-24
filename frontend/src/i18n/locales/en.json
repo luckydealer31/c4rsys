@@ -2945,7 +2945,8 @@
     "settings_history": "History",
     "settings_tariffs": "Tariffs",
     "unit_change_to_km": "Change to kilometres",
-    "unit_change_to_mi": "Change to miles"
+    "unit_change_to_mi": "Change to miles",
+    "owner_name_profile": "Name of the owner"
   },
   "warehouse": {
     "action_create": "Create",

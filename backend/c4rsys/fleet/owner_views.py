@@ -68,8 +68,17 @@ def card_requests(request: HttpRequest, cmp: str, card_id: UUID) -> JsonResponse
             )
             if locked.relation != VehicleCard.Relation.MANAGED:
                 raise errors.business_rule("OWNER_REQUEST_MANAGED_ONLY")
-            if not owners.is_current(locked, named):
-                owners.declare(ctx, context.company, locked, named)
+            # The name, the contact and the address given before stay with the profile.
+            earlier = locked.owner_claims.order_by("-created_at").first()
+            keep = owners.Owner(
+                kind=named.kind,
+                lookup=named.lookup,
+                name=named.name or (earlier.manual_name if earlier else ""),
+                contact=named.contact or (earlier.manual_contact if earlier else ""),
+                address=named.address or (earlier.manual_address if earlier else ""),
+            )
+            if not owners.is_current(locked, keep):
+                owners.declare(ctx, context.company, locked, keep)
         sent = owner_requests.send(ctx, context.company, card_id)
         return CommandResult(201, {"request": owner_requests.request_payload(sent, timezone.now())})
 

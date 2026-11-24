@@ -356,7 +356,7 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
       : owner.kind === "client"
         ? (owner.client?.name ?? "")
       : owner.kind === "profile"
-        ? owner.lookup
+        ? [owner.name, owner.lookup, owner.contact, owner.address].filter(Boolean).join(", ")
         : owner.kind === "none"
           ? t("vehicles.owner_not_given")
           : [owner.name, owner.contact, owner.address].filter(Boolean).join(", ");

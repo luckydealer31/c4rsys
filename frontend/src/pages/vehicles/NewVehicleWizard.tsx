@@ -309,7 +309,7 @@ export function NewVehiclePage() {
     if (form.relation === "managed") {
       body.owner_kind = form.owner_kind;
       if (form.owner_kind === "profile") body.owner_lookup = form.owner_lookup;
-      if (form.owner_kind === "person" || form.owner_kind === "organization") {
+      if (form.owner_kind === "person" || form.owner_kind === "organization" || form.owner_kind === "profile") {
         body.owner_name = form.owner_name;
         body.owner_contact = form.owner_contact;
         body.owner_address = form.owner_address;
@@ -362,7 +362,7 @@ export function NewVehiclePage() {
       expected_version: earlier.version,
     };
     if (form.owner_kind === "profile") body.owner_lookup = form.owner_lookup;
-    if (form.owner_kind === "person" || form.owner_kind === "organization") {
+    if (form.owner_kind === "person" || form.owner_kind === "organization" || form.owner_kind === "profile") {
       body.owner_name = form.owner_name;
       body.owner_contact = form.owner_contact;
       body.owner_address = form.owner_address;
@@ -442,8 +442,9 @@ export function NewVehiclePage() {
       : m.name;
   const optional = ["make", "model", "year", "vin", "plate"].includes(step);
 
+  // A profile keeps the name, the contact and the address too (customer's remark of 25.11.2026).
   const ownerManual = (kind: string) =>
-    kind === "person" || kind === "organization" ? (
+    kind === "person" || kind === "organization" || kind === "profile" ? (
       <div className="row">
         <Field label={t(`vehicles.owner_name_${kind}`)}>
           <input value={form.owner_name} onChange={(e) => set({ owner_name: e.target.value })} />
