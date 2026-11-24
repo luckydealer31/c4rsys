@@ -2509,7 +2509,7 @@
     "tab_managed": "Managed",
     "tab_own": "Own",
     "tariffs": "Tariffs",
-    "tariffs_hint": "Tariffs and their terms are assigned in the tariff card.",
+    "tariffs_hint": "The terms of a tariff for this vehicle are changed here. A vehicle is added to a tariff and the tariff itself is changed in the section of tariffs:",
     "transfer_button": "Transfer to warehouse",
     "transfer_no_warehouse": "No location has a warehouse: add the «Warehouse» context to a location.",
     "transfer_target": "Warehouse",
@@ -2942,7 +2942,8 @@
     "settings_documents": "Documents",
     "settings_access": "Access",
     "settings_card": "Card",
-    "settings_history": "History"
+    "settings_history": "History",
+    "settings_tariffs": "Tariffs"
   },
   "warehouse": {
     "action_create": "Create",

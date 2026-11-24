@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 
 import { useApi } from "../../api/queries";
-import type { RentalSummary, Tariff, Vehicle, VehicleTerms } from "../../api/types";
+import type { RentalSummary, Vehicle } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Icon } from "../../components/icons";
 import { Card, ErrorMessage, Field, IconButton, Loading } from "../../components/ui";
@@ -13,6 +13,7 @@ import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { CompanyTabs, workHome } from "../../layout/CompanyTabs";
 import { SectionTabs } from "../../layout/SectionTabs";
 import { VehicleInspectionsSplit, VehicleRentalsSplit } from "./VehiclePeek";
+import { VehicleTariffTerms } from "./VehicleTariffTerms";
 import { useFirstTab } from "../../layout/tabOrder";
 import { useLocations } from "../settings/LocationsPage";
 import { SectionSearch } from "../search/SearchPage";
@@ -80,8 +81,8 @@ type CardTab =
 // The parts of the history of a vehicle: one tab instead of four (decision of 13.11.2026).
 type HistoryPart = "rentals" | "moves" | "finance" | "ownership";
 // The settings of the card are split into tabs under the tab (customer's decision of 24.11.2026).
-type SettingsPart = "general" | "documents" | "access" | "card" | "history";
-const SETTINGS_PARTS: SettingsPart[] = ["general", "documents", "access", "card", "history"];
+type SettingsPart = "general" | "tariffs" | "documents" | "access" | "card" | "history";
+const SETTINGS_PARTS: SettingsPart[] = ["general", "tariffs", "documents", "access", "card", "history"];
 
 /** Garage (§ 8.7.2; customer's decisions of 24.10.2026 and 11.11.2026). Own and managed vehicles
  * are one list, grouped by location, with the switches «own» / «managed»; the schedule is the
@@ -601,8 +602,10 @@ export function VehiclePage() {
   const part: HistoryPart | null =
     tab === "finance" || tab === "rentals" || tab === "moves" || tab === "ownership" ? tab : null;
   const askedSettings = search.get("merge") ? "card" : named === "history" ? "history" : search.get("part");
+  // A client vehicle is only serviced: it has no tariffs.
+  const settingsParts = SETTINGS_PARTS.filter((key) => key !== "tariffs" || !isClient);
   const settingsPart: SettingsPart =
-    SETTINGS_PARTS.find((key) => key === askedSettings) ?? firstSettings(SETTINGS_PARTS) ?? "general";
+    settingsParts.find((key) => key === askedSettings) ?? firstSettings(settingsParts) ?? "general";
   const openTab = (key: CardTab) => setSearch({ tab: key }, { replace: true });
   const openSettings = (key: SettingsPart) => setSearch({ tab: "settings", part: key }, { replace: true });
 
@@ -663,7 +666,7 @@ export function VehiclePage() {
             sub
             section="vehicle_settings"
             current={settingsPart}
-            tabs={SETTINGS_PARTS.map((key) => ({ key, text: t(`vehicles.settings_${key}`) }))}
+            tabs={settingsParts.map((key) => ({ key, text: t(`vehicles.settings_${key}`) }))}
             onSelect={openSettings}
           />
           {settingsPart === "general" ? (
@@ -726,9 +729,11 @@ export function VehiclePage() {
               </p>
             </Card>
           )}
-          {isClient ? null : <VehicleTariffs vehicleId={data.id} />}
             </>
           ) : null}
+          {/* The tariffs of the vehicle with what they hold for it, changed here (customer's
+              remark of 24.11.2026). */}
+          {settingsPart === "tariffs" ? <VehicleTariffTerms vehicleId={data.id} /> : null}
           {settingsPart === "documents" ? (
             <>
               {/* Documents of the vehicle are added and changed here (decision of 12.11.2026);
@@ -895,44 +900,4 @@ function TransferToWarehouse({ vehicle }: { vehicle: Vehicle }) {
 }
 
 /** Tariffs assigned to this vehicle with their terms. */
-function VehicleTariffs({ vehicleId }: { vehicleId: string }) {
-  const { t } = useTranslation();
-  const company = useCompany();
-  const can = useCan();
-  const tariffs = useApi<{ tariffs: Tariff[] }>(
-    ["tariffs", company.public_id],
-    `/c/${company.public_id}/tariffs`,
-    can("tariff.view"),
-  );
-  if (!can("tariff.view")) return null;
-  return (
-    <Card title={t("vehicles.tariffs")}>
-      {(tariffs.data?.tariffs ?? []).map((tariff) => (
-        <AssignedTariff key={tariff.id} tariff={tariff} vehicleId={vehicleId} />
-      ))}
-      <p className="muted small">
-        {t("vehicles.tariffs_hint")}{" "}
-        <Link to={companyPath(company, "/rentals/tariffs")}>{t("settings.tariffs")}</Link>
-      </p>
-    </Card>
-  );
-}
-
-function AssignedTariff({ tariff, vehicleId }: { tariff: Tariff; vehicleId: string }) {
-  const { t } = useTranslation();
-  const company = useCompany();
-  const terms = useApi<{ vehicles: VehicleTerms[] }>(
-    ["tariff-vehicles", company.public_id, tariff.id],
-    `/c/${company.public_id}/tariffs/${tariff.id}/vehicles`,
-  );
-  const mine = terms.data?.vehicles.find((v) => v.vehicle_card_id === vehicleId);
-  if (!mine) return null;
-  return (
-    <p>
-      <Link to={companyPath(company, `/rentals/tariffs/${tariff.id}`)}>{tariff.name}</Link>
-      {tariff.state === "archived" ? <span className="badge"> {t("tariffs.archived")}</span> : null}
-    </p>
-  );
-}
-
 /** The cost of acquisition of an own vehicle, for its payback (§ 21.4.2; decision О-3). */

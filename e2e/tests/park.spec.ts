@@ -432,6 +432,21 @@ test("the park is filtered by the occupancy and begins a booking; the card shows
   await expect(page.locator(".pick-list .pick-row").first()).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".pick-peek").getByRole("link", { name: t("vehicles.peek_open_rental"), exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: t("vehicles.rentals"), exact: true })).toHaveCount(0);
+  // The tariffs of a vehicle stand in its settings; what a tariff holds for this vehicle — its
+  // prices, mileage and deposit — is changed there by the pencil (customer's remark of
+  // 24.11.2026).
+  await page.goto(`${s.base}/vehicles/${honda.id}?tab=settings&part=tariffs`);
+  await expect(page.getByRole("tab", { name: t("vehicles.settings_tariffs"), exact: true })).toHaveAttribute("aria-selected", "true");
+  const terms = page.locator("section.card", { has: page.locator("dl.facts") }).first();
+  await expect(terms).toContainText("1000 THB");
+  await expect(terms.locator("input")).toHaveCount(0);
+  await terms.getByRole("button", { name: new RegExp(`^${t("common.edit")}: `) }).click();
+  const editing = page.locator("section.card", { has: page.getByRole("button", { name: t("common.save"), exact: true }) });
+  await editing.locator("input").first().fill("1500");
+  await editing.getByLabel(new RegExp(`^${t("terms.deposit")}`)).fill("5000");
+  await editing.getByRole("button", { name: t("common.save"), exact: true }).click();
+  await expect(terms).toContainText("1500 THB");
+  await expect(terms).toContainText("5000 THB");
   // The cards of one vehicle in the company: no doubles, the archive, the merge.
   await ownershipScenario(page, s, email);
 });

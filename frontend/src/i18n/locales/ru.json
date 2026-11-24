@@ -2509,7 +2509,7 @@
     "tab_managed": "В управлении",
     "tab_own": "Собственные",
     "tariffs": "Тарифы",
-    "tariffs_hint": "Тарифы и условия назначаются в карточке тарифа.",
+    "tariffs_hint": "Здесь меняются условия тарифа для этого Т/С. Добавить Т/С в тариф и изменить сам тариф — в разделе тарифов:",
     "transfer_button": "Перенести на склад",
     "transfer_no_warehouse": "Ни в одной локации нет склада: добавьте контекст «Склад» в локацию.",
     "transfer_target": "Склад",
@@ -2942,7 +2942,8 @@
     "settings_documents": "Документы",
     "settings_access": "Доступ",
     "settings_card": "Карточка",
-    "settings_history": "История"
+    "settings_history": "История",
+    "settings_tariffs": "Тарифы"
   },
   "warehouse": {
     "action_create": "Создать",
