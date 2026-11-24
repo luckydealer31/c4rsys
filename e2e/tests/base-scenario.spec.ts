@@ -581,6 +581,12 @@ test("base example from registration to closing survives a restart", async ({ pa
   const sideBox = await page.locator(".finance-side").boundingBox();
   expect(sideBox!.x).toBeGreaterThan(listBox!.x + listBox!.width - 1);
   expect(Math.abs(sideBox!.y - listBox!.y)).toBeLessThan(4);
+  // The plates stand under the owners, not as a list of their own (customer's remark of
+  // 24.11.2026).
+  await page.goto(`${cardUrl}?tab=ownership`);
+  await expect(page.getByRole("heading", { name: t("vehicles.owners_title"), exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: t("vehicles.plates_title"), exact: true })).toHaveCount(0);
+  await expect(page.getByRole("main")).toContainText("AB 1234 TH");
   // Who added the document is written in the journal of the card.
   await page.goto(`${cardUrl}?tab=history`);
   await expect(card(page, t("vehicles.journal_title"))).toContainText(t("vehicles.journal_actions.vehicle_document-added"));

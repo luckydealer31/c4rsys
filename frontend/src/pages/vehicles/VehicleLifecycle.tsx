@@ -824,6 +824,18 @@ export function HistoryCard({ vehicle }: { vehicle: Vehicle }) {
   const periods = vehicle.periods ?? [];
   const owners = vehicle.owners_history ?? [];
   const plates = vehicle.plates_history ?? [];
+  type Span = { from: string; to: string | null };
+  const overlap = (a: Span, b: Span) => (a.to === null || b.from < a.to) && (b.to === null || a.from < b.to);
+  const spanOfOwner = (o: (typeof owners)[number]): Span => ({ from: o.started_at, to: o.ended_at ?? null });
+  const spanOfPlate = (p: (typeof plates)[number]): Span => ({ from: p.valid_from, to: p.valid_to ?? null });
+  const platesOf = (o: (typeof owners)[number]) => plates.filter((p) => overlap(spanOfOwner(o), spanOfPlate(p)));
+  // A plate of no owner's time.
+  const loose = plates.filter((p) => !owners.some((o) => overlap(spanOfOwner(o), spanOfPlate(p))));
+  const plateLine = (p: (typeof plates)[number]) =>
+    // No word before the number: under the owners it is clear what it is (customer's remark).
+    `${[p.number, p.country, p.region].filter(Boolean).join(" ")} · ${when(p.valid_from)} — ${
+      p.valid_to ? when(p.valid_to) : t("vehicles.period_now")
+    }`;
   return (
     <Card>
       {vehicle.archive ? (
@@ -832,15 +844,9 @@ export function HistoryCard({ vehicle }: { vehicle: Vehicle }) {
       {vehicle.disposal ? (
         <div className="alert">{t(`vehicles.dispose_${vehicle.disposal.kind}`)} · {vehicle.disposal.reason}</div>
       ) : null}
-      <h3>{t("vehicles.plates_title")}</h3>
-      {plates.length === 0 ? <p className="muted small">—</p> : null}
-      <ul className="plain small">
-        {plates.map((p, i) => (
-          <li key={i}>
-            {p.number} {p.country} {p.region} · {when(p.valid_from)} — {p.valid_to ? when(p.valid_to) : t("vehicles.period_now")}
-          </li>
-        ))}
-      </ul>
+      {/* The plates are not a list of their own: they stand under the owner of their time; a
+          plate of no owner's time — and every plate when no owner is known — follows plainly
+          (customer's remark of 24.11.2026). */}
       <h3>{t("vehicles.owners_title")}</h3>
       {owners.length === 0 ? <p className="muted small">{t("vehicles.owners_none")}</p> : null}
       <ul className="plain small">
@@ -849,7 +855,17 @@ export function HistoryCard({ vehicle }: { vehicle: Vehicle }) {
             {o.name || t(`vehicles.history_owner_kind_${o.owner}`)} · {o.started_approx ? "~" : ""}
             {when(o.started_at)} — {o.ended_at ? `${o.ended_approx ? "~" : ""}${when(o.ended_at)}` : t("vehicles.period_now")}
             {o.reversed ? ` · ${t("vehicles.owner_reversed")}` : ""}
+            {platesOf(o).length ? (
+              <ul className="plain sub-list">
+                {platesOf(o).map((p, j) => (
+                  <li key={j}>{plateLine(p)}</li>
+                ))}
+              </ul>
+            ) : null}
           </li>
+        ))}
+        {loose.map((p, j) => (
+          <li key={`p-${j}`}>{plateLine(p)}</li>
         ))}
       </ul>
       <h3>{t("vehicles.periods_title")}</h3>

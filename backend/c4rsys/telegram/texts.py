@@ -206,7 +206,7 @@ FIELDS: dict[str, dict[str, str]] = {
     "make": {"ru": "Марка", "en": "Make", "th": "ยี่ห้อ"},
     "model": {"ru": "Модель", "en": "Model", "th": "รุ่น"},
     "year": {"ru": "Год", "en": "Year", "th": "ปี"},
-    "plate": {"ru": "Госномер", "en": "Plate", "th": "ป้ายทะเบียน"},
+    "plate": {"ru": "Регистрационный номер", "en": "Plate", "th": "ป้ายทะเบียน"},
     "plate_country": {
         "ru": "Страна регистрации",
         "en": "Country of registration",

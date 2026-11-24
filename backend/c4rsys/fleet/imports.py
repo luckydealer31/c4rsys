@@ -126,7 +126,7 @@ class VehiclesTemplate:
         ),
         "name": (
             "Own name of the card; formed from make, model and plate when empty",
-            "Собственное название; если пусто — из марки, модели и госномера",
+            "Собственное название; если пусто — из марки, модели и регистрационного номера",
             "Camry white",
         ),
         "odometer_unit": (
@@ -142,8 +142,12 @@ class VehiclesTemplate:
         "make": ("Make: code or name of the catalog, or any name", "Марка", "Toyota"),
         "model": ("Model", "Модель", "Camry"),
         "year": ("Year of manufacture", "Год выпуска", "2021"),
-        "plate": ("Registration plate", "Госномер", "1กข 1234"),
-        "plate_country": ("Country of the plate, two letters", "Страна госномера, две буквы", "TH"),
+        "plate": ("Registration plate", "Регистрационный номер", "1กข 1234"),
+        "plate_country": (
+            "Country of the plate, two letters",
+            "Страна регистрационного номера, две буквы",
+            "TH",
+        ),
         "vin": ("VIN", "VIN", ""),
         "body_number": ("Body number", "Номер кузова", ""),
         "chassis_number": ("Chassis number", "Номер шасси", ""),

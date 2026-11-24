@@ -1112,3 +1112,6 @@ table.fit { width: auto; }
 .expand-bar { display: flex; justify-content: center; align-items: center; width: 100%; min-height: 0; height: 26px;
   margin-top: 6px; padding: 0; background: transparent; border: 0; border-radius: 6px; color: var(--muted); cursor: pointer; }
 .expand-bar:hover { background: var(--bg); color: var(--accent); }
+
+/* What belongs to a line of a list: under it, set in. */
+.sub-list { margin: 2px 0 6px 18px; color: var(--muted); }
