@@ -7,7 +7,7 @@ import { useApi } from "../../api/queries";
 import type { RentalSummary, Vehicle } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Icon } from "../../components/icons";
-import { Card, ErrorMessage, Field, IconButton, Loading } from "../../components/ui";
+import { Card, ErrorMessage, Field, IconButton, Info, Loading } from "../../components/ui";
 import { VehicleTypeIcon } from "../../components/VehicleTypeIcon";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { CompanyTabs, workHome } from "../../layout/CompanyTabs";
@@ -530,7 +530,6 @@ export function VehiclePage() {
   const locations = useLocations();
   const rentals = useRentals(can("rental.view"));
   const update = useCommand<Record<string, unknown>, unknown>(`/c/${company.public_id}/vehicles/${id}`, "PATCH");
-  const [name, setName] = useState<string | null>(null);
   if (vehicle.isLoading) return <div className="page"><Loading /></div>;
   const data = vehicle.data?.vehicle;
   if (!data) return <div className="page"><ErrorMessage error={null} /></div>;
@@ -556,7 +555,6 @@ export function VehiclePage() {
   const current = data;
   async function save(changes: Record<string, unknown>) {
     if ((await update.run({ ...changes, expected_version: current.version })) !== null) {
-      setName(null);
       await client.invalidateQueries({ queryKey: ["vehicle", company.public_id, id] });
       await client.invalidateQueries({ queryKey: ["vehicles", company.public_id] });
       await client.invalidateQueries({ queryKey: ["readiness", company.public_id] });
@@ -671,64 +669,46 @@ export function VehiclePage() {
           />
           {settingsPart === "general" ? (
             <>
-          <Card>
-        {can("vehicle.edit") && data.state !== "archived" ? (
-          name === null ? (
-            <p>
-              {t("vehicles.name")}: <strong>{data.name}</strong>{" "}
-              <IconButton icon="edit" label={t("common.edit")} onClick={() => setName(data.name)} />
-            </p>
-          ) : (
-            <>
-              <div className="row">
-                <Field label={t("vehicles.name")}>
-                  <input autoFocus value={name} onChange={(e) => setName(e.target.value)} />
-                </Field>
-              </div>
-              <div className="actions">
-                <button type="button" disabled={!name || name === data.name} onClick={() => void save({ name })}>
-                  {t("common.save")}
-                </button>
-                <button type="button" className="secondary" onClick={() => setName(null)}>
-                  {t("common.cancel")}
-                </button>
-              </div>
-            </>
-          )
-        ) : null}
-        {/* A client vehicle is only serviced: nothing to allow (decision of 24.10.2026). */}
-        {isClient ? null : <h3 style={{ marginTop: 16 }}>{t("vehicles.contexts")}</h3>}
-        {(isClient ? [] : USAGE_CONTEXTS).map((type) => (
-          <label key={type} style={{ marginRight: 16 }}>
-            <input
-              type="checkbox"
-              disabled={!can("vehicle.edit")}
-              checked={data.contexts.includes(type)}
-              onChange={() => toggleContext(type)}
-            />{" "}
-            {t(`contexts.${type}`)}
-          </label>
-        ))}
-        {isClient ? null : <p className="muted small">{t("vehicles.contexts_hint")}</p>}
-        <ErrorMessage error={update.error} />
-          </Card>
-          <OdometerCard vehicle={data} />
-          {/* What is needed to rent the vehicle out and its prices in the tariffs: settings, not
-              history. */}
-          {isClient ? null : (
-            <Card>
-              <p style={{ margin: 0 }}>
-                {t("vehicles.rental_readiness")}:{" "}
-                {data.rental_readiness.ready ? (
-                  <span className="badge ok">{t("setup.ready")}</span>
-                ) : (
-                  <span className="badge warn">
-                    {data.rental_readiness.missing.map((m) => t(`vehicles.missing_${m}`)).join("; ")}
-                  </span>
-                )}
-              </p>
-            </Card>
-          )}
+              {/* What the vehicle is used in, with the readiness beside the mark it belongs to,
+                  and the restriction — one block (customer's remark of 24.11.2026). The name is
+                  not repeated: it stands in the head of the card and is changed by the pencil
+                  of the main tab. A client vehicle is only serviced: nothing to allow (decision
+                  of 24.10.2026). */}
+              {isClient ? null : (
+                <Card>
+                  <h3 style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    {t("vehicles.contexts")} <Info text={t("vehicles.contexts_hint")} />
+                  </h3>
+                  {USAGE_CONTEXTS.map((type) => (
+                    <div key={type} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                      <label>
+                        <input
+                          type="checkbox"
+                          disabled={!can("vehicle.edit")}
+                          checked={data.contexts.includes(type)}
+                          onChange={() => toggleContext(type)}
+                        />{" "}
+                        {t(`contexts.${type}`)}
+                      </label>
+                      {type === "rental" && data.contexts.includes(type) ? (
+                        data.rental_readiness.ready ? (
+                          <span className="badge ok">{t("setup.ready")}</span>
+                        ) : (
+                          <span className="badge warn">
+                            {data.rental_readiness.missing.map((m) => t(`vehicles.missing_${m}`)).join("; ")}
+                          </span>
+                        )
+                      ) : null}
+                    </div>
+                  ))}
+                  <ErrorMessage error={update.error} />
+                  <div style={{ marginTop: 16 }}>
+                    <RestrictionCard vehicle={data} bare />
+                  </div>
+                </Card>
+              )}
+              {isClient ? <RestrictionCard vehicle={data} /> : null}
+              <OdometerCard vehicle={data} />
             </>
           ) : null}
           {/* The tariffs of the vehicle with what they hold for it, changed here (customer's
@@ -748,7 +728,6 @@ export function VehiclePage() {
           ) : null}
           {settingsPart === "access" ? (
             <>
-              <RestrictionCard vehicle={data} />
               {data.relation === "managed" ? <OwnerRequestCard vehicle={data} /> : null}
               <DisclosureCard vehicle={data} />
             </>

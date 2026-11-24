@@ -7,7 +7,7 @@ import { DocumentChecklist } from "./VehicleDocuments";
 import type { Vehicle, VehicleRestriction } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { FilePreview } from "../../components/FilePreview";
-import { Card, ErrorMessage, Field, Modal } from "../../components/ui";
+import { Card, ErrorMessage, Field, Info, Modal } from "../../components/ui";
 import { useCan, useCompany } from "../../layout/CompanyShell";
 import { formatMoment, fromLocalInput, toLocalInput } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
@@ -46,7 +46,9 @@ function reasonText(t: (key: string) => string, r: VehicleRestriction) {
 
 /** § 8.8: one manual restriction at a time with its reason, term and forbidden actions. Setting,
  * changing and lifting are three separate rights (§ 23.5.5). */
-export function RestrictionCard({ vehicle }: { vehicle: Vehicle }) {
+/** `bare` — a part of another block, with a small title: the restriction stands with what the
+ * vehicle is used in (customer's remark of 24.11.2026). The explanation is under the «i». */
+export function RestrictionCard({ vehicle, bare = false }: { vehicle: Vehicle; bare?: boolean }) {
   const { t } = useTranslation();
   const company = useCompany();
   const can = useCan();
@@ -67,8 +69,13 @@ export function RestrictionCard({ vehicle }: { vehicle: Vehicle }) {
     ]
       .filter(Boolean)
       .join("; ");
+  const Shell = bare ? "div" : Card;
+  const Title = bare ? "h3" : "h2";
   return (
-    <Card title={t("vehicles.restriction_title")}>
+    <Shell>
+      <Title style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        {t("vehicles.restriction_title")} <Info text={t("vehicles.restriction_hint")} />
+      </Title>
       {current ? (
         <div className={current.state === "active" ? "alert warn" : "alert"}>
           <strong>{reasonText(t, current)}</strong>
@@ -80,15 +87,14 @@ export function RestrictionCard({ vehicle }: { vehicle: Vehicle }) {
           <div className="small">{forbids(current)}</div>
         </div>
       ) : (
-        <p className="muted">{t("vehicles.restriction_none")}</p>
+        <p className="muted small">{t("vehicles.restriction_none")}</p>
       )}
-      <p className="muted small">{t("vehicles.restriction_hint")}</p>
       {editing ? (
         <RestrictionForm vehicle={vehicle} current={current} onDone={() => setEditing(false)} />
       ) : (
-        <div className="actions">
+        <div className="row-actions" style={{ justifyContent: "flex-start" }}>
           {!current && can("vehicle.restriction.set") ? (
-            <button type="button" onClick={() => setEditing(true)}>
+            <button type="button" className="secondary small-button" onClick={() => setEditing(true)}>
               {t("vehicles.restriction_set")}
             </button>
           ) : null}
@@ -122,7 +128,7 @@ export function RestrictionCard({ vehicle }: { vehicle: Vehicle }) {
         </div>
       ) : null}
       <ErrorMessage error={lift.error} />
-    </Card>
+    </Shell>
   );
 }
 
@@ -295,7 +301,12 @@ export function OdometerCard({ vehicle }: { vehicle: Vehicle }) {
   const sample = preview.data?.preview.changes.vehicle?.slice(0, 3) ?? [];
   const count = preview.data ? Object.values(preview.data.preview.changes).reduce((n, list) => n + list.length, 0) : 0;
   return (
-    <Card title={t("vehicles.odometer_title")}>
+    <Card>
+      {/* The explanation stands under the «i», and the button names the unit it changes to
+          (customer's remark of 24.11.2026). */}
+      <h2 style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        {t("vehicles.odometer_title")} <Info text={t("vehicles.replacement_where")} />
+      </h2>
       <p>
         {t("vehicles.odometer")}:{" "}
         {vehicle.odometer ? `${Number(vehicle.odometer.value)} ${unit(vehicle.odometer.unit)}` : "—"}
@@ -320,11 +331,10 @@ export function OdometerCard({ vehicle }: { vehicle: Vehicle }) {
           </ul>
         </>
       ) : null}
-      <p className="muted small">{t("vehicles.replacement_where")}</p>
       {can("vehicle.odometer_unit") && vehicle.state === "active" && !changing ? (
-        <div className="actions">
-          <button type="button" className="secondary" onClick={() => setChanging(true)}>
-            {t("vehicles.unit_change_open")}
+        <div className="row-actions" style={{ justifyContent: "flex-start" }}>
+          <button type="button" className="secondary small-button" onClick={() => setChanging(true)}>
+            {t(`vehicles.unit_change_to_${target}`)}
           </button>
         </div>
       ) : null}

@@ -432,6 +432,14 @@ test("the park is filtered by the occupancy and begins a booking; the card shows
   await expect(page.locator(".pick-list .pick-row").first()).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".pick-peek").getByRole("link", { name: t("vehicles.peek_open_rental"), exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: t("vehicles.rentals"), exact: true })).toHaveCount(0);
+  // The general settings: what the vehicle is used in with the readiness beside it, the
+  // restriction and the odometer; the name is not repeated, the notes stand under the «i», and
+  // the button names the unit it changes to (customer's remark of 24.11.2026).
+  await page.goto(`${s.base}/vehicles/${honda.id}?tab=settings&part=general`);
+  await expect(page.getByRole("heading", { name: new RegExp(`^${t("vehicles.restriction_title")}`) })).toBeVisible();
+  await expect(page.getByRole("button", { name: t("vehicles.unit_change_to_mi"), exact: true })).toBeVisible();
+  await expect(page.getByRole("main")).not.toContainText(t("vehicles.replacement_where"));
+  await expect(page.getByRole("main")).not.toContainText(t("vehicles.restriction_hint"));
   // The tariffs of a vehicle stand in its settings; what a tariff holds for this vehicle — its
   // prices, mileage and deposit — is changed there by the pencil (customer's remark of
   // 24.11.2026).

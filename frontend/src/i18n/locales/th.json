@@ -2943,7 +2943,9 @@
     "settings_access": "การเข้าถึง",
     "settings_card": "การ์ด",
     "settings_history": "ประวัติ",
-    "settings_tariffs": "อัตราค่าเช่า"
+    "settings_tariffs": "อัตราค่าเช่า",
+    "unit_change_to_km": "เปลี่ยนเป็นกิโลเมตร",
+    "unit_change_to_mi": "เปลี่ยนเป็นไมล์"
   },
   "warehouse": {
     "action_create": "Create",

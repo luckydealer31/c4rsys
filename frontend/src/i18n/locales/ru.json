@@ -2943,7 +2943,9 @@
     "settings_access": "Доступ",
     "settings_card": "Карточка",
     "settings_history": "История",
-    "settings_tariffs": "Тарифы"
+    "settings_tariffs": "Тарифы",
+    "unit_change_to_km": "Сменить на километры",
+    "unit_change_to_mi": "Сменить на мили"
   },
   "warehouse": {
     "action_create": "Создать",
