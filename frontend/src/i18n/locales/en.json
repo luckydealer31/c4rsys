@@ -5028,13 +5028,21 @@
     "ask_link": "Do you confirm the link with this company? «Yes» makes you its client: the company gets your name and email.",
     "ask_ownership": "Is this vehicle yours? «Yes» adds it to your personal garage.",
     "ask_management": "Do you agree that this company manages the vehicle?",
-    "final": "An answer cannot be changed later: a new decision needs a new request of the company. You may answer some questions now and the rest later.",
+    "final": "An answer cannot be changed later: a new decision only by a new request of the company.",
     "answer": "Answer",
     "closed_owner_changed": "Closed: another owner of the vehicle was given.",
     "documents_title": "Pass copies of documents to the company",
     "documents_hint": "Optional: all, some or none. The company gets its own copies with their files and keeps them itself.",
     "lookup": "Owner: USR ID, email, phone or CMP ID",
-    "lookup_hint": "The company is not told whether such a profile exists. The owner gets a request and confirms that the vehicle is his and that he gave it into management."
+    "lookup_hint": "The company is not told whether such a profile exists. The owner gets a request and confirms that the vehicle is his and that he gave it into management.",
+    "step_link": "Do you confirm the link with “{{company}}”?",
+    "step_link_hint": "«Yes» — you become a client of the company: it gets your name and email. «No» — the other questions are not asked.",
+    "step_ownership": "Does {{vehicle}} belong to you?",
+    "step_ownership_hint": "«Yes» adds it to your personal garage. «No» — the company cannot manage it with your consent.",
+    "step_management": "Do you agree that “{{company}}” manages this vehicle?",
+    "result_link": "Link with the company",
+    "result_ownership": "The vehicle is yours",
+    "result_management": "Management by the company"
   },
   "cabinet": {
     "title": "Personal cabinet",

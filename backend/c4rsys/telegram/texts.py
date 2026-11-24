@@ -123,7 +123,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "th": "เปลี่ยนบริษัท",
     },
     "no_right": {
-        "ru": "В этой компании у вас нет права создавать ТС.",
+        "ru": "В этой компании у вас нет права создавать Т/С.",
         "en": "You have no right to create vehicles in this company.",
         "th": "คุณไม่มีสิทธิ์สร้างรถในบริษัทนี้",
     },
@@ -133,7 +133,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "th": "ยังไม่ได้เชื่อมต่อการอ่านเอกสาร",
     },
     "send_photo": {
-        "ru": "Пришлите фото документа на ТС — свидетельства о регистрации, blue book или другого с данными машины. Можно фото или файл (PDF, картинка).",
+        "ru": "Пришлите фото документа на Т/С — свидетельства о регистрации, blue book или другого с данными машины. Можно фото или файл (PDF, картинка).",
         "en": "Send a photo of a paper of the vehicle — a registration certificate, a blue book or another one with its data. A photo or a file (PDF, picture) will do.",
         "th": "ส่งรูปถ่ายเอกสารรถ เช่น ใบจดทะเบียน เล่มทะเบียน หรือเอกสารอื่นที่มีข้อมูลรถ ส่งเป็นรูปถ่ายหรือไฟล์ (PDF, รูปภาพ) ได้",
     },
@@ -143,7 +143,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "th": "กำลังอ่านเอกสาร…",
     },
     "read_failed": {
-        "ru": "Не удалось прочитать документ. Попробуйте другое фото или добавьте ТС на сайте.",
+        "ru": "Не удалось прочитать документ. Попробуйте другое фото или добавьте Т/С на сайте.",
         "en": "The document could not be read. Try another photo or add the vehicle on the site.",
         "th": "ไม่สามารถอ่านเอกสารได้ ลองรูปอื่นหรือเพิ่มรถบนเว็บไซต์",
     },
@@ -158,7 +158,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "th": "อ่านได้จากเอกสาร:",
     },
     "read_ask": {
-        "ru": "Проверьте данные. Создать ТС сейчас или открыть заполненную форму на сайте?",
+        "ru": "Проверьте данные. Создать Т/С сейчас или открыть заполненную форму на сайте?",
         "en": "Check the data. Create the vehicle now, or open the filled form on the site?",
         "th": "ตรวจสอบข้อมูล สร้างรถเลยหรือเปิดแบบฟอร์มที่กรอกแล้วบนเว็บไซต์?",
     },
@@ -175,22 +175,22 @@ TEXTS: dict[str, dict[str, str]] = {
     "rel_managed": {"ru": "В управлении", "en": "Managed", "th": "รับบริหาร"},
     "rel_client": {"ru": "Клиента", "en": "A client's", "th": "ของลูกค้า"},
     "where": {
-        "ru": "В какой локации учитывать ТС?",
+        "ru": "В какой локации учитывать Т/С?",
         "en": "Which location is the vehicle kept in?",
         "th": "บันทึกรถไว้ที่สาขาใด?",
     },
     "no_location": {
-        "ru": "Нет локации, в которой вы можете создать ТС.",
+        "ru": "Нет локации, в которой вы можете создать Т/С.",
         "en": "There is no location you can create a vehicle in.",
         "th": "ไม่มีสาขาที่คุณสร้างรถได้",
     },
     "created": {
-        "ru": "ТС создано: {name}\n{url}",
+        "ru": "Т/С создано: {name}\n{url}",
         "en": "The vehicle is created: {name}\n{url}",
         "th": "สร้างรถแล้ว: {name}\n{url}",
     },
     "create_failed": {
-        "ru": "Не удалось создать ТС ({code}). Добавьте его на сайте.",
+        "ru": "Не удалось создать Т/С ({code}). Добавьте его на сайте.",
         "en": "The vehicle could not be created ({code}). Add it on the site.",
         "th": "ไม่สามารถสร้างรถได้ ({code}) โปรดเพิ่มบนเว็บไซต์",
     },

@@ -5,7 +5,7 @@ import { Link, Navigate, Route, Routes, useParams } from "react-router";
 
 import { api } from "../api/client";
 import { useApi } from "../api/queries";
-import type { User } from "../api/types";
+import type { IncomingDataRequest, IncomingLink, IncomingOwnerRequest, User } from "../api/types";
 import { useCommand } from "../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../components/ui";
 import { RailLink } from "../layout/AppShell";
@@ -98,9 +98,32 @@ function useWhen() {
   return (value: string | null | undefined) => formatMoment(value, deviceTimeZone(), i18n.language);
 }
 
+/** How many requests wait for the person's answer — shown on «Requests» (customer's remark of
+ * 25.11.2026). The same queries as the lists, so an answer there updates the number. */
+function useWaitingRequests(): number {
+  const owners = useQuery({
+    queryKey: ["incoming-owner-requests", "/owner-requests"],
+    queryFn: async () => (await api<{ requests: IncomingOwnerRequest[] }>("/owner-requests")).requests,
+  });
+  const links = useQuery({
+    queryKey: ["incoming-links", "/profile-links"],
+    queryFn: async () => (await api<{ links: IncomingLink[] }>("/profile-links")).links,
+  });
+  const data = useQuery({
+    queryKey: ["incoming-data-requests", "/profile-data-requests"],
+    queryFn: async () => (await api<{ requests: IncomingDataRequest[] }>("/profile-data-requests")).requests,
+  });
+  return (
+    (owners.data ?? []).filter((r) => r.state === "open").length +
+    (links.data ?? []).filter((l) => l.state === "pending").length +
+    (data.data ?? []).filter((r) => r.state === "pending").length
+  );
+}
+
 /** The frame of the personal cabinet: its own sections, no companies' interface (§ 7.1.2). */
 function CabinetShell({ user, children }: { user: User; children: ReactNode }) {
   const { t } = useTranslation();
+  const waiting = useWaitingRequests();
   return (
     <div className="shell">
       <header className="topbar">
@@ -116,7 +139,7 @@ function CabinetShell({ user, children }: { user: User; children: ReactNode }) {
             <RailLink to="/" icon="companies" label={t("cabinet.companies")} />
             <RailLink to="/documents" icon="documents" label={t("cabinet.documents")} />
             <RailLink to="/garage" icon="garage" label={t("cabinet.garage")} />
-            <RailLink to="/requests" icon="invitations" label={t("cabinet.requests")} />
+            <RailLink to="/requests" icon="invitations" label={t("cabinet.requests")} count={waiting} />
             <RailLink to="/profile" icon="user" label={t("cabinet.profile")} />
           </nav>
         </aside>
@@ -156,7 +179,6 @@ function CabinetHome() {
       <h1>{t("cabinet.companies")}</h1>
       <LinkRequests base="/profile-links" title={t("links.my_title")} hideEmpty pendingOnly />
       <IncomingDataRequests base="/profile-data-requests" title={t("data_requests.my_title")} />
-      <OwnerRequests base="/owner-requests" title={t("owner_requests.my_title")} hideEmpty />
       {/* The companies the person owns or works in stand apart from those the person is a
           client of (decision of 14.11.2026): a card with the name only; the company itself opens
           in the working interface. */}
@@ -522,7 +544,7 @@ function Requests() {
   const { t } = useTranslation();
   return (
     <div className="page">
-      <LinkRequests base="/profile-links" title={t("links.my_title")} />
+      <LinkRequests base="/profile-links" title={t("links.my_title")} hideEmpty pendingOnly />
       <IncomingDataRequests base="/profile-data-requests" title={t("data_requests.my_title")} />
       <OwnerRequests base="/owner-requests" title={t("owner_requests.my_title")} />
     </div>

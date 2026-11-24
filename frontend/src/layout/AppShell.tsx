@@ -9,13 +9,27 @@ import { NotificationBell } from "../pages/notifications/NotificationsPage";
 import { UserMenu } from "./UserMenu";
 
 /** An item of the left menu: an icon with its name shown on hover (decisions of 24.10.2026). */
-export function RailLink({ to, icon, label, also = [] }: { to: string; icon: IconName; label: string; also?: string[] }) {
+export function RailLink({
+  to,
+  icon,
+  label,
+  also = [],
+  count = 0,
+}: {
+  to: string;
+  icon: IconName;
+  label: string;
+  also?: string[];
+  /** What waits for an answer in the section: shown as a number on the icon. */
+  count?: number;
+}) {
   // `also`: addresses of pages that are tabs of this section.
   const { pathname } = useLocation();
   const inside = also.some((part) => pathname.startsWith(part));
   return (
     <NavLink to={to} className={inside ? "rail-item active" : "rail-item"} aria-label={label} data-tip={label}>
       <Icon name={icon} size={22} />
+      {count > 0 ? <span className="rail-count">{count > 99 ? "99+" : count}</span> : null}
     </NavLink>
   );
 }

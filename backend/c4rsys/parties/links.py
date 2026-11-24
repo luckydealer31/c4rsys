@@ -615,6 +615,16 @@ def _owner_contacts(values: list[tuple[str, str]]) -> list[services.Contact]:
     return found
 
 
+def is_linked_client(requester_id: UUID, *, user_id: UUID | None, company_id: UUID | None) -> bool:
+    """Whether the profile is already a linked client of the company."""
+    if user_id is None and company_id is None:
+        return False
+    by_profile = (
+        Q(linked_user_id=user_id) if user_id is not None else Q(linked_company_id=company_id)
+    )
+    return ClientCard.objects.filter(by_profile, company_id=requester_id).exists()
+
+
 def client_from_owner(
     ctx: CommandContext,
     requester: Company,

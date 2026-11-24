@@ -121,7 +121,9 @@ test("the park is filtered by the occupancy and begins a booking; the card shows
   // A booking begun from the row has its vehicle chosen.
   await row("Honda Civic").getByRole("link", { name: t("rentals.park_book"), exact: true }).click();
   await expect(page).toHaveURL(/\/rentals\/book\?vehicle=/);
-  await expect(page.getByLabel(t("rentals.vehicle"))).toHaveValue(honda.id);
+  // The field is found by its own label: the label «Т/С» is a part of other names too.
+  const vehicleField = page.locator("label.field", { has: page.locator("> span", { hasText: new RegExp(`^${t("rentals.vehicle")}$`) }) });
+  await expect(vehicleField.locator("select")).toHaveValue(honda.id);
 
   // The card of a vehicle without photos: the picture of its type stands in their place.
   await page.goto(`${s.base}/vehicles/${honda.id}`);

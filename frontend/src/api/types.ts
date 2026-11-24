@@ -286,11 +286,18 @@ export type OwnerRequest = {
 export type IncomingOwnerRequest = {
   id: string;
   state: "open" | "complete" | "cancelled" | "superseded" | "expired";
-  company: { public_id: string; display_name: string };
+  company: {
+    public_id: string;
+    display_name: string;
+    /** What the company made public (§ 3.5.3); the empty fields are left out. */
+    public?: Record<string, string | { type: string; value: string }[]>;
+  };
   vehicle: { vehicle_id: string; make: string; model: string; year: number | null; plate: string; vin: string };
   created_at: string;
   expires_at: string;
   answers: Partial<Record<"link" | "ownership" | "management", boolean>>;
+  /** The link with the company is there already: it is not asked again. */
+  linked?: boolean;
   /** The owner's documents of the vehicle he may pass with the answer that confirms the
    * management. */
   documents: PassableDocument[];

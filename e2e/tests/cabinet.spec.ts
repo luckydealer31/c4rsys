@@ -68,6 +68,53 @@ test("a client links the card in the cabinet and sees the rental", async ({ page
   await expect(client.getByText(t("cabinet.order", { number: 1 }))).toBeVisible();
   await expect(client.getByText(`${t("cabinet.op_rental")}: Toyota Yaris`)).toBeVisible();
 
+  // The company asks the person as the owner of a managed vehicle. The request waits in
+  // «Requests» with a number on the menu, not on the page of the companies; the questions come
+  // one after another, and «no» to the ownership makes the management «no» (customer's
+  // decisions of 25.11.2026).
+  const managed = (
+    await ok(page, "POST", `/c/${s.cmp}/vehicles`, {
+      name: "Honda Forza",
+      relation: "managed",
+      location_id: s.location,
+      odometer_unit: "km",
+      vehicle_type: "motorcycle",
+      make_other: "Honda",
+      model_other: "Forza 350",
+    })
+  ).vehicle as { id: string };
+  await ok(page, "POST", `/c/${s.cmp}/vehicles/${managed.id}/owner-requests`, { owner_lookup: clientEmail });
+  await client.goto("/");
+  await expect(client.locator(".rail-count")).toHaveText("1");
+  await expect(client.getByText(t("owner_requests.my_title"))).toHaveCount(0);
+  await client.goto("/requests");
+  // The linked companies are not repeated here: only what waits for an answer.
+  await expect(client.getByText(t("links.linked_companies"))).toHaveCount(0);
+  const asking = client.locator("section.card", { hasText: "Honda Forza 350" });
+  await asking.getByRole("button", { name: t("owner_requests.answer"), exact: true }).click();
+  // The person is a linked client already: the link is not asked; each question is a window of
+  // its own.
+  const window = client.getByRole("dialog");
+  await expect(window.getByText(t("owner_requests.step_ownership", { vehicle: "Honda Forza 350" }))).toBeVisible();
+  await expect(window).not.toContainText(t("owner_requests.step_link", { company: "Тест Аренда" }));
+  // «No» to the ownership: the management is «no» by itself, and the answers go at once.
+  await window.getByRole("button", { name: t("owner_requests.no"), exact: true }).click();
+  await expect(client.getByRole("dialog")).toHaveCount(0);
+  const result = client.locator("section.card", { hasText: "Honda Forza 350" });
+  await expect(result).toContainText(t("owner_requests.result_management"));
+  await expect(result.getByRole("button", { name: t("owner_requests.answer"), exact: true })).toHaveCount(0);
+  await expect(client.locator(".rail-count")).toHaveCount(0);
+  const history = (await ok(page, "GET", `/c/${s.cmp}/vehicles/${managed.id}/owner-requests`)).requests as {
+    state: string;
+    answers: { question: string; answer: boolean }[];
+  }[];
+  expect(history[0]!.state).toBe("complete");
+  expect(Object.fromEntries(history[0]!.answers.map((a) => [a.question, a.answer]))).toEqual({
+    link: true,
+    ownership: false,
+    management: false,
+  });
+
   // The company interface is not served on the cabinet domain.
   await client.goto(`${s.base}/rentals`);
   await expect(client.getByRole("heading", { level: 1 })).toHaveText(t("cabinet.companies"));

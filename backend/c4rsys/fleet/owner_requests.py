@@ -6,6 +6,9 @@
 * Three separate answers: the link with the company, the vehicle belongs to the owner, consent
   to the management by this company. They may come one by one; until all three are given the
   request waits for the rest. An answer is never changed (§ 8.3.14).
+* One after another (customer's decision of 25.11.2026): «no» to the link closes the request —
+  the management is «no» by itself and the ownership is not asked; «no» to the ownership makes
+  the management «no» by itself. A «yes» after such a «no» is refused.
 * «The vehicle is mine» records the confirmed period of ownership of the global vehicle and puts
   it into the personal garage, whatever the other answers (§ 8.3.1). If another owner is
   confirmed already, nothing changes automatically: it is a dispute for the support (§ 8.3.12).
@@ -26,6 +29,7 @@ from django.utils import timezone
 from c4rsys.accounts import mail
 from c4rsys.accounts import services as accounts
 from c4rsys.accounts.models import UserAccount
+from c4rsys.companies import services as companies
 from c4rsys.companies.models import Company
 from c4rsys.fleet import characteristics
 from c4rsys.fleet.models import (
@@ -301,6 +305,29 @@ def answer_as_company(
     )
 
 
+def _following(before: dict[str, bool], given: dict[str, bool]) -> dict[str, bool]:
+    """The answers with what follows from a «no» (customer's decision of 25.11.2026): after «no»
+    to the link nothing else is asked and the management is «no»; after «no» to the ownership
+    the management is «no». A «yes» against such a «no» is refused."""
+    joined = {**before, **given}
+    refused_link = joined.get(Question.LINK) is False
+    refused_ownership = joined.get(Question.OWNERSHIP) is False
+    if refused_link and Question.OWNERSHIP in given:
+        raise errors.business_rule("OWNER_ANSWER_AFTER_REFUSAL", question=Question.OWNERSHIP)
+    if (refused_link or refused_ownership) and given.get(Question.MANAGEMENT) is True:
+        raise errors.business_rule("OWNER_ANSWER_AFTER_REFUSAL", question=Question.MANAGEMENT)
+    if (refused_link or refused_ownership) and Question.MANAGEMENT not in joined:
+        return {**given, Question.MANAGEMENT: False}
+    return given
+
+
+def _complete(answers: dict[str, bool]) -> bool:
+    """All three are answered — or the link is refused, and nothing more is asked."""
+    if answers.get(Question.LINK) is False:
+        return Question.MANAGEMENT in answers
+    return all(q in answers for q in QUESTIONS)
+
+
 def _answer(
     ctx: CommandContext,
     query: QuerySet[VehicleOwnerRequest],
@@ -338,6 +365,16 @@ def _answer(
     repeated = sorted(set(given) & set(before))
     if repeated:
         raise errors.business_rule("OWNER_ANSWER_GIVEN", questions=repeated)
+    # The link that is there already is not asked again (customer's remark of 25.11.2026).
+    if (
+        Question.LINK not in before
+        and Question.LINK not in given
+        and links.is_linked_client(
+            request.company_id, user_id=user_id, company_id=company.id if company else None
+        )
+    ):
+        given = {Question.LINK: True, **given}
+    given = _following(before, given)
     responder = ctx.actor.user_id
     for question, value in given.items():
         VehicleOwnerAnswer.objects.create(
@@ -353,7 +390,7 @@ def _answer(
     ownership = ""
     if given.get(Question.OWNERSHIP) is True:
         ownership = _own(request, user_id, company.id if company else None, now)
-    complete = len(before) + len(given) == len(QUESTIONS)
+    complete = _complete({**before, **given})
     if complete:
         request.state = State.COMPLETE
         request.closed_at = now
@@ -567,9 +604,18 @@ def incoming_payload(
     )
     return {
         "documents": documents,
+        # The link with the company is there already: it is not asked again.
+        "linked": links.is_linked_client(
+            request.company_id, user_id=user_id, company_id=company_id
+        ),
         "id": str(request.id),
         "state": effective_state(request, now),
-        "company": {"public_id": company.public_id, "display_name": company.display_name},
+        # What the company itself made public (§ 3.5.3): the owner sees who asks.
+        "company": {
+            "public_id": company.public_id,
+            "display_name": company.display_name,
+            "public": companies.public_data(company),
+        },
         "vehicle": {
             "vehicle_id": request.vehicle.public_id,
             "make": facts["make_name"],

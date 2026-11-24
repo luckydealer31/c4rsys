@@ -162,6 +162,10 @@ th { font-size: 0.85rem; color: var(--muted); font-weight: 600; }
 }
 .rail-item:hover { background: var(--bg); color: var(--text); }
 .rail-item.active { background: var(--bg); color: var(--accent); }
+/* What waits for an answer in a section (the requests of the cabinet). */
+.rail-item { position: relative; }
+.rail-count { position: absolute; top: 2px; right: 2px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px;
+  background: var(--danger); color: var(--accent-text); font-size: 10px; line-height: 16px; text-align: center; }
 .rail-company { width: 48px; height: 48px; margin-bottom: 6px; }
 .rail-item[data-tip]:hover::after, .rail-item[data-tip]:focus-visible::after {
   content: attr(data-tip); position: absolute; left: calc(100% + 10px); top: 50%;

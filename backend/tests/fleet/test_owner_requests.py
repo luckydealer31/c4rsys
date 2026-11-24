@@ -137,10 +137,11 @@ def test_refusal_is_a_conflict_and_a_new_request_keeps_answers(
     card = vehicle(owner, cmp, location, relation="managed", owner_kind="profile", owner_lookup=usr)
     url = f"/api/c/{cmp}/vehicles/{card['id']}"
     first = ask(owner, cmp, card["id"]).json()["request"]
-    no = answer(somchai, first["id"], link=False, ownership=False, management=False)
+    # «No» to the link closes the request: the ownership is not asked (decision of 25.11.2026).
+    no = answer(somchai, first["id"], link=False)
     assert no.status_code == 200, no.content
     status = owner.get(url).json()["vehicle"]["owner"]
-    # § 8.3.3: «no / no / no» is a conflict; the card works on and nothing goes to the garage.
+    # § 8.3.3: a refusal is a conflict; the card works on and nothing goes to the garage.
     assert status["conflict"] and not status["ownership_confirmed"]
     assert not VehicleOwnership.objects.exists()
 
@@ -149,7 +150,7 @@ def test_refusal_is_a_conflict_and_a_new_request_keeps_answers(
     assert second.status_code == 201, second.content
     history = owner.get(f"{url}/owner-requests").json()["requests"]
     assert [r["state"] for r in history] == ["open", "complete"]
-    assert len(history[1]["answers"]) == 3
+    assert len(history[1]["answers"]) == 2
 
     # An incomplete answer: the next request supersedes it and keeps its answer.
     answer(somchai, second.json()["request"]["id"], link=True)
@@ -438,3 +439,73 @@ def test_the_owner_is_named_and_asked_at_once(owner: Client, cmp: str, location:
         owner, f"/api/c/{cmp}/vehicles/{own['id']}/owner-requests", {"owner_lookup": usr}, key()
     )
     assert refused.json()["error"]["code"] == "OWNER_REQUEST_MANAGED_ONLY"
+
+
+def test_a_refusal_answers_what_follows(owner: Client, cmp: str, location: str) -> None:
+    """Customer's decision of 25.11.2026: «no» to the link closes the request without asking
+    about the ownership; «no» to the ownership makes the management «no»; a «yes» against such
+    a «no» is refused."""
+    somchai, usr = person("somchai@example.com")
+    card = vehicle(owner, cmp, location, relation="managed", owner_kind="profile", owner_lookup=usr)
+    first = ask(owner, cmp, card["id"]).json()["request"]
+    against = answer(somchai, first["id"], link=False, management=True)
+    assert against.json()["error"]["code"] == "OWNER_ANSWER_AFTER_REFUSAL"
+
+    assert answer(somchai, first["id"], link=False).status_code == 200
+    shown = owner.get(f"/api/c/{cmp}/vehicles/{card['id']}/owner-requests").json()["requests"][0]
+    assert shown["state"] == "complete"
+    assert sorted((a["question"], a["answer"]) for a in shown["answers"]) == [
+        ("link", False),
+        ("management", False),
+    ]
+    assert list(owner_requests.garage_of_user(somchai_id(usr))) == []
+
+    second = ask(owner, cmp, card["id"]).json()["request"]
+    assert answer(somchai, second["id"], link=True, ownership=False).status_code == 200
+    shown = owner.get(f"/api/c/{cmp}/vehicles/{card['id']}/owner-requests").json()["requests"][0]
+    assert shown["state"] == "complete"
+    assert dict((a["question"], a["answer"]) for a in shown["answers"])["management"] is False
+
+
+def test_the_owner_sees_the_public_data_of_the_company(
+    owner: Client, cmp: str, location: str
+) -> None:
+    somchai, usr = person("somchai@example.com")
+    card = vehicle(owner, cmp, location, relation="managed", owner_kind="profile", owner_lookup=usr)
+    ask(owner, cmp, card["id"])
+    company = somchai.get("/api/owner-requests").json()["requests"][0]["company"]
+    assert company["display_name"] == "Sunrise Rent"
+    assert isinstance(company["public"], dict)
+
+
+def test_the_link_that_is_there_is_not_asked(owner: Client, cmp: str, location: str) -> None:
+    """Customer's remark of 25.11.2026: a person who is a linked client of the company already is
+    not asked about the link again; it counts as «yes»."""
+    somchai, usr = person("somchai@example.com")
+    card = vehicle(owner, cmp, location, relation="managed", owner_kind="profile", owner_lookup=usr)
+    first = ask(owner, cmp, card["id"]).json()["request"]
+    assert somchai.get("/api/owner-requests").json()["requests"][0]["linked"] is False
+    assert answer(somchai, first["id"], link=True, ownership=False).status_code == 200
+    other = vehicle(
+        owner,
+        cmp,
+        location,
+        relation="managed",
+        owner_kind="profile",
+        owner_lookup=usr,
+        vin="JTDBT923771234569",
+        name="Civic",
+    )
+    second = ask(owner, cmp, other["id"]).json()["request"]
+    mine = [
+        r for r in somchai.get("/api/owner-requests").json()["requests"] if r["id"] == second["id"]
+    ][0]
+    assert mine["linked"] is True
+    assert answer(somchai, second["id"], ownership=True, management=True).status_code == 200
+    shown = owner.get(f"/api/c/{cmp}/vehicles/{other['id']}/owner-requests").json()["requests"][0]
+    assert shown["state"] == "complete"
+    assert dict((a["question"], a["answer"]) for a in shown["answers"]) == {
+        "link": True,
+        "ownership": True,
+        "management": True,
+    }

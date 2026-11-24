@@ -111,7 +111,7 @@ class VehiclesTemplate:
     help = {
         "vehicle_id": (
             "VHL ID of a vehicle already in your garage, to find it",
-            "VHL ID ТС, уже имеющегося в гараже компании, — для поиска совпадения",
+            "VHL ID Т/С, уже имеющегося в гараже компании, — для поиска совпадения",
             "",
         ),
         "location_id": (

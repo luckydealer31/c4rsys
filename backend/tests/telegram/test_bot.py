@@ -232,7 +232,7 @@ def test_a_vehicle_is_made_by_a_photo_after_the_confirmation(
     assert card["characteristics"]["vin"] == "MR2K29F30N1234567"
     assert card["characteristics"]["color"] == "White"
     assert card["owner"]["name"] == "Somchai Jaidee"
-    created = [text for text in _texts(telegram) if "ТС создано" in text]
+    created = [text for text in _texts(telegram) if "Т/С создано" in text]
     assert created and f"/c/{cmp}/vehicles/{vehicles[0]['id']}" in created[0]
     assert AuditEvent.objects.filter(action="file.uploaded", after__through="telegram").exists()
 
