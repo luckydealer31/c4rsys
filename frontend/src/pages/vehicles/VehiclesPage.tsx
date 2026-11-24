@@ -12,8 +12,8 @@ import { VehicleTypeIcon } from "../../components/VehicleTypeIcon";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { CompanyTabs, workHome } from "../../layout/CompanyTabs";
 import { SectionTabs } from "../../layout/SectionTabs";
+import { VehicleInspectionsSplit, VehicleRentalsSplit } from "./VehiclePeek";
 import { useFirstTab } from "../../layout/tabOrder";
-import { formatMoment } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
 import { SectionSearch } from "../search/SearchPage";
 import { VehicleFinance } from "./VehicleFinance";
@@ -27,7 +27,7 @@ import { VehiclePhotos } from "./VehiclePhotos";
 import { RowTags, TagsLine, useTagsOf } from "../tags/Tags";
 import { useScope } from "../../offline/hooks";
 import { VehicleMoves } from "./VehicleMoves";
-import { VehicleDamagesCard, VehicleInspectionsCard } from "../inspections/Blocks";
+import { VehicleDamagesCard } from "../inspections/Blocks";
 import {
   ConflictsCard,
   DuplicatesHistory,
@@ -512,7 +512,7 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
 /** Vehicle card: name, relation, accounting location, odometer unit, allowed contexts, tariffs,
  * rentals (§ 8.1, § 8.5, § 8.7.7). */
 export function VehiclePage() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { id = "" } = useParams();
   const company = useCompany();
   const can = useCan();
@@ -733,47 +733,21 @@ export function VehiclePage() {
         <>
           <VehicleService vehicle={data} />
           <VehicleParts vehicle={data} />
+          {/* The damages of the vehicle are a matter of its upkeep (customer's remark of
+              24.11.2026); an inspection shows its own damages in the tab of inspections. */}
+          <VehicleDamagesCard vehicle={data} />
         </>
       ) : null}
       {/* The inspections and, beside them, the damages on the scheme of the vehicle — one tab
           (decision of 12.11.2026). */}
       {tab === "inspections" ? (
-        <div className="inspections-split">
-          <div>
-            <VehicleInspectionsCard vehicle={data} />
-            {/* Inspections started on this device and not sent yet (§ 10.4.2–10.4.4). */}
-            <DraftsPanel
-              scope={draftScope}
-              base={companyPath(company)}
-              zone={timeZone}
-              canCreate={can("inspection.create")}
-            />
-          </div>
-          <VehicleDamagesCard vehicle={data} />
-        </div>
+        <>
+          {/* Inspections started on this device and not sent yet (§ 10.4.2–10.4.4). */}
+          <DraftsPanel scope={draftScope} base={companyPath(company)} zone={timeZone} canCreate={can("inspection.create")} />
+          <VehicleInspectionsSplit vehicle={data} zone={timeZone} />
+        </>
       ) : null}
-      {part === "rentals" && can("rental.view") ? (
-        <Card title={t("vehicles.rentals")}>
-          {own.length === 0 ? <p className="muted">{t("vehicles.no_rentals")}</p> : null}
-          <table>
-            <tbody>
-              {own.map((r) => (
-                <tr key={r.id}>
-                  <td>
-                    {/* A booking and a cancelled one have no actual dates: the planned ones stand
-                        for them. */}
-                    <Link to={companyPath(company, `/rentals/${r.id}`)}>
-                      {formatMoment(startOf(r), timeZone, i18n.language)} —{" "}
-                      {formatMoment(r.actual_end ?? r.planned_end ?? null, timeZone, i18n.language)}
-                    </Link>
-                  </td>
-                  <td>{t(`rentals.state_${r.state}`)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
-      ) : null}
+      {part === "rentals" && can("rental.view") ? <VehicleRentalsSplit rentals={own} zone={timeZone} /> : null}
       {part === "moves" ? (
         <>
           {isClient ? null : <VehicleMoves vehicle={data} />}

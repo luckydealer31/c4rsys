@@ -2929,7 +2929,15 @@
     "card_rentals": "Аренды",
     "card_moves": "Перемещения",
     "card_ownership": "Владение",
-    "duplicates_history_title": "Конфликты и объединения карточек"
+    "duplicates_history_title": "Конфликты и объединения карточек",
+    "peek_when": "Когда",
+    "peek_open_rental": "Открыть аренду",
+    "peek_start": "Начало",
+    "peek_end": "Окончание",
+    "peek_issue_place": "Выдача",
+    "peek_return_place": "Возврат",
+    "peek_comment": "Комментарий",
+    "peek_cancel_reason": "Причина отмены"
   },
   "warehouse": {
     "action_create": "Создать",

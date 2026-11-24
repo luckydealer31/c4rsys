@@ -2929,7 +2929,15 @@
     "card_rentals": "การเช่า",
     "card_moves": "การย้าย",
     "card_ownership": "ความเป็นเจ้าของ",
-    "duplicates_history_title": "ข้อขัดแย้งและการรวมการ์ด"
+    "duplicates_history_title": "ข้อขัดแย้งและการรวมการ์ด",
+    "peek_when": "เมื่อ",
+    "peek_open_rental": "เปิดการเช่า",
+    "peek_start": "เริ่ม",
+    "peek_end": "สิ้นสุด",
+    "peek_issue_place": "ส่งมอบ",
+    "peek_return_place": "รับคืน",
+    "peek_comment": "ความคิดเห็น",
+    "peek_cancel_reason": "เหตุผลที่ยกเลิก"
   },
   "warehouse": {
     "action_create": "Create",

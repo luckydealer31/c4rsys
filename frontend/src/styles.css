@@ -1115,3 +1115,19 @@ table.fit { width: auto; }
 
 /* What belongs to a line of a list: under it, set in. */
 .sub-list { margin: 2px 0 6px 18px; color: var(--muted); }
+
+/* A list at the left and what is chosen in it at the right (the inspections and the rentals of
+   a vehicle): the list is scrolled alone, the page stays in place. On a narrow screen the chosen
+   one stands above the list. */
+.pick-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.pick-split > .pick-list > .card { max-height: calc(100vh - 230px); overflow-y: auto; }
+.pick-split > .pick-peek { position: sticky; top: 76px; }
+.pick-row { width: 100%; text-align: left; background: var(--surface); color: var(--text); min-height: 0; cursor: pointer; }
+.pick-row.active { border-color: var(--accent); background: var(--bg); }
+.peek-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; margin-top: 8px; }
+.peek-photos img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 6px; display: block; border: 1px solid var(--border); }
+@media (max-width: 900px) {
+  .pick-split { grid-template-columns: minmax(0, 1fr); }
+  .pick-split > .pick-peek { grid-row: 1; position: static; }
+  .pick-split > .pick-list > .card { max-height: none; overflow-y: visible; }
+}

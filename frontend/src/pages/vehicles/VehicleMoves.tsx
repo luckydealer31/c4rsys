@@ -80,7 +80,7 @@ export function VehicleMoves({ vehicle }: { vehicle: Vehicle }) {
   const items = moves.data?.moves ?? [];
   const trip = trips.data?.deliveries ?? [];
   return (
-    <Card title={t("moves.title")}>
+    <Card>
       {items.length === 0 && trip.length === 0 ? <p className="muted">{t("moves.none")}</p> : null}
       {trip.length ? (
         <table>

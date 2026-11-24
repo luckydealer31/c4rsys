@@ -422,6 +422,16 @@ test("the park is filtered by the occupancy and begins a booking; the card shows
   await expect(page.getByRole("switch", { name: t("trips.finished") })).toHaveCount(0);
   await which("all").click();
   await expect(page.getByRole("switch", { name: t("trips.finished") })).toBeVisible();
+  // The inspections and the rentals of a vehicle: a list at the left, the chosen one at the
+  // right, and no second title of the tab (customer's remark of 24.11.2026).
+  await page.goto(`${s.base}/vehicles/${s.vehicle}?tab=inspections`);
+  await expect(page.locator(".pick-list .pick-row").first()).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".pick-peek")).toContainText(t("inspections.damages"));
+  await expect(page.getByRole("heading", { name: t("inspections.title"), exact: true })).toHaveCount(0);
+  await page.goto(`${s.base}/vehicles/${s.vehicle}?tab=rentals`);
+  await expect(page.locator(".pick-list .pick-row").first()).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".pick-peek").getByRole("link", { name: t("vehicles.peek_open_rental"), exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: t("vehicles.rentals"), exact: true })).toHaveCount(0);
   // The cards of one vehicle in the company: no doubles, the archive, the merge.
   await ownershipScenario(page, s, email);
 });

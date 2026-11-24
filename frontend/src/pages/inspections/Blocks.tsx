@@ -15,9 +15,7 @@ import { InspectionList } from "./InspectionsPage";
 import { PhotoInput, PhotoThumb } from "./Media";
 import { schemeFor, VehicleScheme } from "./schemes";
 
-function newPath(params: Record<string, string>): string {
-  return `/inspections/new?${new URLSearchParams(params).toString()}`;
-}
+import { newPath } from "./paths";
 
 export function VehicleInspectionsCard({ vehicle }: { vehicle: Vehicle }) {
   const { t } = useTranslation();

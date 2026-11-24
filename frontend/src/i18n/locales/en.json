@@ -2929,7 +2929,15 @@
     "card_rentals": "Rentals",
     "card_moves": "Moves",
     "card_ownership": "Ownership",
-    "duplicates_history_title": "Conflicts and merges of cards"
+    "duplicates_history_title": "Conflicts and merges of cards",
+    "peek_when": "When",
+    "peek_open_rental": "Open the rental",
+    "peek_start": "Start",
+    "peek_end": "End",
+    "peek_issue_place": "Issue",
+    "peek_return_place": "Return",
+    "peek_comment": "Comment",
+    "peek_cancel_reason": "Reason of the cancel"
   },
   "warehouse": {
     "action_create": "Create",
