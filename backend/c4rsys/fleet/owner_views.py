@@ -14,7 +14,7 @@ from c4rsys.accounts.middleware import require_user
 from c4rsys.companies import access
 from c4rsys.companies import services as companies
 from c4rsys.companies.views import run_and_respond
-from c4rsys.fleet import document_transfer, owner_requests
+from c4rsys.fleet import document_transfer, owner_requests, owners
 from c4rsys.fleet.models import VehicleCard
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
@@ -50,15 +50,31 @@ def card_requests(request: HttpRequest, cmp: str, card_id: UUID) -> JsonResponse
         ]
         return JsonResponse({"requests": items})
 
-    _card(context.company.id, card_id, actor, "vehicle.edit")
+    card = _card(context.company.id, card_id, actor, "vehicle.edit")
+    # The owner may be named here by his USR ID, email, phone or CMP ID (customer's remark of
+    # 25.11.2026): he is declared and asked in one command.
+    body = parse_json(request)
+    lookup = body.get("owner_lookup")
+    named = (
+        owners.parse({"owner_kind": "profile", "owner_lookup": lookup}, card.relation)
+        if lookup not in (None, "")
+        else None
+    )
 
     def handler(ctx: CommandContext) -> CommandResult:
+        if named is not None:
+            locked = VehicleCard.objects.select_for_update().get(
+                company_id=context.company.id, pk=card_id
+            )
+            if locked.relation != VehicleCard.Relation.MANAGED:
+                raise errors.business_rule("OWNER_REQUEST_MANAGED_ONLY")
+            if not owners.is_current(locked, named):
+                owners.declare(ctx, context.company, locked, named)
         sent = owner_requests.send(ctx, context.company, card_id)
         return CommandResult(201, {"request": owner_requests.request_payload(sent, timezone.now())})
 
-    return run_and_respond(
-        request, "vehicle.owner_request", actor, {"card_id": str(card_id)}, handler
-    )
+    payload = {"card_id": str(card_id), "owner": named.payload() if named else None}
+    return run_and_respond(request, "vehicle.owner_request", actor, payload, handler)
 
 
 @require_POST

@@ -1,6 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 
-import { ok, type Company } from "./api";
+import { ok, uniqueEmail, type Company } from "./api";
 import { mailCode } from "./docker";
 import { t } from "./i18n";
 
@@ -63,6 +63,11 @@ export async function ownershipScenario(page: Page, s: Company, email: string): 
   // owner is set only after the link is confirmed (customer's decision of 24.11.2026).
   await page.getByRole("tab", { name: t("vehicles.settings_access"), exact: true }).click();
   await expect(page.getByRole("main")).not.toContainText(t("vehicles.disclosure_title"));
+  // The owner is named by his ID right here, and the request goes at once (customer's remark of
+  // 25.11.2026).
+  await page.getByLabel(t("owner_requests.lookup")).fill(uniqueEmail("owner"));
+  await page.getByRole("button", { name: t("owner_requests.send"), exact: true }).click();
+  await expect(page.getByRole("main")).toContainText(t("owner_requests.state_open"));
   await page.getByRole("tab", { name: t("vehicles.settings_card"), exact: true }).click();
   await page.getByRole("button", { name: t("vehicles.end_management_button"), exact: true }).click();
   const asking = page.getByRole("dialog");

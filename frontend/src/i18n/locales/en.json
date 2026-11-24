@@ -5032,7 +5032,9 @@
     "answer": "Answer",
     "closed_owner_changed": "Closed: another owner of the vehicle was given.",
     "documents_title": "Pass copies of documents to the company",
-    "documents_hint": "Optional: all, some or none. The company gets its own copies with their files and keeps them itself."
+    "documents_hint": "Optional: all, some or none. The company gets its own copies with their files and keeps them itself.",
+    "lookup": "Owner: USR ID, email, phone or CMP ID",
+    "lookup_hint": "The company is not told whether such a profile exists. The owner gets a request and confirms that the vehicle is his and that he gave it into management."
   },
   "cabinet": {
     "title": "Personal cabinet",

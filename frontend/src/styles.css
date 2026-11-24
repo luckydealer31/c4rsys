@@ -743,6 +743,8 @@ th.num, td.num { text-align: right; white-space: nowrap; }
 /* The actions of a row: small buttons at its right end. */
 .row-actions { display: flex; gap: 6px; justify-content: flex-end; }
 .row-actions .small-button { margin-left: 0; white-space: nowrap; }
+/* A button beside a short field stands right after it, at the level of the field. */
+.row.short-fields > .small-button { margin-left: 0; margin-bottom: 6px; white-space: nowrap; }
 /* The photos of the vehicle in its card: one large, the rest small under it. */
 .vehicle-photos { margin: 0 0 16px; max-width: 460px; }
 .vehicle-photo-main { display: block; aspect-ratio: 4 / 3; border-radius: 12px; overflow: hidden;

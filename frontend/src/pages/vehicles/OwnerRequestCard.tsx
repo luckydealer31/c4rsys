@@ -1,10 +1,11 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useApi } from "../../api/queries";
 import type { OwnerRequest, Vehicle } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { Card, ErrorMessage } from "../../components/ui";
+import { Card, ErrorMessage, Field } from "../../components/ui";
 import { useCan, useCompany } from "../../layout/CompanyShell";
 import { deviceTimeZone, formatMoment } from "../../time";
 
@@ -21,29 +22,50 @@ export function OwnerRequestCard({ vehicle }: { vehicle: Vehicle }) {
   const base = `/c/${company.public_id}/vehicles/${vehicle.id}/owner-requests`;
   const key = ["owner-requests", company.public_id, vehicle.id];
   const requests = useApi<{ requests: OwnerRequest[] }>(key, base);
-  const send = useCommand<Record<string, never>, unknown>(base);
+  const send = useCommand<{ owner_lookup?: string }, unknown>(base);
   const cancel = useCommand<Record<string, never>, unknown>(`${base}/cancel`);
   const when = (value: string) => formatMoment(value, company.timezone || deviceTimeZone(), i18n.language);
   const owner = vehicle.owner;
   const last = requests.data?.requests[0];
   const editable = can("vehicle.edit");
+  // The owner is named here by his ID and asked at once (customer's remark of 25.11.2026); the
+  // owner already given as a profile stands in the field.
+  const [lookup, setLookup] = useState<string | null>(null);
+  const given = owner?.kind === "profile" ? owner.lookup : "";
+  const typed = lookup ?? given;
 
   async function refresh() {
     await queryClient.invalidateQueries({ queryKey: key });
     await queryClient.invalidateQueries({ queryKey: ["vehicle", company.public_id, vehicle.id] });
   }
 
-  const canSend =
-    editable &&
-    owner?.kind === "profile" &&
-    !owner.confirmed &&
-    (!last || last.state !== "open");
+  const canSend = editable && !owner?.confirmed && (!last || last.state !== "open");
 
   return (
     <Card title={t("owner_requests.title")}>
       {owner?.confirmed ? <p><span className="badge ok">{t("owner_requests.confirmed")}</span></p> : null}
       {owner?.conflict ? <p><span className="badge warn">{t("owner_requests.conflict")}</span></p> : null}
-      {owner?.kind !== "profile" ? <p className="muted">{t("owner_requests.profile_needed")}</p> : null}
+      {canSend ? (
+        <div className="row short-fields" style={{ alignItems: "flex-end" }}>
+          <Field label={t("owner_requests.lookup")} info={t("owner_requests.lookup_hint")}>
+            <input value={typed} onChange={(e) => setLookup(e.target.value)} />
+          </Field>
+          <button
+            type="button"
+            className="small-button"
+            style={{ flex: "none" }}
+            disabled={!typed.trim() || send.pending}
+            onClick={async () => {
+              if ((await send.run({ owner_lookup: typed.trim() })) !== null) {
+                setLookup(null);
+                await refresh();
+              }
+            }}
+          >
+            {last ? t("owner_requests.send_again") : t("owner_requests.send")}
+          </button>
+        </div>
+      ) : null}
       {(requests.data?.requests ?? []).map((r) => (
         <div key={r.id} className="stack" style={{ marginBottom: 12 }}>
           <p>
@@ -86,17 +108,6 @@ export function OwnerRequestCard({ vehicle }: { vehicle: Vehicle }) {
       ))}
       <ErrorMessage error={send.error ?? cancel.error} />
       <div className="actions">
-        {canSend ? (
-          <button
-            type="button"
-            disabled={send.pending}
-            onClick={async () => {
-              if ((await send.run({})) !== null) await refresh();
-            }}
-          >
-            {last ? t("owner_requests.send_again") : t("owner_requests.send")}
-          </button>
-        ) : null}
         {editable && last && (last.state === "open" || last.state === "awaiting_rest") ? (
           <button
             type="button"

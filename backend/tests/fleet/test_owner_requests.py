@@ -414,3 +414,27 @@ def test_the_vehicle_is_locked_before_the_ownership_is_recorded(
     monkeypatch.setattr(Vehicle.objects, "select_for_update", spy)
     assert answer(somchai, request["id"], ownership=True).status_code == 200
     assert locked == ["vehicle"]
+
+
+def test_the_owner_is_named_and_asked_at_once(owner: Client, cmp: str, location: str) -> None:
+    """Customer's remark of 25.11.2026: in «Access» the owner is named by his ID and asked in
+    one command; a vehicle with no owner given gets one."""
+    somchai, usr = person("somchai@example.com")
+    card = vehicle(owner, cmp, location, relation="managed")
+    url = f"/api/c/{cmp}/vehicles/{card['id']}/owner-requests"
+
+    sent = post(owner, url, {"owner_lookup": usr.lower()}, key())
+
+    assert sent.status_code == 201, sent.content
+    assert (
+        owner.get(f"/api/c/{cmp}/vehicles/{card['id']}").json()["vehicle"]["owner"]["kind"]
+        == "profile"
+    )
+    assert somchai.get("/api/owner-requests").json()["requests"][0]["state"] == "open"
+    wrong = post(owner, url, {"owner_lookup": "not an id"}, key())
+    assert wrong.json()["error"]["code"] == "OWNER_LOOKUP_INVALID"
+    own = vehicle(owner, cmp, location, vin="JTDBT923771234568", name="Own")
+    refused = post(
+        owner, f"/api/c/{cmp}/vehicles/{own['id']}/owner-requests", {"owner_lookup": usr}, key()
+    )
+    assert refused.json()["error"]["code"] == "OWNER_REQUEST_MANAGED_ONLY"
