@@ -305,6 +305,16 @@ def answer_as_company(
     )
 
 
+def owns(vehicle_id: UUID, *, user_id: UUID | None, company_id: UUID | None) -> bool:
+    """Whether the profile is the confirmed current owner of the vehicle."""
+    if user_id is None and company_id is None:
+        return False
+    by_profile = Q(owner_user_id=user_id) if user_id is not None else Q(owner_company_id=company_id)
+    return VehicleOwnership.objects.filter(
+        by_profile, vehicle_id=vehicle_id, ended_at__isnull=True, reversed_at__isnull=True
+    ).exists()
+
+
 def _following(before: dict[str, bool], given: dict[str, bool]) -> dict[str, bool]:
     """The answers with what follows from a «no» (customer's decision of 25.11.2026): after «no»
     to the link nothing else is asked and the management is «no»; after «no» to the ownership
@@ -374,6 +384,14 @@ def _answer(
         )
     ):
         given = {Question.LINK: True, **given}
+    # So is the ownership the person has confirmed already: only what is not there is asked.
+    if (
+        Question.OWNERSHIP not in before
+        and Question.OWNERSHIP not in given
+        and {**before, **given}.get(Question.LINK) is not False
+        and owns(request.vehicle_id, user_id=user_id, company_id=company.id if company else None)
+    ):
+        given = {**given, Question.OWNERSHIP: True}
     given = _following(before, given)
     responder = ctx.actor.user_id
     for question, value in given.items():
@@ -608,6 +626,8 @@ def incoming_payload(
         "linked": links.is_linked_client(
             request.company_id, user_id=user_id, company_id=company_id
         ),
+        # The ownership is confirmed already: it is not asked again either.
+        "owned": owns(request.vehicle_id, user_id=user_id, company_id=company_id),
         "id": str(request.id),
         "state": effective_state(request, now),
         # What the company itself made public (§ 3.5.3): the owner sees who asks.

@@ -298,6 +298,8 @@ export type IncomingOwnerRequest = {
   answers: Partial<Record<"link" | "ownership" | "management", boolean>>;
   /** The link with the company is there already: it is not asked again. */
   linked?: boolean;
+  /** The ownership of the vehicle is confirmed already: it is not asked again. */
+  owned?: boolean;
   /** The owner's documents of the vehicle he may pass with the answer that confirms the
    * management. */
   documents: PassableDocument[];

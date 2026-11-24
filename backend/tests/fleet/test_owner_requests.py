@@ -509,3 +509,23 @@ def test_the_link_that_is_there_is_not_asked(owner: Client, cmp: str, location: 
         "ownership": True,
         "management": True,
     }
+
+
+def test_a_confirmed_ownership_is_not_asked(owner: Client, cmp: str, location: str) -> None:
+    """Customer's remark of 25.11.2026: only what is not confirmed yet is asked. A linked client
+    who owns the vehicle already is asked about the management only."""
+    somchai, usr = person("somchai@example.com")
+    card = vehicle(owner, cmp, location, relation="managed", owner_kind="profile", owner_lookup=usr)
+    first = ask(owner, cmp, card["id"]).json()["request"]
+    assert (
+        answer(somchai, first["id"], link=True, ownership=True, management=False).status_code == 200
+    )
+    second = ask(owner, cmp, card["id"]).json()["request"]
+    mine = [
+        r for r in somchai.get("/api/owner-requests").json()["requests"] if r["id"] == second["id"]
+    ][0]
+    assert (mine["linked"], mine["owned"]) == (True, True)
+    assert answer(somchai, second["id"], management=True).status_code == 200
+    shown = owner.get(f"/api/c/{cmp}/vehicles/{card['id']}/owner-requests").json()["requests"][0]
+    assert shown["state"] == "complete"
+    assert owner.get(f"/api/c/{cmp}/vehicles/{card['id']}").json()["vehicle"]["owner"]["confirmed"]

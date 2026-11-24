@@ -120,6 +120,7 @@ function OwnerRequestSteps({
   const vehicle = vehicleName(request);
   const known: Partial<Record<Question, boolean>> = {
     ...(request.linked ? { link: true } : {}),
+    ...(request.owned ? { ownership: true } : {}),
     ...request.answers,
     ...choice,
   };
