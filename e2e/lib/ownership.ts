@@ -59,6 +59,11 @@ export async function ownershipScenario(page: Page, s: Company, email: string): 
   await expect(page.getByRole("button", { name: t("vehicles.end_management_button"), exact: true })).toHaveCount(0);
   await page.goto(`/c/${s.cmp}/vehicles/${earlier.id}?tab=settings&part=card`);
   await expect(page.getByRole("tab", { name: t("vehicles.settings_card"), exact: true })).toHaveAttribute("aria-selected", "true");
+  // A managed vehicle offers the confirmation by the owner in «Access»; what is passed to the
+  // owner is set only after the link is confirmed (customer's decision of 24.11.2026).
+  await page.getByRole("tab", { name: t("vehicles.settings_access"), exact: true }).click();
+  await expect(page.getByRole("main")).not.toContainText(t("vehicles.disclosure_title"));
+  await page.getByRole("tab", { name: t("vehicles.settings_card"), exact: true }).click();
   await page.getByRole("button", { name: t("vehicles.end_management_button"), exact: true }).click();
   const asking = page.getByRole("dialog");
   await asking.getByLabel(t("vehicles.lifecycle_reason")).fill("Owner took it back");

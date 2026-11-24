@@ -601,7 +601,14 @@ export function VehiclePage() {
     tab === "finance" || tab === "rentals" || tab === "moves" || tab === "ownership" ? tab : null;
   const askedSettings = search.get("merge") ? "card" : named === "history" ? "history" : search.get("part");
   // A client vehicle is only serviced: it has no tariffs.
-  const settingsParts = SETTINGS_PARTS.filter((key) => key !== "tariffs" || !isClient);
+  // What is passed to the owner is set only after the link with him is confirmed; until then
+  // the tab «Access» offers the confirmation — of a managed vehicle — and is not shown at all
+  // when it has nothing (customer's decision of 24.11.2026).
+  const linked = Boolean(data.disclosure?.confirmed_since);
+  const hasAccess = data.relation === "managed" || linked;
+  const settingsParts = SETTINGS_PARTS.filter(
+    (key) => (key !== "tariffs" || !isClient) && (key !== "access" || hasAccess),
+  );
   const settingsPart: SettingsPart =
     settingsParts.find((key) => key === askedSettings) ?? firstSettings(settingsParts) ?? "general";
   const openTab = (key: CardTab) => setSearch({ tab: key }, { replace: true });
@@ -729,7 +736,7 @@ export function VehiclePage() {
           {settingsPart === "access" ? (
             <>
               {data.relation === "managed" ? <OwnerRequestCard vehicle={data} /> : null}
-              <DisclosureCard vehicle={data} />
+              {linked ? <DisclosureCard vehicle={data} /> : null}
             </>
           ) : null}
           {/* To end the management, to archive, to restore, to merge and to split are actions with

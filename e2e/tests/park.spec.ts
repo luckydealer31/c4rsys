@@ -440,6 +440,8 @@ test("the park is filtered by the occupancy and begins a booking; the card shows
   await expect(page.getByRole("button", { name: t("vehicles.unit_change_to_mi"), exact: true })).toBeVisible();
   await expect(page.getByRole("main")).not.toContainText(t("vehicles.replacement_where"));
   await expect(page.getByRole("main")).not.toContainText(t("vehicles.restriction_hint"));
+  // An own vehicle has nothing about an owner: the tab «Access» is not shown.
+  await expect(page.getByRole("tab", { name: t("vehicles.settings_access"), exact: true })).toHaveCount(0);
   // The tariffs of a vehicle stand in its settings; what a tariff holds for this vehicle — its
   // prices, mileage and deposit — is changed there by the pencil (customer's remark of
   // 24.11.2026).
