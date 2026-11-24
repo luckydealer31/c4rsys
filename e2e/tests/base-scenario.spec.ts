@@ -563,7 +563,7 @@ test("base example from registration to closing survives a restart", async ({ pa
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
   // Money of the vehicle: the cost of the acquisition is shown and changed by the pencil.
-  await page.goto(`${cardUrl}?tab=history&part=finance`);
+  await page.goto(`${cardUrl}?tab=finance`);
   await page.getByRole("button", { name: `${t("common.edit")}: ${t("vehicles.acquisition_cost")}` }).click();
   await page.getByRole("dialog").getByLabel(t("vehicles.acquisition_cost")).fill("500000");
   await page.getByRole("dialog").getByLabel(t("vehicles.acquisition_currency")).selectOption("THB");
@@ -574,7 +574,7 @@ test("base example from registration to closing survives a restart", async ({ pa
   // Incomes and expenses go in one list.
   await expect(card(page, t("vehicles.finance_moves"))).toBeVisible();
   // Who added the document is written in the journal of the card.
-  await page.goto(`${cardUrl}?tab=history&part=changes`);
+  await page.goto(`${cardUrl}?tab=history`);
   await expect(card(page, t("vehicles.journal_title"))).toContainText(t("vehicles.journal_actions.vehicle_document-added"));
   await page.goto(cardUrl);
   await expect(page.locator("section.card").first()).toContainText("Blue Book");

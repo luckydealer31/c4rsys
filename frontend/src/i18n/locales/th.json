@@ -2924,7 +2924,11 @@
     "already_archived_open": "เปิดการ์ดและกู้คืน",
     "archive_switch": "ที่เก็บถาวร",
     "conflicts_closed_title": "ข้อขัดแย้งของตัวระบุที่ปิดแล้ว",
-    "split_title": "แยกการ์ดที่รวมแล้ว"
+    "split_title": "แยกการ์ดที่รวมแล้ว",
+    "card_finance": "การเงิน",
+    "card_rentals": "การเช่า",
+    "card_moves": "การย้าย",
+    "card_ownership": "ความเป็นเจ้าของ"
   },
   "warehouse": {
     "action_create": "Create",

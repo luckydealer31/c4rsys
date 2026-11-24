@@ -44,18 +44,13 @@ export async function ownershipScenario(page: Page, s: Company, email: string): 
   await expect(page.getByRole("heading", { name: "Client Forza" })).toBeVisible();
   const card = (await ok(page, "GET", `/c/${s.cmp}/vehicles/${earlier.id}`)).vehicle as { relation: string };
   expect(card.relation).toBe("managed");
-  // The history of the ownership is a part of the history.
+  // The ownership is a tab of the card of its own (customer's decision of 24.11.2026); the old
+  // address of the part of the history leads to it.
   await page.goto(`/c/${s.cmp}/vehicles/${earlier.id}?tab=history&part=ownership`);
-  // The parts of the history are tabs too, with their own order.
-  await expect(page.getByRole("tab", { name: t("vehicles.history_ownership"), exact: true })).toHaveAttribute("aria-selected", "true");
-  // One button on the page puts both the tabs and the tabs under them in order (customer's
-  // decision of 24.11.2026).
-  const order = page.getByRole("button", { name: t("common.tabs_order"), exact: true });
-  await expect(order).toHaveCount(1);
-  await order.click();
-  await expect(page.locator(".tabs.ordering")).toHaveCount(2);
-  await page.getByRole("button", { name: t("common.tabs_order_done"), exact: true }).click();
-  await expect(page.locator(".tabs.ordering")).toHaveCount(0);
+  await expect(page.getByRole("tab", { name: t("vehicles.card_ownership"), exact: true })).toHaveAttribute("aria-selected", "true");
+  for (const key of ["finance", "rentals", "moves", "history"]) {
+    await expect(page.getByRole("tab", { name: t(`vehicles.card_${key}`), exact: true })).toBeVisible();
+  }
   // The actions with the relation stand in the settings, not in the history (customer's remark
   // of 24.11.2026); every action is a small button that asks what it needs in its own window.
   await expect(page.getByRole("button", { name: t("vehicles.end_management_button"), exact: true })).toHaveCount(0);
@@ -88,6 +83,14 @@ export async function ownershipScenario(page: Page, s: Company, email: string): 
   await expect(page.getByText(t("vehicles.none"), { exact: true })).toBeVisible();
   // The fleet and the client vehicles are tabs under the tabs of the section.
   await expect(page.getByRole("tab", { name: t("vehicles.tab_client"), exact: true })).toHaveAttribute("aria-selected", "true");
+  // One button on the page puts both the tabs and the tabs under them in order (customer's
+  // decision of 24.11.2026).
+  const order = page.getByRole("button", { name: t("common.tabs_order"), exact: true });
+  await expect(order).toHaveCount(1);
+  await order.click();
+  await expect(page.locator(".tabs.ordering")).toHaveCount(2);
+  await page.getByRole("button", { name: t("common.tabs_order_done"), exact: true }).click();
+  await expect(page.locator(".tabs.ordering")).toHaveCount(0);
   await page.getByRole("button", { name: t("vehicles.archive_switch"), exact: true }).click();
   await expect(page.getByRole("link", { name: "Client Forza" })).toBeVisible();
   // A card is restored as what it was archived from, with no choice: a client one asks the
@@ -154,7 +157,7 @@ export async function ownershipScenario(page: Page, s: Company, email: string): 
   await page.goto(`/c/${s.cmp}/vehicles/${first.id}`);
   await expect(page.getByRole("heading", { name: "Forza old" })).toBeVisible();
   await expect(page.getByRole("main")).not.toContainText(t("vehicles.conflicts_title"));
-  await page.goto(`/c/${s.cmp}/vehicles/${first.id}?tab=history&part=ownership`);
+  await page.goto(`/c/${s.cmp}/vehicles/${first.id}?tab=ownership`);
   await expect(page.getByRole("heading", { name: t("vehicles.conflicts_closed_title"), exact: true })).toBeVisible();
   // The history holds records only: the merge is named there, and it is split in the settings.
   await expect(page.getByRole("main")).toContainText("«Forza new» → «Forza old»");

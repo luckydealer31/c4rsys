@@ -2924,7 +2924,11 @@
     "already_archived_open": "Открыть карточку и восстановить",
     "archive_switch": "Архив",
     "conflicts_closed_title": "Закрытые конфликты идентификаторов",
-    "split_title": "Разделение объединённых карточек"
+    "split_title": "Разделение объединённых карточек",
+    "card_finance": "Финансы",
+    "card_rentals": "Аренды",
+    "card_moves": "Перемещения",
+    "card_ownership": "Владение"
   },
   "warehouse": {
     "action_create": "Создать",

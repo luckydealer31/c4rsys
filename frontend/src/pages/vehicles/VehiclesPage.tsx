@@ -68,7 +68,16 @@ export function useRentals(enabled = true) {
   );
 }
 
-type CardTab = "main" | "service" | "inspections" | "history" | "settings";
+type CardTab =
+  | "main"
+  | "service"
+  | "inspections"
+  | "finance"
+  | "rentals"
+  | "moves"
+  | "ownership"
+  | "history"
+  | "settings";
 // The parts of the history of a vehicle: one tab instead of four (decision of 13.11.2026).
 type HistoryPart = "rentals" | "moves" | "finance" | "ownership" | "changes";
 
@@ -504,7 +513,6 @@ export function VehiclePage() {
   const client = useQueryClient();
   const [search, setSearch] = useSearchParams();
   const firstTab = useFirstTab("vehicle_card");
-  const firstPart = useFirstTab("vehicle_history");
   const navigate = useNavigate();
   const route = useLocation();
   const draftScope = useScope();
@@ -524,7 +532,12 @@ export function VehiclePage() {
   const timeZone = location?.timezone ?? company.timezone ?? "UTC";
   // The rentals of the duplicates merged into this card are shown here too (§ 8.6.6).
   const family = new Set([data.id, ...(data.merged_cards ?? []).map((m) => m.id)]);
-  const own = (rentals.data?.rentals ?? []).filter((r) => family.has(r.vehicle_card_id));
+  // Rentals and bookings together, the latest first (customer's remark of 24.11.2026).
+  const startOf = (r: { actual_start: string | null; booking?: { planned_start: string } | null }) =>
+    r.actual_start ?? r.booking?.planned_start ?? null;
+  const own = (rentals.data?.rentals ?? [])
+    .filter((r) => family.has(r.vehicle_card_id))
+    .sort((a, b) => (startOf(b) ?? "").localeCompare(startOf(a) ?? ""));
   // Rental, moves, tariffs and contexts concern only own and managed vehicles in the garage
   // (§ 8.1.2, § 8.1.5).
   const stored = data.storage !== null;
@@ -549,34 +562,34 @@ export function VehiclePage() {
 
   // The card is split into tabs instead of one long sheet (customer's decision of 11.11.2026).
   // A vehicle in a warehouse or of a client has fewer of them (§ 8.1.2, § 8.1.5).
+  // Finance, rentals, moves and ownership are tabs of their own; «History» holds the changes of
+  // the card only (customer's decision of 24.11.2026, instead of the one tab «History» of
+  // 13.11.2026). There is no tab of tasks.
   const tabs: CardTab[] = [
     "main",
     ...(stored ? [] : (["service", "inspections"] as CardTab[])),
+    ...(isClient ? [] : (["finance", "rentals", "moves"] as CardTab[])),
+    ...(stored && data.state === "active" ? (["moves"] as CardTab[]) : []),
+    "ownership",
     "history",
     "settings",
   ];
-  // Everything that happened to the vehicle is one tab «History» (decision of 13.11.2026): the
-  // rentals, the moves, the ownership with the archive, the changes of the card. There is no
-  // tab of tasks.
-  const parts: HistoryPart[] = [
-    ...(isClient ? [] : (["rentals", "moves"] as HistoryPart[])),
-    ...(stored && data.state === "active" ? (["moves"] as HistoryPart[]) : []),
-    ...(isClient ? [] : (["finance"] as HistoryPart[])),
-    "ownership",
-    "changes",
-  ];
   // Old addresses: damages are shown with the inspections, documents on the main tab; the
-  // former tabs of rentals, moves and ownership are parts of the history.
+  // former parts of the history are tabs now.
   const old: Record<string, string> = { damages: "inspections", documents: "main", tasks: "main" };
   const named = search.get("tab") ?? "";
-  const formerPart = parts.find((key) => key === named);
+  const formerPart = named === "history" ? (search.get("part") ?? "") : "";
   // The merge of a duplicate is an action: it stands in the settings.
-  const asked = search.get("merge") ? "settings" : formerPart ? "history" : (old[named] ?? named);
+  const asked = search.get("merge")
+    ? "settings"
+    : formerPart && formerPart !== "changes"
+      ? formerPart
+      : (old[named] ?? named);
   const tab: CardTab = tabs.find((key) => key === asked) ?? firstTab(tabs) ?? "main";
-  const askedPart = formerPart ?? search.get("part");
-  const part: HistoryPart = parts.find((key) => key === askedPart) ?? firstPart(parts) ?? parts[0] ?? "changes";
+  // What the blocks below are shown by.
+  const part: HistoryPart | null =
+    tab === "history" ? "changes" : tab === "finance" || tab === "rentals" || tab === "moves" || tab === "ownership" ? tab : null;
   const openTab = (key: CardTab) => setSearch({ tab: key }, { replace: true });
-  const openPart = (key: HistoryPart) => setSearch({ tab: "history", part: key }, { replace: true });
 
   return (
     <div className="page wide">
@@ -733,18 +746,7 @@ export function VehiclePage() {
           <VehicleDamagesCard vehicle={data} />
         </div>
       ) : null}
-      {tab === "history" ? (
-        // The parts of the history are tabs of their own, in the order the user has put — the
-        // same look as the tabs of the card (customer's remark of 24.11.2026).
-        <SectionTabs
-          sub
-          section="vehicle_history"
-          current={part}
-          tabs={parts.map((key) => ({ key, text: t(`vehicles.history_${key}`) }))}
-          onSelect={openPart}
-        />
-      ) : null}
-      {tab === "history" && part === "rentals" && can("rental.view") ? (
+      {part === "rentals" && can("rental.view") ? (
         <Card title={t("vehicles.rentals")}>
           {own.length === 0 ? <p className="muted">{t("vehicles.no_rentals")}</p> : null}
           <table>
@@ -752,9 +754,11 @@ export function VehiclePage() {
               {own.map((r) => (
                 <tr key={r.id}>
                   <td>
+                    {/* A booking and a cancelled one have no actual dates: the planned ones stand
+                        for them. */}
                     <Link to={companyPath(company, `/rentals/${r.id}`)}>
-                      {formatMoment(r.actual_start, timeZone, i18n.language)} —{" "}
-                      {formatMoment(r.actual_end, timeZone, i18n.language)}
+                      {formatMoment(startOf(r), timeZone, i18n.language)} —{" "}
+                      {formatMoment(r.actual_end ?? r.planned_end ?? null, timeZone, i18n.language)}
                     </Link>
                   </td>
                   <td>{t(`rentals.state_${r.state}`)}</td>
@@ -764,15 +768,8 @@ export function VehiclePage() {
           </table>
         </Card>
       ) : null}
-      {tab === "history" && part === "moves" ? (
+      {part === "moves" ? (
         <>
-          {isClient ? null : (
-            <Card>
-              <p style={{ margin: 0 }}>
-                {t("vehicles.location")}: <strong>{location?.name ?? "—"}</strong>
-              </p>
-            </Card>
-          )}
           {isClient ? null : <VehicleMoves vehicle={data} />}
           {data.relation === "own" && !stored && data.contexts.length === 0 ? (
             <TransferToWarehouse vehicle={data} />
@@ -780,7 +777,7 @@ export function VehiclePage() {
           {stored && data.state === "active" ? <ReturnToGarage vehicle={data} /> : null}
         </>
       ) : null}
-      {tab === "history" && part === "ownership" ? (
+      {part === "ownership" ? (
         <>
           <HistoryCard vehicle={data} />
           {/* Only records stand in the history: nothing here changes the card (customer's
@@ -790,8 +787,8 @@ export function VehiclePage() {
           <MergedHistory vehicle={data} />
         </>
       ) : null}
-      {tab === "history" && part === "finance" ? <VehicleFinance vehicle={data} /> : null}
-      {tab === "history" && part === "changes" ? <VehicleJournal vehicle={data} /> : null}
+      {part === "finance" ? <VehicleFinance vehicle={data} /> : null}
+      {part === "changes" ? <VehicleJournal vehicle={data} /> : null}
     </div>
   );
 }

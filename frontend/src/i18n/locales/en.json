@@ -2924,7 +2924,11 @@
     "already_archived_open": "Open the card and restore it",
     "archive_switch": "Archive",
     "conflicts_closed_title": "Closed conflicts of identifiers",
-    "split_title": "Split of merged cards"
+    "split_title": "Split of merged cards",
+    "card_finance": "Finance",
+    "card_rentals": "Rentals",
+    "card_moves": "Moves",
+    "card_ownership": "Ownership"
   },
   "warehouse": {
     "action_create": "Create",
