@@ -163,20 +163,11 @@ export function VehicleFinance({ vehicle }: { vehicle: Vehicle }) {
   const totals = data?.totals ?? [];
   return (
     <>
-      <div className="inspections-split">
-        {own ? (
-          <Card title={t("vehicles.acquisition")}>
-            <p>
-              <strong className="finance-figure">
-                {vehicle.acquisition?.cost && vehicle.acquisition.currency
-                  ? amount(vehicle.acquisition.cost, vehicle.acquisition.currency)
-                  : t("vehicles.acquisition_not_set")}
-              </strong>{" "}
-              {editable ? <IconButton icon="edit" label={`${t("common.edit")}: ${t("vehicles.acquisition_cost")}`} onClick={() => setEditing(true)} /> : null}
-            </p>
-            <p className="muted small">{t("vehicles.acquisition_hint")}</p>
-          </Card>
-        ) : null}
+      {/* The total stands at the right top, a third of the width, and stays in place; the
+          incomes and the expenses go down beside it, the latest first, and are scrolled alone
+          (customer's remark of 24.11.2026). */}
+      <div className="finance-split">
+      <div className="finance-side">
         <Card title={t("vehicles.finance_result")}>
           {finance.isLoading ? <p className="muted">{t("common.loading")}</p> : null}
           {data && !data.available ? <p className="muted">{t("vehicles.finance_hidden")}</p> : null}
@@ -193,20 +184,33 @@ export function VehicleFinance({ vehicle }: { vehicle: Vehicle }) {
                 {[
                   `${t("vehicles.finance_incomes")}: ${amount(row.income, row.currency)}`,
                   `${t("vehicles.finance_expenses")}: ${amount(row.expense, row.currency)}`,
-                  Number(row.acquisition) ? `${t("vehicles.acquisition")}: ${amount(row.acquisition, row.currency)}` : "",
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
+                ].join(" · ")}
               </p>
             </div>
           ))}
+          {/* The cost of the acquisition of an own vehicle is a line of the total, not a block of
+              its own (customer's remark of 24.11.2026); a managed vehicle has none. */}
+          {own ? (
+            <p className="small" style={{ marginBottom: 0 }}>
+              {t("vehicles.acquisition")}:{" "}
+              <strong>
+                {vehicle.acquisition?.cost && vehicle.acquisition.currency
+                  ? amount(vehicle.acquisition.cost, vehicle.acquisition.currency)
+                  : t("vehicles.acquisition_not_set")}
+              </strong>{" "}
+              {editable ? <IconButton icon="edit" label={`${t("common.edit")}: ${t("vehicles.acquisition_cost")}`} onClick={() => setEditing(true)} /> : null}
+            </p>
+          ) : null}
         </Card>
       </div>
       {data?.available ? (
-        <Card title={t("vehicles.finance_moves")}>
-          <Moves incomes={data.incomes ?? []} expenses={data.expenses ?? []} />
-        </Card>
+        <div className="finance-list">
+          <Card title={t("vehicles.finance_moves")}>
+            <Moves incomes={data.incomes ?? []} expenses={data.expenses ?? []} />
+          </Card>
+        </div>
       ) : null}
+      </div>
       {editing ? (
         <Modal title={t("vehicles.acquisition_cost")} onClose={() => setEditing(false)}>
           <AcquisitionForm vehicle={vehicle} onDone={() => setEditing(false)} />
