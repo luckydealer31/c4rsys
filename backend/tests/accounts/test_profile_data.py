@@ -38,11 +38,28 @@ FULL = {
     "birth_date": "1990-05-17",
     "contact_email": "Anna.Contact@Example.com",
     "contact_phone": "+66 81 234 5678",
-    "document_type": "passport",
-    "document_number": "AB 1234567",
-    "document_issued_on": "2020-01-10",
-    "document_expires_on": "2030-01-10",
+    "documents": [
+        {
+            "type": "passport",
+            "number": "AB 1234567",
+            "issued_on": "2020-01-10",
+            "expires_on": "2030-01-10",
+        }
+    ],
 }
+PASSPORT = {
+    "type": "passport",
+    "title": "",
+    "number": "AB 1234567",
+    "issued_on": "2020-01-10",
+    "expires_on": "2030-01-10",
+    "issued_by": "",
+    "categories": [],
+}
+
+
+def documents(*changes: dict[str, Any]) -> list[dict[str, Any]]:
+    return [{**PASSPORT, **change} for change in changes]
 
 
 def test_first_entry_saves_all_personal_data_without_code(client: Client) -> None:
@@ -54,7 +71,7 @@ def test_first_entry_saves_all_personal_data_without_code(client: Client) -> Non
     user = response.json()["user"]
     assert user["birth_date"] == "1990-05-17"
     assert user["contact_email"] == "anna.contact@example.com"
-    assert user["document_expires_on"] == "2030-01-10"
+    assert user["documents"] == [PASSPORT]
     assert user["email"] == "owner@example.com"  # the login email is not touched
 
 
@@ -62,15 +79,16 @@ def test_later_change_needs_code_and_journals_only_changed_fields(client: Client
     register(client)
     post(client, "/api/me/personal-data", FULL, key())
 
-    refused = post(client, "/api/me/personal-data", {**FULL, "document_number": "X1"}, key())
+    changed = {**FULL, "documents": documents({"number": "X1"})}
+    refused = post(client, "/api/me/personal-data", changed, key())
     assert refused.status_code == 400  # flow and code are required
 
     flow = code_for(client, "change_personal_data")
-    body = {**FULL, "document_number": "X1", "flow": flow, "code": CODE}
+    body = {**changed, "flow": flow, "code": CODE}
     assert post(client, "/api/me/personal-data", body, key()).status_code == 200
     event = AuditEvent.objects.filter(action="account.personal_data_changed").latest("occurred_at")
-    assert event.before == {"document_number": "AB 1234567"}
-    assert event.after == {"document_number": "X1"}
+    assert event.before == {"documents": [PASSPORT]}
+    assert event.after == {"documents": documents({"number": "X1"})}
 
 
 @pytest.mark.parametrize(
@@ -81,8 +99,8 @@ def test_later_change_needs_code_and_journals_only_changed_fields(client: Client
         ({"contact_email": "not-an-email"}, "email", "EMAIL_INVALID"),
         ({"contact_phone": "call me"}, "contact_phone", "PHONE_INVALID"),
         (
-            {"document_issued_on": "2020-01-10", "document_expires_on": "2019-01-10"},
-            "document_expires_on",
+            {"documents": documents({"expires_on": "2019-01-10"})},
+            "documents[0].expires_on",
             "DATE_BEFORE_ISSUE",
         ),
     ],
@@ -248,59 +266,93 @@ def test_taken_email_is_told_only_after_its_code(client: Client) -> None:
     assert LoginContact.objects.filter(value="owner@example.com").exists()
 
 
-def test_the_passport_and_the_driving_licence_are_kept_apart(client: Client) -> None:
-    """Customer's decisions of 25.11.2026: the profile has a passport or an ID card and, apart from
-    it, a driving licence with its categories."""
+def test_the_documents_are_a_list_of_chosen_kinds(client: Client) -> None:
+    """Customer's remarks of 25–26.11.2026: the person adds the documents they wish, each of a
+    chosen kind — a passport, an ID card, a driving licence with its categories, another one; who
+    issued each one; none is required."""
     register(client)
-    both = {
-        **FULL,
-        "licence_number": "77 01 123456",
-        "licence_issued_on": "2019-03-04",
-        "licence_expires_on": "2029-03-04",
-        "licence_categories": ["b", "C1E", "B", " "],
-    }
-    response = post(client, "/api/me/personal-data", both, key())
+    none = post(client, "/api/me/personal-data", {**FULL, "documents": []}, key())
+    assert none.json()["user"]["documents"] == []
+
+    flow = code_for(client, "change_personal_data")
+    listed = [
+        {"type": "national_id", "number": "ID 1", "issued_by": "ОВД района Хамовники"},
+        {
+            "type": "driver_license",
+            "number": "77 01 123456",
+            "issued_on": "2019-03-04",
+            "expires_on": "2029-03-04",
+            "issued_by": "ГИБДД 7701",
+            "categories": ["b", "C1E", "B", " "],
+        },
+        {"type": "other", "title": "Страховка", "number": "S-9"},
+        # Categories belong to a licence only.
+        {"type": "passport", "number": "P 2", "categories": ["B"]},
+    ]
+    body = {**FULL, "documents": listed, "flow": flow, "code": CODE}
+    response = post(client, "/api/me/personal-data", body, key())
     assert response.status_code == 200, response.content
-    user = response.json()["user"]
-    assert user["document_type"] == "passport" and user["document_number"] == "AB 1234567"
-    assert user["licence_number"] == "77 01 123456"
-    assert user["licence_categories"] == ["B", "C1E"]
-    for wrong, field in (
-        ({"licence_categories": "B"}, "licence_categories"),
-        ({"document_type": "Водительское удостоверение"}, "document_type"),
-        ({"licence_expires_on": "2018-01-01"}, "licence_expires_on"),
+    found = response.json()["user"]["documents"]
+    assert [d["type"] for d in found] == ["national_id", "driver_license", "other", "passport"]
+    assert found[0]["issued_by"] == "ОВД района Хамовники"
+    assert found[1]["categories"] == ["B", "C1E"] and found[1]["issued_by"] == "ГИБДД 7701"
+    assert found[2]["title"] == "Страховка"
+    assert found[3]["categories"] == []
+
+    for wrong, field, code in (
+        ({"type": "visa", "number": "1"}, "documents[0].type", "VALUE_UNKNOWN"),
+        ({"type": "passport", "number": ""}, "documents[0].number", "FIELD_REQUIRED"),
+        ({"type": "other", "number": "1"}, "documents[0].title", "FIELD_REQUIRED"),
+        (
+            {"type": "driver_license", "number": "1", "categories": "B"},
+            "documents[0].categories",
+            "VALIDATION_ERROR",
+        ),
     ):
-        refused = post(client, "/api/me/personal-data", {**both, **wrong}, key())
-        assert refused.json()["error"]["field"] == field
+        refused = post(client, "/api/me/personal-data", {**FULL, "documents": [wrong]}, key())
+        error = refused.json()["error"]
+        assert error["field"] == field, error
+        if code != "VALIDATION_ERROR":
+            assert error["code"] == code, error
 
 
-def test_the_document_entered_before_goes_to_its_own_place(client: Client) -> None:
-    """Customer's decision of 25.11.2026: the one document of the profile entered before is put
-    by its type — a licence to the licence, a passport or an ID card stays as such."""
+def test_the_documents_entered_before_go_into_the_list() -> None:
+    """Customer's remark of 26.11.2026: the passport or ID and the licence entered before as
+    separate fields become documents of the list."""
     import importlib
+    from datetime import date
 
-    from django.apps import apps
-
-    from c4rsys.accounts.models import UserAccount
-
-    migration = importlib.import_module("c4rsys.accounts.migrations.0008_profile_driving_licence")
-    register(client)
-    user = UserAccount.objects.get()
-    for text, kind in (("Паспорт", "passport"), ("ID-карта", "national_id"), ("СНИЛС", "")):
-        UserAccount.objects.filter(pk=user.pk).update(document_type=text, document_number="N1")
-        migration.split_documents(apps, None)
-        found = UserAccount.objects.get(pk=user.pk)
-        assert (found.document_type, found.document_number, found.licence_number) == (
-            kind,
-            "N1",
-            "",
-        )
-    UserAccount.objects.filter(pk=user.pk).update(
-        document_type="Водительское удостоверение",
-        document_number="77 01",
-        document_issued_on="2020-01-02",
-    )
-    migration.split_documents(apps, None)
-    found = UserAccount.objects.get(pk=user.pk)
-    assert (found.document_type, found.document_number, found.document_issued_on) == ("", "", None)
-    assert found.licence_number == "77 01" and str(found.licence_issued_on) == "2020-01-02"
+    migration = importlib.import_module("c4rsys.accounts.migrations.0010_profile_documents_list")
+    row = {
+        "document_type": "national_id",
+        "document_number": "ID 1",
+        "document_issued_on": date(2020, 1, 2),
+        "document_expires_on": None,
+        "document_issued_by": "ОВД",
+        "licence_number": "77 01",
+        "licence_issued_on": None,
+        "licence_expires_on": date(2030, 1, 2),
+        "licence_issued_by": "",
+        "licence_categories": ["B"],
+    }
+    assert migration.documents_of(row) == [
+        {
+            "type": "national_id",
+            "title": "",
+            "number": "ID 1",
+            "issued_on": "2020-01-02",
+            "expires_on": None,
+            "issued_by": "ОВД",
+            "categories": [],
+        },
+        {
+            "type": "driver_license",
+            "title": "",
+            "number": "77 01",
+            "issued_on": None,
+            "expires_on": "2030-01-02",
+            "issued_by": "",
+            "categories": ["B"],
+        },
+    ]
+    assert migration.documents_of({**row, "document_number": "", "licence_number": ""}) == []

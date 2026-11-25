@@ -119,7 +119,9 @@ def _id_document(value: Any, field: str = "id_document") -> dict[str, Any] | Non
 def _license(value: Any, field: str = "driver_license") -> dict[str, Any] | None:
     if _empty(value):
         return None
-    raw = _object(value, field, ("number", "country", "issued_on", "expires_on", "categories"))
+    raw = _object(
+        value, field, ("number", "country", "issued_on", "expires_on", "issued_by", "categories")
+    )
     categories = raw.get("categories") or []
     if not isinstance(categories, list) or len(categories) > _CATEGORIES_MAX:
         raise errors.validation_error(f"{field}.categories")
@@ -133,6 +135,8 @@ def _license(value: Any, field: str = "driver_license") -> dict[str, Any] | None
         "country": _country(raw.get("country"), f"{field}.country"),
         "issued_on": _date(raw.get("issued_on"), f"{field}.issued_on"),
         "expires_on": _date(raw.get("expires_on"), f"{field}.expires_on"),
+        # Who issued it, as for the passport (customer's remark of 25.11.2026); optional.
+        "issued_by": _text(raw.get("issued_by"), f"{field}.issued_by", _DOC_TEXT),
         "categories": cleaned,
     }
     if not doc["number"]:

@@ -396,13 +396,17 @@ def test_a_driving_licence_of_the_profile_goes_to_the_licence_of_the_card(
         },
     )
     somchai, usr = user_client("somchai@example.com")
-    UserAccount.objects.filter(public_id=usr).update(
-        document_type="passport",
-        document_number="P2",
-        licence_number="7701123456",
-        licence_issued_on="2020-01-02",
-        licence_expires_on="2030-01-02",
-    )
+    licence = {
+        "type": "driver_license",
+        "title": "",
+        "number": "7701123456",
+        "issued_on": "2020-01-02",
+        "expires_on": "2030-01-02",
+        "issued_by": "ГИБДД 7701",
+        "categories": [],
+    }
+    passport = {**licence, "type": "passport", "number": "P2", "issued_by": ""}
+    UserAccount.objects.filter(public_id=usr).update(documents=[passport, licence])
     link = ask(owner, cmp, card_id, usr).json()["link"]
     post(somchai, f"/api/profile-links/{link['id']}/accept", {"fields": ["driver_license"]}, key())
     shown = links_of(owner, cmp, card_id)[0]
@@ -426,11 +430,14 @@ def test_a_driving_licence_of_the_profile_goes_to_the_licence_of_the_card(
         "country": "RU",
         "issued_on": "2020-01-02",
         "expires_on": "2030-01-02",
+        "issued_by": "ГИБДД 7701",
         "categories": ["B"],
     }
 
     # The categories given by the profile take the place of those of the card.
-    UserAccount.objects.filter(public_id=usr).update(licence_categories=["B", "C"])
+    UserAccount.objects.filter(public_id=usr).update(
+        documents=[passport, {**licence, "categories": ["B", "C"]}]
+    )
     post(
         owner,
         f"/api/c/{cmp}/profile-links/{link['id']}/break",
@@ -447,3 +454,48 @@ def test_a_driving_licence_of_the_profile_goes_to_the_licence_of_the_card(
         key(),
     )
     assert (ClientCard.objects.get(pk=card_id).driver_license or {})["categories"] == ["B", "C"]
+
+
+def test_other_documents_of_the_profile_are_added_to_the_card(owner: Client, cmp: str) -> None:
+    """Customer's remark of 26.11.2026: the documents of the kind «other» of the profile are given
+    apart and added to the other documents of the card; one already there stays as it is."""
+    card_id = person(owner, cmp)
+    held = {
+        "title": "Страховка",
+        "number": "S-1",
+        "issued_on": None,
+        "expires_on": None,
+        "issued_by": "AXA",
+        "note": "",
+    }
+    ClientCard.objects.filter(pk=card_id).update(other_documents=[held])
+    somchai, usr = user_client("somchai@example.com")
+    blank: dict[str, Any] = {
+        "type": "other",
+        "issued_on": None,
+        "expires_on": None,
+        "categories": [],
+    }
+    UserAccount.objects.filter(public_id=usr).update(
+        documents=[
+            {**blank, "title": "Страховка", "number": "S 1", "issued_by": ""},
+            {**blank, "title": "Виза", "number": "V-7", "issued_by": "Посольство"},
+        ]
+    )
+    link = ask(owner, cmp, card_id, usr).json()["link"]
+    post(somchai, f"/api/profile-links/{link['id']}/accept", {"fields": ["other_documents"]}, key())
+    assert links_of(owner, cmp, card_id)[0]["compare"]["other_documents"]["status"] == "different"
+    version = owner.get(f"/api/c/{cmp}/clients/{card_id}").json()["client"]["version"]
+    applied = post(
+        owner,
+        f"/api/c/{cmp}/profile-links/{link['id']}/apply",
+        {"field": "other_documents", "expected_version": version},
+        key(),
+    )
+    assert applied.status_code == 200, applied.content
+    others = ClientCard.objects.get(pk=card_id).other_documents or []
+    assert [(d["title"], d["number"], d["issued_by"]) for d in others] == [
+        ("Страховка", "S-1", "AXA"),
+        ("Виза", "V-7", "Посольство"),
+    ]
+    assert links_of(owner, cmp, card_id)[0]["compare"]["other_documents"]["status"] == "same"

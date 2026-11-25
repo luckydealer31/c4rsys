@@ -363,7 +363,7 @@ function documentRows(card: AnyCard, t: (key: string) => string): DocumentRow[] 
   return rows;
 }
 
-const NO_LICENSE: DriverLicense = { number: "", country: "", issued_on: null, expires_on: null, categories: [] };
+const NO_LICENSE: DriverLicense = { number: "", country: "", issued_on: null, expires_on: null, issued_by: "", categories: [] };
 
 /** § 6.2.12–6.2.13: the documents of a person — the driving licence, the passport or ID, other
  * documents; for a company — its requisites. None is required. */
@@ -383,6 +383,7 @@ export function DocumentsCard({ cardType, card, onSaved }: { cardType: CardType;
                 license.number,
                 license.categories.length ? `${t("cards.categories_short")}: ${license.categories.join(", ")}` : "",
                 dates(license.issued_on, license.expires_on, t),
+                license.issued_by ? `${t("cards.issued_by")}: ${license.issued_by}` : "",
               ]
                 .filter(Boolean)
                 .join(" · ")
@@ -512,9 +513,17 @@ function DocumentsForm({ cardType, card, onDone }: { cardType: CardType; card: A
             {date(t("cards.issued_on"), license.issued_on, (v) => setLicense({ ...license, issued_on: v }))}
             {date(t("cards.expires_on"), license.expires_on, (v) => setLicense({ ...license, expires_on: v }))}
           </div>
-          <FloatField label={t("cards.categories")}>
-            <input value={categories} onChange={(e) => setCategories(e.target.value)} />
-          </FloatField>
+          <div className="form-grid">
+            <FloatField label={t("cards.issued_by")}>
+              <input
+                value={license.issued_by ?? ""}
+                onChange={(e) => setLicense({ ...license, issued_by: e.target.value })}
+              />
+            </FloatField>
+            <FloatField label={t("cards.categories")}>
+              <input value={categories} onChange={(e) => setCategories(e.target.value)} />
+            </FloatField>
+          </div>
 
           <h3>{t("cards.other_documents")}</h3>
           {rows.map((d, index) => (

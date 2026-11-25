@@ -19,7 +19,7 @@ from django.core.validators import validate_email
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from c4rsys.accounts import otp, security
+from c4rsys.accounts import documents, otp, security
 from c4rsys.accounts.models import AuthFlow, LoginContact, UserAccount, UserSession
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
@@ -706,8 +706,8 @@ def _iso(value: Any) -> str | None:
 
 def shareable_profile(user: UserAccount) -> dict[str, Any]:
     """The data a person may give a company that asks to link a card (§ 6.2.5, § 6.4.1): names,
-    birth date, the first confirmed email, the contact phone, the identity document and the
-    driving licence with its categories (customer's decisions of 25.11.2026)."""
+    birth date, the first confirmed email, the contact phone and the documents in the shape of the
+    card (customer's decisions of 25–26.11.2026)."""
     email = (
         user.contacts.filter(kind=LoginContact.Kind.EMAIL)
         .order_by("verified_at")
@@ -721,22 +721,7 @@ def shareable_profile(user: UserAccount) -> dict[str, Any]:
         "birth_date": _iso(user.birth_date),
         "email": email or "",
         "phone": user.contact_phone,
-        "document": {
-            "type": user.document_type,
-            "number": user.document_number,
-            "issued_on": _iso(user.document_issued_on),
-            "expires_on": _iso(user.document_expires_on),
-        }
-        if user.document_number
-        else None,
-        "driver_license": {
-            "number": user.licence_number,
-            "issued_on": _iso(user.licence_issued_on),
-            "expires_on": _iso(user.licence_expires_on),
-            "categories": user.licence_categories,
-        }
-        if user.licence_number
-        else None,
+        **documents.shareable(user.documents),
     }
 
 

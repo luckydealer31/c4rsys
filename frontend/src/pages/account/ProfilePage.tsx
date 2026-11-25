@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import { Fragment, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import { api, ApiError } from "../../api/client";
@@ -11,6 +11,7 @@ import { TimeZoneSelect } from "../../components/TimeZoneSelect";
 import { Card, ErrorMessage, Field, IconButton, Info, Loading } from "../../components/ui";
 import { UI_LANGUAGES } from "../../i18n";
 import { deviceTimeZone } from "../../time";
+import { DocumentsEditor, documentKind, documentLine, documentsOf, draftsOf, type DocumentDraft } from "./ProfileDocuments";
 
 /** Own profile (§ 2.1.4–2.1.6, § 2.2, § 2.3, § 2.7; decisions of 24.10.2026): a card to read,
  * changed by «Edit»; login email and cloud password; interface settings; sessions. */
@@ -56,15 +57,7 @@ type Personal = {
   birth_date: string;
   contact_email: string;
   contact_phone: string;
-  document_type: string;
-  document_number: string;
-  document_issued_on: string;
-  document_expires_on: string;
-  licence_number: string;
-  licence_issued_on: string;
-  licence_expires_on: string;
-  /** The categories of the driving licence, typed as «B, C». */
-  licence_categories: string;
+  documents: DocumentDraft[];
 };
 
 function personalOf(user: User): Personal {
@@ -76,14 +69,7 @@ function personalOf(user: User): Personal {
     birth_date: user.birth_date ?? "",
     contact_email: user.contact_email,
     contact_phone: user.contact_phone,
-    document_type: user.document_type,
-    document_number: user.document_number,
-    document_issued_on: user.document_issued_on ?? "",
-    document_expires_on: user.document_expires_on ?? "",
-    licence_number: user.licence_number ?? "",
-    licence_issued_on: user.licence_issued_on ?? "",
-    licence_expires_on: user.licence_expires_on ?? "",
-    licence_categories: (user.licence_categories ?? []).join(", "),
+    documents: draftsOf(user.documents),
   };
 }
 
@@ -92,27 +78,6 @@ function formatDate(value: string | null, locale: string): string {
   return new Intl.DateTimeFormat(locale, { timeZone: "UTC", dateStyle: "long" }).format(
     new Date(`${value}T00:00:00Z`),
   );
-}
-
-/** The identity document of the profile: a passport or an ID card; the driving licence is a
- * block of its own (customer's decision of 25.11.2026). */
-const DOCUMENT_TYPES = ["passport", "national_id"] as const;
-
-/** «Passport AB 123 · issued 10 January 2020 · until 10 January 2030». */
-function documentLine(
-  t: (key: string, options?: Record<string, string>) => string,
-  locale: string,
-  parts: { kind?: string; number: string; issued: string | null; expires: string | null; categories?: string[] },
-): string {
-  if (!parts.number) return "—";
-  return [
-    `${parts.kind ?? ""} ${parts.number}`.trim(),
-    parts.categories?.length ? `${t("cards.categories_short")}: ${parts.categories.join(", ")}` : "",
-    parts.issued ? t("profile.issued_on_short", { date: formatDate(parts.issued, locale) }) : "",
-    parts.expires ? t("profile.valid_until_short", { date: formatDate(parts.expires, locale) }) : "",
-  ]
-    .filter(Boolean)
-    .join(" · ");
 }
 
 function PersonalCard({ user }: { user: User }) {
@@ -144,9 +109,7 @@ function PersonalCard({ user }: { user: User }) {
     const body = {
       ...form,
       avatar: form.avatar ?? "",
-      licence_categories: form.licence_number.trim()
-        ? form.licence_categories.split(/[,\s]+/).filter(Boolean)
-        : [],
+      documents: documentsOf(form.documents),
     };
     const result = await save.run(flow ? { ...body, flow: flow.flow, code } : body);
     if (result) {
@@ -169,9 +132,6 @@ function PersonalCard({ user }: { user: User }) {
   }
 
   if (!editing) {
-    const documentType = DOCUMENT_TYPES.includes(user.document_type as never)
-      ? t(`profile.document_${user.document_type}`)
-      : "";
     return (
       <Card title={t("profile.personal_title")}>
         {saved ? <div className="alert ok">{t("common.saved")}</div> : null}
@@ -186,24 +146,12 @@ function PersonalCard({ user }: { user: User }) {
           <dd>{user.contact_email || "—"}</dd>
           <dt>{t("profile.contact_phone")}</dt>
           <dd>{user.contact_phone || "—"}</dd>
-          <dt>{t("profile.identity_title")}</dt>
-          <dd>
-            {documentLine(t, i18n.language, {
-              kind: documentType,
-              number: user.document_number,
-              issued: user.document_issued_on,
-              expires: user.document_expires_on,
-            })}
-          </dd>
-          <dt>{t("cards.driver_license")}</dt>
-          <dd>
-            {documentLine(t, i18n.language, {
-              number: user.licence_number,
-              issued: user.licence_issued_on,
-              expires: user.licence_expires_on,
-              categories: user.licence_categories,
-            })}
-          </dd>
+          {(user.documents ?? []).map((d, index) => (
+            <Fragment key={index}>
+              <dt>{documentKind(t, d)}</dt>
+              <dd>{documentLine(t, i18n.language, d)}</dd>
+            </Fragment>
+          ))}
         </dl>
         <div className="actions">
           <IconButton icon="edit" label={t("common.edit")} onClick={() => setEditing(true)} />
@@ -270,72 +218,7 @@ function PersonalCard({ user }: { user: User }) {
             />
           </Field>
         </div>
-        <div className="field" data-testid="identity-document">
-          <span>{t("profile.identity_title")}</span>
-          <div className="row">
-            <Field label={t("profile.document_type")}>
-              <select value={form.document_type} onChange={(e) => set({ document_type: e.target.value })}>
-                <option value="">{t("clients.contact_choose")}</option>
-                {DOCUMENT_TYPES.map((type) => (
-                  <option key={type} value={type}>
-                    {t(`profile.document_${type}`)}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label={t("profile.document_number")}>
-              <input
-                value={form.document_number}
-                onChange={(e) => set({ document_number: e.target.value })}
-              />
-            </Field>
-            <Field label={t("profile.document_issued_on")}>
-              <input
-                type="date"
-                value={form.document_issued_on}
-                onChange={(e) => set({ document_issued_on: e.target.value })}
-              />
-            </Field>
-            <Field label={t("profile.document_expires_on")}>
-              <input
-                type="date"
-                value={form.document_expires_on}
-                onChange={(e) => set({ document_expires_on: e.target.value })}
-              />
-            </Field>
-          </div>
-        </div>
-        <div className="field" data-testid="driving-licence">
-          <span>{t("cards.driver_license")}</span>
-          <div className="row">
-            <Field label={t("profile.document_number")}>
-              <input
-                value={form.licence_number}
-                onChange={(e) => set({ licence_number: e.target.value })}
-              />
-            </Field>
-            <Field label={t("profile.document_issued_on")}>
-              <input
-                type="date"
-                value={form.licence_issued_on}
-                onChange={(e) => set({ licence_issued_on: e.target.value })}
-              />
-            </Field>
-            <Field label={t("profile.document_expires_on")}>
-              <input
-                type="date"
-                value={form.licence_expires_on}
-                onChange={(e) => set({ licence_expires_on: e.target.value })}
-              />
-            </Field>
-            <Field label={t("profile.document_categories")} hint={t("profile.document_categories_hint")}>
-              <input
-                value={form.licence_categories}
-                onChange={(e) => set({ licence_categories: e.target.value })}
-              />
-            </Field>
-          </div>
-        </div>
+        <DocumentsEditor rows={form.documents} onChange={(documents) => set({ documents })} />
         {flow ? (
           <Field label={t("auth.code")} hint={t("profile.code_for_change")}>
             <input inputMode="numeric" value={code} onChange={(e) => setCode(e.target.value)} />

@@ -72,19 +72,29 @@ test("base example from registration to closing survives a restart", async ({ pa
   const name = card(page, t("profile.personal_title"));
   await name.getByLabel(t("profile.first_name")).fill(author.first);
   await name.getByLabel(t("profile.last_name")).fill(author.last);
-  // The passport or ID and, apart from it, the driving licence with its categories (customer's
-  // decisions of 25.11.2026).
-  const identity = name.getByTestId("identity-document");
-  await identity.getByLabel(t("profile.document_type")).selectOption("passport");
-  await identity.getByLabel(t("profile.document_number")).fill("AB 1234567");
-  const licence = name.getByTestId("driving-licence");
+  // The documents: none is required; each is added with its kind chosen — here a driving licence
+  // with its categories and a passport (customer's remarks of 25–26.11.2026).
+  await expect(name.getByTestId("profile-document")).toHaveCount(0);
+  const add = name.getByRole("button", { name: `+ ${t("cards.add_document")}` });
+  await add.click();
+  const licence = name.getByTestId("profile-document").nth(0);
+  await expect(licence.getByLabel(t("profile.document_categories"))).toHaveCount(0);
+  await licence.getByLabel(t("profile.document_type")).selectOption("driver_license");
   await licence.getByLabel(t("profile.document_number")).fill("7701123456");
   await licence.getByLabel(t("profile.document_categories")).fill("B, C");
+  await licence.getByLabel(t("cards.issued_by")).fill("ГИБДД 7701");
+  await add.click();
+  const passport = name.getByTestId("profile-document").nth(1);
+  await passport.getByLabel(t("profile.document_type")).selectOption("passport");
+  await passport.getByLabel(t("profile.document_number")).fill("AB 1234567");
+  await passport.getByLabel(t("cards.issued_by")).fill("ОВД района Хамовники");
   await name.getByRole("button", { name: t("common.save") }).click();
   await expect(name.getByText(t("common.saved"))).toBeVisible();
-  await expect(name).toContainText(`${t("profile.document_passport")} AB 1234567`);
+  await expect(name).toContainText(t("profile.document_driver_license"));
   await expect(name).toContainText("7701123456 · ");
   await expect(name).toContainText("B, C");
+  await expect(name).toContainText(`${t("cards.issued_by")}: ГИБДД 7701`);
+  await expect(name).toContainText(t("profile.document_passport"));
 
   // The block «Telegram» (customer's decisions of 22.11.2026) is not shown while the bot is not
   // connected; connected, it makes a one-time link to the bot. The bot is not connected here:
@@ -642,6 +652,8 @@ test("base example from registration to closing survives a restart", async ({ pa
   await editing.getByLabel(t("cards.series_number")).first().fill("99 12 345678");
   await editing.getByLabel(t("cards.driving_since_year")).fill("2010");
   await editing.getByLabel(t("cards.categories")).fill("B");
+  // Who issued the licence, as for the other documents (customer's remark of 25.11.2026).
+  await editing.getByLabel(t("cards.issued_by"), { exact: true }).fill("ГИБДД 7701");
   // A further document: its kind from a list; «other» asks for a name.
   await editing.getByRole("button", { name: `+ ${t("cards.add_document")}` }).click();
   await editing.getByLabel(`${t("cards.series_number")} 1`).fill("75 1234567");
@@ -653,6 +665,7 @@ test("base example from registration to closing survives a restart", async ({ pa
   await expect(page.getByRole("dialog")).toHaveCount(0);
   const documents = card(page, t("cards.documents_title"));
   await expect(documents).toContainText("99 12 345678");
+  await expect(documents).toContainText(`${t("cards.issued_by")}: ГИБДД 7701`);
   await expect(documents).toContainText("2010");
   await expect(documents).toContainText("AXA");
   await expect(documents).toContainText("75 1234567");

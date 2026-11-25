@@ -11,22 +11,25 @@ export type User = {
   birth_date: string | null;
   contact_email: string;
   contact_phone: string;
-  document_type: string;
-  document_number: string;
-  document_issued_on: string | null;
-  document_expires_on: string | null;
-  /** The identity document is «passport» or «national_id»; empty — not chosen. The driving
-   * licence is kept apart with its categories (customer's decisions of 25.11.2026). */
-  licence_number: string;
-  licence_issued_on: string | null;
-  licence_expires_on: string | null;
-  licence_categories: string[];
+  /** The documents of the person, each of a chosen kind; none is required (customer's remarks
+   * of 25–26.11.2026). */
+  documents: ProfileDocument[];
   language: string;
   theme: "system" | "light" | "dark";
   /** Personal time zone of the interface; empty — the device's. */
   timezone: string;
   /** The order of the tabs of sections the user has put: the section — the keys of its tabs. */
   tab_orders?: Record<string, string[]>;
+};
+
+export type ProfileDocument = {
+  type: "passport" | "national_id" | "driver_license" | "other";
+  title: string;
+  number: string;
+  issued_on: string | null;
+  expires_on: string | null;
+  issued_by: string;
+  categories: string[];
 };
 
 export type CompanySummary = {
@@ -1003,6 +1006,8 @@ export type DriverLicense = {
   country: string;
   issued_on: string | null;
   expires_on: string | null;
+  /** Who issued it (customer's remark of 25.11.2026); absent in licences entered before. */
+  issued_by?: string;
   categories: string[];
 };
 export type OtherDocument = {

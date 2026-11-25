@@ -45,18 +45,10 @@ class UserAccount(models.Model):
     birth_date = models.DateField(null=True, blank=True)
     contact_email = models.CharField(max_length=254, blank=True, default="")
     contact_phone = models.CharField(max_length=40, blank=True, default="")
-    # The identity document: a passport or an ID card (customer's decision of 25.11.2026: the
-    # profile keeps it apart from the driving licence, as the card does).
-    document_type = models.CharField(max_length=100, blank=True, default="")
-    document_number = models.CharField(max_length=100, blank=True, default="")
-    document_issued_on = models.DateField(null=True, blank=True)
-    document_expires_on = models.DateField(null=True, blank=True)
-    # The driving licence with its categories, e.g. ["B", "C"] (customer's decisions of
-    # 25.11.2026).
-    licence_number = models.CharField(max_length=100, blank=True, default="")
-    licence_issued_on = models.DateField(null=True, blank=True)
-    licence_expires_on = models.DateField(null=True, blank=True)
-    licence_categories = models.JSONField(default=list, blank=True)
+    # The documents of the person, each of a chosen kind: a passport, an ID card, a driving
+    # licence with its categories or another one (customer's remarks of 25–26.11.2026); the
+    # shape is in accounts.documents.
+    documents = models.JSONField(default=list, blank=True)
     # Personal time zone of the interface (customer's decision of 24.10.2026); empty — device.
     time_zone = models.CharField(max_length=64, blank=True, default="")
     password_hash = models.CharField(max_length=255)

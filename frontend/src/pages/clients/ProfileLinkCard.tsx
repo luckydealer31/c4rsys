@@ -32,6 +32,7 @@ const APPLICABLE: Record<"client" | "counterparty", string[]> = {
     "country",
     "document",
     "driver_license",
+    "other_documents",
   ],
   counterparty: [
     "first_name",
@@ -49,6 +50,7 @@ const APPLICABLE: Record<"client" | "counterparty", string[]> = {
     "country",
     "document",
     "driver_license",
+    "other_documents",
   ],
 };
 
@@ -69,6 +71,7 @@ const FIELD_ORDER = [
   "email",
   "document",
   "driver_license",
+  "other_documents",
 ];
 
 export function orderedFields(data: Record<string, unknown>): [string, unknown][] {
@@ -83,7 +86,12 @@ export function sharedValue(value: unknown, t?: (key: string) => string): string
   if (value === null || value === undefined) return "—";
   if (Array.isArray(value)) {
     return value
-      .map((item: { type?: string; value?: string }) => `${item.type ?? ""}: ${item.value ?? ""}`)
+      .map((item: { type?: string; value?: string; title?: string; number?: string }) =>
+        // Other documents: «Insurance S-1»; the identifiers of a company: «tax: 123».
+        item.number !== undefined
+          ? `${item.title ?? ""} ${item.number}`.trim()
+          : `${item.type ?? ""}: ${item.value ?? ""}`,
+      )
       .join("; ");
   }
   if (typeof value === "object") {

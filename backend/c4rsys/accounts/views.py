@@ -11,7 +11,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
-from c4rsys.accounts import captcha, services
+from c4rsys.accounts import captcha, documents, services
 from c4rsys.accounts.middleware import (
     current_session,
     mark_session_cleared,
@@ -76,20 +76,7 @@ def _user_payload(user: UserAccount) -> dict[str, Any]:
         "birth_date": user.birth_date.isoformat() if user.birth_date else None,
         "contact_email": user.contact_email,
         "contact_phone": user.contact_phone,
-        "document_type": user.document_type,
-        "document_number": user.document_number,
-        "document_issued_on": (
-            user.document_issued_on.isoformat() if user.document_issued_on else None
-        ),
-        "document_expires_on": (
-            user.document_expires_on.isoformat() if user.document_expires_on else None
-        ),
-        "licence_number": user.licence_number,
-        "licence_issued_on": user.licence_issued_on.isoformat() if user.licence_issued_on else None,
-        "licence_expires_on": (
-            user.licence_expires_on.isoformat() if user.licence_expires_on else None
-        ),
-        "licence_categories": user.licence_categories,
+        "documents": user.documents,
         "language": user.language,
         "theme": user.theme,
         "timezone": user.time_zone,
@@ -305,25 +292,6 @@ def _date(data: dict[str, Any], key: str) -> str:
     return value
 
 
-# The identity document is a passport or an ID card; empty — not chosen yet.
-DOCUMENT_TYPES = ("", "passport", "national_id")
-
-
-def _categories(data: dict[str, Any]) -> list[str]:
-    """The categories of a driving licence: short codes such as «B» or «C1E», each once."""
-    value = data.get("licence_categories") or []
-    if not isinstance(value, list) or len(value) > 20:
-        raise errors.validation_error("licence_categories")
-    found: list[str] = []
-    for item in value:
-        if not isinstance(item, str) or len(item.strip()) > 10:
-            raise errors.validation_error("licence_categories")
-        code = item.strip().upper()
-        if code and code not in found:
-            found.append(code)
-    return found
-
-
 def _personal_values(data: dict[str, Any], user: UserAccount) -> dict[str, Any]:
     values: dict[str, Any] = {
         "last_name": get_str(data, "last_name", max_length=150),
@@ -332,14 +300,7 @@ def _personal_values(data: dict[str, Any], user: UserAccount) -> dict[str, Any]:
         "birth_date": _date(data, "birth_date"),
         "contact_email": get_str(data, "contact_email", required=False),
         "contact_phone": get_str(data, "contact_phone", max_length=40, required=False),
-        "document_type": get_str(data, "document_type", max_length=20, required=False),
-        "document_number": get_str(data, "document_number", max_length=100, required=False),
-        "document_issued_on": _date(data, "document_issued_on"),
-        "document_expires_on": _date(data, "document_expires_on"),
-        "licence_number": get_str(data, "licence_number", max_length=100, required=False),
-        "licence_issued_on": _date(data, "licence_issued_on"),
-        "licence_expires_on": _date(data, "licence_expires_on"),
-        "licence_categories": _categories(data),
+        "documents": documents.parse(data.get("documents")),
         "avatar": get_str(data, "avatar", max_length=36, required=False),
     }
     if values["contact_email"]:
@@ -348,12 +309,6 @@ def _personal_values(data: dict[str, Any], user: UserAccount) -> dict[str, Any]:
         raise errors.validation_error("contact_phone", code="PHONE_INVALID")
     if values["birth_date"] and date.fromisoformat(values["birth_date"]) > timezone.localdate():
         raise errors.validation_error("birth_date", code="DATE_IN_FUTURE")
-    if values["document_type"] not in DOCUMENT_TYPES:
-        raise errors.validation_error("document_type", code="VALUE_UNKNOWN")
-    for prefix in ("document", "licence"):
-        issued, expires = values[f"{prefix}_issued_on"], values[f"{prefix}_expires_on"]
-        if issued and expires and expires < issued:
-            raise errors.validation_error(f"{prefix}_expires_on", code="DATE_BEFORE_ISSUE")
     if values["avatar"]:
         try:
             avatar = UUID(values["avatar"])
@@ -376,14 +331,7 @@ PERSONAL_FIELDS = (
     "birth_date",
     "contact_email",
     "contact_phone",
-    "document_type",
-    "document_number",
-    "document_issued_on",
-    "document_expires_on",
-    "licence_number",
-    "licence_issued_on",
-    "licence_expires_on",
-    "licence_categories",
+    "documents",
     "avatar",
 )
 
@@ -416,18 +364,10 @@ def personal_data(request: HttpRequest) -> JsonResponse:
         before = _personal_snapshot(locked)
         for key in ("last_name", "first_name", "middle_name", "contact_email", "contact_phone"):
             setattr(locked, key, values[key])
-        locked.document_type = values["document_type"]
-        locked.document_number = values["document_number"]
-        locked.licence_number = values["licence_number"]
-        locked.licence_categories = values["licence_categories"]
-        for key in (
-            "birth_date",
-            "document_issued_on",
-            "document_expires_on",
-            "licence_issued_on",
-            "licence_expires_on",
-        ):
-            setattr(locked, key, date.fromisoformat(values[key]) if values[key] else None)
+        locked.documents = values["documents"]
+        locked.birth_date = (
+            date.fromisoformat(values["birth_date"]) if values["birth_date"] else None
+        )
         locked.avatar_id = UUID(values["avatar"]) if values["avatar"] else None
         locked.save()
         after = _personal_snapshot(locked)

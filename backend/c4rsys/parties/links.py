@@ -51,6 +51,8 @@ PERSON_FIELDS = (
     "document",
     # The driving licence apart from the identity document (customer's decision of 25.11.2026).
     "driver_license",
+    # The documents of the kind «other» of the profile (customer's remark of 26.11.2026).
+    "other_documents",
 )
 COMPANY_FIELDS = (
     "display_name",
@@ -944,6 +946,7 @@ def apply_value(
                 "country": held.get("country") if same else None,
                 "issued_on": value.get("issued_on"),
                 "expires_on": value.get("expires_on"),
+                "issued_by": value.get("issued_by") or "",
                 "categories": given or (held.get("categories", []) if same else []),
             },
         )
@@ -955,8 +958,26 @@ def apply_value(
                 "number": value.get("number") or "",
                 "issued_on": value.get("issued_on"),
                 "expires_on": value.get("expires_on"),
+                "issued_by": value.get("issued_by") or "",
             },
         )
+    elif field == "other_documents" and card.kind == "person" and isinstance(value, list):
+        # Added to the other documents of the card; one already there by its number stays as it
+        # is (PROPOSAL).
+        held = list(card.other_documents or [])
+        known = [d.get("number") for d in held]
+        for doc in value:
+            if isinstance(doc, dict) and not any(_same_number(doc.get("number"), n) for n in known):
+                held.append(
+                    {
+                        "title": doc.get("title") or "",
+                        "number": doc.get("number") or "",
+                        "issued_on": doc.get("issued_on"),
+                        "expires_on": doc.get("expires_on"),
+                        "issued_by": doc.get("issued_by") or "",
+                    }
+                )
+        changes["other_documents"] = extended.parse_value("other_documents", held)
     elif field == "identifiers" and card_type == "counterparty":
         changes["registration"] = _identifiers(value)[:500]
     else:
@@ -1056,6 +1077,9 @@ def compare(card: Card, card_type: str, data: dict[str, Any]) -> dict[str, dict[
                 isinstance(value, dict) and is_driver_license(value.get("type"))
             )
             current = (card.driver_license if licence else card.id_document) or None
+        elif field == "other_documents":
+            absent = card.kind != "person"
+            current = card.other_documents or None
         elif field == "identifiers":
             absent = card_type != "counterparty"
             current = getattr(card, "registration", "") or None
@@ -1073,6 +1097,11 @@ def compare(card: Card, card_type: str, data: dict[str, Any]) -> dict[str, dict[
             status = (
                 "same" if _same_number(value.get("number"), current.get("number")) else "different"
             )
+        elif field == "other_documents" and isinstance(value, list) and isinstance(current, list):
+            numbers = [d.get("number") for d in current if isinstance(d, dict)]
+            wanted = [d.get("number") for d in value if isinstance(d, dict)]
+            every = all(any(_same_number(w, n) for n in numbers) for w in wanted)
+            status = "same" if every else "different"
         elif field == "identifiers":
             status = "same" if _same_text(_identifiers(value), current) else "different"
         else:
