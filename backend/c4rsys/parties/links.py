@@ -49,6 +49,8 @@ PERSON_FIELDS = (
     "email",
     "phone",
     "document",
+    # The driving licence apart from the identity document (customer's decision of 25.11.2026).
+    "driver_license",
 )
 COMPANY_FIELDS = (
     "display_name",
@@ -922,10 +924,13 @@ def apply_value(
     elif field == "country" and card.kind == "company":
         changes["country"] = str(value)[:2].upper()
     elif (
-        field == "document"
-        and card.kind == "person"
+        card.kind == "person"
         and isinstance(value, dict)
-        and is_driver_license(value.get("type"))
+        and (
+            field == "driver_license"
+            # A link answered before the profile kept the licence apart gave it as the document.
+            or (field == "document" and is_driver_license(value.get("type")))
+        )
     ):
         # The categories given by the profile; without them those of the card stay while the
         # number is the same.
@@ -1045,9 +1050,11 @@ def compare(card: Card, card_type: str, data: dict[str, Any]) -> dict[str, dict[
         elif field in ("legal_address", "actual_address", "legal_form", "country"):
             absent = card.kind != "company"
             current = getattr(card, field, "") or None
-        elif field == "document":
+        elif field in ("document", "driver_license"):
             absent = card.kind != "person"
-            licence = isinstance(value, dict) and is_driver_license(value.get("type"))
+            licence = field == "driver_license" or (
+                isinstance(value, dict) and is_driver_license(value.get("type"))
+            )
             current = (card.driver_license if licence else card.id_document) or None
         elif field == "identifiers":
             absent = card_type != "counterparty"
@@ -1058,7 +1065,11 @@ def compare(card: Card, card_type: str, data: dict[str, Any]) -> dict[str, dict[
             status = "absent"
         elif current is None:
             status = "empty"
-        elif field == "document" and isinstance(value, dict) and isinstance(current, dict):
+        elif (
+            field in ("document", "driver_license")
+            and isinstance(value, dict)
+            and isinstance(current, dict)
+        ):
             status = (
                 "same" if _same_number(value.get("number"), current.get("number")) else "different"
             )

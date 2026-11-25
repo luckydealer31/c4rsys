@@ -60,8 +60,11 @@ type Personal = {
   document_number: string;
   document_issued_on: string;
   document_expires_on: string;
-  /** The categories of a driving licence, typed as «B, C». */
-  document_categories: string;
+  licence_number: string;
+  licence_issued_on: string;
+  licence_expires_on: string;
+  /** The categories of the driving licence, typed as «B, C». */
+  licence_categories: string;
 };
 
 function personalOf(user: User): Personal {
@@ -77,18 +80,11 @@ function personalOf(user: User): Personal {
     document_number: user.document_number,
     document_issued_on: user.document_issued_on ?? "",
     document_expires_on: user.document_expires_on ?? "",
-    document_categories: (user.document_categories ?? []).join(", "),
+    licence_number: user.licence_number ?? "",
+    licence_issued_on: user.licence_issued_on ?? "",
+    licence_expires_on: user.licence_expires_on ?? "",
+    licence_categories: (user.licence_categories ?? []).join(", "),
   };
-}
-
-/** Whether the type of the document is a driving licence: only it has categories (customer's
- * decision of 25.11.2026). The type is a free text chosen from the hints. */
-function isLicence(type: string, licence: string): boolean {
-  const value = type.trim().toLowerCase();
-  return (
-    value === licence.toLowerCase() ||
-    ["водительск", "driver", "driving", "ใบขับขี่"].some((word) => value.includes(word))
-  );
 }
 
 function formatDate(value: string | null, locale: string): string {
@@ -98,7 +94,26 @@ function formatDate(value: string | null, locale: string): string {
   );
 }
 
-const DOCUMENT_TYPES = ["passport", "id_card", "driver_license"] as const;
+/** The identity document of the profile: a passport or an ID card; the driving licence is a
+ * block of its own (customer's decision of 25.11.2026). */
+const DOCUMENT_TYPES = ["passport", "national_id"] as const;
+
+/** «Passport AB 123 · issued 10 January 2020 · until 10 January 2030». */
+function documentLine(
+  t: (key: string, options?: Record<string, string>) => string,
+  locale: string,
+  parts: { kind?: string; number: string; issued: string | null; expires: string | null; categories?: string[] },
+): string {
+  if (!parts.number) return "—";
+  return [
+    `${parts.kind ?? ""} ${parts.number}`.trim(),
+    parts.categories?.length ? `${t("cards.categories_short")}: ${parts.categories.join(", ")}` : "",
+    parts.issued ? t("profile.issued_on_short", { date: formatDate(parts.issued, locale) }) : "",
+    parts.expires ? t("profile.valid_until_short", { date: formatDate(parts.expires, locale) }) : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
 
 function PersonalCard({ user }: { user: User }) {
   const { t, i18n } = useTranslation();
@@ -126,11 +141,12 @@ function PersonalCard({ user }: { user: User }) {
       }
       return;
     }
-    const licence = isLicence(form.document_type, t("profile.document_driver_license"));
     const body = {
       ...form,
       avatar: form.avatar ?? "",
-      document_categories: licence ? form.document_categories.split(/[,\s]+/).filter(Boolean) : [],
+      licence_categories: form.licence_number.trim()
+        ? form.licence_categories.split(/[,\s]+/).filter(Boolean)
+        : [],
     };
     const result = await save.run(flow ? { ...body, flow: flow.flow, code } : body);
     if (result) {
@@ -155,7 +171,7 @@ function PersonalCard({ user }: { user: User }) {
   if (!editing) {
     const documentType = DOCUMENT_TYPES.includes(user.document_type as never)
       ? t(`profile.document_${user.document_type}`)
-      : user.document_type;
+      : "";
     return (
       <Card title={t("profile.personal_title")}>
         {saved ? <div className="alert ok">{t("common.saved")}</div> : null}
@@ -170,22 +186,24 @@ function PersonalCard({ user }: { user: User }) {
           <dd>{user.contact_email || "—"}</dd>
           <dt>{t("profile.contact_phone")}</dt>
           <dd>{user.contact_phone || "—"}</dd>
-          <dt>{t("profile.document")}</dt>
+          <dt>{t("profile.identity_title")}</dt>
           <dd>
-            {user.document_type || user.document_number
-              ? `${documentType} ${user.document_number}`.trim()
-              : "—"}
+            {documentLine(t, i18n.language, {
+              kind: documentType,
+              number: user.document_number,
+              issued: user.document_issued_on,
+              expires: user.document_expires_on,
+            })}
           </dd>
-          {user.document_categories?.length ? (
-            <>
-              <dt>{t("profile.document_categories")}</dt>
-              <dd>{user.document_categories.join(", ")}</dd>
-            </>
-          ) : null}
-          <dt>{t("profile.document_issued_on")}</dt>
-          <dd>{formatDate(user.document_issued_on, i18n.language)}</dd>
-          <dt>{t("profile.document_expires_on")}</dt>
-          <dd>{formatDate(user.document_expires_on, i18n.language)}</dd>
+          <dt>{t("cards.driver_license")}</dt>
+          <dd>
+            {documentLine(t, i18n.language, {
+              number: user.licence_number,
+              issued: user.licence_issued_on,
+              expires: user.licence_expires_on,
+              categories: user.licence_categories,
+            })}
+          </dd>
         </dl>
         <div className="actions">
           <IconButton icon="edit" label={t("common.edit")} onClick={() => setEditing(true)} />
@@ -252,47 +270,71 @@ function PersonalCard({ user }: { user: User }) {
             />
           </Field>
         </div>
-        <div className="row">
-          <Field label={t("profile.document_type")}>
-            <input
-              list="document-types"
-              value={form.document_type}
-              onChange={(e) => set({ document_type: e.target.value })}
-            />
-            <datalist id="document-types">
-              {DOCUMENT_TYPES.map((type) => (
-                <option key={type} value={t(`profile.document_${type}`)} />
-              ))}
-            </datalist>
-          </Field>
-          <Field label={t("profile.document_number")}>
-            <input
-              value={form.document_number}
-              onChange={(e) => set({ document_number: e.target.value })}
-            />
-          </Field>
-          <Field label={t("profile.document_issued_on")}>
-            <input
-              type="date"
-              value={form.document_issued_on}
-              onChange={(e) => set({ document_issued_on: e.target.value })}
-            />
-          </Field>
-          <Field label={t("profile.document_expires_on")}>
-            <input
-              type="date"
-              value={form.document_expires_on}
-              onChange={(e) => set({ document_expires_on: e.target.value })}
-            />
-          </Field>
-          {isLicence(form.document_type, t("profile.document_driver_license")) ? (
-            <Field label={t("profile.document_categories")} hint={t("profile.document_categories_hint")}>
+        <div className="field" data-testid="identity-document">
+          <span>{t("profile.identity_title")}</span>
+          <div className="row">
+            <Field label={t("profile.document_type")}>
+              <select value={form.document_type} onChange={(e) => set({ document_type: e.target.value })}>
+                <option value="">{t("clients.contact_choose")}</option>
+                {DOCUMENT_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {t(`profile.document_${type}`)}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label={t("profile.document_number")}>
               <input
-                value={form.document_categories}
-                onChange={(e) => set({ document_categories: e.target.value })}
+                value={form.document_number}
+                onChange={(e) => set({ document_number: e.target.value })}
               />
             </Field>
-          ) : null}
+            <Field label={t("profile.document_issued_on")}>
+              <input
+                type="date"
+                value={form.document_issued_on}
+                onChange={(e) => set({ document_issued_on: e.target.value })}
+              />
+            </Field>
+            <Field label={t("profile.document_expires_on")}>
+              <input
+                type="date"
+                value={form.document_expires_on}
+                onChange={(e) => set({ document_expires_on: e.target.value })}
+              />
+            </Field>
+          </div>
+        </div>
+        <div className="field" data-testid="driving-licence">
+          <span>{t("cards.driver_license")}</span>
+          <div className="row">
+            <Field label={t("profile.document_number")}>
+              <input
+                value={form.licence_number}
+                onChange={(e) => set({ licence_number: e.target.value })}
+              />
+            </Field>
+            <Field label={t("profile.document_issued_on")}>
+              <input
+                type="date"
+                value={form.licence_issued_on}
+                onChange={(e) => set({ licence_issued_on: e.target.value })}
+              />
+            </Field>
+            <Field label={t("profile.document_expires_on")}>
+              <input
+                type="date"
+                value={form.licence_expires_on}
+                onChange={(e) => set({ licence_expires_on: e.target.value })}
+              />
+            </Field>
+            <Field label={t("profile.document_categories")} hint={t("profile.document_categories_hint")}>
+              <input
+                value={form.licence_categories}
+                onChange={(e) => set({ licence_categories: e.target.value })}
+              />
+            </Field>
+          </div>
         </div>
         {flow ? (
           <Field label={t("auth.code")} hint={t("profile.code_for_change")}>

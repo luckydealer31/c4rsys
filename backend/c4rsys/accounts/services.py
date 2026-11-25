@@ -700,9 +700,14 @@ def get_user(user_id: UUID) -> UserAccount | None:
     return UserAccount.objects.filter(pk=user_id).first()
 
 
+def _iso(value: Any) -> str | None:
+    return value.isoformat() if value else None
+
+
 def shareable_profile(user: UserAccount) -> dict[str, Any]:
     """The data a person may give a company that asks to link a card (§ 6.2.5, § 6.4.1): names,
-    birth date, the first confirmed email, the contact phone and the identity document."""
+    birth date, the first confirmed email, the contact phone, the identity document and the
+    driving licence with its categories (customer's decisions of 25.11.2026)."""
     email = (
         user.contacts.filter(kind=LoginContact.Kind.EMAIL)
         .order_by("verified_at")
@@ -713,20 +718,24 @@ def shareable_profile(user: UserAccount) -> dict[str, Any]:
         "first_name": user.first_name,
         "last_name": user.last_name,
         "middle_name": user.middle_name,
-        "birth_date": user.birth_date.isoformat() if user.birth_date else None,
+        "birth_date": _iso(user.birth_date),
         "email": email or "",
         "phone": user.contact_phone,
         "document": {
             "type": user.document_type,
             "number": user.document_number,
-            "issued_on": user.document_issued_on.isoformat() if user.document_issued_on else None,
-            "expires_on": (
-                user.document_expires_on.isoformat() if user.document_expires_on else None
-            ),
-            # Only a driving licence has them (customer's decision of 25.11.2026).
-            **({"categories": user.document_categories} if user.document_categories else {}),
+            "issued_on": _iso(user.document_issued_on),
+            "expires_on": _iso(user.document_expires_on),
         }
         if user.document_number
+        else None,
+        "driver_license": {
+            "number": user.licence_number,
+            "issued_on": _iso(user.licence_issued_on),
+            "expires_on": _iso(user.licence_expires_on),
+            "categories": user.licence_categories,
+        }
+        if user.licence_number
         else None,
     }
 

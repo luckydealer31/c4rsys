@@ -93,7 +93,7 @@ function RequestCard({ base, link }: { base: string; link: IncomingLink }) {
         <div key={field}>
           <label className="small">
             <input type="checkbox" checked={chosen.has(field)} onChange={() => toggle(field)} />{" "}
-            {t(`links.field_${field}`)}: <span className="muted">{sharedValue(value)}</span>
+            {t(`links.field_${field}`)}: <span className="muted">{sharedValue(value, t)}</span>
           </label>
         </div>
       ))}

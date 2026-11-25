@@ -397,20 +397,24 @@ def test_a_driving_licence_of_the_profile_goes_to_the_licence_of_the_card(
     )
     somchai, usr = user_client("somchai@example.com")
     UserAccount.objects.filter(public_id=usr).update(
-        document_type="Водительское удостоверение",
-        document_number="7701123456",
-        document_issued_on="2020-01-02",
-        document_expires_on="2030-01-02",
+        document_type="passport",
+        document_number="P2",
+        licence_number="7701123456",
+        licence_issued_on="2020-01-02",
+        licence_expires_on="2030-01-02",
     )
     link = ask(owner, cmp, card_id, usr).json()["link"]
-    post(somchai, f"/api/profile-links/{link['id']}/accept", {"fields": ["document"]}, key())
-    compared = links_of(owner, cmp, card_id)[0]["compare"]["document"]
+    post(somchai, f"/api/profile-links/{link['id']}/accept", {"fields": ["driver_license"]}, key())
+    shown = links_of(owner, cmp, card_id)[0]
+    # Only what the person chose: the licence without the passport.
+    assert list(shown["shared"]) == ["driver_license"]
+    compared = shown["compare"]["driver_license"]
     assert compared["status"] == "same" and compared["current"]["number"] == "77 01 123456"
     version = owner.get(f"/api/c/{cmp}/clients/{card_id}").json()["client"]["version"]
     applied = post(
         owner,
         f"/api/c/{cmp}/profile-links/{link['id']}/apply",
-        {"field": "document", "expected_version": version},
+        {"field": "driver_license", "expected_version": version},
         key(),
     )
     assert applied.status_code == 200, applied.content
@@ -426,7 +430,7 @@ def test_a_driving_licence_of_the_profile_goes_to_the_licence_of_the_card(
     }
 
     # The categories given by the profile take the place of those of the card.
-    UserAccount.objects.filter(public_id=usr).update(document_categories=["B", "C"])
+    UserAccount.objects.filter(public_id=usr).update(licence_categories=["B", "C"])
     post(
         owner,
         f"/api/c/{cmp}/profile-links/{link['id']}/break",
@@ -434,12 +438,12 @@ def test_a_driving_licence_of_the_profile_goes_to_the_licence_of_the_card(
         key(),
     )
     again = ask(owner, cmp, card_id, usr).json()["link"]
-    post(somchai, f"/api/profile-links/{again['id']}/accept", {"fields": ["document"]}, key())
+    post(somchai, f"/api/profile-links/{again['id']}/accept", {"fields": ["driver_license"]}, key())
     version = owner.get(f"/api/c/{cmp}/clients/{card_id}").json()["client"]["version"]
     post(
         owner,
         f"/api/c/{cmp}/profile-links/{again['id']}/apply",
-        {"field": "document", "expected_version": version},
+        {"field": "driver_license", "expected_version": version},
         key(),
     )
     assert (ClientCard.objects.get(pk=card_id).driver_license or {})["categories"] == ["B", "C"]

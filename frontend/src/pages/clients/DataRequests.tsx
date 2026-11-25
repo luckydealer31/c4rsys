@@ -169,7 +169,7 @@ function DataRequestCard({ base, request }: { base: string; request: IncomingDat
                 setChosen(next);
               }}
             />{" "}
-            {t(`links.field_${field}`)}: <span className="muted">{sharedValue(value)}</span>
+            {t(`links.field_${field}`)}: <span className="muted">{sharedValue(value, t)}</span>
           </label>
         </div>
       ))}

@@ -31,6 +31,7 @@ const APPLICABLE: Record<"client" | "counterparty", string[]> = {
     "legal_form",
     "country",
     "document",
+    "driver_license",
   ],
   counterparty: [
     "first_name",
@@ -47,6 +48,7 @@ const APPLICABLE: Record<"client" | "counterparty", string[]> = {
     "legal_form",
     "country",
     "document",
+    "driver_license",
   ],
 };
 
@@ -66,13 +68,18 @@ const FIELD_ORDER = [
   "phone",
   "email",
   "document",
+  "driver_license",
 ];
 
 export function orderedFields(data: Record<string, unknown>): [string, unknown][] {
   return Object.entries(data).sort(([a], [b]) => FIELD_ORDER.indexOf(a) - FIELD_ORDER.indexOf(b));
 }
 
-export function sharedValue(value: unknown): string {
+const DOCUMENT_KINDS = ["passport", "national_id", "other"];
+
+/** A value given by the profile as text; with `t` the type of a document is named (passport, ID
+ * card) and the categories of a licence are listed. */
+export function sharedValue(value: unknown, t?: (key: string) => string): string {
   if (value === null || value === undefined) return "—";
   if (Array.isArray(value)) {
     return value
@@ -80,8 +87,13 @@ export function sharedValue(value: unknown): string {
       .join("; ");
   }
   if (typeof value === "object") {
-    return Object.values(value as Record<string, unknown>)
-      .filter(Boolean)
+    return Object.entries(value as Record<string, unknown>)
+      .map(([key, item]) => {
+        if (key === "type" && t && DOCUMENT_KINDS.includes(item as string)) return t(`cards.document_${item}`);
+        if (Array.isArray(item)) return item.join(", ");
+        return item;
+      })
+      .filter((item) => item !== "" && item !== null && item !== undefined)
       .join(" · ");
   }
   return String(value);
@@ -362,9 +374,9 @@ export function SharedTable({
           return (
             <tr key={field}>
               <td>{t(`links.field_${field}`)}</td>
-              <td>{sharedValue(value)}</td>
+              <td>{sharedValue(value, t)}</td>
               <td className={status === "different" ? "" : "muted"}>
-                {status === "absent" ? t("links.no_such_field") : found?.current ? sharedValue(found.current) : "—"}
+                {status === "absent" ? t("links.no_such_field") : found?.current ? sharedValue(found.current, t) : "—"}
               </td>
               <td>
                 {status === "same" ? (

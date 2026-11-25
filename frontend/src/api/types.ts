@@ -15,8 +15,12 @@ export type User = {
   document_number: string;
   document_issued_on: string | null;
   document_expires_on: string | null;
-  /** The categories of a driving licence (customer's decision of 25.11.2026). */
-  document_categories: string[];
+  /** The identity document is «passport» or «national_id»; empty — not chosen. The driving
+   * licence is kept apart with its categories (customer's decisions of 25.11.2026). */
+  licence_number: string;
+  licence_issued_on: string | null;
+  licence_expires_on: string | null;
+  licence_categories: string[];
   language: string;
   theme: "system" | "light" | "dark";
   /** Personal time zone of the interface; empty — the device's. */
