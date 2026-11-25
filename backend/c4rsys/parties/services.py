@@ -1,7 +1,7 @@
 """Client cards: creation, change, list and search for matches (ТЗ § 6.1.11, § 6.2.7–6.2.8)."""
 
 import re
-from collections.abc import Collection
+from collections.abc import Callable, Collection
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
@@ -294,6 +294,7 @@ def update_client(
     if card.state == ClientCard.State.MERGED:
         raise errors.business_rule("CLIENT_MERGED", main=str(card.merged_into_id))
     before = snapshot(card)
+    matched_before = duplicate_ids(card, duplicates_of)
     for key, value in changes.items():
         setattr(card, key, value)
     ClientData(
@@ -320,6 +321,7 @@ def update_client(
         before={k: v for k, v in before.items() if v != after[k]},
         after={k: v for k, v in after.items() if v != before[k]},
     )
+    refresh_duplicate_marks(card, matched_before, duplicates_of)
     return card
 
 
@@ -603,6 +605,27 @@ def loose_matches(cards: QuerySet[Any], query: MatchQuery) -> list[tuple[list[An
             )
         )
     return found
+
+
+def refresh_duplicate_marks(
+    card: Any, before: set[str], duplicates: Callable[[Any], list[dict[str, Any]]]
+) -> None:
+    """The mark «Possible duplicate» follows the current data (customer's remark of 25.11.2026):
+    after a change the card is marked if it matches another card of its list, and unmarked if it
+    matches none; a card it matched before is unmarked once it matches nothing (PROPOSAL). The
+    mark is derived, so it changes neither the version nor the audit of the cards."""
+    model = type(card)
+    now = {d["id"] for d in duplicates(card)}
+    if card.possible_duplicate != bool(now):
+        card.possible_duplicate = bool(now)
+        model.objects.filter(pk=card.pk).update(possible_duplicate=bool(now))
+    for other in model.objects.filter(pk__in=before - now, possible_duplicate=True):
+        if not duplicates(other):
+            model.objects.filter(pk=other.pk).update(possible_duplicate=False)
+
+
+def duplicate_ids(card: Any, duplicates: Callable[[Any], list[dict[str, Any]]]) -> set[str]:
+    return {d["id"] for d in duplicates(card)}
 
 
 def duplicates_of(card: ClientCard) -> list[dict[str, Any]]:

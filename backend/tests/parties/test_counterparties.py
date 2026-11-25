@@ -127,3 +127,33 @@ def test_the_card_tells_with_whom_it_may_be_a_duplicate(owner: Client, cmp: str)
     assert owner.get(url).json()["counterparty"]["duplicates"] == [
         {"id": first["id"], "name": "Auto Parts Co", "kind": "company", "matched": ["email"]}
     ]
+
+
+def test_the_mark_of_a_duplicate_follows_the_current_data(owner: Client, cmp: str) -> None:
+    """Customer's remark of 25.11.2026: once the matching data is corrected, the mark goes away."""
+    from c4rsys.parties.models import Counterparty
+
+    email = [{"kind": "email", "value": "tima@example.com"}]
+    first = create(owner, cmp, contacts=email).json()["counterparty"]
+    person = {"kind": "person", "company_name": "", "first_name": "Timofey", "last_name": "S"}
+    second = create(owner, cmp, **person, contacts=email).json()["counterparty"]
+    Counterparty.objects.filter(pk=second["id"]).update(possible_duplicate=True)
+    # The other card changes its email: the marked card matches nothing any more.
+    changed = owner.patch(
+        f"/api/c/{cmp}/counterparties/{first['id']}",
+        data={"contacts": [{"kind": "email", "value": "parts@example.com"}], "expected_version": 1},
+        content_type="application/json",
+        headers=key(),
+    )
+    assert changed.status_code == 200, changed.content
+    url = f"/api/c/{cmp}/counterparties/{second['id']}"
+    card = owner.get(url).json()["counterparty"]
+    assert card["possible_duplicate"] is False and card["duplicates"] == []
+    # The card itself takes the email back: it is marked again.
+    owner.patch(
+        url,
+        data={"contacts": [{"kind": "email", "value": "parts@example.com"}], "expected_version": 1},
+        content_type="application/json",
+        headers=key(),
+    )
+    assert owner.get(url).json()["counterparty"]["possible_duplicate"] is True

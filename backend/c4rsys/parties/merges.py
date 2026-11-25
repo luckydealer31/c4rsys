@@ -337,6 +337,12 @@ def merge(
         primary.provisional = False
     primary.version += 1
     primary.save()
+    # The main card keeps the mark only while it still matches another card (25.11.2026).
+    services.refresh_duplicate_marks(
+        primary,
+        set(),
+        services.duplicates_of if card_type == "client" else counterparties.duplicates_of,
+    )
     record = CardMerge.objects.create(
         company=company,
         card_type=card_type,

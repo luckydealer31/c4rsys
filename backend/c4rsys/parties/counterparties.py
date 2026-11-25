@@ -18,7 +18,14 @@ from django.utils import timezone
 from c4rsys.companies.models import Company
 from c4rsys.parties import extended
 from c4rsys.parties.models import Counterparty, CounterpartyContact, ProfileLink
-from c4rsys.parties.services import Contact, MatchQuery, has_minimum, loose_matches
+from c4rsys.parties.services import (
+    Contact,
+    MatchQuery,
+    duplicate_ids,
+    has_minimum,
+    loose_matches,
+    refresh_duplicate_marks,
+)
 from c4rsys.parties.services import expand as services_expand
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
@@ -171,6 +178,7 @@ def update(
     does not change. A provisional card becomes ready once it holds the minimum (PROPOSAL)."""
     card = _lock(company_id, counterparty_id, expected_version)
     before = snapshot(card)
+    matched_before = duplicate_ids(card, duplicates_of)
     for key, value in changes.items():
         setattr(card, key, value)
     CounterpartyData(
@@ -197,6 +205,7 @@ def update(
         before={k: v for k, v in before.items() if v != after[k]},
         after={k: v for k, v in after.items() if v != before[k]},
     )
+    refresh_duplicate_marks(card, matched_before, duplicates_of)
     return card
 
 
