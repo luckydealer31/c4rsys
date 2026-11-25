@@ -1,3 +1,4 @@
+import { apiList, cardPath as pathOfCard, listPath, type CardType } from "./cardLists";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -10,7 +11,6 @@ import { companyPath, useCompany } from "../../layout/CompanyShell";
 import { clientName, useMatches } from "./ClientsPage";
 import { ContactsEditor, contactValid, contactsOf, phoneAndEmail, type ContactRow } from "./ContactsEditor";
 
-type CardType = "client" | "counterparty";
 type Step = "kind" | "name" | "birth" | "contacts";
 
 type Form = {
@@ -32,6 +32,12 @@ export function NewCounterpartyPage() {
   return <NewCardWizard cardType="counterparty" />;
 }
 
+/** An investor entered by hand: one who put in money has no vehicle to be entered with
+ * (customer's decision of 26.11.2026). */
+export function NewInvestorPage() {
+  return <NewCardWizard cardType="investor" />;
+}
+
 /** Step-by-step creation of a client or a counterparty (customer's decision of 11.11.2026), as
  * the creation of a vehicle: the kind, the name, the birth date of a person, the contacts — «Add a
  * contact», the kind first, then the value (customer's remarks of 25.11.2026). The link with a
@@ -42,10 +48,9 @@ function NewCardWizard({ cardType }: { cardType: CardType }) {
   const company = useCompany();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const path = cardType === "client" ? "clients" : "counterparties";
-  const cardPath = (id: string) =>
-    companyPath(company, cardType === "client" ? `/clients/${id}` : `/clients/counterparties/${id}`);
-  const back = companyPath(company, cardType === "client" ? "/clients?tab=clients" : "/clients?tab=counterparties");
+  const path = apiList(cardType);
+  const cardPath = (id: string) => companyPath(company, pathOfCard(cardType, id));
+  const back = companyPath(company, listPath(cardType));
   const [form, setForm] = useState<Form>({
     kind: cardType === "client" ? "person" : "company",
     first_name: "",
@@ -101,7 +106,7 @@ function NewCardWizard({ cardType }: { cardType: CardType }) {
           }
         : { kind: "company", company_name: form.company_name, contacts };
     if (form.kind === "person") body.birth_date = form.birth_date || null;
-    if (cardType === "counterparty") body.comment = form.comment;
+    if (cardType !== "client") body.comment = form.comment;
     await opened(await create.run(body));
   }
 
@@ -172,7 +177,7 @@ function NewCardWizard({ cardType }: { cardType: CardType }) {
     content = (
       <div className="stack">
         <ContactsEditor titled={false} rows={form.contacts} onChange={(contacts) => set({ contacts })} />
-        {cardType === "counterparty" ? (
+        {cardType !== "client" ? (
           <Field label={t("warehouse.comment")}>
             <input value={form.comment} onChange={text("comment")} />
           </Field>
@@ -203,7 +208,7 @@ function NewCardWizard({ cardType }: { cardType: CardType }) {
   return (
     <div className="page">
       <p>
-        <Link to={back}>← {t(cardType === "client" ? "clients.tab_clients" : "clients.tab_counterparties")}</Link>
+        <Link to={back}>← {t(`clients.tab_${path}`)}</Link>
       </p>
       <h1>{t(`${path}.create_title`)}</h1>
       <p className="muted">{t("wizard.step", { n: index + 1, total: steps.length })}</p>

@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { ProfileLinkCard } from "./ProfileLinkCard";
+import { apiList, cardPath, listPath, type PartyList } from "./cardLists";
 
 import { useApi } from "../../api/queries";
 import type { Counterparty } from "../../api/types";
@@ -44,10 +45,14 @@ const EMPTY: Draft = {
 
 /** Counterparties — suppliers of the company (§ 6.1.4), a list of its own apart from clients
  * (§ 6.1.7). The minimal list of the warehouse stage (customer's decision of 25.10.2026). */
-export function CounterpartiesList() {
+export function CounterpartiesList({ list: of = "counterparty" }: { list?: PartyList }) {
   const { t } = useTranslation();
   const company = useCompany();
   const can = useCan();
+  // The investors are a list of its own on the same cards (decision of 26.11.2026); the
+  // categories are of the suppliers and are not offered there.
+  const api = apiList(of);
+  const investors = of === "investor";
   const [query, setQuery] = useState("");
   const [archived, setArchived] = useState(false);
   // The list is filtered by the categories of the directory of the company (15.11.2026).
@@ -55,16 +60,16 @@ export function CounterpartiesList() {
   const categories = useApi<{ categories: string[] }>(
     ["counterparty-categories", company.public_id],
     `/c/${company.public_id}/counterparties/categories`,
-    can("counterparty.view"),
+    !investors && can("counterparty.view"),
   );
   const list = useApi<{ counterparties: Counterparty[] }>(
-    ["counterparties", company.public_id, query, archived, category],
-    `/c/${company.public_id}/counterparties?q=${encodeURIComponent(query)}&state=${archived ? "archived" : "active"}&category=${encodeURIComponent(category)}`,
-    can("counterparty.view"),
+    [api, company.public_id, query, archived, category],
+    `/c/${company.public_id}/${api}?q=${encodeURIComponent(query)}&state=${archived ? "archived" : "active"}&category=${encodeURIComponent(category)}`,
+    can(`${of}.view`),
   );
   return (
     <>
-      {can("counterparty.view") ? (
+      {can(`${of}.view`) ? (
         <Card>
           <div className="list-bar">
             <input
@@ -74,6 +79,7 @@ export function CounterpartiesList() {
               onChange={(e) => setQuery(e.target.value)}
               placeholder={t("counterparties.search")}
               aria-label={t("counterparties.search")}
+              data-testid={`${api}-search`}
             />
             {categories.data?.categories.length ? (
               <select value={category} aria-label={t("cards.field_category")} onChange={(e) => setCategory(e.target.value)}>
@@ -91,13 +97,13 @@ export function CounterpartiesList() {
             </label>
           </div>
           {list.isLoading ? <Loading /> : null}
-          {list.data?.counterparties.length === 0 ? <p className="muted">{t("counterparties.none")}</p> : null}
+          {list.data?.counterparties.length === 0 ? <p className="muted">{t(`${api}.none`)}</p> : null}
           <table>
             <tbody>
               {(list.data?.counterparties ?? []).map((card) => (
                 <tr key={card.id}>
                   <td>
-                    <Link to={companyPath(company, `/clients/counterparties/${card.id}`)}>{card.name}</Link>
+                    <Link to={companyPath(company, cardPath(of, card.id))}>{card.name}</Link>
                   </td>
                   <td>{t(`clients.kind_${card.kind}`)}</td>
                   <td>{card.category}</td>
@@ -108,7 +114,7 @@ export function CounterpartiesList() {
           </table>
         </Card>
       ) : (
-        <p className="muted">{t("counterparties.list_not_allowed")}</p>
+        <p className="muted">{t(`${api}.list_not_allowed`)}</p>
       )}
     </>
   );
@@ -204,10 +210,45 @@ export function CounterpartyForm({
 }
 
 const CARD_TABS = ["main", "finance", "history", "more"] as const;
+// The settlements with an investor are not decided yet (OPEN, 26.11.2026): his card has no
+// tabs of the money and of the supplies of a counterparty.
+const INVESTOR_TABS = ["main", "more"] as const;
+
+/** Card of an investor (customer's decision of 26.11.2026): the data, the vehicles he gave into
+ * the management, the link with a profile. */
+export function InvestorPage() {
+  return <CounterpartyPage list="investor" />;
+}
+
+/** The vehicles an investor gave into the management. */
+function InvestorVehicles({ id }: { id: string }) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const found = useApi<{ vehicles: { id: string; name: string }[]; count: number }>(
+    ["investor-vehicles", company.public_id, id],
+    `/c/${company.public_id}/investors/${id}/vehicles`,
+  );
+  const vehicles = found.data?.vehicles ?? [];
+  const hidden = (found.data?.count ?? 0) - vehicles.length;
+  return (
+    <Card title={t("investors.vehicles_title")}>
+      <div data-testid="investor-vehicles">
+        {found.isLoading ? <Loading /> : null}
+        {found.data && found.data.count === 0 ? <p className="muted">{t("investors.vehicles_none")}</p> : null}
+        {vehicles.map((v) => (
+          <div key={v.id}>
+            <Link to={companyPath(company, `/vehicles/${v.id}`)}>{v.name}</Link>
+          </div>
+        ))}
+        {hidden > 0 ? <p className="muted small">{t("investors.vehicles_hidden", { count: hidden })}</p> : null}
+      </div>
+    </Card>
+  );
+}
 
 /** Card of a counterparty (§ 6.6.4–6.6.5): the same as the card of a client (customer's
  * decision of 15.11.2026) — text with a window of editing, and the same tabs. */
-export function CounterpartyPage() {
+export function CounterpartyPage({ list: of = "counterparty" }: { list?: PartyList }) {
   const { t } = useTranslation();
   const { id = "" } = useParams();
   const company = useCompany();
@@ -215,23 +256,26 @@ export function CounterpartyPage() {
   const navigate = useNavigate();
   const route = useLocation();
   const queryClient = useQueryClient();
-  const base = `/c/${company.public_id}/counterparties/${id}`;
-  const card = useApi<{ counterparty: Counterparty }>(["counterparty", company.public_id, id], base);
+  const investor = of === "investor";
+  const base = `/c/${company.public_id}/${apiList(of)}/${id}`;
+  const card = useApi<{ counterparty: Counterparty }>([of, company.public_id, id], base);
   const archive = useCommand<{ expected_version: number }, unknown>(`${base}/archive`);
   const restore = useCommand<{ expected_version: number }, unknown>(`${base}/restore`);
   const [params, setParams] = useSearchParams();
-  const firstTab = useFirstTab("counterparty_card");
+  const section = `${of}_card`;
+  const firstTab = useFirstTab(section);
   if (card.isLoading) return <div className="page full"><Loading /></div>;
   const data = card.data?.counterparty;
   if (!data) return <div className="page full"><ErrorMessage error={null} /></div>;
   const current = data;
-  const tab = CARD_TABS.find((x) => x === params.get("tab")) ?? firstTab(CARD_TABS) ?? "main";
+  const tabs: readonly (typeof CARD_TABS)[number][] = investor ? INVESTOR_TABS : CARD_TABS;
+  const tab = tabs.find((x) => x === params.get("tab")) ?? firstTab(tabs) ?? "main";
   const money = can("finance.account.view") || can("finance.settlement.manage") || can("finance.payout");
   const mergedInto = data.merged_into;
 
   async function refresh() {
-    await queryClient.invalidateQueries({ queryKey: ["counterparty", company.public_id, id] });
-    await queryClient.invalidateQueries({ queryKey: ["counterparties", company.public_id] });
+    await queryClient.invalidateQueries({ queryKey: [of, company.public_id, id] });
+    await queryClient.invalidateQueries({ queryKey: [apiList(of), company.public_id] });
     await queryClient.invalidateQueries({ queryKey: ["counterparty-categories", company.public_id] });
   }
 
@@ -243,29 +287,30 @@ export function CounterpartyPage() {
           icon="back"
           label={t("common.back")}
           onClick={() =>
-            route.key === "default" ? navigate(companyPath(company, "/clients?tab=counterparties")) : navigate(-1)
+            route.key === "default" ? navigate(companyPath(company, listPath(of))) : navigate(-1)
           }
         />
         <SectionTabs
-          section="counterparty_card"
+          section={section}
           current={tab}
-          tabs={CARD_TABS.map((key) => ({ key, text: t(`cards.tab_${key}`) }))}
+          tabs={tabs.map((key) => ({ key, text: t(`cards.tab_${key}`) }))}
           onSelect={(key) => setParams({ tab: key }, { replace: true })}
           style={{ flex: 1 }}
         />
       </div>
-      <TagsLine kind="counterparty" id={data.id} />
+      {investor ? null : <TagsLine kind="counterparty" id={data.id} />}
       {mergedInto ? (
         <div className="alert warn">
           {t("cards.merged_banner")}{" "}
-          <Link to={companyPath(company, `/clients/counterparties/${mergedInto}`)}>{t("cards.open_main")}</Link>
+          <Link to={companyPath(company, cardPath(of, mergedInto))}>{t("cards.open_main")}</Link>
         </div>
       ) : null}
       {data.provisional ? <div className="alert warn">{t("cards.provisional_banner")}</div> : null}
       {tab === "main" ? (
         <>
-          <MainCard cardType="counterparty" card={data} badges={<CardBadges card={data} cardType="counterparty" />} onSaved={refresh} />
-          <DocumentsCard cardType="counterparty" card={data} onSaved={refresh} />
+          <MainCard cardType={of} card={data} badges={<CardBadges card={data} cardType={of} />} onSaved={refresh} />
+          {investor ? <InvestorVehicles id={data.id} /> : null}
+          <DocumentsCard cardType={of} card={data} onSaved={refresh} />
         </>
       ) : null}
       {tab === "finance" ? (
@@ -292,18 +337,18 @@ export function CounterpartyPage() {
         <>
           {/* The link with the profile is made and broken here (decision of 15.11.2026). */}
           <div style={{ maxWidth: 760 }}>
-            <ProfileLinkCard cardType="counterparty" cardId={data.id} cardKind={data.kind} version={data.version} onChanged={refresh} />
+            <ProfileLinkCard cardType={of} cardId={data.id} cardKind={data.kind} version={data.version} onChanged={refresh} />
           </div>
           {/* § 18.1.1–18.1.2: documents of the relations with the counterparty. */}
-          <LinkedDocuments objectType="counterparty" objectId={data.id} />
-          <MergeCard cardType="counterparty" card={data} onChanged={refresh} />
+          {investor ? null : <LinkedDocuments objectType="counterparty" objectId={data.id} />}
+          <MergeCard cardType={of} card={data} onChanged={refresh} />
           {data.external_id ? (
             <Card title={t("cards.other_title")}>
               <Facts rows={[[t("cards.field_external_id"), data.external_id]]} />
               <p className="muted small">{t("cards.external_id_hint")}</p>
             </Card>
           ) : null}
-          {(data.state === "active" && can("counterparty.archive")) || (data.state === "archived" && can("counterparty.restore")) ? (
+          {(data.state === "active" && can(`${of}.archive`)) || (data.state === "archived" && can(`${of}.restore`)) ? (
             <Card>
               <ErrorMessage error={archive.error ?? restore.error} />
               <div className="actions">

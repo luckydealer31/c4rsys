@@ -160,6 +160,17 @@ PERMISSIONS: dict[str, str] = {
     # the clients' merge apply, in «Company administrator» only).
     "counterparty.merge": "counterparty",
     "counterparty.split": "counterparty",
+    # The investors (customer's decision of 26.11.2026): those who gave vehicles into the
+    # management or put in money — a list of its own, open not to everybody. In «Company
+    # administrator»; the accountant views the list (PROPOSAL for the accountant's part).
+    "investor.view": "investor",
+    "investor.create": "investor",
+    "investor.edit": "investor",
+    "investor.link.request": "investor",
+    "investor.archive": "investor",
+    "investor.restore": "investor",
+    "investor.merge": "investor",
+    "investor.split": "investor",
     "rental.view": "rental",
     # § 23.3.7 (block 14): the rules of the rental — issue without payment, auto-cancel of a
     # booking and the other issue rules.
@@ -361,6 +372,7 @@ SYSTEM_SETS: dict[str, tuple[str, ...]] = {
         "order.view",
         "rental.view",
         "client.find",
+        "investor.view",
         "warehouse.price.set",
         *TASK_BASIC,
         "reports.view",

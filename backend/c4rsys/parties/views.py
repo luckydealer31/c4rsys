@@ -22,6 +22,7 @@ from c4rsys.tags import services as tags
 NAME_MAX = 150
 COMPANY_NAME_MAX = 200
 LIST_LIMIT = 100
+COUNTERPARTY = counterparties.COUNTERPARTY
 
 
 def _actor(request: HttpRequest, cmp: str) -> tuple[companies.CompanyContext, Actor]:
@@ -241,11 +242,11 @@ def client_matches(request: HttpRequest, cmp: str) -> JsonResponse:
 
 
 @require_POST
-def counterparty_matches(request: HttpRequest, cmp: str) -> JsonResponse:
+def counterparty_matches(request: HttpRequest, cmp: str, role: str = COUNTERPARTY) -> JsonResponse:
     """Existing counterparties for the entered data, as for the clients (§ 6.1.11): the owner of
     a vehicle entered in its form is checked so (customer's remark of 25.11.2026). A read."""
     context, actor = _actor(request, cmp)
-    _require(actor, "counterparty.view")
+    _require(actor, f"{role}.view")
     data = parse_json(request)
     contacts: list[services.Contact] = []
     for kind in ("phone", "email"):
@@ -259,7 +260,7 @@ def counterparty_matches(request: HttpRequest, cmp: str) -> JsonResponse:
         contacts=tuple(contacts),
         loose=data.get("loose") is True,
     )
-    found = counterparties.matches(context.company.id, query)
+    found = counterparties.matches(context.company.id, query, role)
     return JsonResponse(
         {
             "matches": [
@@ -357,7 +358,9 @@ def restriction_lift(request: HttpRequest, cmp: str, restriction_id: UUID) -> Js
 # --- Provisional card with a pending link (§ 6.2.9–6.2.11, § 6.1.13) -----------------------------
 
 
-def _provisional(request: HttpRequest, cmp: str, card_type: str) -> JsonResponse:
+def _provisional(
+    request: HttpRequest, cmp: str, card_type: str, role: str = COUNTERPARTY
+) -> JsonResponse:
     """Instead of filling the card by hand: a card with only the ID, email or phone of the
     profile and the request sent to it at once. Creating the card and sending the request are
     both needed (§ 23.8.2)."""
@@ -367,7 +370,7 @@ def _provisional(request: HttpRequest, cmp: str, card_type: str) -> JsonResponse
     create, link = (
         ("client.create", "client.link.request")
         if card_type == "client"
-        else ("counterparty.create", "counterparty.link.request")
+        else (f"{role}.create", f"{role}.link.request")
     )
     _require(actor, create)
     _require(actor, link)
@@ -392,7 +395,7 @@ def _provisional(request: HttpRequest, cmp: str, card_type: str) -> JsonResponse
             card = counterparties.create(
                 ctx,
                 context.company,
-                counterparties.CounterpartyData(kind=kind),
+                counterparties.CounterpartyData(kind=kind, role=role),
                 contacts,
                 provisional=True,
             )
@@ -407,8 +410,9 @@ def _provisional(request: HttpRequest, cmp: str, card_type: str) -> JsonResponse
             }
         return CommandResult(201, {**body, "link": links.payload(found, timezone.now())})
 
-    payload = {"card_type": card_type, "kind": kind, "target": target_text}
-    return run_and_respond(request, f"{card_type}.create_provisional", actor, payload, handler)
+    name = card_type if card_type == "client" else role
+    payload = {"card_type": name, "kind": kind, "target": target_text}
+    return run_and_respond(request, f"{name}.create_provisional", actor, payload, handler)
 
 
 @require_POST
@@ -417,8 +421,10 @@ def client_provisional(request: HttpRequest, cmp: str) -> JsonResponse:
 
 
 @require_POST
-def counterparty_provisional(request: HttpRequest, cmp: str) -> JsonResponse:
-    return _provisional(request, cmp, "counterparty")
+def counterparty_provisional(
+    request: HttpRequest, cmp: str, role: str = COUNTERPARTY
+) -> JsonResponse:
+    return _provisional(request, cmp, "counterparty", role)
 
 
 # --- Counterparties (§ 6.1.4–6.1.9, § 23.8.2; customer's decision of 25.10.2026) ----------------
@@ -436,34 +442,39 @@ def _counterparty_payload(card: Counterparty) -> dict[str, Any]:
 
 
 @require_http_methods(["GET"])
-def counterparty_categories(request: HttpRequest, cmp: str) -> JsonResponse:
+def counterparty_categories(
+    request: HttpRequest, cmp: str, role: str = COUNTERPARTY
+) -> JsonResponse:
     """The categories of counterparties of the company, to choose from and to filter by."""
     context, actor = _actor(request, cmp)
-    resolver_rights = ("counterparty.view", "counterparty.create", "counterparty.edit")
+    resolver_rights = (f"{role}.view", f"{role}.create", f"{role}.edit")
     if not any(access.RightsResolver().has_permission(actor, p) for p in resolver_rights):
-        raise errors.permission_denied("counterparty.view")
-    return JsonResponse({"categories": counterparties.categories(context.company.id)})
+        raise errors.permission_denied(f"{role}.view")
+    return JsonResponse({"categories": counterparties.categories(context.company.id, role)})
 
 
 @require_http_methods(["GET", "POST"])
-def counterparty_list(request: HttpRequest, cmp: str) -> JsonResponse:
+def counterparty_list(request: HttpRequest, cmp: str, role: str = COUNTERPARTY) -> JsonResponse:
     context, actor = _actor(request, cmp)
     if request.method == "GET":
-        _require(actor, "counterparty.view")
+        _require(actor, f"{role}.view")
         state = request.GET.get("state", Counterparty.State.ACTIVE)
         if state not in ("", *Counterparty.State.values):
             raise errors.validation_error("state")
         text = request.GET.get("q", "")[:100]
         category = request.GET.get("category", "")[:100]
         also = tags.matching_ids(context.company.id, actor.user_id, "counterparty", text)
-        found = counterparties.search(context.company.id, text, state, category, also)[:LIST_LIMIT]
+        found = counterparties.search(context.company.id, text, state, category, also, role)[
+            :LIST_LIMIT
+        ]
         return JsonResponse({"counterparties": [_counterparty_payload(c) for c in found]})
 
-    _require(actor, "counterparty.create")
+    _require(actor, f"{role}.create")
     data = parse_json(request)
     kind = get_str(data, "kind", max_length=10)
     card_data = counterparties.CounterpartyData(
         kind=kind,
+        role=role,
         first_name=_name(data, "first_name"),
         last_name=_name(data, "last_name"),
         middle_name=_name(data, "middle_name"),
@@ -493,22 +504,24 @@ def counterparty_list(request: HttpRequest, cmp: str) -> JsonResponse:
         **extended.as_payload(card_data.extended),
         "contacts": [c.as_dict() for c in contacts],
     }
-    return run_and_respond(request, "counterparty.create", actor, payload, handler)
+    return run_and_respond(request, f"{role}.create", actor, payload, handler)
 
 
 @require_http_methods(["GET", "PATCH"])
-def counterparty_detail(request: HttpRequest, cmp: str, counterparty_id: UUID) -> JsonResponse:
+def counterparty_detail(
+    request: HttpRequest, cmp: str, counterparty_id: UUID, role: str = COUNTERPARTY
+) -> JsonResponse:
     context, actor = _actor(request, cmp)
     if request.method == "GET":
-        _require(actor, "counterparty.view")
-        card = counterparties.get(context.company.id, counterparty_id)
+        _require(actor, f"{role}.view")
+        card = counterparties.get(context.company.id, counterparty_id, role)
         body = _counterparty_payload(card)
         # With whom and by what the card matches (customer's remark of 25.11.2026).
         body["duplicates"] = counterparties.duplicates_of(card) if card.possible_duplicate else []
         return JsonResponse({"counterparty": body})
 
-    _require(actor, "counterparty.edit")
-    current = counterparties.get(context.company.id, counterparty_id)
+    _require(actor, f"{role}.edit")
+    current = counterparties.get(context.company.id, counterparty_id, role)
     data = parse_json(request)
     if "kind" in data:
         raise errors.validation_error("kind", code="COUNTERPARTY_KIND_IMMUTABLE")
@@ -547,16 +560,18 @@ def counterparty_detail(request: HttpRequest, cmp: str, counterparty_id: UUID) -
     }
     if contacts is not None:
         payload["contacts"] = [c.as_dict() for c in contacts]
-    return run_and_respond(request, "counterparty.update", actor, payload, handler)
+    return run_and_respond(request, f"{role}.update", actor, payload, handler)
 
 
 def _counterparty_state(
-    request: HttpRequest, cmp: str, counterparty_id: UUID, archived: bool
+    request: HttpRequest, cmp: str, counterparty_id: UUID, archived: bool, role: str
 ) -> JsonResponse:
     """Archiving and restoring are separate rights (§ 6.6.4, § 23.8.2)."""
     context, actor = _actor(request, cmp)
-    _require(actor, "counterparty.archive" if archived else "counterparty.restore")
+    name = f"{role}.archive" if archived else f"{role}.restore"
+    _require(actor, name)
     expected_version = get_int(parse_json(request), "expected_version")
+    counterparties.get(context.company.id, counterparty_id, role)
 
     def handler(ctx: CommandContext) -> CommandResult:
         counterparties.set_archived(
@@ -566,15 +581,18 @@ def _counterparty_state(
         return CommandResult(200, {"counterparty": _counterparty_payload(card)})
 
     payload = {"counterparty_id": str(counterparty_id), "expected_version": expected_version}
-    name = "counterparty.archive" if archived else "counterparty.restore"
     return run_and_respond(request, name, actor, payload, handler)
 
 
 @require_POST
-def counterparty_archive(request: HttpRequest, cmp: str, counterparty_id: UUID) -> JsonResponse:
-    return _counterparty_state(request, cmp, counterparty_id, archived=True)
+def counterparty_archive(
+    request: HttpRequest, cmp: str, counterparty_id: UUID, role: str = COUNTERPARTY
+) -> JsonResponse:
+    return _counterparty_state(request, cmp, counterparty_id, True, role)
 
 
 @require_POST
-def counterparty_restore(request: HttpRequest, cmp: str, counterparty_id: UUID) -> JsonResponse:
-    return _counterparty_state(request, cmp, counterparty_id, archived=False)
+def counterparty_restore(
+    request: HttpRequest, cmp: str, counterparty_id: UUID, role: str = COUNTERPARTY
+) -> JsonResponse:
+    return _counterparty_state(request, cmp, counterparty_id, False, role)

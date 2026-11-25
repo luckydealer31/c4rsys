@@ -2,6 +2,8 @@ from django.urls import path
 
 from c4rsys.parties import group_views, link_views, merge_views, views
 
+INVESTOR = {"role": "investor"}
+
 urlpatterns = [
     path("c/<str:cmp>/clients", views.client_list),
     path("c/<str:cmp>/clients/matches", views.client_matches),
@@ -22,6 +24,26 @@ urlpatterns = [
     path(
         "c/<str:cmp>/counterparties/<uuid:counterparty_id>/history",
         merge_views.counterparty_history,
+    ),
+    # The investors: a list of its own with rights of its own (customer's decision of 26.11.2026).
+    path("c/<str:cmp>/investors", views.counterparty_list, INVESTOR),
+    path("c/<str:cmp>/investors/matches", views.counterparty_matches, INVESTOR),
+    path("c/<str:cmp>/investors/provisional", views.counterparty_provisional, INVESTOR),
+    path("c/<str:cmp>/investors/<uuid:counterparty_id>", views.counterparty_detail, INVESTOR),
+    path(
+        "c/<str:cmp>/investors/<uuid:counterparty_id>/archive",
+        views.counterparty_archive,
+        INVESTOR,
+    ),
+    path(
+        "c/<str:cmp>/investors/<uuid:counterparty_id>/restore",
+        views.counterparty_restore,
+        INVESTOR,
+    ),
+    path(
+        "c/<str:cmp>/investors/<uuid:counterparty_id>/history",
+        merge_views.counterparty_history,
+        INVESTOR,
     ),
     path("c/<str:cmp>/card-merges", merge_views.merge_list),
     path("c/<str:cmp>/card-merges/preview", merge_views.merge_preview),

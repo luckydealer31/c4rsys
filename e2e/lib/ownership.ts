@@ -31,10 +31,10 @@ export async function ownershipScenario(page: Page, s: Company, email: string): 
   await page.getByRole("main").getByRole("textbox").first().fill("Managed Forza");
   await next.click();
   await page.getByLabel(t("vehicles.owner_short_managed"), { exact: true }).check();
-  // The owner of a managed vehicle is a counterparty: a person or a company, chosen from the list
-  // or entered anew; what is in the list already is shown while it is entered (customer's
-  // decisions of 25.11.2026).
-  await ok(page, "POST", `/c/${s.cmp}/counterparties`, {
+  // The owner of a managed vehicle is an investor (customer's decision of 26.11.2026, in place
+  // of the counterparty of 25.11.2026): a person or a company, chosen from the list or entered
+  // anew; what is in the list already is shown while it is entered.
+  await ok(page, "POST", `/c/${s.cmp}/investors`, {
     kind: "person",
     last_name: "Щукин",
     first_name: "Тимофей",
@@ -75,6 +75,18 @@ export async function ownershipScenario(page: Page, s: Company, email: string): 
   };
   expect(card.relation).toBe("managed");
   expect(card.owner.counterparty?.name).toBe("Щукин Тимофей Андреевич");
+  // The investors are a tab of their own, apart from the counterparties; the card of an investor
+  // shows the vehicles he gave into the management (customer's decision of 26.11.2026).
+  await page.goto(`/c/${s.cmp}/clients?tab=counterparties`);
+  await expect(page.getByRole("tab", { name: t("clients.tab_investors"), exact: true })).toBeVisible();
+  await expect(page.getByRole("main")).toContainText(t("counterparties.none"));
+  await page.getByRole("tab", { name: t("clients.tab_investors"), exact: true }).click();
+  await expect(page.getByRole("link", { name: t("investors.new_button"), exact: true })).toBeVisible();
+  await page.getByRole("link", { name: /Щукин/ }).click();
+  await expect(page).toHaveURL(/\/clients\/investors\//);
+  await expect(page.getByTestId("investor-vehicles")).toContainText("Client Forza");
+  await page.getByTestId("investor-vehicles").getByRole("link", { name: "Client Forza" }).click();
+  await expect(page).toHaveURL(new RegExp(`/vehicles/${earlier.id}`));
   // The ownership is a tab of the card of its own (customer's decision of 24.11.2026); the old
   // address of the part of the history leads to it.
   await page.goto(`/c/${s.cmp}/vehicles/${earlier.id}?tab=history&part=ownership`);

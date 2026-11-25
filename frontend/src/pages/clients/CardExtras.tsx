@@ -1,3 +1,4 @@
+import { apiList, cardPath, type CardType } from "./cardLists";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -18,7 +19,6 @@ import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { deviceTimeZone, formatMoment } from "../../time";
 
-type CardType = "client" | "counterparty";
 
 function useWhen() {
   const { i18n } = useTranslation();
@@ -258,7 +258,7 @@ export function MergeCard({ cardType, card, onChanged }: { cardType: CardType; c
   const when = useWhen();
   const queryClient = useQueryClient();
   const base = `/c/${company.public_id}`;
-  const listPath = cardType === "client" ? "clients" : "counterparties";
+  const listPath = apiList(cardType);
   const key = ["card-merges", company.public_id, cardType, card.id];
   const merges = useApi<{ merges: CardMerge[] }>(key, `${base}/card-merges?card_type=${cardType}&card_id=${card.id}`);
   const [query, setQuery] = useState("");
@@ -301,14 +301,14 @@ export function MergeCard({ cardType, card, onChanged }: { cardType: CardType; c
             {m.primary.id === card.id ? (
               <>
                 {t("cards.merged_from")}{" "}
-                <Link to={companyPath(company, cardType === "client" ? `/clients/${m.duplicate.id}` : `/clients/counterparties/${m.duplicate.id}`)}>
+                <Link to={companyPath(company, cardPath(cardType, m.duplicate.id))}>
                   {m.duplicate.name}
                 </Link>
               </>
             ) : (
               <>
                 {t("cards.merged_into")}{" "}
-                <Link to={companyPath(company, cardType === "client" ? `/clients/${m.primary.id}` : `/clients/counterparties/${m.primary.id}`)}>
+                <Link to={companyPath(company, cardPath(cardType, m.primary.id))}>
                   {m.primary.name}
                 </Link>
               </>

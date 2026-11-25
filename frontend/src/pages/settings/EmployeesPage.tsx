@@ -798,6 +798,7 @@ const JOURNAL_PATHS: Record<string, string> = {
   vehicle: "/vehicles/",
   client: "/clients/",
   counterparty: "/clients/counterparties/",
+  investor: "/clients/investors/",
   employment: "/clients/employees/",
   document: "/documents/",
   task: "/tasks/",

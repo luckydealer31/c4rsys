@@ -30,10 +30,16 @@ from c4rsys.parties.services import expand as services_expand
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
 
+COUNTERPARTY = Counterparty.Role.COUNTERPARTY.value
+INVESTOR = Counterparty.Role.INVESTOR.value
+ROLES = (COUNTERPARTY, INVESTOR)
+
 
 @dataclass(frozen=True)
 class CounterpartyData:
     kind: str
+    # The list of the card: a counterparty or an investor (customer's decision of 26.11.2026).
+    role: str = COUNTERPARTY
     first_name: str = ""
     last_name: str = ""
     middle_name: str = ""
@@ -74,6 +80,7 @@ class CounterpartyData:
 
 def snapshot(card: Counterparty) -> dict[str, Any]:
     return {
+        "role": card.role,
         "kind": card.kind,
         "first_name": card.first_name,
         "last_name": card.last_name,
@@ -127,6 +134,7 @@ def create(
         raise errors.validation_error("contacts", code="CONTACT_REQUIRED")
     card = Counterparty.objects.create(
         company=company,
+        role=data.role,
         kind=data.kind,
         first_name=data.first_name,
         last_name=data.last_name,
@@ -146,7 +154,7 @@ def create(
     )
     write_contacts(card, contacts)
     ctx.audit(
-        "counterparty.created", object_type="counterparty", object_id=card.id, after=snapshot(card)
+        "counterparty.created", object_type=card.role, object_id=card.id, after=snapshot(card)
     )
     return card
 
@@ -200,7 +208,7 @@ def update(
     after = snapshot(card)
     ctx.audit(
         "counterparty.changed",
-        object_type="counterparty",
+        object_type=card.role,
         object_id=card.id,
         before={k: v for k, v in before.items() if v != after[k]},
         after={k: v for k, v in after.items() if v != before[k]},
@@ -227,7 +235,7 @@ def set_archived(
     card.save(update_fields=["state", "version", "updated_at"])
     ctx.audit(
         "counterparty.archived" if archived else "counterparty.restored",
-        object_type="counterparty",
+        object_type=card.role,
         object_id=card.id,
         after={"state": target},
     )
@@ -255,12 +263,15 @@ def display_name(card: Counterparty) -> str:
     return label or ""
 
 
-def of_company(company_id: UUID) -> QuerySet[Counterparty]:
-    return Counterparty.objects.filter(company_id=company_id).prefetch_related("contacts")
+def of_company(company_id: UUID, role: str | None = None) -> QuerySet[Counterparty]:
+    """The cards of the company; with `role` — of one list only."""
+    cards = Counterparty.objects.filter(company_id=company_id).prefetch_related("contacts")
+    return cards if role is None else cards.filter(role=role)
 
 
-def get(company_id: UUID, counterparty_id: UUID) -> Counterparty:
-    card = of_company(company_id).filter(pk=counterparty_id).first()
+def get(company_id: UUID, counterparty_id: UUID, role: str | None = None) -> Counterparty:
+    """With `role` a card of the other list is not found: the lists have rights of their own."""
+    card = of_company(company_id, role).filter(pk=counterparty_id).first()
     if card is None:
         raise errors.not_found()
     return card
@@ -269,7 +280,8 @@ def get(company_id: UUID, counterparty_id: UUID) -> Counterparty:
 def usable(company_id: UUID, counterparty_id: UUID, field: str = "supplier") -> Counterparty:
     """An active counterparty of the company — for a purchase or a receipt; a provisional card
     is not ready for operations (§ 6.2.10, § 6.1.13)."""
-    card = of_company(company_id).filter(pk=counterparty_id).first()
+    # An investor is not a supplier nor a contractor: a card of that list is not taken here.
+    card = of_company(company_id, COUNTERPARTY).filter(pk=counterparty_id).first()
     if card is None or card.state != Counterparty.State.ACTIVE or card.provisional:
         raise errors.validation_error(field, code="COUNTERPARTY_NOT_USABLE")
     return card
@@ -312,12 +324,12 @@ def names(company_id: UUID, ids: set[UUID]) -> dict[UUID, str]:
     }
 
 
-def categories(company_id: UUID) -> list[str]:
+def categories(company_id: UUID, role: str = COUNTERPARTY) -> list[str]:
     """The directory of the categories of counterparties of the company (customer's decision of
     15.11.2026): the categories its cards carry, by the alphabet. A category appears when it is
     set in a card and is chosen from this list afterwards (PROPOSAL: no table of its own)."""
     found = (
-        of_company(company_id)
+        of_company(company_id, role)
         .exclude(state=Counterparty.State.MERGED)
         .exclude(category="")
         .values_list("category", flat=True)
@@ -332,9 +344,10 @@ def search(
     state: str = Counterparty.State.ACTIVE,
     category: str = "",
     also: Collection[UUID] = (),
+    role: str = COUNTERPARTY,
 ) -> QuerySet[Counterparty]:
-    """By a part of the name or a contact (§ 2.8.3)."""
-    cards = of_company(company_id)
+    """By a part of the name or a contact (§ 2.8.3), in one list."""
+    cards = of_company(company_id, role)
     # Merged cards are reached through their main card (§ 6.5.2).
     cards = cards.filter(state=state) if state else cards.exclude(state=Counterparty.State.MERGED)
     if category:
@@ -367,15 +380,18 @@ def duplicates_of(card: Counterparty) -> list[dict[str, Any]]:
     )
     return [
         {"id": str(other.id), "name": display_name(other), "kind": other.kind, "matched": matched}
-        for other, matched in matches(card.company_id, query)
+        for other, matched in matches(card.company_id, query, card.role)
         if other.id != card.id
     ]
 
 
-def matches(company_id: UUID, query: MatchQuery) -> list[tuple[Counterparty, list[str]]]:
+def matches(
+    company_id: UUID, query: MatchQuery, role: str = COUNTERPARTY
+) -> list[tuple[Counterparty, list[str]]]:
     """Possible existing counterparties for the entered data, as for the clients (§ 6.1.11): the
     phone, the email, the first and the last name together, the company name. The owner of a
-    vehicle entered in its form is checked so (customer's remark of 25.11.2026)."""
+    vehicle entered in its form is checked so (customer's remark of 25.11.2026). Only the cards
+    of the same list are compared: a counterparty and an investor are kept apart."""
     reasons: dict[UUID, set[str]] = {}
 
     def add(ids: Collection[UUID], reason: str) -> None:
@@ -387,6 +403,7 @@ def matches(company_id: UUID, query: MatchQuery) -> list[tuple[Counterparty, lis
             list(
                 CounterpartyContact.objects.filter(
                     counterparty__company_id=company_id,
+                    counterparty__role=role,
                     kind=contact.kind,
                     messenger=contact.messenger,
                     value_normalized=contact.normalized,
@@ -394,7 +411,7 @@ def matches(company_id: UUID, query: MatchQuery) -> list[tuple[Counterparty, lis
             ),
             contact.kind,
         )
-    cards = Counterparty.objects.filter(company_id=company_id)
+    cards = Counterparty.objects.filter(company_id=company_id, role=role)
     for ids, reason in loose_matches(cards, query):
         add(ids, reason)
     if query.first_name and query.last_name:

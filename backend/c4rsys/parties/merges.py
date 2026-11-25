@@ -134,6 +134,9 @@ def _pair(
     }
     if len(locked) != 2:
         raise errors.not_found()
+    if len({getattr(c, "role", "") for c in locked.values()}) != 1:
+        # A counterparty and an investor are cards of different lists (decision of 26.11.2026).
+        raise errors.not_found()
     return locked[primary_id], locked[duplicate_id]
 
 

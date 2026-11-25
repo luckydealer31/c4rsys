@@ -454,6 +454,7 @@ def test_company_answer_lists_own_permissions(owner: Client, cmp: str) -> None:
         "finance.record.relink",
         "finance.settlement.manage",
         "finance.transfer",
+        "investor.view",
         "order.view",
         "rental.view",
         "reports.export",

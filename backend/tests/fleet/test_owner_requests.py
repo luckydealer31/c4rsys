@@ -101,16 +101,16 @@ def test_three_answers_one_by_one(owner: Client, cmp: str, location: str) -> Non
     assert again.json()["error"]["code"] == "OWNER_ANSWER_GIVEN"
     assert not Counterparty.objects.exists()
     assert answer(somchai, request["id"], link=True, management=True).status_code == 200
-    # «Yes» to the link: the owner of the managed vehicle becomes a counterparty linked to the
-    # profile (customer's decision of 25.11.2026); no client card.
+    # «Yes» to the link: the owner of the managed vehicle becomes an investor linked to the
+    # profile (customer's decision of 26.11.2026, in place of the counterparty of 25.11.2026);
+    # no client card.
     client = Counterparty.objects.get()
+    assert client.role == "investor"
     assert not ClientCard.objects.exists()
     assert client.linked_user_id == somchai_id(usr)
     assert (client.first_name, client.last_name) == ("Anna", "Petrova")
     assert [c.value for c in client.contacts.all()] == ["somchai@example.com"]
-    shown = owner.get(
-        f"/api/c/{cmp}/profile-links?card_type=counterparty&card_id={client.id}"
-    ).json()
+    shown = owner.get(f"/api/c/{cmp}/profile-links?card_type=investor&card_id={client.id}").json()
     assert shown["links"][0]["state"] == "accepted"
     status = owner.get(url).json()["vehicle"]["owner"]
     assert status["confirmed"] and not status["conflict"]
@@ -356,9 +356,10 @@ def test_ownership_confirmed_earlier_by_the_same_owner_is_no_dispute(
 def test_owner_yes_links_the_counterparty_named_as_the_owner(
     owner: Client, cmp: str, location: str
 ) -> None:
-    """Customer's decisions of 25.11.2026: the owner of a managed vehicle is a counterparty,
-    chosen or entered in the form of the vehicle; the request goes to the ID given, and «yes» to
-    the link links that very card. A second «yes» keeps it."""
+    """Customer's decisions of 25–26.11.2026: the owner of a managed vehicle is an investor
+    (kept as a card of the role «investor»), chosen or entered in the form of the vehicle; the
+    request goes to the ID given, and «yes» to the link links that very card. A second «yes»
+    keeps it."""
     somchai, usr = person("somchai@example.com")
     card = vehicle(
         owner,
@@ -377,6 +378,7 @@ def test_owner_yes_links_the_counterparty_named_as_the_owner(
         },
     )
     named = Counterparty.objects.get()
+    assert named.role == "investor"
     assert (named.last_name, named.middle_name, named.address) == ("Щукин", "Андреевич", "Phuket")
     assert card["owner"]["counterparty"] == {
         "id": str(named.id),
@@ -389,7 +391,7 @@ def test_owner_yes_links_the_counterparty_named_as_the_owner(
     linked = Counterparty.objects.get()
     assert linked.id == named.id and linked.linked_user_id == somchai_id(usr)
     assert not ClientCard.objects.exists()
-    url = f"/api/c/{cmp}/profile-links?card_type=counterparty&card_id={named.id}"
+    url = f"/api/c/{cmp}/profile-links?card_type=investor&card_id={named.id}"
     assert [x["state"] for x in owner.get(url).json()["links"]] == ["accepted"]
 
     # Another vehicle of the same counterparty, chosen from the list: the request goes to the
@@ -415,7 +417,7 @@ def test_a_new_owner_card_is_checked_and_marked_as_a_possible_duplicate(
 ) -> None:
     existing = post(
         owner,
-        f"/api/c/{cmp}/counterparties",
+        f"/api/c/{cmp}/investors",
         {
             "kind": "company",
             "company_name": "Fleet Owner",
@@ -424,17 +426,15 @@ def test_a_new_owner_card_is_checked_and_marked_as_a_possible_duplicate(
         key(),
     )
     assert existing.status_code == 201, existing.content
-    found = post(owner, f"/api/c/{cmp}/counterparties/matches", {"email": "FLEET@example.com"})
+    found = post(owner, f"/api/c/{cmp}/investors/matches", {"email": "FLEET@example.com"})
     assert [m["counterparty"]["id"] for m in found.json()["matches"]] == [
         existing.json()["counterparty"]["id"]
     ]
     # While the owner is typed: by a part of the company name, by the last name alone
     # (customer's remark of 25.11.2026); the list of the clients keeps its own rules without it.
-    part = post(
-        owner, f"/api/c/{cmp}/counterparties/matches", {"company_name": "Fleet", "loose": True}
-    )
+    part = post(owner, f"/api/c/{cmp}/investors/matches", {"company_name": "Fleet", "loose": True})
     assert [m["matched"] for m in part.json()["matches"]] == [["company_name"]]
-    strict = post(owner, f"/api/c/{cmp}/counterparties/matches", {"company_name": "Fleet"})
+    strict = post(owner, f"/api/c/{cmp}/investors/matches", {"company_name": "Fleet"})
     assert strict.json()["matches"] == []
     person_card = {
         "kind": "person",
@@ -442,10 +442,8 @@ def test_a_new_owner_card_is_checked_and_marked_as_a_possible_duplicate(
         "first_name": "Тимофей",
         "contacts": [{"kind": "phone", "value": "+66 81 555 0101"}],
     }
-    assert post(owner, f"/api/c/{cmp}/counterparties", person_card, key()).status_code == 201
-    by_last = post(
-        owner, f"/api/c/{cmp}/counterparties/matches", {"last_name": "щукин", "loose": True}
-    )
+    assert post(owner, f"/api/c/{cmp}/investors", person_card, key()).status_code == 201
+    by_last = post(owner, f"/api/c/{cmp}/investors/matches", {"last_name": "щукин", "loose": True})
     assert [m["matched"] for m in by_last.json()["matches"]] == [["last_name"]]
     missing = post(
         owner,

@@ -28,7 +28,7 @@ from c4rsys.accounts import services as accounts
 from c4rsys.accounts.models import UserAccount
 from c4rsys.companies import services as companies
 from c4rsys.companies.models import Company
-from c4rsys.parties import counterparties, extended, services
+from c4rsys.parties import counterparties, extended, lists, services
 from c4rsys.parties.models import ClientCard, Counterparty, ProfileDataRequest, ProfileLink
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
@@ -176,6 +176,11 @@ def card_type_of(link: ProfileLink) -> str:
     return "client" if link.client_id is not None else "counterparty"
 
 
+def list_of(link: ProfileLink) -> str:
+    """The list of the card as the interface names it: a client, a counterparty or an investor."""
+    return lists.of_link(link)
+
+
 def card_id_of(link: ProfileLink) -> UUID:
     found = link.client_id or link.counterparty_id
     if found is None:  # excluded by the constraint profile_link_one_card
@@ -201,7 +206,16 @@ def _taken(
     company_id: UUID, card_type: str, card_id: UUID, user_id: UUID | None, company: UUID | None
 ) -> bool:
     """Another card of the same list of the company is already linked to the profile."""
-    others = card_model(card_type).objects.filter(company_id=company_id).exclude(pk=card_id)
+    others: QuerySet[Any]
+    if card_type == "client":
+        others = ClientCard.objects.filter(company_id=company_id).exclude(pk=card_id)
+    else:
+        # The counterparties and the investors are lists apart (decision of 26.11.2026).
+        others = (
+            Counterparty.objects.filter(company_id=company_id)
+            .exclude(pk=card_id)
+            .filter(role__in=Counterparty.objects.filter(pk=card_id).values_list("role", flat=True))
+        )
     if user_id is not None:
         return others.filter(linked_user_id=user_id).exists()
     return company is not None and others.filter(linked_company_id=company).exists()
@@ -419,7 +433,7 @@ def verification_payload(link: ProfileLink) -> dict[str, Any]:
     return {
         "id": str(link.id),
         "company": {"public_id": link.company.public_id, "name": link.company.display_name},
-        "card_type": card_type_of(link),
+        "card_type": list_of(link),
         "profile": link.profile,
         "target": target,
         "state": link.state,
@@ -1149,7 +1163,7 @@ def incoming_payload(link: ProfileLink, now: datetime, available: dict[str, Any]
         "id": str(link.id),
         "state": effective_state(link, now),
         "company": {"public_id": company.public_id, "display_name": company.display_name},
-        "card_type": card_type_of(link),
+        "card_type": list_of(link),
         "created_at": link.created_at.isoformat(),
         "expires_at": link.expires_at.isoformat(),
         "decided_at": link.decided_at.isoformat() if link.decided_at else None,
@@ -1159,19 +1173,22 @@ def incoming_payload(link: ProfileLink, now: datetime, available: dict[str, Any]
     }
 
 
-# --- The owner of a managed vehicle is a counterparty (customer's decision of 25.11.2026) ----
+# --- The owner of a managed vehicle is an investor (customer's decision of 26.11.2026, in place
+# of the counterparty of 25.11.2026) -------------------------------------------------------------
 
 
 def is_linked_counterparty(
     requester_id: UUID, *, user_id: UUID | None, company_id: UUID | None
 ) -> bool:
-    """Whether the profile is already a linked counterparty of the company."""
+    """Whether the profile is already a linked investor of the company."""
     if user_id is None and company_id is None:
         return False
     by_profile = (
         Q(linked_user_id=user_id) if user_id is not None else Q(linked_company_id=company_id)
     )
-    return Counterparty.objects.filter(by_profile, company_id=requester_id).exists()
+    return Counterparty.objects.filter(
+        by_profile, company_id=requester_id, role=counterparties.INVESTOR
+    ).exists()
 
 
 def counterparty_from_owner(
@@ -1183,9 +1200,9 @@ def counterparty_from_owner(
     owner_company: Company | None,
     requested_by: UUID,
 ) -> Counterparty:
-    """«Yes» to the link of § 8.3.1 links the owner of a managed vehicle as a counterparty
-    (customer's decision of 25.11.2026, in place of the client of 30.10.2026). A counterparty
-    already linked to the profile is kept. The counterparty the company named as the owner is
+    """«Yes» to the link of § 8.3.1 links the owner of a managed vehicle as an investor
+    (customer's decision of 26.11.2026, in place of the counterparty of 25.11.2026). An investor
+    already linked to the profile is kept. The investor the company named as the owner is
     linked if it is free. Otherwise a new card is made of the profile, as for a client: the
     names (or the company name) and the confirmed email; a card with the same data is not merged
     but marked as a possible duplicate (§ 6.5.1)."""
@@ -1194,7 +1211,9 @@ def counterparty_from_owner(
     by_profile = (
         Q(linked_user_id=user_id) if user_id is not None else Q(linked_company_id=company_id)
     )
-    linked = Counterparty.objects.select_for_update().filter(by_profile, company=requester)
+    linked = Counterparty.objects.select_for_update().filter(
+        by_profile, company=requester, role=counterparties.INVESTOR
+    )
     existing = linked.first()
     if existing is not None:
         return existing
@@ -1231,7 +1250,12 @@ def counterparty_from_owner(
 
     named = (
         Counterparty.objects.select_for_update()
-        .filter(company=requester, pk=card_id, state=Counterparty.State.ACTIVE)
+        .filter(
+            company=requester,
+            pk=card_id,
+            state=Counterparty.State.ACTIVE,
+            role=counterparties.INVESTOR,
+        )
         .first()
         if card_id is not None
         else None
@@ -1253,7 +1277,7 @@ def counterparty_from_owner(
             object_type="profile_link",
             object_id=link.id,
             after={
-                "card_type": "counterparty",
+                "card_type": counterparties.INVESTOR,
                 "card_id": str(named.id),
                 "fields": sorted(shared),
                 "source": "vehicle_owner",
@@ -1291,12 +1315,14 @@ def counterparty_from_owner(
                 company_name=card_data.company_name,
                 contacts=tuple(contacts),
             ),
+            counterparties.INVESTOR,
         )
     )
     try:
         with transaction.atomic():
             card = Counterparty.objects.create(
                 company=requester,
+                role=counterparties.INVESTOR,
                 kind=card_data.kind,
                 first_name=card_data.first_name,
                 last_name=card_data.last_name,
@@ -1314,7 +1340,7 @@ def counterparty_from_owner(
         return _linked_counterparty_meanwhile(linked, exc)
     ctx.audit(
         "counterparty.created",
-        object_type="counterparty",
+        object_type=card.role,
         object_id=card.id,
         after={**counterparties.snapshot(card), "source": "vehicle_owner", "link": str(link.id)},
         company_id=requester.id,

@@ -1,7 +1,9 @@
 """The owner of a vehicle as a card of the company (customer's decisions of 25.11.2026).
 
-The owner of a managed vehicle is a counterparty of the company: he gives the vehicle into the
-management. The owner of a client vehicle is a client. In the form of the vehicle the owner is a
+The owner of a managed vehicle is an investor of the company (customer's decision of
+26.11.2026, in place of the counterparty of 25.11.2026): he gives the vehicle into the
+management; the investors are a list of their own, kept as `Counterparty` of the role
+«investor». The owner of a client vehicle is a client. In the form of the vehicle the owner is a
 person or a company: a card of the list is chosen, or a new one is entered with the usual data
 of the card (§ 6.2.7–6.2.8) and created with the vehicle in one command.
 """
@@ -101,6 +103,7 @@ def create(
             company,
             counterparties.CounterpartyData(
                 kind=new.kind,
+                role=counterparties.INVESTOR,
                 first_name=new.first_name,
                 last_name=new.last_name,
                 middle_name=new.middle_name,
@@ -109,7 +112,9 @@ def create(
                 extended={"contact_person": new.contact_person} if new.contact_person else {},
             ),
             list(new.contacts),
-            possible_duplicate=bool(counterparties.matches(company.id, new.query())),
+            possible_duplicate=bool(
+                counterparties.matches(company.id, new.query(), counterparties.INVESTOR)
+            ),
         )
     return services.create_client(
         ctx,
@@ -134,6 +139,9 @@ def chosen(company_id: UUID, card_type: str, card_id: UUID) -> ClientCard | Coun
         Counterparty if card_type == COUNTERPARTY else ClientCard
     )
     card = model.objects.filter(company_id=company_id, pk=card_id).first()
+    if isinstance(card, Counterparty) and card.role != counterparties.INVESTOR:
+        # Only an investor is the owner of a managed vehicle (decision of 26.11.2026).
+        card = None
     field = "owner_counterparty_id" if card_type == COUNTERPARTY else "owner_client_id"
     if card is None:
         raise errors.validation_error(field, code="CLIENT_UNKNOWN")

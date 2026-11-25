@@ -17,6 +17,7 @@ import { SectionTabs } from "../../layout/SectionTabs";
 import { useFirstTab } from "../../layout/tabOrder";
 import { TagsLine } from "../tags/Tags";
 import { EmployeesList, InviteForm } from "../settings/EmployeesPage";
+import { cardPath, type CardType } from "./cardLists";
 import { CounterpartiesList } from "./Counterparties";
 import { LinkedDocuments } from "../documents/DocumentsPage";
 import {
@@ -45,7 +46,7 @@ export function CardBadges({
     duplicates?: CardDuplicate[];
   };
   /** In the card itself: the mark of a possible duplicate opens with whom it matches. */
-  cardType?: "client" | "counterparty";
+  cardType?: CardType;
 }) {
   const { t } = useTranslation();
   return (
@@ -66,7 +67,7 @@ export function CardBadges({
 
 /** The mark «Possible duplicate» opens the cards of the same list the card matches and by what
  * (customer's remark of 25.11.2026). */
-function DuplicateBadge({ cardType, duplicates }: { cardType: "client" | "counterparty"; duplicates: CardDuplicate[] }) {
+function DuplicateBadge({ cardType, duplicates }: { cardType: CardType; duplicates: CardDuplicate[] }) {
   const { t } = useTranslation();
   const company = useCompany();
   const [open, setOpen] = useState(false);
@@ -85,11 +86,11 @@ function DuplicateBadge({ cardType, duplicates }: { cardType: "client" | "counte
         <div className="popup" data-testid="duplicates" style={{ position: "absolute", top: "100%", left: 0, zIndex: 20, minWidth: 320, padding: 12 }}>
           {duplicates.length ? (
             <>
-              <div className="small muted">{t(cardType === "client" ? "cards.duplicates_clients" : "cards.duplicates_counterparties")}</div>
+              <div className="small muted">{t(`cards.duplicates_${cardType}`)}</div>
               <ul className="small" style={{ margin: "6px 0 0", paddingLeft: 18 }}>
                 {duplicates.map((d) => (
                   <li key={d.id}>
-                    <Link to={companyPath(company, cardType === "client" ? `/clients/${d.id}` : `/clients/counterparties/${d.id}`)}>
+                    <Link to={companyPath(company, cardPath(cardType, d.id))}>
                       {d.name}
                     </Link>{" "}
                     <span className="muted">
@@ -109,7 +110,7 @@ function DuplicateBadge({ cardType, duplicates }: { cardType: "client" | "counte
 }
 
 /** Clients: list with search when allowed (§ 6.2.2), creation with possible matches (§ 6.1.11). */
-type PeopleTab = "clients" | "counterparties" | "employees";
+type PeopleTab = "clients" | "counterparties" | "investors" | "employees";
 
 /** Tabs the employee may see (decision of 24.10.2026): each is shown only with its rights
  * (§ 23.8.2: clients and counterparties have rights of their own). */
@@ -117,6 +118,8 @@ export function peopleTabs(can: (permission: string) => boolean): PeopleTab[] {
   const tabs: PeopleTab[] = [];
   if (can("client.list") || can("client.create")) tabs.push("clients");
   if (can("counterparty.view") || can("counterparty.create")) tabs.push("counterparties");
+  // The investors are a list of its own, open not to everybody (decision of 26.11.2026).
+  if (can("investor.view") || can("investor.create")) tabs.push("investors");
   if (can("employee.invite") || can("employee.rights.manage") || can("employee.access.block")) {
     tabs.push("employees");
   }
@@ -151,7 +154,9 @@ export function ClientsPage() {
       ? [[can("client.create"), "/clients/new", t("clients.new_button")]]
       : tab === "counterparties"
         ? [[can("counterparty.create"), "/clients/counterparties/new", t("counterparties.new_button")]]
-        : // Not a path: the invitation opens in a window over the list.
+        : tab === "investors"
+          ? [[can("investor.create"), "/clients/investors/new", t("investors.new_button")]]
+          : // Not a path: the invitation opens in a window over the list.
           [[can("employee.invite"), "invite", t("employees.new_button")]];
   const allowed = actions.filter(([may]) => may);
   return (
@@ -168,6 +173,7 @@ export function ClientsPage() {
       />
       {tab === "clients" ? <ClientsList /> : null}
       {tab === "counterparties" ? <CounterpartiesList /> : null}
+      {tab === "investors" ? <CounterpartiesList list="investor" /> : null}
       {tab === "employees" ? <EmployeesList /> : null}
         </div>
         {allowed.length ? (

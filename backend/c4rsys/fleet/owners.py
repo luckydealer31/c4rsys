@@ -361,12 +361,29 @@ def vehicles_of_clients(company_id: UUID, client_ids: list[UUID]) -> list[UUID]:
     return found
 
 
+def vehicles_of_investor(company_id: UUID, card_ids: list[UUID]) -> list[UUID]:
+    """The vehicles whose latest declared owner is the investor (customer's decision of
+    26.11.2026): his vehicles in the management of the company."""
+    found = []
+    claims = VehicleOwnerClaim.objects.filter(company_id=company_id, counterparty_id__in=card_ids)
+    for card_id in set(claims.values_list("vehicle_card_id", flat=True)):
+        latest = (
+            VehicleOwnerClaim.objects.filter(company_id=company_id, vehicle_card_id=card_id)
+            .order_by("-created_at")
+            .first()
+        )
+        if latest is not None and latest.counterparty_id in card_ids:
+            found.append(card_id)
+    return found
+
+
 def check_rights(actor: Actor, owner: Owner) -> None:
-    """A new card of the owner is created with the right of its list (§ 6.2)."""
+    """A new card of the owner is created with the right of its list (§ 6.2): the clients or
+    the investors (customer's decision of 26.11.2026)."""
     if owner.new_card is None:
         return
     permission = (
-        "client.create" if owner.kind == VehicleOwnerClaim.Kind.CLIENT else "counterparty.create"
+        "client.create" if owner.kind == VehicleOwnerClaim.Kind.CLIENT else "investor.create"
     )
     if not access.RightsResolver().has_permission(actor, permission):
         raise errors.permission_denied(permission)

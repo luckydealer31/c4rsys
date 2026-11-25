@@ -16,18 +16,18 @@ from c4rsys.accounts.middleware import require_user
 from c4rsys.companies import access
 from c4rsys.companies import services as companies
 from c4rsys.companies.views import run_and_respond
-from c4rsys.parties import links
+from c4rsys.parties import links, lists
 from c4rsys.parties.models import ProfileLink
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
 
-VIEW = {"client": ("client.find", "client.list"), "counterparty": ("counterparty.view",)}
-EDIT = {"client": "client.edit", "counterparty": "counterparty.edit"}
-# § 23.8.2 (block 14): sending an invitation or a request to link is a right of its own, separate
-# for the clients and the counterparties; cancelling, breaking and applying stay with «edit».
-REQUEST = {"client": "client.link.request", "counterparty": "counterparty.link.request"}
-REVOKE = {"client": "client.split", "counterparty": "counterparty.split"}
+# The rights of each list of cards (parties/lists.py). § 23.8.2 (block 14): sending an invitation
+# or a request to link is a right of its own; cancelling, breaking and applying stay with «edit».
+VIEW = lists.VIEW
+EDIT = lists.EDIT
+REQUEST = lists.REQUEST
+REVOKE = lists.SPLIT
 
 
 def _actor(request: HttpRequest, cmp: str) -> tuple[companies.CompanyContext, Actor]:
@@ -42,9 +42,8 @@ def _has(actor: Actor, *permissions: str) -> bool:
 
 
 def _card_type(value: str) -> str:
-    if value not in links.CARD_TYPES:
-        raise errors.validation_error("card_type")
-    return value
+    """The list of the card: a client, a counterparty or an investor."""
+    return lists.parse(value)
 
 
 def _own_link(
@@ -53,7 +52,7 @@ def _own_link(
     link = ProfileLink.objects.filter(company_id=company_id, pk=link_id).first()
     if link is None:
         raise errors.not_found()
-    permission = rights[links.card_type_of(link)]
+    permission = rights[links.list_of(link)]
     if not _has(actor, permission):
         raise errors.permission_denied(permission)
     return link
@@ -80,15 +79,16 @@ def card_links(request: HttpRequest, cmp: str) -> JsonResponse:
             card_id = UUID(request.GET.get("card_id", ""))
         except ValueError as exc:
             raise errors.validation_error("card_id") from exc
+        lists.require_card(context.company.id, card_type, card_id)
         now = timezone.now()
         items = [
             links.payload(link, now)
-            for link in links.links_of_card(context.company.id, card_type, card_id)
+            for link in links.links_of_card(context.company.id, lists.stored(card_type), card_id)
         ]
         answer: dict[str, Any] = {"links": items}
         # Which contacts of the card can carry a request: shown only to who may send it.
         card = (
-            links.card_model(card_type)
+            links.card_model(lists.stored(card_type))
             .objects.filter(company_id=context.company.id, pk=card_id)
             .first()
         )
@@ -105,17 +105,18 @@ def card_links(request: HttpRequest, cmp: str) -> JsonResponse:
     except ValueError as exc:
         raise errors.validation_error("card_id") from exc
     target_text = get_str(data, "target", max_length=254)
+    lists.require_card(context.company.id, card_type, card_id)
 
     def handler(ctx: CommandContext) -> CommandResult:
         card = (
-            links.card_model(card_type)
+            links.card_model(lists.stored(card_type))
             .objects.filter(company_id=context.company.id, pk=card_id)
             .first()
         )
         if card is None:
             raise errors.not_found()
         target = links.resolve_target(card.kind, target_text)
-        link = links.request_link(ctx, context.company, card_type, card_id, target)
+        link = links.request_link(ctx, context.company, lists.stored(card_type), card_id, target)
         return CommandResult(201, {"link": links.payload(link, timezone.now())})
 
     payload = {"card_type": card_type, "card_id": str(card_id), "target": target_text}
@@ -147,7 +148,7 @@ def link_break(request: HttpRequest, cmp: str, link_id: UUID) -> JsonResponse:
     if revoke:
         # § 6.5.5: revoking the access is the correction of a mistake — the elevated right of the
         # split (PROPOSAL).
-        permission = REVOKE[links.card_type_of(link)]
+        permission = REVOKE[links.list_of(link)]
         if not _has(actor, permission):
             raise errors.permission_denied(permission)
 

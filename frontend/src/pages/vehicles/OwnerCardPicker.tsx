@@ -9,8 +9,9 @@ import { Field, IconButton } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { ContactsEditor, contactsOf, phoneAndEmail, type ContactRow } from "../clients/ContactsEditor";
 
-/** The owner of a managed vehicle is a counterparty of the company, of a client vehicle a client
- * (customer's decisions of 25.11.2026). The owner is a person or a company, entered with the
+/** The owner of a managed vehicle is an investor of the company (customer's decision of
+ * 26.11.2026, in place of the counterparty of 25.11.2026; the server still names the field
+ * «counterparty»: the cards of both lists are of one shape), of a client vehicle a client. The owner is a person or a company, entered with the
  * usual data of a card; while it is typed, the cards of the list that match — by the last name
  * alone, the name, the phone, the email, the company name — are offered, and one of them is
  * taken with a press (customer's remark of 25.11.2026: no search of its own, no ID here; the ID
@@ -134,7 +135,7 @@ export function OwnerCardPicker({
   const company = useCompany();
   const can = useCan();
   const client = relation === "client";
-  const list = client ? "clients" : "counterparties";
+  const list = client ? "clients" : "investors";
   const person = value.party === "person";
   const draft = useDebounced({
     first_name: person ? value.first_name.trim() : "",
@@ -148,7 +149,7 @@ export function OwnerCardPicker({
   // The matches in the list are offered as the owner is typed (customer's remark of 25.11.2026).
   const matches = useQuery({
     queryKey: [`${list}-owner-matches`, company.public_id, draft],
-    enabled: value.party !== "none" && !value.card_id && filled && can(client ? "client.find" : "counterparty.view"),
+    enabled: value.party !== "none" && !value.card_id && filled && can(client ? "client.find" : "investor.view"),
     retry: false,
     queryFn: async () => {
       const body: Record<string, unknown> = { ...Object.fromEntries(Object.entries(draft).filter(([, v]) => v)), loose: true };
@@ -164,7 +165,7 @@ export function OwnerCardPicker({
 
   const choose = (card: Card) =>
     set({ ...NO_OWNER, party: card.kind, card_id: card.id, card_name: card.name, card_contacts: card.contacts });
-  const path = (id: string) => companyPath(company, client ? `/clients/${id}` : `/clients/counterparties/${id}`);
+  const path = (id: string) => companyPath(company, client ? `/clients/${id}` : `/clients/investors/${id}`);
   const input = (key: Exclude<keyof OwnerValue, "contacts" | "party">, label: string) => (
     <Field label={label}>
       <input value={value[key]} onChange={(e) => set({ [key]: e.target.value })} />
@@ -184,7 +185,11 @@ export function OwnerCardPicker({
         {value.card_id ? (
           <Field label={t(client ? "vehicles.owner_card_client" : "vehicles.owner_card_counterparty")}>
             <span className="row" style={{ alignItems: "center", gap: 6 }}>
-              <Link to={path(value.card_id)}>{value.card_name}</Link>
+              {can(client ? "client.list" : "investor.view") ? (
+                <Link to={path(value.card_id)}>{value.card_name}</Link>
+              ) : (
+                <span>{value.card_name}</span>
+              )}
               {value.card_contacts ? <span className="muted small">&nbsp;· {value.card_contacts}&nbsp;</span> : null}
               <IconButton
                 icon="close"

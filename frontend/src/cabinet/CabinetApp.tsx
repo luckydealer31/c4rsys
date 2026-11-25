@@ -41,7 +41,7 @@ type WorkingCompany = {
 type LinkedCompany = {
   link_id: string;
   company: { public_id: string; display_name: string };
-  card_type: "client" | "counterparty";
+  card_type: "client" | "counterparty" | "investor";
   state: "accepted" | "broken";
   linked_at: string | null;
   broken_at: string | null;

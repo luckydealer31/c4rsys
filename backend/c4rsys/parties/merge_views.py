@@ -13,7 +13,7 @@ from c4rsys.accounts import services as accounts
 from c4rsys.accounts.middleware import require_user
 from c4rsys.companies import services as companies
 from c4rsys.companies.views import run_and_respond
-from c4rsys.parties import counterparties, data_requests, history, links, merges
+from c4rsys.parties import counterparties, data_requests, history, links, lists, merges
 from c4rsys.parties.link_views import (
     REQUEST,
     VIEW,
@@ -28,15 +28,14 @@ from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_str, parse_json
 
-MERGE = {"client": "client.merge", "counterparty": "counterparty.merge"}
-SPLIT = {"client": "client.split", "counterparty": "counterparty.split"}
+MERGE = lists.MERGE
+SPLIT = lists.SPLIT
 REASON_MAX = 2000
 
 
 def _card_type(value: Any) -> str:
-    if value not in merges.CARD_TYPES:
-        raise errors.validation_error("card_type")
-    return str(value)
+    """The list of the cards: a client, a counterparty or an investor."""
+    return lists.parse(value)
 
 
 def _uuid(value: Any, field: str) -> UUID:
@@ -71,8 +70,11 @@ def merge_preview(request: HttpRequest, cmp: str) -> JsonResponse:
     _require(actor, MERGE[card_type])
     primary = _uuid(request.GET.get("primary_id"), "primary_id")
     duplicate = _uuid(request.GET.get("duplicate_id"), "duplicate_id")
+    for card_id in (primary, duplicate):
+        lists.require_card(context.company.id, card_type, card_id)
+    stored = lists.stored(card_type)
     return JsonResponse(
-        {"comparison": merges.preview(context.company.id, card_type, primary, duplicate)}
+        {"comparison": merges.preview(context.company.id, stored, primary, duplicate)}
     )
 
 
@@ -84,7 +86,8 @@ def merge_list(request: HttpRequest, cmp: str) -> JsonResponse:
         if not _has(actor, *VIEW[card_type]):
             raise errors.permission_denied(VIEW[card_type][0])
         card_id = _uuid(request.GET.get("card_id"), "card_id")
-        found = merges.merges_of(context.company.id, card_type, card_id)
+        lists.require_card(context.company.id, card_type, card_id)
+        found = merges.merges_of(context.company.id, lists.stored(card_type), card_id)
         return JsonResponse({"merges": [merges.merge_payload(m) for m in found]})
 
     data = parse_json(request)
@@ -94,12 +97,14 @@ def merge_list(request: HttpRequest, cmp: str) -> JsonResponse:
     duplicate = _uuid(data.get("duplicate_id"), "duplicate_id")
     choices = _strings(data, "choices")
     reason = get_str(data, "reason", max_length=REASON_MAX, required=False)
+    for card_id in (primary, duplicate):
+        lists.require_card(context.company.id, card_type, card_id)
 
     def handler(ctx: CommandContext) -> CommandResult:
         found = merges.merge(
             ctx,
             context.company,
-            card_type,
+            lists.stored(card_type),
             primary,
             duplicate,
             choices=choices,
@@ -121,7 +126,7 @@ def _merge_type(company_id: UUID, merge_id: UUID) -> str:
     found = CardMerge.objects.filter(company_id=company_id, pk=merge_id).first()
     if found is None:
         raise errors.not_found()
-    return found.card_type
+    return lists.of_merge(found)
 
 
 @require_http_methods(["GET", "POST"])
@@ -158,11 +163,13 @@ def client_history(request: HttpRequest, cmp: str, client_id: UUID) -> JsonRespo
 
 
 @require_GET
-def counterparty_history(request: HttpRequest, cmp: str, counterparty_id: UUID) -> JsonResponse:
+def counterparty_history(
+    request: HttpRequest, cmp: str, counterparty_id: UUID, role: str = lists.COUNTERPARTY
+) -> JsonResponse:
     """What the contractor shares with this company as its client (§ 6.1.14)."""
     context, actor = _actor(request, cmp)
-    _require(actor, "counterparty.view")
-    card = counterparties.get(context.company.id, counterparty_id)
+    _require(actor, f"{role}.view")
+    card = counterparties.get(context.company.id, counterparty_id, role)
     return JsonResponse({"orders": history.contractor_history(context.company.id, card)})
 
 
@@ -176,7 +183,7 @@ def link_data_requests(request: HttpRequest, cmp: str, link_id: UUID) -> JsonRes
         link = ProfileLink.objects.filter(company_id=context.company.id, pk=link_id).first()
         if link is None:
             raise errors.not_found()
-        card_type = links.card_type_of(link)
+        card_type = links.list_of(link)
         if not _has(actor, *VIEW[card_type]):
             raise errors.permission_denied(VIEW[card_type][0])
         now = timezone.now()

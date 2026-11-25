@@ -1,3 +1,4 @@
+import type { CardType } from "./cardLists";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
@@ -16,7 +17,7 @@ import { DataRequestsPanel } from "./DataRequests";
 import { contactLabel } from "./ContactsEditor";
 
 /** Fields of the snapshot that can be taken into the working data of a card (§ 6.4.2). */
-const APPLICABLE: Record<"client" | "counterparty", string[]> = {
+const APPLICABLE: Record<"client" | "counterparty", string[]> & { investor?: string[] } = {
   client: [
     "first_name",
     "last_name",
@@ -117,7 +118,7 @@ export function ProfileLinkCard({
   version,
   onChanged,
 }: {
-  cardType: "client" | "counterparty";
+  cardType: CardType;
   cardId: string;
   cardKind: "person" | "company";
   version: number;
@@ -164,9 +165,12 @@ export function ProfileLinkCard({
   // The request is started by a button; the field appears after it (decision of 15.11.2026).
   const [asking, setAsking] = useState(false);
   const [initiator, setInitiator] = useState("company");
-  const editable = can(cardType === "client" ? "client.edit" : "counterparty.edit");
+  const editable = can(`${cardType}.edit`);
   // § 23.8.2 (block 14): sending an invitation or a request to link is a right of its own.
-  const requestable = can(cardType === "client" ? "client.link.request" : "counterparty.link.request");
+  const requestable = can(`${cardType}.link.request`);
+
+  // The card of an investor takes the same data as the card of a counterparty.
+  const applicable = APPLICABLE[cardType === "investor" ? "counterparty" : cardType];
 
   async function refresh() {
     await queryClient.invalidateQueries({ queryKey: key });
@@ -239,7 +243,7 @@ export function ProfileLinkCard({
               <SharedTable
                 data={shown.shared}
                 compare={shown.compare}
-                applicable={editable ? APPLICABLE[cardType] : []}
+                applicable={editable ? applicable : []}
                 pending={apply.pending}
                 onApply={async (field) => {
                   if ((await apply.run({ field, expected_version: version })) !== null) await refresh();
@@ -251,7 +255,7 @@ export function ProfileLinkCard({
             <DataRequestsPanel
               linkId={last.id}
               editable={editable}
-              applicable={APPLICABLE[cardType]}
+              applicable={applicable}
               version={version}
               onApplied={refresh}
             />
@@ -261,7 +265,7 @@ export function ProfileLinkCard({
           ) : null}
           {state === "accepted" && editable ? (
             <div className="row">
-              {can(cardType === "client" ? "client.split" : "counterparty.split") ? (
+              {can(`${cardType}.split`) ? (
                 <>
                   <label className="small" style={{ alignSelf: "end" }}>
                     <input type="checkbox" checked={revoke} onChange={(e) => setRevoke(e.target.checked)} />{" "}

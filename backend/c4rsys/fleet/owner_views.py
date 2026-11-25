@@ -16,6 +16,7 @@ from c4rsys.companies import services as companies
 from c4rsys.companies.views import run_and_respond
 from c4rsys.fleet import document_transfer, owner_requests, owners
 from c4rsys.fleet.models import VehicleCard
+from c4rsys.parties import counterparties
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import parse_json
@@ -36,6 +37,27 @@ def _card(company_id: UUID, card_id: UUID, actor: Actor, permission: str) -> Veh
     ):
         raise errors.permission_denied(permission)
     return card
+
+
+@require_GET
+def investor_vehicles(request: HttpRequest, cmp: str, card_id: UUID) -> JsonResponse:
+    """The vehicles an investor gave into the management (customer's decision of 26.11.2026):
+    shown in his card. The names only for who views the vehicles; the count for everybody who
+    views the investors."""
+    context, actor = _actor(request, cmp)
+    resolver = access.RightsResolver()
+    if not resolver.has_permission(actor, "investor.view"):
+        raise errors.permission_denied("investor.view")
+    card = counterparties.get(context.company.id, card_id, counterparties.INVESTOR)
+    family = counterparties.family_ids(context.company.id, card.id)
+    ids = owners.vehicles_of_investor(context.company.id, family)
+    cards = VehicleCard.objects.filter(company_id=context.company.id, pk__in=ids).order_by("name")
+    shown = [
+        {"id": str(c.id), "name": c.name}
+        for c in cards
+        if resolver.has_permission(actor, "vehicle.view", location_id=c.accounting_location_id)
+    ]
+    return JsonResponse({"vehicles": shown, "count": len(ids)})
 
 
 @require_http_methods(["GET", "POST"])

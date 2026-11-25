@@ -369,7 +369,7 @@ export type IncomingDataRequest = {
   id: string;
   state: DataRequest["state"];
   company: { public_id: string; display_name: string };
-  card_type: "client" | "counterparty";
+  card_type: "client" | "counterparty" | "investor";
   occasion: string;
   created_at: string;
   expires_at: string;
@@ -383,7 +383,7 @@ export type IncomingLink = {
   id: string;
   state: ProfileLink["state"];
   company: { public_id: string; display_name: string };
-  card_type: "client" | "counterparty";
+  card_type: "client" | "counterparty" | "investor";
   created_at: string;
   expires_at: string;
   decided_at: string | null;
@@ -1054,7 +1054,7 @@ export type CardBrief = { id: string; name: string; kind: "person" | "company"; 
 
 /** The comparison of two cards before a merge (§ 6.5.1–6.5.4). */
 export type MergeComparison = {
-  card_type: "client" | "counterparty";
+  card_type: "client" | "counterparty" | "investor";
   primary: CardBrief;
   duplicate: CardBrief;
   fields: { key: string; primary: unknown; duplicate: unknown; same: boolean; choices: string[] }[];
@@ -1068,7 +1068,7 @@ export type MergeComparison = {
 
 export type CardMerge = {
   id: string;
-  card_type: "client" | "counterparty";
+  card_type: "client" | "counterparty" | "investor";
   state: "merged" | "split";
   primary: CardBrief;
   duplicate: CardBrief;

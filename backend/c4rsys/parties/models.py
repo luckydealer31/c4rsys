@@ -199,8 +199,18 @@ class Counterparty(ExtendedFields):
         # Merged into another card of the company (§ 6.2.3, § 6.5.2): closed for new operations.
         MERGED = "merged"
 
+    class Role(models.TextChoices):
+        """The list the card is of (customer's decision of 26.11.2026): the investors — those
+        who gave vehicles into the management or put in money — are a list of their own, apart
+        from the counterparties and the clients, with rights of its own. The cards of both
+        lists are kept in this table; a card never passes from one list to the other."""
+
+        COUNTERPARTY = "counterparty"
+        INVESTOR = "investor"
+
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    role = models.CharField(max_length=20, choices=Role.choices, default=Role.COUNTERPARTY)
     kind = models.CharField(max_length=10, choices=Kind.choices)
     first_name = models.CharField(max_length=150, blank=True, default="")
     last_name = models.CharField(max_length=150, blank=True, default="")
@@ -257,16 +267,17 @@ class Counterparty(ExtendedFields):
                 | (~Q(state="merged") & Q(merged_into__isnull=True)),
                 name="counterparty_merged_has_main",
             ),
-            # One card of the list per profile in a company (§ 6.2.4, § 6.6.6).
+            # One card of the list per profile in a company (§ 6.2.4, § 6.6.6): the same profile
+            # may be a counterparty and an investor apart (customer's decision of 26.11.2026).
             models.UniqueConstraint(
-                fields=["company", "linked_user_id"],
+                fields=["company", "role", "linked_user_id"],
                 condition=Q(linked_user_id__isnull=False),
-                name="counterparty_one_per_user",
+                name="counterparty_one_per_user_in_list",
             ),
             models.UniqueConstraint(
-                fields=["company", "linked_company_id"],
+                fields=["company", "role", "linked_company_id"],
                 condition=Q(linked_company_id__isnull=False),
-                name="counterparty_one_per_company",
+                name="counterparty_one_per_company_in_list",
             ),
         ]
 

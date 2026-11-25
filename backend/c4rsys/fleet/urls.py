@@ -59,6 +59,7 @@ urlpatterns = [
     path("c/<str:cmp>/drivers", views.drivers),
     path("c/<str:cmp>/vehicles/<uuid:card_id>/owner-requests", owner_views.card_requests),
     path("c/<str:cmp>/vehicles/<uuid:card_id>/owner-requests/cancel", owner_views.cancel),
+    path("c/<str:cmp>/investors/<uuid:card_id>/vehicles", owner_views.investor_vehicles),
     path("c/<str:cmp>/incoming-owner-requests", owner_views.incoming),
     path(
         "c/<str:cmp>/incoming-owner-requests/<uuid:request_id>/answer",

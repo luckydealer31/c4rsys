@@ -242,7 +242,7 @@ def incoming_payload(
             "public_id": item.company.public_id,
             "display_name": item.company.display_name,
         },
-        "card_type": links.card_type_of(item.link),
+        "card_type": links.list_of(item.link),
         "occasion": item.occasion,
         "created_at": item.created_at.isoformat(),
         "expires_at": item.expires_at.isoformat(),

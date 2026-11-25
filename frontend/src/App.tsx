@@ -23,8 +23,8 @@ import { SignByLinkPage } from "./pages/documents/Signing";
 import { RegisterPage } from "./pages/auth/RegisterPage";
 import { CompaniesPage } from "./pages/companies/CompaniesPage";
 import { ClientPage, ClientsPage } from "./pages/clients/ClientsPage";
-import { CounterpartyPage } from "./pages/clients/Counterparties";
-import { NewClientPage, NewCounterpartyPage } from "./pages/clients/NewCardWizard";
+import { CounterpartyPage, InvestorPage } from "./pages/clients/Counterparties";
+import { NewClientPage, NewCounterpartyPage, NewInvestorPage } from "./pages/clients/NewCardWizard";
 import { LinkRequestsPage } from "./pages/company/LinkRequestsPage";
 import { AppsPage } from "./pages/company/AppsPage";
 import { TagPage, TagsPage } from "./pages/tags/TagsPage";
@@ -225,6 +225,8 @@ function MainApp({ cabinet }: { cabinet: boolean }) {
         <Route path="clients/new" element={<NewClientPage />} />
         <Route path="clients/counterparties/new" element={<NewCounterpartyPage />} />
         <Route path="clients/counterparties/:id" element={<CounterpartyPage />} />
+        <Route path="clients/investors/new" element={<NewInvestorPage />} />
+        <Route path="clients/investors/:id" element={<InvestorPage />} />
         <Route path="clients/:id" element={<ClientPage />} />
         <Route path="service" element={<ServicePage />} />
         <Route path="trips" element={<TripsPage />} />

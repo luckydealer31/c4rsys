@@ -4,6 +4,7 @@
  * changed by a stray key — the data are edited in a window opened by the pencil, with the
  * captions inside the fields. The documents of a person (the driving licence first: the system is
  * about vehicles) and the requisites of a company stand in a card of their own. */
+import { apiList, type CardType } from "./cardLists";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
@@ -24,7 +25,7 @@ import { Card, ErrorMessage, FloatField, IconButton, Loading, Modal } from "../.
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { deviceTimeZone, formatMoment } from "../../time";
 
-export type CardType = "client" | "counterparty";
+export type { CardType } from "./cardLists";
 type AnyCard = (Client | Counterparty) & ExtendedCard;
 
 
@@ -65,7 +66,7 @@ function Head({ title, edit }: { title: ReactNode; edit?: { label: string; onCli
 }
 
 function path(cardType: CardType) {
-  return cardType === "client" ? "clients" : "counterparties";
+  return apiList(cardType);
 }
 
 function useEditable(cardType: CardType, card: AnyCard) {

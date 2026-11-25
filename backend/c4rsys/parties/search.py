@@ -28,16 +28,19 @@ def clients(actor: Actor, company_id: UUID, query: Query, limit: int) -> list[Hi
 
 
 def counterparty_hits(actor: Actor, company_id: UUID, query: Query, limit: int) -> list[Hit]:
-    if not access.RightsResolver().has_permission(actor, "counterparty.view"):
-        return []
-    found: list[Counterparty] = []
-    if query.uuid is not None:
-        found += list(counterparties.of_company(company_id).filter(pk=query.uuid))
-    found += list(counterparties.search(company_id, query.text)[: limit * 2])
+    """The counterparties and the investors, each list by its own right (decision of
+    26.11.2026)."""
     hits: list[Hit] = []
-    for card in found:
-        if any(h.id == str(card.id) for h in hits):
+    for role in counterparties.ROLES:
+        if not access.RightsResolver().has_permission(actor, f"{role}.view"):
             continue
-        exact = card.pk == query.uuid or exact_text(str(card), query)
-        hits.append(Hit("counterparty", str(card.id), str(card), card.kind, exact=exact))
+        found: list[Counterparty] = []
+        if query.uuid is not None:
+            found += list(counterparties.of_company(company_id, role).filter(pk=query.uuid))
+        found += list(counterparties.search(company_id, query.text, role=role)[: limit * 2])
+        for card in found:
+            if any(h.id == str(card.id) for h in hits):
+                continue
+            exact = card.pk == query.uuid or exact_text(str(card), query)
+            hits.append(Hit(role, str(card.id), str(card), card.kind, exact=exact))
     return hits

@@ -38,6 +38,8 @@ export function hitPath(hit: SearchHit): string {
       return `/clients/${hit.id}`;
     case "counterparty":
       return `/clients/counterparties/${hit.id}`;
+    case "investor":
+      return `/clients/investors/${hit.id}`;
     case "item":
       return `/warehouse/items/${hit.id}`;
     case "task":
@@ -133,7 +135,7 @@ export function hitDetail(hit: SearchHit, t: T): string {
   if (hit.kind === "task" && /^[a-z_]+(\.[a-z_]+)+$/.test(hit.detail)) {
     return t(`tasks.system_${hit.detail.replaceAll(".", "_")}`, { defaultValue: hit.detail });
   }
-  if (hit.kind === "client" || hit.kind === "counterparty") return t(`search.party_${hit.detail}`, { defaultValue: "" });
+  if (hit.kind === "client" || hit.kind === "counterparty" || hit.kind === "investor") return t(`search.party_${hit.detail}`, { defaultValue: "" });
   return hit.detail;
 }
 

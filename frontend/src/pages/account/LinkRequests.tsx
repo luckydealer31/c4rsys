@@ -83,7 +83,7 @@ function RequestCard({ base, link }: { base: string; link: IncomingLink }) {
 
   return (
     <Card title={link.company.display_name}>
-      <p>{t(link.card_type === "client" ? "links.asks_client" : "links.asks_counterparty")}</p>
+      <p>{t(`links.asks_${link.card_type}`)}</p>
       <p className="muted small">
         {link.company.public_id} ·{" "}
         {t("links.expires_at", { at: formatMoment(link.expires_at, deviceTimeZone(), i18n.language) })}
