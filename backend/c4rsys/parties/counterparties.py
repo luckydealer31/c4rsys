@@ -8,6 +8,7 @@ merging duplicates in merges.py (block 13).
 
 from collections.abc import Collection
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Any
 from uuid import UUID
 
@@ -30,6 +31,7 @@ class CounterpartyData:
     last_name: str = ""
     middle_name: str = ""
     company_name: str = ""
+    birth_date: date | None = None
     comment: str = ""
     # Optional data of the import template (§ 22.3.3).
     registration: str = ""
@@ -49,7 +51,11 @@ class CounterpartyData:
                 raise errors.validation_error("last_name", code="FIELD_REQUIRED")
             if self.company_name:
                 raise errors.validation_error("company_name", code="FIELD_NOT_APPLICABLE")
+            if self.birth_date is not None and self.birth_date > timezone.localdate():
+                raise errors.validation_error("birth_date", code="DATE_IN_FUTURE")
         elif self.kind == Counterparty.Kind.COMPANY:
+            if self.birth_date is not None:
+                raise errors.validation_error("birth_date", code="FIELD_NOT_APPLICABLE")
             if not self.company_name and not provisional:
                 raise errors.validation_error("company_name", code="FIELD_REQUIRED")
             for name in ("first_name", "last_name", "middle_name"):
@@ -66,6 +72,7 @@ def snapshot(card: Counterparty) -> dict[str, Any]:
         "last_name": card.last_name,
         "middle_name": card.middle_name,
         "company_name": card.company_name,
+        "birth_date": card.birth_date.isoformat() if card.birth_date else None,
         "comment": card.comment,
         "registration": card.registration,
         "address": card.address,
@@ -118,6 +125,7 @@ def create(
         last_name=data.last_name,
         middle_name=data.middle_name,
         company_name=data.company_name,
+        birth_date=data.birth_date,
         comment=data.comment,
         registration=data.registration,
         address=data.address,
@@ -171,6 +179,7 @@ def update(
         last_name=card.last_name,
         middle_name=card.middle_name,
         company_name=card.company_name,
+        birth_date=card.birth_date,
     ).check_minimum(provisional=card.provisional)
     if contacts is not None:
         if not contacts and not card.provisional:
@@ -334,6 +343,24 @@ def search(
         # `also` — the records marked with a tag of that name (decision of 17.11.2026).
         cards = every.filter(Q(pk__in=cards.values("pk")) | Q(pk__in=also))
     return cards.order_by("company_name", "last_name", "first_name", "created_at")
+
+
+def duplicates_of(card: Counterparty) -> list[dict[str, Any]]:
+    """The other counterparties the card matches, and by what: shown by the mark «Possible
+    duplicate» (customer's remark of 25.11.2026)."""
+    query = MatchQuery(
+        first_name=card.first_name,
+        last_name=card.last_name,
+        company_name=card.company_name,
+        contacts=tuple(
+            Contact(c.kind, c.value, c.value_normalized, c.messenger) for c in card.contacts.all()
+        ),
+    )
+    return [
+        {"id": str(other.id), "name": display_name(other), "kind": other.kind, "matched": matched}
+        for other, matched in matches(card.company_id, query)
+        if other.id != card.id
+    ]
 
 
 def matches(company_id: UUID, query: MatchQuery) -> list[tuple[Counterparty, list[str]]]:

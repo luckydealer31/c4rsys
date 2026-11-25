@@ -70,7 +70,7 @@ function NewCardWizard({ cardType }: { cardType: CardType }) {
     // card afterwards (customer's remark of 25.11.2026).
     "kind",
     "name",
-    ...(cardType === "client" && form.kind === "person" ? (["birth"] as Step[]) : []),
+    ...(form.kind === "person" ? (["birth"] as Step[]) : []),
     "contacts",
   ];
   const step: Step = steps[Math.min(index, steps.length - 1)] ?? "kind";
@@ -100,7 +100,7 @@ function NewCardWizard({ cardType }: { cardType: CardType }) {
             contacts,
           }
         : { kind: "company", company_name: form.company_name, contacts };
-    if (cardType === "client" && form.kind === "person") body.birth_date = form.birth_date || null;
+    if (form.kind === "person") body.birth_date = form.birth_date || null;
     if (cardType === "counterparty") body.comment = form.comment;
     await opened(await create.run(body));
   }

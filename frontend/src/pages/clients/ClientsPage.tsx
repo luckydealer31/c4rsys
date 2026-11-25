@@ -7,7 +7,7 @@ import { api } from "../../api/client";
 import { useApi } from "../../api/queries";
 import { ProfileLinkCard } from "./ProfileLinkCard";
 import { ClientGroupsCard } from "../orders/Discounts";
-import type { Client, ClientContact } from "../../api/types";
+import type { CardDuplicate, Client, ClientContact } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Icon } from "../../components/icons";
 import { Card, ErrorMessage, Field, IconButton, Loading, Modal } from "../../components/ui";
@@ -35,8 +35,17 @@ export function clientName(client: Pick<Client, "kind" | "first_name" | "last_na
 /** The state marks of a card: archive, blacklist (§ 6.7.1), provisional (§ 6.2.9), merged. */
 export function CardBadges({
   card,
+  cardType,
 }: {
-  card: { state: string; provisional: boolean; blacklisted?: boolean; possible_duplicate?: boolean };
+  card: {
+    state: string;
+    provisional: boolean;
+    blacklisted?: boolean;
+    possible_duplicate?: boolean;
+    duplicates?: CardDuplicate[];
+  };
+  /** In the card itself: the mark of a possible duplicate opens with whom it matches. */
+  cardType?: "client" | "counterparty";
 }) {
   const { t } = useTranslation();
   return (
@@ -44,8 +53,58 @@ export function CardBadges({
       {card.state !== "active" ? <span className="badge">{t(`cards.state_${card.state}`)}</span> : null}{" "}
       {card.blacklisted ? <span className="badge error">{t("cards.blacklisted")}</span> : null}{" "}
       {card.provisional ? <span className="badge warn">{t("cards.provisional")}</span> : null}{" "}
-      {card.possible_duplicate ? <span className="badge warn">{t("imports.possible_duplicate")}</span> : null}
+      {card.possible_duplicate ? (
+        cardType && card.duplicates ? (
+          <DuplicateBadge cardType={cardType} duplicates={card.duplicates} />
+        ) : (
+          <span className="badge warn">{t("imports.possible_duplicate")}</span>
+        )
+      ) : null}
     </>
+  );
+}
+
+/** The mark «Possible duplicate» opens the cards of the same list the card matches and by what
+ * (customer's remark of 25.11.2026). */
+function DuplicateBadge({ cardType, duplicates }: { cardType: "client" | "counterparty"; duplicates: CardDuplicate[] }) {
+  const { t } = useTranslation();
+  const company = useCompany();
+  const [open, setOpen] = useState(false);
+  return (
+    <span style={{ position: "relative", display: "inline-block" }}>
+      <button
+        type="button"
+        className="badge warn"
+        style={{ cursor: "pointer", border: "none", font: "inherit", fontSize: "0.8rem", padding: "2px 8px", borderRadius: 999, background: "var(--warn-bg)", color: "var(--text)" }}
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        {t("imports.possible_duplicate")} ▾
+      </button>
+      {open ? (
+        <div className="popup" data-testid="duplicates" style={{ position: "absolute", top: "100%", left: 0, zIndex: 20, minWidth: 320, padding: 12 }}>
+          {duplicates.length ? (
+            <>
+              <div className="small muted">{t(cardType === "client" ? "cards.duplicates_clients" : "cards.duplicates_counterparties")}</div>
+              <ul className="small" style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+                {duplicates.map((d) => (
+                  <li key={d.id}>
+                    <Link to={companyPath(company, cardType === "client" ? `/clients/${d.id}` : `/clients/counterparties/${d.id}`)}>
+                      {d.name}
+                    </Link>{" "}
+                    <span className="muted">
+                      ({t(`clients.kind_${d.kind}`)}; {t("cards.duplicates_by")} {d.matched.map((m) => t(`clients.matched_${m}`)).join(", ")})
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <div className="small muted">{t("cards.duplicates_none")}</div>
+          )}
+        </div>
+      ) : null}
+    </span>
   );
 }
 
@@ -409,7 +468,7 @@ export function ClientPage() {
       {data.blacklisted ? <div className="alert error">{t("cards.blacklisted_banner")}</div> : null}
       {tab === "main" ? (
         <>
-          <MainCard cardType="client" card={data} badges={<CardBadges card={data} />} onSaved={reload} />
+          <MainCard cardType="client" card={data} badges={<CardBadges card={data} cardType="client" />} onSaved={reload} />
           <DocumentsCard cardType="client" card={data} onSaved={reload} />
         </>
       ) : null}

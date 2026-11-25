@@ -206,6 +206,9 @@ class Counterparty(ExtendedFields):
     last_name = models.CharField(max_length=150, blank=True, default="")
     middle_name = models.CharField(max_length=150, blank=True, default="")
     company_name = models.CharField(max_length=200, blank=True, default="")
+    # A person counterparty has a birth date as any person card (§ 6.2.12; customer's remark of
+    # 25.11.2026).
+    birth_date = models.DateField(null=True, blank=True)
     comment = models.TextField(blank=True, default="")
     # Optional data of the import template (§ 22.3.3).
     registration = models.CharField(max_length=500, blank=True, default="")

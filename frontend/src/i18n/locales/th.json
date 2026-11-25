@@ -403,7 +403,8 @@
     "contact_placeholder_messenger": "หมายเลขหรือ @ชื่อผู้ใช้",
     "contact_wrong_phone": "เฉพาะตัวเลข อาจขึ้นต้นด้วย «+»",
     "contact_wrong_email": "ตรวจสอบที่อยู่: ควรเป็นรูปแบบ name@site.com",
-    "contact_wrong_messenger": "ระบุหมายเลขโทรศัพท์หรือชื่อผู้ใช้"
+    "contact_wrong_messenger": "ระบุหมายเลขโทรศัพท์หรือชื่อผู้ใช้",
+    "matched_messenger": "แอปส่งข้อความ"
   },
   "common": {
     "cancel": "Cancel",
@@ -6444,7 +6445,11 @@
     "category_new": "หมวดหมู่ใหม่",
     "category_none": "ไม่มีหมวดหมู่",
     "category_add": "+ หมวดหมู่ใหม่…",
-    "category_all": "ทุกหมวดหมู่"
+    "category_all": "ทุกหมวดหมู่",
+    "duplicates_clients": "ตรงกับลูกค้า:",
+    "duplicates_counterparties": "ตรงกับคู่สัญญา:",
+    "duplicates_by": "ตรงกัน",
+    "duplicates_none": "ขณะนี้ไม่มีรายการที่ตรงกัน"
   },
   "data_requests": {
     "title": "ข้อมูลล่าสุดจากโปรไฟล์",

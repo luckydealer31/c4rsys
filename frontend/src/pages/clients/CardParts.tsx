@@ -83,6 +83,7 @@ type MainDraft = {
   first_name: string;
   last_name: string;
   middle_name: string;
+  birth_date: string;
   company_name: string;
   contacts: ContactRow[];
   registration_address: string;
@@ -99,6 +100,7 @@ function draftOf(card: AnyCard): MainDraft {
     first_name: card.first_name,
     last_name: card.last_name,
     middle_name: card.middle_name,
+    birth_date: card.birth_date ?? "",
     company_name: card.company_name,
     contacts: rowsOf(card.contacts),
     registration_address: card.registration_address,
@@ -137,7 +139,7 @@ export function MainCard({
   );
   const linked = links.data?.links[0]?.state === "accepted" ? links.data.links[0].linked_profile : null;
   const rows: Row[] = [
-    person && "birth_date" in card && card.birth_date ? [t("clients.birth_date"), card.birth_date] : ["", ""],
+    person && card.birth_date ? [t("clients.birth_date"), card.birth_date] : ["", ""],
     // Every contact under its own kind: a phone, a messenger, an email (25.11.2026).
     ...card.contacts.map((c): Row => [contactLabel(t, c), c.value]),
     person ? [t("cards.field_registration_address"), card.registration_address] : ["", ""],
@@ -202,6 +204,8 @@ function MainForm({ cardType, card, onDone }: { cardType: CardType; card: AnyCar
             first_name: draft.first_name,
             last_name: draft.last_name,
             middle_name: draft.middle_name,
+            // A person card of either list has a birth date (customer's remark of 25.11.2026).
+            birth_date: draft.birth_date || null,
             registration_address: draft.registration_address,
             residence_address: draft.residence_address,
           }
@@ -223,6 +227,9 @@ function MainForm({ cardType, card, onDone }: { cardType: CardType; card: AnyCar
             {text("last_name", t("profile.last_name"))}
             {text("first_name", t("profile.first_name"))}
             {text("middle_name", t("profile.middle_name"))}
+            <FloatField label={t("clients.birth_date")}>
+              <input type="date" value={draft.birth_date} onChange={(e) => setDraft({ ...draft, birth_date: e.target.value })} />
+            </FloatField>
           </>
         ) : (
           text("company_name", t("clients.company_name"))

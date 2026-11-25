@@ -891,7 +891,8 @@ def apply_value(
             contacts.append(contact)
     elif field in ("first_name", "last_name", "middle_name"):
         changes[field] = str(value)[:150]
-    elif field == "birth_date" and card_type == "client":
+    elif field == "birth_date" and card.kind == "person":
+        # A person counterparty has a birth date too (customer's remark of 25.11.2026).
         changes[field] = date.fromisoformat(str(value))
     elif field in ("display_name", "legal_name"):
         changes["company_name"] = str(value)[:200]
@@ -986,7 +987,7 @@ def compare(card: Card, card_type: str, data: dict[str, Any]) -> dict[str, dict[
         if field in ("first_name", "last_name", "middle_name"):
             current = getattr(card, field, "") or None
         elif field == "birth_date":
-            absent = card_type != "client"
+            absent = card.kind != "person"
             birth = getattr(card, "birth_date", None)
             current = birth.isoformat() if birth else None
         elif field in ("display_name", "legal_name"):

@@ -36,6 +36,7 @@ const APPLICABLE: Record<"client" | "counterparty", string[]> = {
     "first_name",
     "last_name",
     "middle_name",
+    "birth_date",
     "email",
     "phone",
     "display_name",

@@ -282,6 +282,7 @@ export const client: Client = {
   "director_name": "",
   "driver_license": null,
   "driving_since": null,
+  "duplicates": [],
   "external_id": "",
   "first_name": "Ivan",
   "id": "00000000-0000-0000-0000-000000000000",

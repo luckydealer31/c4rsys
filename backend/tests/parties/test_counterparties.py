@@ -93,3 +93,37 @@ def test_categories_are_a_directory_of_the_company_and_filter_the_list(
     # The directory belongs to the company: an employee without rights on counterparties is refused.
     clerk, _ = hire(owner, cmp, "clerk@example.com", [])
     assert clerk.get(f"/api/c/{cmp}/counterparties/categories").status_code == 403
+
+
+def test_a_person_counterparty_has_a_birth_date(owner: Client, cmp: str) -> None:
+    """Customer's remark of 25.11.2026: a person counterparty has a birth date (§ 6.2.12)."""
+    person = {"kind": "person", "company_name": "", "first_name": "Timofey", "last_name": "S"}
+    card = create(owner, cmp, **person, birth_date="1990-05-04").json()["counterparty"]
+    assert card["birth_date"] == "1990-05-04"
+    url = f"/api/c/{cmp}/counterparties/{card['id']}"
+    changed = owner.patch(
+        url,
+        data={"birth_date": "1991-06-07", "expected_version": 1},
+        content_type="application/json",
+        headers=key(),
+    )
+    assert changed.json()["counterparty"]["birth_date"] == "1991-06-07"
+    company = create(owner, cmp, birth_date="1990-05-04")
+    assert company.json()["error"]["field"] == "birth_date"
+
+
+def test_the_card_tells_with_whom_it_may_be_a_duplicate(owner: Client, cmp: str) -> None:
+    """Customer's remark of 25.11.2026: the mark «Possible duplicate» shows with whom and by
+    what the card matches."""
+    from c4rsys.parties.models import Counterparty
+
+    email = [{"kind": "email", "value": "tima@example.com"}]
+    first = create(owner, cmp, contacts=email).json()["counterparty"]
+    person = {"kind": "person", "company_name": "", "first_name": "Timofey", "last_name": "S"}
+    second = create(owner, cmp, **person, contacts=email).json()["counterparty"]
+    url = f"/api/c/{cmp}/counterparties/{second['id']}"
+    assert owner.get(url).json()["counterparty"]["duplicates"] == []
+    Counterparty.objects.filter(pk=second["id"]).update(possible_duplicate=True)
+    assert owner.get(url).json()["counterparty"]["duplicates"] == [
+        {"id": first["id"], "name": "Auto Parts Co", "kind": "company", "matched": ["email"]}
+    ]

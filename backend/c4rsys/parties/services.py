@@ -605,6 +605,25 @@ def loose_matches(cards: QuerySet[Any], query: MatchQuery) -> list[tuple[list[An
     return found
 
 
+def duplicates_of(card: ClientCard) -> list[dict[str, Any]]:
+    """The other clients the card matches, and by what: shown by the mark «Possible duplicate»
+    (customer's remark of 25.11.2026)."""
+    query = MatchQuery(
+        first_name=card.first_name,
+        last_name=card.last_name,
+        birth_date=card.birth_date,
+        company_name=card.company_name,
+        contacts=tuple(
+            Contact(c.kind, c.value, c.value_normalized, c.messenger) for c in card.contacts.all()
+        ),
+    )
+    return [
+        {"id": str(other.id), "name": display_name(other), "kind": other.kind, "matched": matched}
+        for other, matched in matches(card.company_id, query)
+        if other.id != card.id
+    ]
+
+
 def matches(company_id: UUID, query: MatchQuery) -> list[tuple[ClientCard, list[str]]]:
     """Possible existing cards for the entered data (§ 6.1.11, decision 22.10.2026): a card is a
     candidate if any of these matches — phone, email, first and last name (case-insensitive),

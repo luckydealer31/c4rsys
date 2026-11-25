@@ -160,9 +160,11 @@ def client_detail(request: HttpRequest, cmp: str, client_id: UUID) -> JsonRespon
     if request.method == "GET":
         if not _has(actor, "client.find", "client.list"):
             raise errors.permission_denied("client.find")
-        return JsonResponse(
-            {"client": _payload(services.get_client(context.company.id, client_id))}
-        )
+        card = services.get_client(context.company.id, client_id)
+        body = _payload(card)
+        # With whom and by what the card matches (customer's remark of 25.11.2026).
+        body["duplicates"] = services.duplicates_of(card) if card.possible_duplicate else []
+        return JsonResponse({"client": body})
 
     _require(actor, "client.edit")
     current = services.get_client(context.company.id, client_id)
@@ -466,6 +468,7 @@ def counterparty_list(request: HttpRequest, cmp: str) -> JsonResponse:
         last_name=_name(data, "last_name"),
         middle_name=_name(data, "middle_name"),
         company_name=_name(data, "company_name", COMPANY_NAME_MAX),
+        birth_date=_birth_date(data),
         comment=get_str(data, "comment", max_length=COMMENT_MAX, required=False),
         **_texts(data, COUNTERPARTY_TEXTS, only_given=False),
         extended=extended.parse(data, kind, only_given=False),
@@ -484,6 +487,7 @@ def counterparty_list(request: HttpRequest, cmp: str) -> JsonResponse:
         "last_name": card_data.last_name,
         "middle_name": card_data.middle_name,
         "company_name": card_data.company_name,
+        "birth_date": card_data.birth_date.isoformat() if card_data.birth_date else None,
         "comment": card_data.comment,
         **{key: getattr(card_data, key) for key in COUNTERPARTY_TEXTS},
         **extended.as_payload(card_data.extended),
@@ -498,7 +502,10 @@ def counterparty_detail(request: HttpRequest, cmp: str, counterparty_id: UUID) -
     if request.method == "GET":
         _require(actor, "counterparty.view")
         card = counterparties.get(context.company.id, counterparty_id)
-        return JsonResponse({"counterparty": _counterparty_payload(card)})
+        body = _counterparty_payload(card)
+        # With whom and by what the card matches (customer's remark of 25.11.2026).
+        body["duplicates"] = counterparties.duplicates_of(card) if card.possible_duplicate else []
+        return JsonResponse({"counterparty": body})
 
     _require(actor, "counterparty.edit")
     current = counterparties.get(context.company.id, counterparty_id)
@@ -514,6 +521,8 @@ def counterparty_detail(request: HttpRequest, cmp: str, counterparty_id: UUID) -
         changes["company_name"] = _name(data, "company_name", COMPANY_NAME_MAX)
     if "comment" in data:
         changes["comment"] = get_str(data, "comment", max_length=COMMENT_MAX, required=False)
+    if "birth_date" in data:
+        changes["birth_date"] = _birth_date(data)
     changes.update(_texts(data, COUNTERPARTY_TEXTS, only_given=True))
     changes.update(extended.parse(data, current.kind, only_given=True))
     contacts = (

@@ -403,7 +403,8 @@
     "contact_placeholder_messenger": "Номер или @ник",
     "contact_wrong_phone": "Только цифры номера, можно с «+» в начале.",
     "contact_wrong_email": "Проверьте адрес: он должен быть вида name@site.com.",
-    "contact_wrong_messenger": "Укажите номер телефона или ник (латиница, цифры, точка, дефис, подчёркивание)."
+    "contact_wrong_messenger": "Укажите номер телефона или ник (латиница, цифры, точка, дефис, подчёркивание).",
+    "matched_messenger": "мессенджер"
   },
   "common": {
     "cancel": "Отмена",
@@ -6444,7 +6445,11 @@
     "category_new": "Новая категория",
     "category_none": "Без категории",
     "category_add": "+ Новая категория…",
-    "category_all": "Все категории"
+    "category_all": "Все категории",
+    "duplicates_clients": "Совпадает с клиентами:",
+    "duplicates_counterparties": "Совпадает с контрагентами:",
+    "duplicates_by": "совпадает",
+    "duplicates_none": "Сейчас совпадений нет: данные карточек изменились."
   },
   "data_requests": {
     "title": "Актуальные сведения профиля",

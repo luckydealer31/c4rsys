@@ -403,7 +403,8 @@
     "contact_placeholder_messenger": "Number or @nickname",
     "contact_wrong_phone": "Only the digits of the number, a «+» may lead.",
     "contact_wrong_email": "Check the address: it should look like name@site.com.",
-    "contact_wrong_messenger": "Give a phone number or a nickname (letters, digits, dot, dash, underscore)."
+    "contact_wrong_messenger": "Give a phone number or a nickname (letters, digits, dot, dash, underscore).",
+    "matched_messenger": "messenger"
   },
   "common": {
     "cancel": "Cancel",
@@ -6444,7 +6445,11 @@
     "category_new": "New category",
     "category_none": "No category",
     "category_add": "+ New category…",
-    "category_all": "All categories"
+    "category_all": "All categories",
+    "duplicates_clients": "Matches the clients:",
+    "duplicates_counterparties": "Matches the counterparties:",
+    "duplicates_by": "matched",
+    "duplicates_none": "No matches now: the cards have changed."
   },
   "data_requests": {
     "title": "Fresh data from the profile",

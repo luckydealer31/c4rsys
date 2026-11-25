@@ -957,7 +957,12 @@ export type Messenger =
 
 export type ClientContact = { kind: "phone" | "email" | "messenger"; value: string; messenger?: Messenger };
 
+/** Another card of the same list a card matches (customer's remark of 25.11.2026). */
+export type CardDuplicate = { id: string; name: string; kind: "person" | "company"; matched: string[] };
+
 export type Client = {
+  /** With whom and by what the card matches; given by the card itself, not by the list. */
+  duplicates?: CardDuplicate[];
   id: string;
   version: number;
   kind: "person" | "company";
@@ -1623,12 +1628,15 @@ export type Counterparty = {
   last_name: string;
   middle_name: string;
   company_name: string;
+  birth_date: string | null;
   comment: string;
   registration: string;
   address: string;
   category: string;
   external_id: string;
   possible_duplicate: boolean;
+  /** With whom and by what the card matches; given by the card itself, not by the list. */
+  duplicates?: CardDuplicate[];
   state: "active" | "archived" | "merged";
   provisional: boolean;
   merged_into: string | null;

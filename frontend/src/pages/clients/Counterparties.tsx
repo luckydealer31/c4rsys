@@ -24,6 +24,7 @@ type Draft = {
   first_name: string;
   last_name: string;
   middle_name: string;
+  birth_date: string;
   company_name: string;
   contacts: ContactRow[];
   comment: string;
@@ -34,6 +35,7 @@ const EMPTY: Draft = {
   first_name: "",
   last_name: "",
   middle_name: "",
+  birth_date: "",
   company_name: "",
   contacts: [{ choice: "", value: "" }],
   comment: "",
@@ -141,6 +143,7 @@ export function CounterpartyForm({
             first_name: draft.first_name,
             last_name: draft.last_name,
             middle_name: draft.middle_name,
+            birth_date: draft.birth_date || null,
             comment: draft.comment,
             contacts,
           }
@@ -174,6 +177,9 @@ export function CounterpartyForm({
             </Field>
             <Field label={t("profile.middle_name")}>
               <input value={draft.middle_name} onChange={set("middle_name")} />
+            </Field>
+            <Field label={t("clients.birth_date")}>
+              <input type="date" value={draft.birth_date} onChange={set("birth_date")} />
             </Field>
           </div>
         ) : (
@@ -258,7 +264,7 @@ export function CounterpartyPage() {
       {data.provisional ? <div className="alert warn">{t("cards.provisional_banner")}</div> : null}
       {tab === "main" ? (
         <>
-          <MainCard cardType="counterparty" card={data} badges={<CardBadges card={data} />} onSaved={refresh} />
+          <MainCard cardType="counterparty" card={data} badges={<CardBadges card={data} cardType="counterparty" />} onSaved={refresh} />
           <DocumentsCard cardType="counterparty" card={data} onSaved={refresh} />
         </>
       ) : null}
