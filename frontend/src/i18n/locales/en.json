@@ -2483,10 +2483,9 @@
     "owner_lookup_hint": "The company is not told whether such a profile exists. The confirmation request to the owner comes with the next task.",
     "owner_managed_hint": "The owner data stay unconfirmed until the owner answers; this does not stop work with the vehicle (§ 8.3.3, § 8.3.13).",
     "owner_name_organization": "Organization name",
-    "owner_name_person": "Owner's full name",
     "owner_not_given": "Not given",
     "owner_other": "Another owner — managed vehicle",
-    "owner_unconfirmed": "unconfirmed",
+    "owner_unconfirmed": "management not confirmed by the owner",
     "plate": "Plate",
     "plate_country": "Country of registration",
     "popular_makes": "Popular",
@@ -2946,7 +2945,11 @@
     "settings_tariffs": "Tariffs",
     "unit_change_to_km": "Change to kilometres",
     "unit_change_to_mi": "Change to miles",
-    "owner_name_profile": "Name of the owner"
+    "owner_last_name": "Last name",
+    "owner_first_name": "First name",
+    "owner_middle_name": "Middle name",
+    "owner_name_company": "Company name",
+    "owner_waiting": "waiting for the owner's answer to the request"
   },
   "warehouse": {
     "action_create": "Create",

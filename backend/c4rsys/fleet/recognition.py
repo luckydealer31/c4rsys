@@ -48,6 +48,10 @@ TEXTS: dict[str, int] = {
     "color": 40,
     # The owner named in the paper (customer's decision of 22.11.2026).
     "owner_name": 200,
+    # A person's name apart, so that a paper can decline it (customer's remark of 25.11.2026).
+    "owner_last_name": 100,
+    "owner_first_name": 100,
+    "owner_middle_name": 100,
     # The province or the region of the plate, kept apart from it (customer's decision of
     # 23.11.2026).
     "plate_region": 60,
@@ -86,7 +90,9 @@ INSTRUCTION = (
     "Leave out whatever cannot be read with confidence: do not guess, and do not work out a "
     "value from another one: give an empty text instead. "
     "Read the owner too: the name as written, and whether the owner is "
-    "a person or an organization. Read as written, where the paper has them: the power in "
+    "a person or an organization; of a person also the last name, the first name and the middle "
+    "name (a patronymic) apart, as written, where the paper tells them apart. "
+    "Read as written, where the paper has them: the power in "
     "kilowatts and in horsepower, the category of the vehicle, the ecological class, the "
     "approval of the type and the special marks. Read the address of the owner in one line. "
     "Read about the paper itself: its name as printed, its series and number, the date and the "

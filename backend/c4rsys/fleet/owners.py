@@ -35,12 +35,19 @@ class Owner:
     client_id: UUID | None = None
     # In one line (customer's decision of 23.11.2026).
     address: str = ""
+    # A person's name apart (customer's remark of 25.11.2026); «name» is them joined.
+    last_name: str = ""
+    first_name: str = ""
+    middle_name: str = ""
 
     def payload(self) -> dict[str, str]:
         return {
             "kind": self.kind,
             "lookup": self.lookup,
             "name": self.name,
+            "last_name": self.last_name,
+            "first_name": self.first_name,
+            "middle_name": self.middle_name,
             "contact": self.contact,
             "address": self.address,
             "client_id": str(self.client_id) if self.client_id else "",
@@ -57,6 +64,37 @@ def _text(data: dict[str, Any], key: str, max_length: int) -> str:
     if len(value) > max_length:
         raise errors.validation_error(key, code="FIELD_TOO_LONG", max_length=max_length)
     return value
+
+
+@dataclass(frozen=True)
+class Named:
+    name: str
+    last_name: str
+    first_name: str
+    middle_name: str
+
+
+def is_company_lookup(lookup: str) -> bool:
+    return lookup.upper().startswith("CMP-")
+
+
+def _named(data: dict[str, Any], kind: str, *, required: bool, company: bool) -> "Named":
+    """The name of the owner: a company or an organization by its name, a person by the last
+    name, the first name and the middle name apart (customer's remark of 25.11.2026). The joined
+    name alone is still taken: the bot and the import give it so."""
+    parts = {
+        "last_name": "" if company else _text(data, "owner_last_name", 100),
+        "first_name": "" if company else _text(data, "owner_first_name", 100),
+        "middle_name": "" if company else _text(data, "owner_middle_name", 100),
+    }
+    joined = " ".join(v for v in parts.values() if v)
+    name = joined or _text(data, "owner_name", 300)
+    if required and not name:
+        field = "owner_name" if company else "owner_last_name"
+        if kind == VehicleOwnerClaim.Kind.PERSON and "owner_name" in data:
+            field = "owner_name"
+        raise errors.validation_error(field, code="FIELD_REQUIRED")
+    return Named(name, parts["last_name"], parts["first_name"], parts["middle_name"])
 
 
 def parse(data: dict[str, Any], relation: str) -> Owner:
@@ -106,20 +144,26 @@ def parse(data: dict[str, Any], relation: str) -> Owner:
             raise errors.validation_error("owner_lookup", code="OWNER_LOOKUP_INVALID")
         # The profile does not replace the name: the name, the contact and the address are kept
         # with it for the contracts and the reports (customer's remark of 25.11.2026).
+        n = _named(data, kind, required=False, company=is_company_lookup(lookup))
         return Owner(
             kind=kind,
             lookup=lookup,
-            name=_text(data, "owner_name", 300),
+            name=n.name,
+            last_name=n.last_name,
+            first_name=n.first_name,
+            middle_name=n.middle_name,
             contact=_text(data, "owner_contact", 254),
             address=_text(data, "owner_address", 500),
         )
     if kind in (VehicleOwnerClaim.Kind.PERSON, VehicleOwnerClaim.Kind.ORGANIZATION):
-        name = _text(data, "owner_name", 300)
-        if not name:
-            raise errors.validation_error("owner_name", code="FIELD_REQUIRED")
+        company = kind == VehicleOwnerClaim.Kind.ORGANIZATION
+        n = _named(data, kind, required=True, company=company)
         return Owner(
             kind=kind,
-            name=name,
+            name=n.name,
+            last_name=n.last_name,
+            first_name=n.first_name,
+            middle_name=n.middle_name,
             contact=_text(data, "owner_contact", 254),
             address=_text(data, "owner_address", 500),
         )
@@ -151,6 +195,9 @@ def declare(ctx: CommandContext, company: Company, card: VehicleCard, owner: Own
         owner_user_id=user.id if user else None,
         client=client,
         manual_name=owner.name,
+        manual_last_name=owner.last_name,
+        manual_first_name=owner.first_name,
+        manual_middle_name=owner.middle_name,
         manual_contact=owner.contact,
         manual_address=owner.address,
         created_by_user_id=ctx.actor.user_id,
@@ -173,10 +220,23 @@ def is_current(card: VehicleCard, owner: Owner) -> bool:
         claim.kind,
         claim.lookup,
         claim.manual_name,
+        claim.manual_last_name,
+        claim.manual_first_name,
+        claim.manual_middle_name,
         claim.manual_contact,
         claim.client_id,
         claim.manual_address,
-    ) == (owner.kind, owner.lookup, owner.name, owner.contact, owner.client_id, owner.address)
+    ) == (
+        owner.kind,
+        owner.lookup,
+        owner.name,
+        owner.last_name,
+        owner.first_name,
+        owner.middle_name,
+        owner.contact,
+        owner.client_id,
+        owner.address,
+    )
 
 
 def describe(card: VehicleCard, batch: "Batch | None" = None) -> dict[str, Any] | None:
@@ -191,6 +251,9 @@ def describe(card: VehicleCard, batch: "Batch | None" = None) -> dict[str, Any] 
         "kind": claim.kind,
         "lookup": claim.lookup,
         "name": claim.manual_name,
+        "last_name": claim.manual_last_name,
+        "first_name": claim.manual_first_name,
+        "middle_name": claim.manual_middle_name,
         "contact": claim.manual_contact,
         "address": claim.manual_address,
         # «ownership_change»: declared by the system after the ownership passed (§ 8.3.10).

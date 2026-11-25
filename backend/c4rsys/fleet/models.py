@@ -290,6 +290,12 @@ class VehicleOwnerClaim(models.Model):
         "parties.ClientCard", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
     manual_name = models.CharField(max_length=300, blank=True, default="")
+    # A person is named by the last name, the first name and the middle name apart, so that a
+    # paper can decline them (customer's remark of 25.11.2026); «manual_name» keeps them joined.
+    # A declaration of before, of the bot or of an import may have the joined name only.
+    manual_last_name = models.CharField(max_length=100, blank=True, default="")
+    manual_first_name = models.CharField(max_length=100, blank=True, default="")
+    manual_middle_name = models.CharField(max_length=100, blank=True, default="")
     manual_contact = models.CharField(max_length=254, blank=True, default="")
     # The address of the owner in one line, as a paper names it (customer's decision of
     # 23.11.2026).

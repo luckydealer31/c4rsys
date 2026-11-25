@@ -568,3 +568,43 @@ def test_the_profile_keeps_the_name_of_the_owner(owner: Client, cmp: str, locati
         owner_address="Phuket",
     )
     assert (other["owner"]["name"], other["owner"]["address"]) == ("Somchai J.", "Phuket")
+
+
+def test_a_person_is_named_by_the_parts_and_a_company_by_its_name() -> None:
+    """Customer's remark of 25.11.2026: the last name, the first name and the middle name
+    apart; a company by its name only."""
+    from c4rsys.fleet import owners
+    from c4rsys.fleet.models import VehicleCard
+
+    person = owners.parse(
+        {
+            "owner_kind": "profile",
+            "owner_lookup": "usr-abc",
+            "owner_last_name": " Щукин ",
+            "owner_first_name": "Тимофей",
+            "owner_middle_name": "Андреевич",
+            "owner_name": "ignored",
+        },
+        VehicleCard.Relation.MANAGED,
+    )
+    assert (person.name, person.last_name, person.first_name, person.middle_name) == (
+        "Щукин Тимофей Андреевич",
+        "Щукин",
+        "Тимофей",
+        "Андреевич",
+    )
+    firm = owners.parse(
+        {
+            "owner_kind": "profile",
+            "owner_lookup": "cmp-xyz",
+            "owner_last_name": "Щукин",
+            "owner_name": "ООО Ромашка",
+        },
+        VehicleCard.Relation.MANAGED,
+    )
+    assert (firm.name, firm.last_name) == ("ООО Ромашка", "")
+    # The bot and the import still give the joined name.
+    joined = owners.parse(
+        {"owner_kind": "person", "owner_name": "Somchai Jaidee"}, VehicleCard.Relation.MANAGED
+    )
+    assert (joined.name, joined.last_name) == ("Somchai Jaidee", "")

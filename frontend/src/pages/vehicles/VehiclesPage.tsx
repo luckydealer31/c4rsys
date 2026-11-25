@@ -367,9 +367,9 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
       t("vehicles.section_owner"),
       // Only the owner of a managed vehicle is asked to confirm (§ 8.3.1, § 8.3.13).
       owner?.source === "ownership_change"
-        ? `${t("vehicles.owner_new_after_change")}${owner.confirmed ? "" : ` (${t("vehicles.owner_unconfirmed")})`}`
+        ? `${t("vehicles.owner_new_after_change")}${owner.confirmed ? "" : ` (${t(owner.waiting ? "vehicles.owner_waiting" : "vehicles.owner_unconfirmed")})`}`
         : vehicle.relation === "managed" && owner && owner.kind !== "none" && !owner.confirmed
-          ? `${ownerText} (${t("vehicles.owner_unconfirmed")})`
+          ? `${ownerText} (${t(owner.waiting ? "vehicles.owner_waiting" : "vehicles.owner_unconfirmed")})`
           : ownerText,
     ],
     [t("vehicles.vehicle_type"), c.vehicle_type ? t(`vehicles.type_${c.vehicle_type}`) : "", "vehicle_type"],

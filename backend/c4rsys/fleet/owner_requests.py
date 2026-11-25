@@ -592,6 +592,10 @@ def owner_status(card: VehicleCard, batch: "Batch | None" = None) -> dict[str, A
     return {
         "confirmed": current and all(given.get(q) is True for q in QUESTIONS),
         "ownership_confirmed": given.get(Question.OWNERSHIP) is True,
+        # The request is sent and not answered in full yet.
+        "waiting": current
+        and request is not None
+        and request.state == VehicleOwnerRequest.State.OPEN,
         # § 8.3.3: a refusal of the declared link or management is a conflict.
         "conflict": given.get(Question.LINK) is False or given.get(Question.MANAGEMENT) is False,
     }

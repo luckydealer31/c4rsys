@@ -240,11 +240,15 @@ export const vehicle: Vehicle = {
     "confirmed": false,
     "conflict": false,
     "contact": "",
+    "first_name": "",
     "kind": "company",
+    "last_name": "",
     "lookup": "",
+    "middle_name": "",
     "name": "",
     "ownership_confirmed": false,
-    "source": ""
+    "source": "",
+    "waiting": false
   },
   "relation": "own",
   "rental_readiness": {

@@ -252,7 +252,7 @@ test("base example from registration to closing survives a restart", async ({ pa
         frame_number: "", engine_number: "3NR-1234567", color: "White", body_type: "sedan",
         fuel_type: "petrol", transmission: "", drive: "", engine_volume_cc: 1197, power_hp: null,
         seats: 5, doors: null, curb_weight_kg: null, gross_weight_kg: null,
-        make_code: null, model_code: null, catalog_type: null, owner_name: "Somchai Jaidee", owner_kind: "person",
+        make_code: null, model_code: null, catalog_type: null, owner_name: "Somchai Jaidee", owner_last_name: "Jaidee", owner_first_name: "Somchai", owner_middle_name: "", owner_kind: "person",
         power_kw: "63.0", vehicle_category: "B", eco_class: "Euro 5", type_approval: "", special_marks: "",
         owner_address: "Phuket, 1 Beach Rd", paper_name: "Registration book", paper_number: "RB-778",
         paper_issued_on: "2022-05-01", paper_issued_by: "DLT", passport_number: "PS-42", paper_keepable: true, plate_region: "Phuket",
@@ -301,7 +301,9 @@ test("base example from registration to closing survives a restart", async ({ pa
   // The owner is chosen first, by three short choices; the name read from the paper is put
   // into the owner of a managed vehicle (customer's remark of 23.11.2026).
   await paper.getByRole("radio", { name: t("vehicles.owner_short_managed"), exact: true }).check();
-  await expect(paper.getByLabel(t("vehicles.owner_name_person"))).toHaveValue("Somchai Jaidee");
+  // A person's name apart (customer's remark of 25.11.2026).
+  await expect(paper.getByLabel(t("vehicles.owner_last_name"))).toHaveValue("Jaidee");
+  await expect(paper.getByLabel(t("vehicles.owner_first_name"))).toHaveValue("Somchai");
   await expect(paper.getByLabel(t("vehicles.owner_address"))).toHaveValue("Phuket, 1 Beach Rd");
   await paper.getByRole("radio", { name: "Тест Аренда", exact: true }).check();
   // A value read wrong is cleared or corrected; the rest is written with the card.

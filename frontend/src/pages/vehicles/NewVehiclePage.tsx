@@ -7,6 +7,7 @@ import { useApi } from "../../api/queries";
 import type { CatalogMake, CatalogModel, Client, Vehicle, VehicleOptions } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, IconButton, Loading } from "../../components/ui";
+import { NO_OWNER_NAMES, OwnerNameFields, ownerNamesBody, ownerNamesOf } from "./OwnerNameFields";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { clientName } from "../clients/ClientsPage";
 import { countries } from "../settings/CompanyProfilePage";
@@ -72,6 +73,9 @@ type Form = {
   owner_kind: string;
   owner_lookup: string;
   owner_name: string;
+  owner_last_name: string;
+  owner_first_name: string;
+  owner_middle_name: string;
   owner_contact: string;
   owner_address: string;
   owner_client_id: string;
@@ -114,7 +118,7 @@ const EMPTY: Form = {
   relation: "own",
   owner_kind: "profile",
   owner_lookup: "",
-  owner_name: "",
+  ...NO_OWNER_NAMES,
   owner_contact: "",
   owner_address: "",
   owner_client_id: "",
@@ -177,7 +181,11 @@ function formOf(vehicle: Vehicle): Form {
     relation: vehicle.relation,
     owner_kind: o && vehicle.relation === "managed" ? o.kind : "profile",
     owner_lookup: o?.lookup ?? "",
-    owner_name: o?.name ?? "",
+    ...ownerNamesOf(
+      o,
+      o && vehicle.relation === "managed" ? o.kind : o?.kind ?? "",
+      o?.lookup ?? "",
+    ),
     owner_contact: o?.contact ?? "",
     owner_address: o?.address ?? "",
     owner_client_id: o?.client?.id ?? "",
@@ -331,7 +339,7 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
       body.owner_kind = kind;
       if (kind === "client") body.owner_client_id = form.owner_client_id;
       if (kind === "person" || kind === "organization") {
-        body.owner_name = form.owner_name;
+        Object.assign(body, ownerNamesBody(kind, "", form));
         body.owner_contact = form.owner_contact;
         body.owner_address = form.owner_address;
       }
@@ -340,7 +348,7 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
       body.owner_kind = form.owner_kind;
       if (form.owner_kind === "profile") body.owner_lookup = form.owner_lookup;
       if (form.owner_kind === "person" || form.owner_kind === "organization" || form.owner_kind === "profile") {
-        body.owner_name = form.owner_name;
+        Object.assign(body, ownerNamesBody(form.owner_kind, form.owner_lookup, form));
         body.owner_contact = form.owner_contact;
         body.owner_address = form.owner_address;
       }
@@ -679,9 +687,7 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
               ) : null}
               {form.client_owner_kind === "person" || form.client_owner_kind === "organization" ? (
                 <>
-                  <Field label={t(`vehicles.owner_name_${form.client_owner_kind}`)}>
-                    <input value={form.owner_name} onChange={(e) => set({ owner_name: e.target.value })} />
-                  </Field>
+                  <OwnerNameFields kind={form.client_owner_kind} lookup="" value={form} set={set} />
                   <Field label={t("vehicles.owner_contact")}>
                     <input
                       value={form.owner_contact}
@@ -717,9 +723,7 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
                   of 25.11.2026). */}
               {form.owner_kind === "person" || form.owner_kind === "organization" || form.owner_kind === "profile" ? (
                 <>
-                  <Field label={t(`vehicles.owner_name_${form.owner_kind}`)}>
-                    <input value={form.owner_name} onChange={(e) => set({ owner_name: e.target.value })} />
-                  </Field>
+                  <OwnerNameFields kind={form.owner_kind} lookup={form.owner_lookup} value={form} set={set} />
                   <Field label={t("vehicles.owner_contact")}>
                     <input
                       value={form.owner_contact}

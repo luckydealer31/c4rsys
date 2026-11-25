@@ -609,12 +609,18 @@ export type Vehicle = {
     kind: "company" | "profile" | "person" | "organization" | "client" | "none";
     lookup: string;
     name: string;
+    /** A person's name apart (customer's remark of 25.11.2026); «name» is them joined. */
+    last_name?: string;
+    first_name?: string;
+    middle_name?: string;
     contact: string;
     /** In one line (customer's decision of 23.11.2026). */
     address?: string;
     /** Three «yes» to the request of § 8.3.1. */
     confirmed: boolean;
     ownership_confirmed?: boolean;
+    /** The request is sent and not answered in full yet. */
+    waiting?: boolean;
     /** A refusal of the link or the management (§ 8.3.3). */
     conflict?: boolean;
     company?: { public_id: string; display_name: string; legal_name: string };

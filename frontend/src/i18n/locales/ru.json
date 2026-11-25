@@ -2483,10 +2483,9 @@
     "owner_lookup_hint": "Есть ли такой профиль, компании не сообщается. Запрос на подтверждение владельцу появится в следующей задаче.",
     "owner_managed_hint": "Сведения о владельце остаются неподтверждёнными до ответа владельца; работать с Т/С это не мешает (§ 8.3.3, § 8.3.13).",
     "owner_name_organization": "Название организации",
-    "owner_name_person": "ФИО владельца",
     "owner_not_given": "Не указан",
     "owner_other": "Другой владелец — Т/С в управлении",
-    "owner_unconfirmed": "не подтверждено",
+    "owner_unconfirmed": "управление не подтверждено владельцем",
     "plate": "Регистрационный номер",
     "plate_country": "Страна регистрации",
     "popular_makes": "Популярные",
@@ -2946,7 +2945,11 @@
     "settings_tariffs": "Тарифы",
     "unit_change_to_km": "Сменить на километры",
     "unit_change_to_mi": "Сменить на мили",
-    "owner_name_profile": "ФИО или название владельца"
+    "owner_last_name": "Фамилия",
+    "owner_first_name": "Имя",
+    "owner_middle_name": "Отчество",
+    "owner_name_company": "Название компании",
+    "owner_waiting": "ждёт ответа владельца на запрос"
   },
   "warehouse": {
     "action_create": "Создать",

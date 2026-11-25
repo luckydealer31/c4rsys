@@ -2483,10 +2483,9 @@
     "owner_lookup_hint": "The company is not told whether such a profile exists. The confirmation request to the owner comes with the next task.",
     "owner_managed_hint": "The owner data stay unconfirmed until the owner answers; this does not stop work with the vehicle (§ 8.3.3, § 8.3.13).",
     "owner_name_organization": "Organization name",
-    "owner_name_person": "Owner's full name",
     "owner_not_given": "Not given",
     "owner_other": "Another owner — managed vehicle",
-    "owner_unconfirmed": "unconfirmed",
+    "owner_unconfirmed": "เจ้าของยังไม่ยืนยันการจัดการ",
     "plate": "Plate",
     "plate_country": "Country of registration",
     "popular_makes": "Popular",
@@ -2946,7 +2945,11 @@
     "settings_tariffs": "อัตราค่าเช่า",
     "unit_change_to_km": "เปลี่ยนเป็นกิโลเมตร",
     "unit_change_to_mi": "เปลี่ยนเป็นไมล์",
-    "owner_name_profile": "ชื่อเจ้าของ"
+    "owner_last_name": "นามสกุล",
+    "owner_first_name": "ชื่อ",
+    "owner_middle_name": "ชื่อกลาง",
+    "owner_name_company": "ชื่อบริษัท",
+    "owner_waiting": "รอเจ้าของตอบคำขอ"
   },
   "warehouse": {
     "action_create": "Create",

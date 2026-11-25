@@ -189,11 +189,15 @@ def test_managed_vehicle_owner_by_profile_does_not_reveal_it(
         "kind": "profile",
         "lookup": "carowner@example.com",
         "name": "",
+        "last_name": "",
+        "first_name": "",
+        "middle_name": "",
         "contact": "",
         "address": "",
         "source": "",
         "confirmed": False,
         "ownership_confirmed": False,
+        "waiting": False,
         "conflict": False,
     }
     claim = VehicleOwnerClaim.objects.get(kind="profile")
@@ -207,7 +211,10 @@ def test_managed_vehicle_owner_by_profile_does_not_reveal_it(
     [
         ({"owner_kind": "profile"}, "owner_lookup"),
         ({"owner_kind": "profile", "owner_lookup": "nobody"}, "owner_lookup"),
-        ({"owner_kind": "person"}, "owner_name"),
+        # A person is named by the last name first (customer's remark of 25.11.2026).
+        ({"owner_kind": "person"}, "owner_last_name"),
+        ({"owner_kind": "person", "owner_name": ""}, "owner_name"),
+        ({"owner_kind": "organization"}, "owner_name"),
         ({"owner_kind": "company"}, "owner_kind"),
     ],
 )

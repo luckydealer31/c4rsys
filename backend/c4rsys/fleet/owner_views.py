@@ -70,10 +70,17 @@ def card_requests(request: HttpRequest, cmp: str, card_id: UUID) -> JsonResponse
                 raise errors.business_rule("OWNER_REQUEST_MANAGED_ONLY")
             # The name, the contact and the address given before stay with the profile.
             earlier = locked.owner_claims.order_by("-created_at").first()
+            # A company is named by its own name: the name of a person given before is not its.
+            same = earlier is not None and owners.is_company_lookup(
+                named.lookup
+            ) == owners.is_company_lookup(earlier.lookup or "")
             keep = owners.Owner(
                 kind=named.kind,
                 lookup=named.lookup,
-                name=named.name or (earlier.manual_name if earlier else ""),
+                name=named.name or (earlier.manual_name if earlier and same else ""),
+                last_name=earlier.manual_last_name if earlier and same else "",
+                first_name=earlier.manual_first_name if earlier and same else "",
+                middle_name=earlier.manual_middle_name if earlier and same else "",
                 contact=named.contact or (earlier.manual_contact if earlier else ""),
                 address=named.address or (earlier.manual_address if earlier else ""),
             )
