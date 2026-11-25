@@ -389,7 +389,8 @@
     "wizard_name_required": "ต้องระบุชื่อและนามสกุล",
     "wizard_company_required": "ต้องระบุชื่อบริษัท",
     "wizard_contact_required": "ต้องระบุโทรศัพท์หรืออีเมล",
-    "new_button": "ลูกค้าใหม่"
+    "new_button": "ลูกค้าใหม่",
+    "matched_last_name": "นามสกุล"
   },
   "common": {
     "cancel": "Cancel",
@@ -1025,7 +1026,7 @@
     "link_not_accepted": "การเชื่อมยังไม่ได้รับการยืนยัน",
     "card_archived": "บัตรอยู่ในคลังเก็บ",
     "owner_request_managed_only": "ส่งคำขอถึงเจ้าของยานพาหนะที่อยู่ในการจัดการ",
-    "owner_profile_required": "ระบุเจ้าของก่อน",
+    "owner_profile_required": "โปรดระบุเจ้าของเป็นคู่สัญญาพร้อมอีเมลหรือโทรศัพท์ก่อน",
     "owner_request_pending": "มีคำขอรอคำตอบอยู่แล้ว",
     "owner_already_confirmed": "เจ้าของยืนยันการจัดการแล้ว",
     "owner_request_not_open": "คำขอปิดแล้ว",
@@ -1378,7 +1379,8 @@
     "telegram_taken": "บัญชี Telegram นี้ผูกกับโปรไฟล์อื่นอยู่แล้ว",
     "expense_draft_closed": "ร่างนี้ถูกบันทึกหรือลบไปแล้ว",
     "too_many_pages": "ไม่เกิน {{max}} รูปต่อหนึ่งเอกสาร",
-    "pages_not_photos": "หลายไฟล์พร้อมกันต้องเป็นรูปถ่ายเท่านั้น PDF อัปโหลดเป็นไฟล์เดียว"
+    "pages_not_photos": "หลายไฟล์พร้อมกันต้องเป็นรูปถ่ายเท่านั้น PDF อัปโหลดเป็นไฟล์เดียว",
+    "owner_card_not_active": "บัตรนี้ถูกเก็บถาวรหรือรวมแล้ว — เลือกบัตรที่ใช้งานอยู่"
   },
   "history": {
     "action": "Action",
@@ -2470,7 +2472,7 @@
     "own_only": "The vehicle is created as own; the usage contexts existing in the company are switched on.",
     "owner_client": "A client — client vehicle (service)",
     "owner_client_choose": "Client",
-    "owner_client_hint": "A client vehicle is not bound to a location and is not used for rental or the warehouse; the location is given in the service operation (§ 8.1.2).",
+    "owner_client_hint": "เจ้าของยานพาหนะของลูกค้าคือลูกค้าของบริษัท กรอกข้อมูล หากมีบัตรที่คล้ายกันจะถูกเสนอให้เลือก",
     "owner_company": "The company «{{company}}» — own vehicle",
     "owner_contact": "Contact (optional)",
     "owner_kind": "เจ้าของ",
@@ -2481,7 +2483,7 @@
     "owner_kind_profile": "A c4rsys profile (ID, email or phone)",
     "owner_lookup": "Owner's c4rsys ID, email or phone",
     "owner_lookup_hint": "The company is not told whether such a profile exists. The confirmation request to the owner comes with the next task.",
-    "owner_managed_hint": "The owner data stay unconfirmed until the owner answers; this does not stop work with the vehicle (§ 8.3.3, § 8.3.13).",
+    "owner_managed_hint": "เจ้าของยานพาหนะที่อยู่ในการจัดการคือคู่สัญญาของบริษัท กรอกข้อมูล หากมีบัตรที่คล้ายกันในรายการจะถูกเสนอให้เลือก",
     "owner_name_organization": "Organization name",
     "owner_not_given": "Not given",
     "owner_other": "Another owner — managed vehicle",
@@ -2949,7 +2951,17 @@
     "owner_first_name": "ชื่อ",
     "owner_middle_name": "ชื่อกลาง",
     "owner_name_company": "ชื่อบริษัท",
-    "owner_waiting": "รอเจ้าของตอบคำขอ"
+    "owner_waiting": "รอเจ้าของตอบคำขอ",
+    "owner_party_person": "บุคคลธรรมดา",
+    "owner_party_company": "นิติบุคคล",
+    "owner_card_client": "ลูกค้า",
+    "owner_card_counterparty": "คู่สัญญา",
+    "owner_card_other": "เลือกคนอื่น",
+    "owner_contact_person": "ผู้ติดต่อ",
+    "owner_phone": "โทรศัพท์",
+    "owner_email": "อีเมล",
+    "owner_matches_title": "มีบัตรที่คล้ายกันในรายการแล้ว — เลือกได้:",
+    "owner_use_existing": "เลือก: {{name}}"
   },
   "warehouse": {
     "action_create": "Create",

@@ -14,6 +14,7 @@ urlpatterns = [
     path("c/<str:cmp>/client-restrictions/<uuid:restriction_id>/lift", views.restriction_lift),
     path("c/<str:cmp>/counterparties", views.counterparty_list),
     path("c/<str:cmp>/counterparties/categories", views.counterparty_categories),
+    path("c/<str:cmp>/counterparties/matches", views.counterparty_matches),
     path("c/<str:cmp>/counterparties/provisional", views.counterparty_provisional),
     path("c/<str:cmp>/counterparties/<uuid:counterparty_id>", views.counterparty_detail),
     path("c/<str:cmp>/counterparties/<uuid:counterparty_id>/archive", views.counterparty_archive),

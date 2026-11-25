@@ -242,6 +242,7 @@ def vehicle_list(request: HttpRequest, cmp: str) -> JsonResponse:
     if relation not in VehicleCard.Relation.values:
         raise errors.validation_error("relation")
     owner = owners.parse(data, relation)
+    owners.check_rights(actor, owner)
     unit = get_str(data, "odometer_unit", max_length=2)
     if unit not in VehicleCard.OdometerUnit.values:
         raise errors.validation_error("odometer_unit")
@@ -514,6 +515,7 @@ def vehicle_details(request: HttpRequest, cmp: str, card_id: UUID) -> JsonRespon
     expected_version = get_int(data, "expected_version")
     details = characteristics.parse(data, timezone.localdate().year)
     owner = owners.parse(data, card.relation)
+    owners.check_rights(actor, owner)
     name = get_str(data, "name", max_length=NAME_MAX, required=False)
 
     def handler(ctx: CommandContext) -> CommandResult:

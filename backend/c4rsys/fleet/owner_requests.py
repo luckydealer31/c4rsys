@@ -40,7 +40,7 @@ from c4rsys.fleet.models import (
     VehicleOwnerRequest,
     VehicleOwnership,
 )
-from c4rsys.parties import links
+from c4rsys.parties import links, owner_cards
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
 
@@ -86,8 +86,19 @@ def management_confirmed(card: VehicleCard) -> bool:
 
 
 def _target(claim: VehicleOwnerClaim) -> links.Target:
-    kind = "company" if claim.lookup.upper().startswith("CMP-") else "person"
-    return links.resolve_target(kind, claim.lookup)
+    """The ID or the contact given; for a counterparty without it, the profile the card is
+    linked to, else its email or phone (customer's remark of 25.11.2026: a request may be sent by
+    a contact too)."""
+    lookup = claim.lookup
+    if not lookup and claim.counterparty is not None:
+        linked = links.linked_target(claim.counterparty)
+        if linked is not None:
+            return linked
+        lookup = owner_cards.first_contact(claim.counterparty)
+    if not lookup:
+        raise errors.business_rule("OWNER_PROFILE_REQUIRED")
+    kind = "company" if lookup.upper().startswith("CMP-") else "person"
+    return links.resolve_target(kind, lookup)
 
 
 def send(ctx: CommandContext, company: Company, card_id: UUID) -> VehicleOwnerRequest:
@@ -102,7 +113,10 @@ def send(ctx: CommandContext, company: Company, card_id: UUID) -> VehicleOwnerRe
     if card.relation != VehicleCard.Relation.MANAGED:
         raise errors.business_rule("OWNER_REQUEST_MANAGED_ONLY")
     claim = _claim(card)
-    if claim is None or claim.kind != VehicleOwnerClaim.Kind.PROFILE:
+    if claim is None or claim.kind not in (
+        VehicleOwnerClaim.Kind.PROFILE,
+        VehicleOwnerClaim.Kind.COUNTERPARTY,
+    ):
         raise errors.business_rule("OWNER_PROFILE_REQUIRED")
     target = _target(claim)
     if target.company is not None and target.company.id == company.id:
@@ -305,6 +319,15 @@ def answer_as_company(
     )
 
 
+def _linked(requester_id: UUID, user_id: UUID | None, company_id: UUID | None) -> bool:
+    """The link with the company is there already, as a client or as a counterparty: it is not
+    asked again (customer's remark of 25.11.2026); the «yes» it stands for links the counterparty
+    (agent's choice, not confirmed)."""
+    return links.is_linked_client(
+        requester_id, user_id=user_id, company_id=company_id
+    ) or links.is_linked_counterparty(requester_id, user_id=user_id, company_id=company_id)
+
+
 def owns(vehicle_id: UUID, *, user_id: UUID | None, company_id: UUID | None) -> bool:
     """Whether the profile is the confirmed current owner of the vehicle."""
     if user_id is None and company_id is None:
@@ -379,9 +402,7 @@ def _answer(
     if (
         Question.LINK not in before
         and Question.LINK not in given
-        and links.is_linked_client(
-            request.company_id, user_id=user_id, company_id=company.id if company else None
-        )
+        and _linked(request.company_id, user_id, company.id if company else None)
     ):
         given = {Question.LINK: True, **given}
     # So is the ownership the person has confirmed already: only what is not there is asked.
@@ -434,16 +455,18 @@ def _answer(
     if ownership:
         after["ownership"] = ownership
     if given.get(Question.LINK) is True:
-        # «Yes» to the link makes the owner a client of the company: a client card linked to
-        # the profile (customer's decision of 30.10.2026).
-        client = links.client_from_owner(
+        # «Yes» to the link makes the owner of the managed vehicle a counterparty linked to the
+        # profile (customer's decision of 25.11.2026, in place of the client of 30.10.2026): the
+        # counterparty the company named, if it is free.
+        counterparty = links.counterparty_from_owner(
             ctx,
             request.company,
+            card_id=request.claim.counterparty_id,
             owner_user=user,
             owner_company=company,
             requested_by=request.created_by_user_id,
         )
-        after["client"] = str(client.id)
+        after["counterparty"] = str(counterparty.id)
     # Journaled in the company that asked: its vehicle card is concerned (§ 20.3.4).
     ctx.audit(
         "vehicle.owner_answered",
@@ -627,9 +650,7 @@ def incoming_payload(
     return {
         "documents": documents,
         # The link with the company is there already: it is not asked again.
-        "linked": links.is_linked_client(
-            request.company_id, user_id=user_id, company_id=company_id
-        ),
+        "linked": _linked(request.company_id, user_id, company_id),
         # The ownership is confirmed already: it is not asked again either.
         "owned": owns(request.vehicle_id, user_id=user_id, company_id=company_id),
         "id": str(request.id),

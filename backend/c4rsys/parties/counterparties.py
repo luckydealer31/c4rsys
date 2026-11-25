@@ -17,7 +17,7 @@ from django.utils import timezone
 from c4rsys.companies.models import Company
 from c4rsys.parties import extended
 from c4rsys.parties.models import Counterparty, CounterpartyContact, ProfileLink
-from c4rsys.parties.services import Contact, has_minimum
+from c4rsys.parties.services import Contact, MatchQuery, has_minimum, loose_matches
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
 
@@ -82,7 +82,7 @@ def snapshot(card: Counterparty) -> dict[str, Any]:
     }
 
 
-def _write_contacts(card: Counterparty, contacts: list[Contact]) -> None:
+def write_contacts(card: Counterparty, contacts: list[Contact]) -> None:
     CounterpartyContact.objects.filter(counterparty=card).delete()
     CounterpartyContact.objects.bulk_create(
         CounterpartyContact(
@@ -127,7 +127,7 @@ def create(
         created_at=timezone.now(),
         **data.extended,
     )
-    _write_contacts(card, contacts)
+    write_contacts(card, contacts)
     ctx.audit(
         "counterparty.created", object_type="counterparty", object_id=card.id, after=snapshot(card)
     )
@@ -173,7 +173,7 @@ def update(
     if contacts is not None:
         if not contacts and not card.provisional:
             raise errors.validation_error("contacts", code="CONTACT_REQUIRED")
-        _write_contacts(card, contacts)
+        write_contacts(card, contacts)
     if card.provisional and has_minimum(card, card.contacts.count()):
         card.provisional = False
     card.version += 1
@@ -332,3 +332,63 @@ def search(
         # `also` — the records marked with a tag of that name (decision of 17.11.2026).
         cards = every.filter(Q(pk__in=cards.values("pk")) | Q(pk__in=also))
     return cards.order_by("company_name", "last_name", "first_name", "created_at")
+
+
+def matches(company_id: UUID, query: MatchQuery) -> list[tuple[Counterparty, list[str]]]:
+    """Possible existing counterparties for the entered data, as for the clients (§ 6.1.11): the
+    phone, the email, the first and the last name together, the company name. The owner of a
+    vehicle entered in its form is checked so (customer's remark of 25.11.2026)."""
+    reasons: dict[UUID, set[str]] = {}
+
+    def add(ids: Collection[UUID], reason: str) -> None:
+        for card_id in ids:
+            reasons.setdefault(card_id, set()).add(reason)
+
+    for contact in query.contacts:
+        add(
+            list(
+                CounterpartyContact.objects.filter(
+                    counterparty__company_id=company_id,
+                    kind=contact.kind,
+                    value_normalized=contact.normalized,
+                ).values_list("counterparty_id", flat=True)
+            ),
+            contact.kind,
+        )
+    cards = Counterparty.objects.filter(company_id=company_id)
+    for ids, reason in loose_matches(cards, query):
+        add(ids, reason)
+    if query.first_name and query.last_name:
+        add(
+            list(
+                cards.filter(
+                    first_name__iexact=query.first_name, last_name__iexact=query.last_name
+                ).values_list("id", flat=True)
+            ),
+            "name",
+        )
+    if query.company_name:
+        add(
+            list(
+                cards.filter(company_name__iexact=query.company_name).values_list("id", flat=True)
+            ),
+            "company_name",
+        )
+    # A merged card is offered as its main card (§ 6.5.2).
+    for card_id in list(reasons):
+        main = main_card_id(company_id, card_id)
+        if main != card_id:
+            reasons.setdefault(main, set()).update(reasons.pop(card_id))
+    found = {
+        c.id: c
+        for c in of_company(company_id)
+        .filter(pk__in=reasons)
+        .exclude(state=Counterparty.State.MERGED)
+    }
+    kept = {k: v for k, v in reasons.items() if k in found}
+
+    def order(card_id: UUID) -> tuple[int, int, str]:
+        matched = kept[card_id]
+        return (0 if matched & {"phone", "email"} else 1, -len(matched), str(found[card_id]))
+
+    return [(found[i], sorted(kept[i])) for i in sorted(found, key=order)]

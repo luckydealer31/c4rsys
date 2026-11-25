@@ -606,7 +606,7 @@ export type Vehicle = {
   acquisition?: { cost: string; currency: string } | null;
   /** Declared owner (§ 8.3.13); unconfirmed until the owner answers the request. */
   owner: {
-    kind: "company" | "profile" | "person" | "organization" | "client" | "none";
+    kind: "company" | "profile" | "person" | "organization" | "client" | "counterparty" | "none";
     lookup: string;
     name: string;
     /** A person's name apart (customer's remark of 25.11.2026); «name» is them joined. */
@@ -624,7 +624,9 @@ export type Vehicle = {
     /** A refusal of the link or the management (§ 8.3.3). */
     conflict?: boolean;
     company?: { public_id: string; display_name: string; legal_name: string };
-    client?: { id: string; name: string };
+    client?: { id: string; name: string; kind?: "person" | "company" };
+    /** The owner of a managed vehicle as a counterparty (customer's decision of 25.11.2026). */
+    counterparty?: { id: string; name: string; kind: "person" | "company" };
     /** «ownership_change» — declared by the system after the ownership passed (§ 8.3.10). */
     source?: string;
   } | null;

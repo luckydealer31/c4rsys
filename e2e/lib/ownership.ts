@@ -31,7 +31,34 @@ export async function ownershipScenario(page: Page, s: Company, email: string): 
   await page.getByRole("main").getByRole("textbox").first().fill("Managed Forza");
   await next.click();
   await page.getByLabel(t("vehicles.owner_short_managed"), { exact: true }).check();
-  await page.getByRole("main").locator("select").first().selectOption("none");
+  // The owner of a managed vehicle is a counterparty: a person or a company, chosen from the list
+  // or entered anew; what is in the list already is shown while it is entered (customer's
+  // decisions of 25.11.2026).
+  await ok(page, "POST", `/c/${s.cmp}/counterparties`, {
+    kind: "person",
+    last_name: "Щукин",
+    first_name: "Тимофей",
+    middle_name: "Андреевич",
+    contacts: [{ kind: "phone", value: "+66 81 555 0101" }],
+  });
+  const picker = page.getByTestId("owner-picker");
+  await picker.locator("select").first().selectOption("person");
+  await expect(picker.getByLabel(t("vehicles.owner_last_name"))).toBeVisible();
+  await expect(picker.getByLabel(t("vehicles.owner_middle_name"))).toBeVisible();
+  await picker.locator("select").first().selectOption("company");
+  await expect(picker.getByLabel(t("vehicles.owner_name_company"))).toBeVisible();
+  await expect(picker.getByLabel(t("vehicles.owner_contact_person"))).toBeVisible();
+  await picker.locator("select").first().selectOption("person");
+  // No search of its own and no ID here: the matches come as the last name alone is typed
+  // (customer's remark of 25.11.2026).
+  await expect(picker.getByRole("textbox")).toHaveCount(6);
+  await picker.getByLabel(t("vehicles.owner_last_name")).fill("Щукин");
+  const matches = page.getByTestId("owner-matches");
+  await expect(matches).toContainText("Щукин Тимофей Андреевич");
+  await expect(matches).toContainText(t("clients.matched_last_name"));
+  await matches.getByRole("button", { name: t("vehicles.owner_use_existing", { name: "Щукин Тимофей Андреевич" }) }).click();
+  await expect(picker.getByRole("link", { name: "Щукин Тимофей Андреевич" })).toBeVisible();
+  await expect(picker.getByLabel(t("vehicles.owner_last_name"))).toHaveCount(0);
   await next.click();
   await next.click();
   await page.getByRole("main").locator("select").first().selectOption(s.location);
@@ -42,8 +69,12 @@ export async function ownershipScenario(page: Page, s: Company, email: string): 
   await notice.getByRole("button", { name: t("vehicles.take_into_management_button"), exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/vehicles/${earlier.id}$`));
   await expect(page.getByRole("heading", { name: "Client Forza" })).toBeVisible();
-  const card = (await ok(page, "GET", `/c/${s.cmp}/vehicles/${earlier.id}`)).vehicle as { relation: string };
+  const card = (await ok(page, "GET", `/c/${s.cmp}/vehicles/${earlier.id}`)).vehicle as {
+    relation: string;
+    owner: { counterparty?: { name: string } };
+  };
   expect(card.relation).toBe("managed");
+  expect(card.owner.counterparty?.name).toBe("Щукин Тимофей Андреевич");
   // The ownership is a tab of the card of its own (customer's decision of 24.11.2026); the old
   // address of the part of the history leads to it.
   await page.goto(`/c/${s.cmp}/vehicles/${earlier.id}?tab=history&part=ownership`);

@@ -276,6 +276,9 @@ class VehicleOwnerClaim(models.Model):
         PERSON = "person"
         ORGANIZATION = "organization"
         CLIENT = "client"  # a client of the company, for a client vehicle (§ 8.1.2)
+        # A counterparty of the company, for a managed vehicle (customer's decision of
+        # 25.11.2026): the owner gives the vehicle into the management.
+        COUNTERPARTY = "counterparty"
         NONE = "none"
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
@@ -288,6 +291,9 @@ class VehicleOwnerClaim(models.Model):
     owner_user_id = models.UUIDField(null=True, blank=True)
     client = models.ForeignKey(
         "parties.ClientCard", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    counterparty = models.ForeignKey(
+        "parties.Counterparty", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
     manual_name = models.CharField(max_length=300, blank=True, default="")
     # A person is named by the last name, the first name and the middle name apart, so that a

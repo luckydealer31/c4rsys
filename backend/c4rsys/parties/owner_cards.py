@@ -1,0 +1,165 @@
+"""The owner of a vehicle as a card of the company (customer's decisions of 25.11.2026).
+
+The owner of a managed vehicle is a counterparty of the company: he gives the vehicle into the
+management. The owner of a client vehicle is a client. In the form of the vehicle the owner is a
+person or a company: a card of the list is chosen, or a new one is entered with the usual data
+of the card (§ 6.2.7–6.2.8) and created with the vehicle in one command.
+"""
+
+from dataclasses import dataclass
+from typing import Any
+from uuid import UUID
+
+from c4rsys.companies.models import Company
+from c4rsys.parties import counterparties, services
+from c4rsys.parties.models import ClientCard, Counterparty
+from c4rsys.platform import errors
+from c4rsys.platform.commands import CommandContext
+from c4rsys.platform.http import get_str
+
+CLIENT = "client"
+COUNTERPARTY = "counterparty"
+NAME_MAX = 150
+COMPANY_NAME_MAX = 200
+
+
+@dataclass(frozen=True)
+class NewCard:
+    kind: str
+    last_name: str = ""
+    first_name: str = ""
+    middle_name: str = ""
+    company_name: str = ""
+    # The contact person of a company (customer's remark of 25.11.2026).
+    contact_person: str = ""
+    address: str = ""
+    contacts: tuple[services.Contact, ...] = ()
+
+    def payload(self) -> dict[str, Any]:
+        return {
+            "kind": self.kind,
+            "last_name": self.last_name,
+            "first_name": self.first_name,
+            "middle_name": self.middle_name,
+            "company_name": self.company_name,
+            "contact_person": self.contact_person,
+            "address": self.address,
+            "contacts": [c.as_dict() for c in self.contacts],
+        }
+
+    def query(self) -> services.MatchQuery:
+        return services.MatchQuery(
+            first_name=self.first_name,
+            last_name=self.last_name,
+            company_name=self.company_name,
+            contacts=self.contacts,
+        )
+
+
+def parse_new(data: Any) -> NewCard:
+    """The usual minimum of a card: a person by the last and the first name, a company by its
+    name, and at least one contact (§ 6.2.7–6.2.8)."""
+    if not isinstance(data, dict):
+        raise errors.validation_error("owner_card")
+    kind = get_str(data, "kind", max_length=10)
+    person = kind == ClientCard.Kind.PERSON
+    card = NewCard(
+        kind=kind,
+        last_name=get_str(data, "last_name", max_length=NAME_MAX, required=False) if person else "",
+        first_name=get_str(data, "first_name", max_length=NAME_MAX, required=False)
+        if person
+        else "",
+        middle_name=get_str(data, "middle_name", max_length=NAME_MAX, required=False)
+        if person
+        else "",
+        company_name=""
+        if person
+        else get_str(data, "company_name", max_length=COMPANY_NAME_MAX, required=False),
+        contact_person=""
+        if person
+        else get_str(data, "contact_person", max_length=200, required=False),
+        address=get_str(data, "address", max_length=500, required=False),
+        contacts=tuple(services.parse_contacts(data.get("contacts", []), required=True)),
+    )
+    services.ClientData(
+        kind=card.kind,
+        first_name=card.first_name,
+        last_name=card.last_name,
+        company_name=card.company_name,
+    ).check_minimum()
+    return card
+
+
+def create(
+    ctx: CommandContext, company: Company, card_type: str, new: NewCard
+) -> ClientCard | Counterparty:
+    """A card with the same data is not merged: the new one is marked as a possible duplicate
+    (§ 6.5.1); the form has shown the matches before."""
+    if card_type == COUNTERPARTY:
+        return counterparties.create(
+            ctx,
+            company,
+            counterparties.CounterpartyData(
+                kind=new.kind,
+                first_name=new.first_name,
+                last_name=new.last_name,
+                middle_name=new.middle_name,
+                company_name=new.company_name,
+                address=new.address,
+                extended={"contact_person": new.contact_person} if new.contact_person else {},
+            ),
+            list(new.contacts),
+            possible_duplicate=bool(counterparties.matches(company.id, new.query())),
+        )
+    return services.create_client(
+        ctx,
+        company,
+        services.ClientData(
+            kind=new.kind,
+            first_name=new.first_name,
+            last_name=new.last_name,
+            middle_name=new.middle_name,
+            company_name=new.company_name,
+            address=new.address,
+            extended={"contact_person": new.contact_person} if new.contact_person else {},
+        ),
+        list(new.contacts),
+        possible_duplicate=bool(services.matches(company.id, new.query())),
+    )
+
+
+def chosen(company_id: UUID, card_type: str, card_id: UUID) -> ClientCard | Counterparty:
+    """A card of the list that is not archived nor merged."""
+    model: type[ClientCard] | type[Counterparty] = (
+        Counterparty if card_type == COUNTERPARTY else ClientCard
+    )
+    card = model.objects.filter(company_id=company_id, pk=card_id).first()
+    field = "owner_counterparty_id" if card_type == COUNTERPARTY else "owner_client_id"
+    if card is None:
+        raise errors.validation_error(field, code="CLIENT_UNKNOWN")
+    if card.state != model.State.ACTIVE:
+        raise errors.validation_error(field, code="OWNER_CARD_NOT_ACTIVE")
+    return card
+
+
+def full_name(card: ClientCard | Counterparty) -> str:
+    """«Last First Middle» of a person, the name of a company."""
+    if card.company_name:
+        return card.company_name
+    name = " ".join(p for p in (card.last_name, card.first_name, card.middle_name) if p)
+    if name:
+        return name
+    if isinstance(card, Counterparty):
+        return counterparties.display_name(card)
+    return services.display_name(card)
+
+
+def first_contact(card: ClientCard | Counterparty) -> str:
+    """The email, else the phone, of the card: the request to the owner goes to it when no ID
+    is given (agent's choice, not confirmed)."""
+    found: list[tuple[str, str]] = [(c.kind, c.value) for c in card.contacts.all()]
+    for kind in ("email", "phone"):
+        for given, value in found:
+            if given == kind:
+                return value
+    return ""

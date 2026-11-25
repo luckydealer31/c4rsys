@@ -530,6 +530,35 @@ class MatchQuery:
     birth_date: date | None = None
     company_name: str = ""
     contacts: tuple[Contact, ...] = ()
+    # The owner of a vehicle entered in its form: the matches are offered as it is typed, by the
+    # last name alone too and by a part of the company name (customer's remark of 25.11.2026).
+    loose: bool = False
+
+
+def loose_matches(cards: QuerySet[Any], query: MatchQuery) -> list[tuple[list[Any], str]]:
+    """The ids matched only while the owner of a vehicle is typed."""
+    if not query.loose:
+        return []
+    found: list[tuple[list[Any], str]] = []
+    if query.last_name:
+        found.append(
+            (
+                list(cards.filter(last_name__iexact=query.last_name).values_list("id", flat=True)),
+                "last_name",
+            )
+        )
+    if len(query.company_name) >= 3:
+        found.append(
+            (
+                list(
+                    cards.filter(company_name__icontains=query.company_name).values_list(
+                        "id", flat=True
+                    )
+                ),
+                "company_name",
+            )
+        )
+    return found
 
 
 def matches(company_id: UUID, query: MatchQuery) -> list[tuple[ClientCard, list[str]]]:
@@ -551,6 +580,8 @@ def matches(company_id: UUID, query: MatchQuery) -> list[tuple[ClientCard, list[
             contact.kind,
         )
     cards = ClientCard.objects.filter(company_id=company_id)
+    for ids, reason in loose_matches(cards, query):
+        add(ids, reason)  # type: ignore[arg-type]
     if query.first_name and query.last_name:
         add(
             cards.filter(

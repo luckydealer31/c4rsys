@@ -389,7 +389,8 @@
     "wizard_name_required": "The first and the last name are required.",
     "wizard_company_required": "The company name is required.",
     "wizard_contact_required": "A phone or an email is required.",
-    "new_button": "New client"
+    "new_button": "New client",
+    "matched_last_name": "last name"
   },
   "common": {
     "cancel": "Cancel",
@@ -1025,7 +1026,7 @@
     "link_not_accepted": "The link is not confirmed.",
     "card_archived": "The card is in the archive.",
     "owner_request_managed_only": "A request is sent to the owner of a managed vehicle.",
-    "owner_profile_required": "Give the owner by USR ID, email, phone or CMP ID first.",
+    "owner_profile_required": "First name the owner as a counterparty with an email or a phone (or link the counterparty to a profile).",
     "owner_request_pending": "A request is already waiting for the answers.",
     "owner_already_confirmed": "The owner has already confirmed the management.",
     "owner_request_not_open": "The request is closed.",
@@ -1378,7 +1379,8 @@
     "telegram_taken": "This Telegram account is already bound to another profile.",
     "expense_draft_closed": "This draft is already recorded or removed.",
     "too_many_pages": "No more than {{max}} photos in one document.",
-    "pages_not_photos": "Several files at once must be photos. A PDF is uploaded as one file."
+    "pages_not_photos": "Several files at once must be photos. A PDF is uploaded as one file.",
+    "owner_card_not_active": "This card is archived or merged — choose an active one."
   },
   "history": {
     "action": "Action",
@@ -2470,7 +2472,7 @@
     "own_only": "The vehicle is created as own; the usage contexts existing in the company are switched on.",
     "owner_client": "A client — client vehicle (service)",
     "owner_client_choose": "Client",
-    "owner_client_hint": "A client vehicle is not bound to a location and is not used for rental or the warehouse; the location is given in the service operation (§ 8.1.2).",
+    "owner_client_hint": "The owner of a client vehicle is a client of the company. Enter his data: a similar card in the list is offered and may be chosen. A client vehicle has no location and is not used for rental or warehouse.",
     "owner_company": "The company «{{company}}» — own vehicle",
     "owner_contact": "Contact (optional)",
     "owner_kind": "Owner",
@@ -2481,7 +2483,7 @@
     "owner_kind_profile": "A c4rsys profile (ID, email or phone)",
     "owner_lookup": "Owner's c4rsys ID, email or phone",
     "owner_lookup_hint": "The company is not told whether such a profile exists. The confirmation request to the owner comes with the next task.",
-    "owner_managed_hint": "The owner data stay unconfirmed until the owner answers; this does not stop work with the vehicle (§ 8.3.3, § 8.3.13).",
+    "owner_managed_hint": "The owner of a managed vehicle is a counterparty of the company. Enter his data: a similar card in the list is offered and may be chosen. The request to the owner goes to his email or phone, or to the profile linked to the counterparty; the ID of the profile is given in the card of the counterparty.",
     "owner_name_organization": "Organization name",
     "owner_not_given": "Not given",
     "owner_other": "Another owner — managed vehicle",
@@ -2949,7 +2951,17 @@
     "owner_first_name": "First name",
     "owner_middle_name": "Middle name",
     "owner_name_company": "Company name",
-    "owner_waiting": "waiting for the owner's answer to the request"
+    "owner_waiting": "waiting for the owner's answer to the request",
+    "owner_party_person": "Person",
+    "owner_party_company": "Company",
+    "owner_card_client": "Client",
+    "owner_card_counterparty": "Counterparty",
+    "owner_card_other": "Choose another",
+    "owner_contact_person": "Contact person",
+    "owner_phone": "Phone",
+    "owner_email": "Email",
+    "owner_matches_title": "Similar cards are in the list already — you may choose one:",
+    "owner_use_existing": "Choose: {{name}}"
   },
   "warehouse": {
     "action_create": "Create",

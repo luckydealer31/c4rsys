@@ -18,7 +18,7 @@ from c4rsys.fleet.models import (
     VehicleOwnership,
 )
 from c4rsys.notifications.models import Notification
-from c4rsys.parties.models import ClientCard
+from c4rsys.parties.models import ClientCard, Counterparty
 from c4rsys.platform.errors import ApiError
 from c4rsys.platform.models import AuditEvent
 from tests.accounts.helpers import post
@@ -99,14 +99,18 @@ def test_three_answers_one_by_one(owner: Client, cmp: str, location: str) -> Non
     # § 8.3.14: an answer is never changed.
     again = answer(somchai, request["id"], ownership=False)
     assert again.json()["error"]["code"] == "OWNER_ANSWER_GIVEN"
-    assert not ClientCard.objects.exists()
+    assert not Counterparty.objects.exists()
     assert answer(somchai, request["id"], link=True, management=True).status_code == 200
-    # «Yes» to the link: the owner becomes a client — a card linked to the profile.
-    client = ClientCard.objects.get()
+    # «Yes» to the link: the owner of the managed vehicle becomes a counterparty linked to the
+    # profile (customer's decision of 25.11.2026); no client card.
+    client = Counterparty.objects.get()
+    assert not ClientCard.objects.exists()
     assert client.linked_user_id == somchai_id(usr)
     assert (client.first_name, client.last_name) == ("Anna", "Petrova")
     assert [c.value for c in client.contacts.all()] == ["somchai@example.com"]
-    shown = owner.get(f"/api/c/{cmp}/profile-links?card_type=client&card_id={client.id}").json()
+    shown = owner.get(
+        f"/api/c/{cmp}/profile-links?card_type=counterparty&card_id={client.id}"
+    ).json()
     assert shown["links"][0]["state"] == "accepted"
     status = owner.get(url).json()["vehicle"]["owner"]
     assert status["confirmed"] and not status["conflict"]
@@ -154,7 +158,7 @@ def test_refusal_is_a_conflict_and_a_new_request_keeps_answers(
 
     # An incomplete answer: the next request supersedes it and keeps its answer.
     answer(somchai, second.json()["request"]["id"], link=True)
-    assert ClientCard.objects.count() == 1
+    assert Counterparty.objects.count() == 1
     third = ask(owner, cmp, card["id"])
     assert third.status_code == 201
     states = [r["state"] for r in owner.get(f"{url}/owner-requests").json()["requests"]]
@@ -224,7 +228,7 @@ def test_company_owner_and_a_dispute(owner: Client, cmp: str, location: str) -> 
     )
     assert given.status_code == 200, given.content
     ownership = VehicleOwnership.objects.get()
-    client = ClientCard.objects.get()
+    client = Counterparty.objects.get()
     assert client.kind == "company" and client.company_name == "Fleet Owner"
     assert client.linked_company_id == ownership.owner_company_id
     assert ownership.owner_company_id is not None and ownership.ended_at is None
@@ -349,52 +353,152 @@ def test_ownership_confirmed_earlier_by_the_same_owner_is_no_dispute(
     assert VehicleOwnership.objects.count() == 1
 
 
-def test_owner_yes_links_the_card_of_a_broken_link_again(
+def test_owner_yes_links_the_counterparty_named_as_the_owner(
     owner: Client, cmp: str, location: str
 ) -> None:
+    """Customer's decisions of 25.11.2026: the owner of a managed vehicle is a counterparty,
+    chosen or entered in the form of the vehicle; the request goes to the ID given, and «yes» to
+    the link links that very card. A second «yes» keeps it."""
     somchai, usr = person("somchai@example.com")
-    body = {
+    card = vehicle(
+        owner,
+        cmp,
+        location,
+        relation="managed",
+        owner_kind="counterparty",
+        owner_lookup=usr,
+        owner_card={
+            "kind": "person",
+            "last_name": "Щукин",
+            "first_name": "Тимофей",
+            "middle_name": "Андреевич",
+            "address": "Phuket",
+            "contacts": [{"kind": "phone", "value": "+66 81 234 5678"}],
+        },
+    )
+    named = Counterparty.objects.get()
+    assert (named.last_name, named.middle_name, named.address) == ("Щукин", "Андреевич", "Phuket")
+    assert card["owner"]["counterparty"] == {
+        "id": str(named.id),
+        "name": "Щукин Тимофей Андреевич",
         "kind": "person",
-        "first_name": "Somchai",
-        "last_name": "K",
-        "contacts": [{"kind": "phone", "value": "+66 81 234 5678"}],
     }
-    client_id = post(owner, f"/api/c/{cmp}/clients", body, key()).json()["client"]["id"]
-    link_body = {"card_type": "client", "card_id": client_id, "target": usr}
-    link = post(owner, f"/api/c/{cmp}/profile-links", link_body, key()).json()["link"]
-    accepted = post(
-        somchai, f"/api/profile-links/{link['id']}/accept", {"fields": ["first_name"]}, key()
-    )
-    assert accepted.status_code == 200, accepted.content
-    broken = post(
-        owner, f"/api/c/{cmp}/profile-links/{link['id']}/break", {"initiator": "company"}, key()
-    )
-    assert broken.status_code == 200, broken.content
-
-    card = vehicle(owner, cmp, location, relation="managed", owner_kind="profile", owner_lookup=usr)
+    assert card["owner"]["name"] == "Щукин Тимофей Андреевич"
     request = ask(owner, cmp, card["id"]).json()["request"]
     assert answer(somchai, request["id"], link=True).status_code == 200
-    # § 6.6.6: after a new request is accepted the previous card is linked; no new card.
-    linked = ClientCard.objects.get()
-    assert str(linked.id) == client_id and linked.linked_user_id == somchai_id(usr)
-    url = f"/api/c/{cmp}/profile-links?card_type=client&card_id={client_id}"
-    assert [x["state"] for x in owner.get(url).json()["links"]] == ["accepted", "broken"]
-    relinked = AuditEvent.objects.filter(action="profile_link.accepted").latest("occurred_at")
-    assert (relinked.after or {})["source"] == "vehicle_owner"
+    linked = Counterparty.objects.get()
+    assert linked.id == named.id and linked.linked_user_id == somchai_id(usr)
+    assert not ClientCard.objects.exists()
+    url = f"/api/c/{cmp}/profile-links?card_type=counterparty&card_id={named.id}"
+    assert [x["state"] for x in owner.get(url).json()["links"]] == ["accepted"]
 
-    # A second «yes» keeps the linked card.
+    # Another vehicle of the same counterparty, chosen from the list: the request goes to the
+    # profile the card is linked to, and the link is not asked again.
     other = vehicle(
         owner,
         cmp,
         location,
         relation="managed",
-        owner_kind="profile",
-        owner_lookup=usr,
+        owner_kind="counterparty",
+        owner_counterparty_id=str(named.id),
         vin="JTDBT923771234571",
     )
-    again = ask(owner, cmp, other["id"]).json()["request"]
-    assert answer(somchai, again["id"], link=True).status_code == 200
-    assert ClientCard.objects.count() == 1
+    again = ask(owner, cmp, other["id"])
+    assert again.status_code == 201, again.content
+    shown = somchai.get("/api/owner-requests").json()["requests"]
+    assert any(r["id"] == again.json()["request"]["id"] and r["linked"] for r in shown)
+    assert Counterparty.objects.count() == 1
+
+
+def test_a_new_owner_card_is_checked_and_marked_as_a_possible_duplicate(
+    owner: Client, cmp: str, location: str
+) -> None:
+    existing = post(
+        owner,
+        f"/api/c/{cmp}/counterparties",
+        {
+            "kind": "company",
+            "company_name": "Fleet Owner",
+            "contacts": [{"kind": "email", "value": "fleet@example.com"}],
+        },
+        key(),
+    )
+    assert existing.status_code == 201, existing.content
+    found = post(owner, f"/api/c/{cmp}/counterparties/matches", {"email": "FLEET@example.com"})
+    assert [m["counterparty"]["id"] for m in found.json()["matches"]] == [
+        existing.json()["counterparty"]["id"]
+    ]
+    # While the owner is typed: by a part of the company name, by the last name alone
+    # (customer's remark of 25.11.2026); the list of the clients keeps its own rules without it.
+    part = post(
+        owner, f"/api/c/{cmp}/counterparties/matches", {"company_name": "Fleet", "loose": True}
+    )
+    assert [m["matched"] for m in part.json()["matches"]] == [["company_name"]]
+    strict = post(owner, f"/api/c/{cmp}/counterparties/matches", {"company_name": "Fleet"})
+    assert strict.json()["matches"] == []
+    person_card = {
+        "kind": "person",
+        "last_name": "Щукин",
+        "first_name": "Тимофей",
+        "contacts": [{"kind": "phone", "value": "+66 81 555 0101"}],
+    }
+    assert post(owner, f"/api/c/{cmp}/counterparties", person_card, key()).status_code == 201
+    by_last = post(
+        owner, f"/api/c/{cmp}/counterparties/matches", {"last_name": "щукин", "loose": True}
+    )
+    assert [m["matched"] for m in by_last.json()["matches"]] == [["last_name"]]
+    missing = post(
+        owner,
+        f"/api/c/{cmp}/vehicles",
+        {
+            "location_id": location,
+            "odometer_unit": "km",
+            "name": "Yaris",
+            "relation": "managed",
+            "owner_kind": "counterparty",
+            "owner_card": {"kind": "company", "company_name": "Fleet Owner"},
+        },
+        key(),
+    )
+    assert missing.json()["error"]["field"] == "contacts"
+    vehicle(
+        owner,
+        cmp,
+        location,
+        relation="managed",
+        owner_kind="counterparty",
+        owner_card={
+            "kind": "company",
+            "company_name": "Fleet Owner",
+            "contacts": [{"kind": "email", "value": "fleet@example.com"}],
+        },
+    )
+    assert Counterparty.objects.filter(possible_duplicate=True).count() == 1
+
+
+def test_the_owner_of_a_client_vehicle_is_a_client_card(
+    owner: Client, cmp: str, location: str
+) -> None:
+    created = post(
+        owner,
+        f"/api/c/{cmp}/vehicles",
+        {
+            "odometer_unit": "km",
+            "name": "Yaris",
+            "relation": "client",
+            "owner_kind": "client",
+            "owner_card": {
+                "kind": "person",
+                "last_name": "Petrov",
+                "first_name": "Ivan",
+                "contacts": [{"kind": "phone", "value": "+66 81 234 5678"}],
+            },
+        },
+        key(),
+    )
+    assert created.status_code == 201, created.content
+    assert created.json()["vehicle"]["owner"]["client"]["name"] == "Petrov Ivan"
+    assert ClientCard.objects.count() == 1 and not Counterparty.objects.exists()
 
 
 def test_the_vehicle_is_locked_before_the_ownership_is_recorded(

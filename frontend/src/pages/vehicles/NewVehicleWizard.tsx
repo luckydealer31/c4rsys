@@ -5,13 +5,12 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 
 import { ApiError, uploadPages } from "../../api/client";
 import { useApi } from "../../api/queries";
-import type { CatalogMake, CatalogModel, Client, Vehicle, VehicleOptions } from "../../api/types";
+import type { CatalogMake, CatalogModel, Vehicle, VehicleOptions } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Info, Loading } from "../../components/ui";
-import { NO_OWNER_NAMES, OwnerNameFields, ownerNamesBody } from "./OwnerNameFields";
+import { NO_OWNER, OwnerCardPicker, ownerBody, type OwnerValue } from "./OwnerCardPicker";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { isMini } from "../../mini";
-import { clientName } from "../clients/ClientsPage";
 import { countries } from "../settings/CompanyProfilePage";
 import { useLocations } from "../settings/LocationsPage";
 
@@ -39,16 +38,7 @@ type Form = {
   vin: string;
   plate: string;
   relation: string;
-  owner_kind: string;
-  owner_lookup: string;
-  owner_name: string;
-  owner_last_name: string;
-  owner_first_name: string;
-  owner_middle_name: string;
-  owner_contact: string;
-  owner_address: string;
-  owner_client_id: string;
-  client_owner_kind: string;
+  owner: OwnerValue;
   odometer_unit: string;
   location_id: string;
 };
@@ -98,8 +88,6 @@ const PAPER_NAMES: Record<string, string> = {
   drive: "vehicles.drives",
 };
 
-const OWNER_KINDS = ["profile", "person", "organization", "none"] as const;
-const CLIENT_OWNER_KINDS = ["client", "person", "organization", "none"] as const;
 
 /** Step-by-step creation of a vehicle (customer's decision of 11.11.2026): one question per
  * screen — type, make, model, year, VIN, plate, name, owner, odometer unit, location. Make,
@@ -115,11 +103,6 @@ export function NewVehiclePage() {
   const locations = useLocations();
   const can = useCan();
   const options = useApi<VehicleOptions>(["vehicle-options"], "/catalog/vehicle-options");
-  const clients = useApi<{ clients: Client[] }>(
-    ["clients", company.public_id, ""],
-    `/c/${company.public_id}/clients?q=`,
-    can("client.list"),
-  );
   const [params] = useSearchParams();
   const initialRelation = params.get("relation");
   const [form, setForm] = useState<Form>({
@@ -132,13 +115,7 @@ export function NewVehiclePage() {
     vin: "",
     plate: "",
     relation: initialRelation === "managed" || initialRelation === "client" ? initialRelation : "own",
-    owner_kind: "profile",
-    owner_lookup: "",
-    ...NO_OWNER_NAMES,
-    owner_contact: "",
-    owner_address: "",
-    owner_client_id: "",
-    client_owner_kind: "client",
+    owner: NO_OWNER,
     odometer_unit: "km",
     location_id: "",
   });
@@ -200,17 +177,19 @@ export function NewVehiclePage() {
     // The owner named in the paper is put into the step of the owner (customer's decision of
     // 22.11.2026): it is written for a managed or a client vehicle, not for an own one.
     if (text("owner_name")) {
-      const kind = text("owner_kind") || "person";
-      step.owner_name = text("owner_name");
       // A person apart when the paper tells the parts; else the name as read goes to the last
       // name, to be split by hand (agent's choice, not confirmed).
+      const company = text("owner_kind") === "organization";
       const parts = text("owner_last_name") || text("owner_first_name") || text("owner_middle_name");
-      step.owner_last_name = parts ? text("owner_last_name") : text("owner_name");
-      step.owner_first_name = parts ? text("owner_first_name") : "";
-      step.owner_middle_name = parts ? text("owner_middle_name") : "";
-      step.owner_kind = kind;
-      step.client_owner_kind = kind;
-      step.owner_address = text("owner_address");
+      step.owner = {
+        ...NO_OWNER,
+        party: company ? "company" : "person",
+        company_name: company ? text("owner_name") : "",
+        last_name: company ? "" : parts ? text("owner_last_name") : text("owner_name"),
+        first_name: company || !parts ? "" : text("owner_first_name"),
+        middle_name: company || !parts ? "" : text("owner_middle_name"),
+        address: text("owner_address"),
+      };
     }
     // The documents of the card made with the vehicle (customer's decision of 23.11.2026): the
     // paper itself, with its file, and the vehicle passport the paper names.
@@ -305,26 +284,8 @@ export function NewVehiclePage() {
       vin: form.vin,
       relation: form.relation,
     };
-    if (form.relation === "client") {
-      const kind =
-        form.client_owner_kind === "client" && !form.owner_client_id ? "none" : form.client_owner_kind;
-      body.owner_kind = kind;
-      if (kind === "client") body.owner_client_id = form.owner_client_id;
-      if (kind === "person" || kind === "organization") {
-        Object.assign(body, ownerNamesBody(kind, "", form));
-        body.owner_contact = form.owner_contact;
-        body.owner_address = form.owner_address;
-      }
-    }
-    if (form.relation === "managed") {
-      body.owner_kind = form.owner_kind;
-      if (form.owner_kind === "profile") body.owner_lookup = form.owner_lookup;
-      if (form.owner_kind === "person" || form.owner_kind === "organization" || form.owner_kind === "profile") {
-        Object.assign(body, ownerNamesBody(form.owner_kind, form.owner_lookup, form));
-        body.owner_contact = form.owner_contact;
-        body.owner_address = form.owner_address;
-      }
-    }
+    // The owner is a card of the company (customer's decisions of 25.11.2026).
+    if (form.relation !== "own") Object.assign(body, ownerBody(form.relation, form.owner));
     if (usesCatalogMake) {
       body.make = form.make;
       if (form.model && form.model !== OTHER) body.model = form.model;
@@ -367,16 +328,10 @@ export function NewVehiclePage() {
     const body: Record<string, unknown> = {
       card_id: earlier.card_id,
       location_id: form.location_id,
-      owner_kind: form.owner_kind,
       reason: t("vehicles.was_client_reason"),
       expected_version: earlier.version,
+      ...ownerBody("managed", form.owner),
     };
-    if (form.owner_kind === "profile") body.owner_lookup = form.owner_lookup;
-    if (form.owner_kind === "person" || form.owner_kind === "organization" || form.owner_kind === "profile") {
-      Object.assign(body, ownerNamesBody(form.owner_kind, form.owner_lookup, form));
-      body.owner_contact = form.owner_contact;
-      body.owner_address = form.owner_address;
-    }
     if ((await take.run(body)) !== null) {
       await client.invalidateQueries({ queryKey: ["vehicles", company.public_id] });
       navigate(companyPath(company, `/vehicles/${earlier.card_id}`));
@@ -452,19 +407,6 @@ export function NewVehiclePage() {
       : m.name;
   const optional = ["make", "model", "year", "vin", "plate"].includes(step);
 
-  // A profile keeps the name, the contact and the address too (customer's remark of 25.11.2026).
-  const ownerManual = (kind: string) =>
-    kind === "person" || kind === "organization" || kind === "profile" ? (
-      <div className="row">
-        <OwnerNameFields kind={kind} lookup={form.owner_lookup} value={form} set={set} />
-        <Field label={t("vehicles.owner_contact")}>
-          <input value={form.owner_contact} onChange={(e) => set({ owner_contact: e.target.value })} />
-        </Field>
-        <Field label={t("vehicles.owner_address")}>
-          <input value={form.owner_address} onChange={(e) => set({ owner_address: e.target.value })} />
-        </Field>
-      </div>
-    ) : null;
   const relationChoice = (relation: string, label: string) => (
     <label>
       <input
@@ -635,55 +577,12 @@ export function NewVehiclePage() {
             <Info text={t(`vehicles.owner_${form.relation === "client" ? "client" : "managed"}_hint`)} />
           )}
         </div>
-        {form.relation === "own" ? null : form.relation === "client" ? (
-          <>
-            <Field label={t("vehicles.owner_kind")}>
-              <select
-                value={form.client_owner_kind}
-                onChange={(e) => set({ client_owner_kind: e.target.value })}
-              >
-                {CLIENT_OWNER_KINDS.map((kind) => (
-                  <option key={kind} value={kind}>
-                    {t(`vehicles.owner_kind_${kind}`)}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            {form.client_owner_kind === "client" ? (
-              <Field label={t("vehicles.owner_client_choose")}>
-                <select
-                  value={form.owner_client_id}
-                  onChange={(e) => set({ owner_client_id: e.target.value })}
-                >
-                  <option value="">—</option>
-                  {(clients.data?.clients ?? []).map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {clientName(c)}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            ) : null}
-            {ownerManual(form.client_owner_kind)}
-          </>
-        ) : (
-          <>
-            <Field label={t("vehicles.owner_kind")}>
-              <select value={form.owner_kind} onChange={(e) => set({ owner_kind: e.target.value })}>
-                {OWNER_KINDS.map((kind) => (
-                  <option key={kind} value={kind}>
-                    {t(`vehicles.owner_kind_${kind}`)}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            {form.owner_kind === "profile" ? (
-              <Field label={t("vehicles.owner_lookup")} hint={t("vehicles.owner_lookup_hint")}>
-                <input value={form.owner_lookup} onChange={(e) => set({ owner_lookup: e.target.value })} />
-              </Field>
-            ) : null}
-            {ownerManual(form.owner_kind)}
-          </>
+        {form.relation === "own" ? null : (
+          <OwnerCardPicker
+            relation={form.relation === "client" ? "client" : "managed"}
+            value={form.owner}
+            set={(change) => set({ owner: { ...form.owner, ...change } })}
+          />
         )}
       </div>
     );

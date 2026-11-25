@@ -224,6 +224,7 @@ def client_matches(request: HttpRequest, cmp: str) -> JsonResponse:
         birth_date=_birth_date(data),
         company_name=_name(data, "company_name", COMPANY_NAME_MAX),
         contacts=tuple(contacts),
+        loose=data.get("loose") is True,
     )
     found = services.matches(context.company.id, query)
     payloads = _payloads(context.company.id, [c for c, _ in found])
@@ -232,6 +233,36 @@ def client_matches(request: HttpRequest, cmp: str) -> JsonResponse:
             "matches": [
                 {"client": item, "matched": reasons}
                 for item, (_c, reasons) in zip(payloads, found, strict=True)
+            ]
+        }
+    )
+
+
+@require_POST
+def counterparty_matches(request: HttpRequest, cmp: str) -> JsonResponse:
+    """Existing counterparties for the entered data, as for the clients (§ 6.1.11): the owner of
+    a vehicle entered in its form is checked so (customer's remark of 25.11.2026). A read."""
+    context, actor = _actor(request, cmp)
+    _require(actor, "counterparty.view")
+    data = parse_json(request)
+    contacts: list[services.Contact] = []
+    for kind in ("phone", "email"):
+        value = data.get(kind)
+        if isinstance(value, str) and value.strip():
+            contacts.append(services.normalize_contact(kind, value, kind))
+    query = services.MatchQuery(
+        first_name=_name(data, "first_name"),
+        last_name=_name(data, "last_name"),
+        company_name=_name(data, "company_name", COMPANY_NAME_MAX),
+        contacts=tuple(contacts),
+        loose=data.get("loose") is True,
+    )
+    found = counterparties.matches(context.company.id, query)
+    return JsonResponse(
+        {
+            "matches": [
+                {"counterparty": _counterparty_payload(card), "matched": reasons}
+                for card, reasons in found
             ]
         }
     )

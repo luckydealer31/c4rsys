@@ -234,6 +234,7 @@ def restore(request: HttpRequest, cmp: str, card_id: UUID) -> JsonResponse:
     ):
         raise errors.permission_denied("vehicle.archive")
     owner = owners.parse(body, relation if relation in VehicleCard.Relation.values else "own")
+    owners.check_rights(actor, owner)
     reason = get_str(body, "reason", max_length=REASON_MAX)
 
     def handler(ctx: CommandContext) -> CommandResult:
@@ -304,6 +305,7 @@ def take_into_management(request: HttpRequest, cmp: str, card_id: UUID) -> JsonR
     expected_version = get_int(body, "expected_version")
     reason = get_str(body, "reason", max_length=REASON_MAX)
     owner = owners.parse(body, VehicleCard.Relation.MANAGED)
+    owners.check_rights(actor, owner)
 
     def handler(ctx: CommandContext) -> CommandResult:
         lifecycle.take_into_management(

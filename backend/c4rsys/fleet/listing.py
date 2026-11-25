@@ -41,7 +41,7 @@ class Batch:
             self.plates.setdefault(plate.vehicle_id, plate)
         self.claims: dict[UUID, VehicleOwnerClaim] = {}
         for claim in (
-            VehicleOwnerClaim.objects.select_related("client")
+            VehicleOwnerClaim.objects.select_related("client", "counterparty")
             .filter(vehicle_card_id__in=card_ids)
             .order_by("-created_at")
         ):

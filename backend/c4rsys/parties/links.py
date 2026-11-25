@@ -970,3 +970,188 @@ def incoming_payload(link: ProfileLink, now: datetime, available: dict[str, Any]
         "available": available,
         "shared": (link.shared or {}).get("data", {}),
     }
+
+
+# --- The owner of a managed vehicle is a counterparty (customer's decision of 25.11.2026) ----
+
+
+def is_linked_counterparty(
+    requester_id: UUID, *, user_id: UUID | None, company_id: UUID | None
+) -> bool:
+    """Whether the profile is already a linked counterparty of the company."""
+    if user_id is None and company_id is None:
+        return False
+    by_profile = (
+        Q(linked_user_id=user_id) if user_id is not None else Q(linked_company_id=company_id)
+    )
+    return Counterparty.objects.filter(by_profile, company_id=requester_id).exists()
+
+
+def counterparty_from_owner(
+    ctx: CommandContext,
+    requester: Company,
+    *,
+    card_id: UUID | None,
+    owner_user: UserAccount | None,
+    owner_company: Company | None,
+    requested_by: UUID,
+) -> Counterparty:
+    """«Yes» to the link of § 8.3.1 links the owner of a managed vehicle as a counterparty
+    (customer's decision of 25.11.2026, in place of the client of 30.10.2026). A counterparty
+    already linked to the profile is kept. The counterparty the company named as the owner is
+    linked if it is free. Otherwise a new card is made of the profile, as for a client: the
+    names (or the company name) and the confirmed email; a card with the same data is not merged
+    but marked as a possible duplicate (§ 6.5.1)."""
+    user_id = owner_user.id if owner_user is not None else None
+    company_id = owner_company.id if owner_company is not None else None
+    by_profile = (
+        Q(linked_user_id=user_id) if user_id is not None else Q(linked_company_id=company_id)
+    )
+    linked = Counterparty.objects.select_for_update().filter(by_profile, company=requester)
+    existing = linked.first()
+    if existing is not None:
+        return existing
+    now = timezone.now()
+    if owner_user is not None:
+        data = accounts.shareable_profile(owner_user)
+        shared = {
+            k: data[k] for k in ("first_name", "last_name", "middle_name", "email") if data[k]
+        }
+        profile, label = Profile.PERSON, owner_user.public_id
+    elif owner_company is not None:
+        data = companies.shareable_profile(owner_company)
+        shared = {k: data[k] for k in ("display_name", "email", "phone") if data[k]}
+        profile, label = Profile.COMPANY, owner_company.public_id
+    else:
+        raise RuntimeError("An owner is a person or a company")
+
+    def accepted_link(card: Counterparty) -> ProfileLink:
+        return ProfileLink.objects.create(
+            company=requester,
+            counterparty=card,
+            profile=profile,
+            target_label=label,
+            target_user_id=user_id,
+            target_company_id=company_id,
+            state=State.ACCEPTED,
+            created_by_user_id=requested_by,
+            created_at=now,
+            expires_at=now,
+            decided_at=now,
+            decided_by_user_id=ctx.actor.user_id,
+            shared={"data": shared, "at": now.isoformat(), "source": "vehicle_owner"},
+        )
+
+    named = (
+        Counterparty.objects.select_for_update()
+        .filter(company=requester, pk=card_id, state=Counterparty.State.ACTIVE)
+        .first()
+        if card_id is not None
+        else None
+    )
+    if named is not None and named.linked_user_id is None and named.linked_company_id is None:
+        named.linked_user_id = user_id
+        named.linked_company_id = company_id
+        named.version += 1
+        try:
+            with transaction.atomic():
+                named.save(
+                    update_fields=["linked_user_id", "linked_company_id", "version", "updated_at"]
+                )
+                link = accepted_link(named)
+        except IntegrityError as exc:
+            return _linked_counterparty_meanwhile(linked, exc)
+        ctx.audit(
+            "profile_link.accepted",
+            object_type="profile_link",
+            object_id=link.id,
+            after={
+                "card_type": "counterparty",
+                "card_id": str(named.id),
+                "fields": sorted(shared),
+                "source": "vehicle_owner",
+            },
+            company_id=requester.id,
+        )
+        return named
+    if owner_user is not None:
+        names = (data["first_name"], data["last_name"], data["middle_name"])
+        if not names[0] or not names[1]:
+            # A client already linked to the profile names the person (agent's choice).
+            client = ClientCard.objects.filter(by_profile, company=requester).first()
+            if client is not None:
+                names = (client.first_name, client.last_name, client.middle_name)
+        if not names[0] or not names[1]:
+            raise errors.business_rule("NAME_REQUIRED")
+        card_data = counterparties.CounterpartyData(
+            kind=Counterparty.Kind.PERSON,
+            first_name=names[0],
+            last_name=names[1],
+            middle_name=names[2],
+        )
+        contacts = _owner_contacts([("email", data["email"])])
+    else:
+        card_data = counterparties.CounterpartyData(
+            kind=Counterparty.Kind.COMPANY, company_name=data["display_name"]
+        )
+        contacts = _owner_contacts([("email", data["email"]), ("phone", data["phone"])])
+    duplicates = bool(
+        counterparties.matches(
+            requester.id,
+            services.MatchQuery(
+                first_name=card_data.first_name,
+                last_name=card_data.last_name,
+                company_name=card_data.company_name,
+                contacts=tuple(contacts),
+            ),
+        )
+    )
+    try:
+        with transaction.atomic():
+            card = Counterparty.objects.create(
+                company=requester,
+                kind=card_data.kind,
+                first_name=card_data.first_name,
+                last_name=card_data.last_name,
+                middle_name=card_data.middle_name,
+                company_name=card_data.company_name,
+                possible_duplicate=duplicates,
+                linked_user_id=user_id,
+                linked_company_id=company_id,
+                created_by_user_id=ctx.actor.user_id,
+                created_at=now,
+            )
+            counterparties.write_contacts(card, contacts)
+            link = accepted_link(card)
+    except IntegrityError as exc:
+        return _linked_counterparty_meanwhile(linked, exc)
+    ctx.audit(
+        "counterparty.created",
+        object_type="counterparty",
+        object_id=card.id,
+        after={**counterparties.snapshot(card), "source": "vehicle_owner", "link": str(link.id)},
+        company_id=requester.id,
+    )
+    return card
+
+
+def _linked_counterparty_meanwhile(
+    linked: QuerySet[Counterparty], exc: IntegrityError
+) -> Counterparty:
+    if not _one_per_profile(exc):
+        raise exc
+    card = linked.first()
+    if card is None:
+        raise exc
+    return card
+
+
+def linked_target(card: Counterparty) -> Target | None:
+    """The profile a linked counterparty is linked to: the request to the owner goes there."""
+    if card.linked_company_id is not None:
+        company = Company.objects.filter(pk=card.linked_company_id).first()
+        return Target(Profile.COMPANY, company.public_id, company=company) if company else None
+    if card.linked_user_id is not None:
+        user = UserAccount.objects.filter(pk=card.linked_user_id).first()
+        return Target(Profile.PERSON, user.public_id, user=user) if user else None
+    return None

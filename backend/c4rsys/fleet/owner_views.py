@@ -84,6 +84,14 @@ def card_requests(request: HttpRequest, cmp: str, card_id: UUID) -> JsonResponse
                 contact=named.contact or (earlier.manual_contact if earlier else ""),
                 address=named.address or (earlier.manual_address if earlier else ""),
             )
+            if earlier is not None and earlier.counterparty_id is not None:
+                # The counterparty stays the owner: only the ID or the contact for the request
+                # is given (customer's decision of 25.11.2026).
+                keep = owners.Owner(
+                    kind=earlier.kind,
+                    lookup=named.lookup,
+                    counterparty_id=earlier.counterparty_id,
+                )
             if not owners.is_current(locked, keep):
                 owners.declare(ctx, context.company, locked, keep)
         sent = owner_requests.send(ctx, context.company, card_id)

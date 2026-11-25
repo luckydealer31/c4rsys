@@ -404,7 +404,7 @@ def _set(card_type: str, card: Card, key: str, value: Any) -> None:
         if card_type == "client":
             services.write_contacts(card, contacts)  # type: ignore[arg-type]
         else:
-            counterparties._write_contacts(card, contacts)  # type: ignore[arg-type]
+            counterparties.write_contacts(card, contacts)  # type: ignore[arg-type]
     elif key == "groups":
         wanted = {UUID(g) for g in value or []}
         ClientGroupMember.objects.filter(client_id=card.id).exclude(group_id__in=wanted).delete()

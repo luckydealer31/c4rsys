@@ -13,12 +13,14 @@ from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from c4rsys.accounts import services as accounts
+from c4rsys.companies import access
 from c4rsys.companies.models import Company
 from c4rsys.fleet import owner_requests
 from c4rsys.fleet.models import VehicleCard, VehicleOwnerClaim
-from c4rsys.parties import services as parties
+from c4rsys.parties import owner_cards
+from c4rsys.parties.models import Counterparty
 from c4rsys.platform import errors
-from c4rsys.platform.commands import CommandContext
+from c4rsys.platform.commands import Actor, CommandContext
 
 if TYPE_CHECKING:
     from c4rsys.fleet.listing import Batch
@@ -39,8 +41,12 @@ class Owner:
     last_name: str = ""
     first_name: str = ""
     middle_name: str = ""
+    # The owner as a card of the company (customer's decisions of 25.11.2026): a counterparty for
+    # a managed vehicle, a client for a client vehicle; chosen from the list or entered anew.
+    counterparty_id: UUID | None = None
+    new_card: owner_cards.NewCard | None = None
 
-    def payload(self) -> dict[str, str]:
+    def payload(self) -> dict[str, Any]:
         return {
             "kind": self.kind,
             "lookup": self.lookup,
@@ -51,6 +57,8 @@ class Owner:
             "contact": self.contact,
             "address": self.address,
             "client_id": str(self.client_id) if self.client_id else "",
+            "counterparty_id": str(self.counterparty_id) if self.counterparty_id else "",
+            "card": self.new_card.payload() if self.new_card else None,
         }
 
 
@@ -97,6 +105,45 @@ def _named(data: dict[str, Any], kind: str, *, required: bool, company: bool) ->
     return Named(name, parts["last_name"], parts["first_name"], parts["middle_name"])
 
 
+def _lookup(data: dict[str, Any], *, required: bool) -> str:
+    """The USR ID, the CMP ID, the email or the phone the request to the owner goes to."""
+    lookup = _text(data, "owner_lookup", 254)
+    if not lookup:
+        if required:
+            raise errors.validation_error("owner_lookup", code="FIELD_REQUIRED")
+        return ""
+    if "@" in lookup:
+        return accounts.normalize_email(lookup)
+    if lookup.upper().startswith(("USR-", "CMP-")):
+        return lookup.upper()
+    if not PHONE.match(lookup):
+        raise errors.validation_error("owner_lookup", code="OWNER_LOOKUP_INVALID")
+    return lookup
+
+
+def _uuid(data: dict[str, Any], key: str) -> UUID | None:
+    value = _text(data, key, 40)
+    if not value:
+        return None
+    try:
+        return UUID(value)
+    except ValueError as exc:
+        raise errors.validation_error(key) from exc
+
+
+def _card(data: dict[str, Any], kind: str, key: str) -> Owner:
+    """A card of the list by its id, or a new card with its data (customer's decisions of
+    25.11.2026)."""
+    chosen = _uuid(data, key)
+    new = owner_cards.parse_new(data["owner_card"]) if data.get("owner_card") else None
+    if chosen is None and new is None:
+        raise errors.validation_error(key, code="FIELD_REQUIRED")
+    lookup = _lookup(data, required=False) if kind == VehicleOwnerClaim.Kind.COUNTERPARTY else ""
+    if kind == VehicleOwnerClaim.Kind.CLIENT:
+        return Owner(kind=kind, client_id=None if new else chosen, new_card=new)
+    return Owner(kind=kind, lookup=lookup, counterparty_id=None if new else chosen, new_card=new)
+
+
 def parse(data: dict[str, Any], relation: str) -> Owner:
     if relation == VehicleCard.Relation.OWN:
         return Owner()
@@ -110,13 +157,7 @@ def parse(data: dict[str, Any], relation: str) -> Owner:
             else VehicleOwnerClaim.Kind.NONE
         )
         if kind == VehicleOwnerClaim.Kind.CLIENT:
-            value = _text(data, "owner_client_id", 40)
-            if not value:
-                raise errors.validation_error("owner_client_id", code="FIELD_REQUIRED")
-            try:
-                return Owner(kind=kind, client_id=UUID(value))
-            except ValueError as exc:
-                raise errors.validation_error("owner_client_id") from exc
+            return _card(data, kind, "owner_client_id")
         if kind not in (
             VehicleOwnerClaim.Kind.PERSON,
             VehicleOwnerClaim.Kind.ORGANIZATION,
@@ -124,6 +165,10 @@ def parse(data: dict[str, Any], relation: str) -> Owner:
         ):
             raise errors.validation_error("owner_kind")
     kind = _text(data, "owner_kind", 20) or VehicleOwnerClaim.Kind.NONE
+    if kind == VehicleOwnerClaim.Kind.COUNTERPARTY:
+        return _card(data, kind, "owner_counterparty_id")
+    # The kinds of before the cards (a profile, a person or an organization by hand) are still
+    # taken: the bot and the import give them so (agent's choice, not confirmed).
     allowed = {
         VehicleOwnerClaim.Kind.PROFILE,
         VehicleOwnerClaim.Kind.PERSON,
@@ -133,15 +178,7 @@ def parse(data: dict[str, Any], relation: str) -> Owner:
     if kind not in allowed:
         raise errors.validation_error("owner_kind")
     if kind == VehicleOwnerClaim.Kind.PROFILE:
-        lookup = _text(data, "owner_lookup", 254)
-        if not lookup:
-            raise errors.validation_error("owner_lookup", code="FIELD_REQUIRED")
-        if "@" in lookup:
-            lookup = accounts.normalize_email(lookup)
-        elif lookup.upper().startswith(("USR-", "CMP-")):
-            lookup = lookup.upper()
-        elif not PHONE.match(lookup):
-            raise errors.validation_error("owner_lookup", code="OWNER_LOOKUP_INVALID")
+        lookup = _lookup(data, required=True)
         # The profile does not replace the name: the name, the contact and the address are kept
         # with it for the contracts and the reports (customer's remark of 25.11.2026).
         n = _named(data, kind, required=False, company=is_company_lookup(lookup))
@@ -183,10 +220,31 @@ def _resolve(lookup: str) -> Any:
 def declare(ctx: CommandContext, company: Company, card: VehicleCard, owner: Owner) -> None:
     user = _resolve(owner.lookup) if owner.kind == VehicleOwnerClaim.Kind.PROFILE else None
     client = None
-    if owner.client_id is not None:
-        client = parties.clients_of(company.id).filter(pk=owner.client_id).first()
-        if client is None:
-            raise errors.validation_error("owner_client_id", code="CLIENT_UNKNOWN")
+    counterparty = None
+    name, payload = owner.name, owner.payload()
+    if owner.kind in (VehicleOwnerClaim.Kind.CLIENT, VehicleOwnerClaim.Kind.COUNTERPARTY):
+        card_type = (
+            owner_cards.CLIENT
+            if owner.kind == VehicleOwnerClaim.Kind.CLIENT
+            else owner_cards.COUNTERPARTY
+        )
+        chosen = owner.client_id or owner.counterparty_id
+        found = (
+            owner_cards.create(ctx, company, card_type, owner.new_card)
+            if owner.new_card is not None
+            else owner_cards.chosen(company.id, card_type, chosen)
+            if chosen is not None
+            else None
+        )
+        if found is None:
+            raise errors.validation_error("owner_kind")
+        if isinstance(found, Counterparty):
+            counterparty = found
+            payload["counterparty_id"] = str(found.id)
+        else:
+            client = found
+            payload["client_id"] = str(found.id)
+        name = owner_cards.full_name(found)
     claim = VehicleOwnerClaim.objects.create(
         company=company,
         vehicle_card=card,
@@ -194,7 +252,8 @@ def declare(ctx: CommandContext, company: Company, card: VehicleCard, owner: Own
         lookup=owner.lookup,
         owner_user_id=user.id if user else None,
         client=client,
-        manual_name=owner.name,
+        counterparty=counterparty,
+        manual_name=name,
         manual_last_name=owner.last_name,
         manual_first_name=owner.first_name,
         manual_middle_name=owner.middle_name,
@@ -209,14 +268,17 @@ def declare(ctx: CommandContext, company: Company, card: VehicleCard, owner: Own
         object_type="vehicle_card",
         object_id=card.id,
         # The resolved profile is not journaled for the company: it is not to learn it.
-        after={**owner.payload(), "claim": str(claim.id)},
+        after={**payload, "claim": str(claim.id)},
     )
 
 
 def is_current(card: VehicleCard, owner: Owner) -> bool:
     """Whether the latest declaration already says the same."""
+    if owner.new_card is not None:
+        return False
     claim = card.owner_claims.order_by("-created_at").first()
     return claim is not None and (
+        claim.counterparty_id,
         claim.kind,
         claim.lookup,
         claim.manual_name,
@@ -227,6 +289,7 @@ def is_current(card: VehicleCard, owner: Owner) -> bool:
         claim.client_id,
         claim.manual_address,
     ) == (
+        owner.counterparty_id,
         owner.kind,
         owner.lookup,
         owner.name,
@@ -262,7 +325,17 @@ def describe(card: VehicleCard, batch: "Batch | None" = None) -> dict[str, Any] 
         **owner_requests.owner_status(card, batch),
     }
     if claim.client is not None:
-        body["client"] = {"id": str(claim.client_id), "name": parties.display_name(claim.client)}
+        body["client"] = {
+            "id": str(claim.client_id),
+            "name": owner_cards.full_name(claim.client),
+            "kind": claim.client.kind,
+        }
+    if claim.counterparty is not None:
+        body["counterparty"] = {
+            "id": str(claim.counterparty_id),
+            "name": owner_cards.full_name(claim.counterparty),
+            "kind": claim.counterparty.kind,
+        }
     if claim.kind == VehicleOwnerClaim.Kind.COMPANY:
         company = card.company
         body["company"] = {
@@ -286,3 +359,14 @@ def vehicles_of_clients(company_id: UUID, client_ids: list[UUID]) -> list[UUID]:
         if latest is not None and latest.client_id in client_ids:
             found.append(card_id)
     return found
+
+
+def check_rights(actor: Actor, owner: Owner) -> None:
+    """A new card of the owner is created with the right of its list (§ 6.2)."""
+    if owner.new_card is None:
+        return
+    permission = (
+        "client.create" if owner.kind == VehicleOwnerClaim.Kind.CLIENT else "counterparty.create"
+    )
+    if not access.RightsResolver().has_permission(actor, permission):
+        raise errors.permission_denied(permission)

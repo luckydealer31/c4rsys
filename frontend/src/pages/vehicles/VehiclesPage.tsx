@@ -355,6 +355,8 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
       ? (owner.company?.display_name ?? "")
       : owner.kind === "client"
         ? (owner.client?.name ?? "")
+      : owner.kind === "counterparty"
+        ? (owner.counterparty?.name ?? "")
       : owner.kind === "profile"
         ? [owner.name, owner.lookup, owner.contact, owner.address].filter(Boolean).join(", ")
         : owner.kind === "none"
