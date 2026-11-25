@@ -7,6 +7,7 @@ import { api } from "../../api/client";
 import type { Client, Counterparty, Vehicle } from "../../api/types";
 import { Field, IconButton } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
+import { ContactsEditor, contactsOf, phoneAndEmail, type ContactRow } from "../clients/ContactsEditor";
 
 /** The owner of a managed vehicle is a counterparty of the company, of a client vehicle a client
  * (customer's decisions of 25.11.2026). The owner is a person or a company, entered with the
@@ -24,8 +25,7 @@ export type OwnerValue = {
   middle_name: string;
   company_name: string;
   contact_person: string;
-  phone: string;
-  email: string;
+  contacts: ContactRow[];
   address: string;
 };
 
@@ -39,8 +39,7 @@ export const NO_OWNER: OwnerValue = {
   middle_name: "",
   company_name: "",
   contact_person: "",
-  phone: "",
-  email: "",
+  contacts: [{ choice: "", value: "" }],
   address: "",
 };
 
@@ -70,8 +69,11 @@ export function ownerOf(vehicle: Vehicle): OwnerValue {
     last_name: company ? "" : parts ? (o.last_name ?? "") : o.name,
     first_name: company ? "" : (o.first_name ?? ""),
     middle_name: company ? "" : (o.middle_name ?? ""),
-    email,
-    phone,
+    contacts: [
+      ...(phone ? [{ choice: "phone", value: phone }] : []),
+      ...(email ? [{ choice: "email", value: email }] : []),
+      ...(phone || email ? [] : [{ choice: "", value: "" }]),
+    ],
     address: o.address ?? "",
   };
 }
@@ -92,10 +94,7 @@ export function ownerBody(relation: string, v: OwnerValue): Record<string, unkno
       ? { last_name: v.last_name.trim(), first_name: v.first_name.trim(), middle_name: v.middle_name.trim() }
       : { company_name: v.company_name.trim(), contact_person: v.contact_person.trim() }),
     address: v.address.trim(),
-    contacts: [
-      ...(v.phone.trim() ? [{ kind: "phone", value: v.phone.trim() }] : []),
-      ...(v.email.trim() ? [{ kind: "email", value: v.email.trim() }] : []),
-    ],
+    contacts: contactsOf(v.contacts),
   };
   return body;
 }
@@ -141,8 +140,7 @@ export function OwnerCardPicker({
     first_name: person ? value.first_name.trim() : "",
     last_name: person ? value.last_name.trim() : "",
     company_name: person ? "" : value.company_name.trim(),
-    phone: value.phone.trim(),
-    email: value.email.trim(),
+    ...phoneAndEmail(value.contacts),
   });
   const filled = Boolean(
     draft.last_name || draft.company_name.length >= 3 || draft.phone.length >= 5 || draft.email.includes("@"),
@@ -167,9 +165,9 @@ export function OwnerCardPicker({
   const choose = (card: Card) =>
     set({ ...NO_OWNER, party: card.kind, card_id: card.id, card_name: card.name, card_contacts: card.contacts });
   const path = (id: string) => companyPath(company, client ? `/clients/${id}` : `/clients/counterparties/${id}`);
-  const input = (key: keyof OwnerValue, label: string, type = "text") => (
+  const input = (key: Exclude<keyof OwnerValue, "contacts" | "party">, label: string) => (
     <Field label={label}>
-      <input type={type} value={value[key]} onChange={(e) => set({ [key]: e.target.value })} />
+      <input value={value[key]} onChange={(e) => set({ [key]: e.target.value })} />
     </Field>
   );
 
@@ -212,10 +210,9 @@ export function OwnerCardPicker({
                 {input("contact_person", t("vehicles.owner_contact_person"))}
               </>
             )}
-            {input("phone", t("vehicles.owner_phone"), "tel")}
-            {input("email", t("vehicles.owner_email"), "email")}
             {input("address", t("vehicles.owner_address"))}
           </div>
+          <ContactsEditor rows={value.contacts} onChange={(contacts) => set({ contacts })} />
           {(matches.data ?? []).length > 0 ? (
             <div className="alert warn" data-testid="owner-matches">
               <strong>{t("vehicles.owner_matches_title")}</strong>

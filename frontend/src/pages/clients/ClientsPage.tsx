@@ -7,7 +7,7 @@ import { api } from "../../api/client";
 import { useApi } from "../../api/queries";
 import { ProfileLinkCard } from "./ProfileLinkCard";
 import { ClientGroupsCard } from "../orders/Discounts";
-import type { Client, ClientContact, Messenger } from "../../api/types";
+import type { Client, ClientContact } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Icon } from "../../components/icons";
 import { Card, ErrorMessage, Field, IconButton, Loading, Modal } from "../../components/ui";
@@ -25,7 +25,8 @@ import {
   MergeCard,
   RestrictionsCard,
 } from "./CardExtras";
-import { ClientBalanceCard, ClientInteractionsCard, DocumentsCard, Facts, MainCard, MESSENGERS } from "./CardParts";
+import { ClientBalanceCard, ClientInteractionsCard, DocumentsCard, Facts, MainCard } from "./CardParts";
+import { ContactsEditor, contactLabel, contactsOf, phoneAndEmail, type ContactRow } from "./ContactsEditor";
 
 export function clientName(client: Pick<Client, "kind" | "first_name" | "last_name" | "company_name">) {
   return client.kind === "company" ? client.company_name : `${client.first_name} ${client.last_name}`.trim();
@@ -194,9 +195,7 @@ type Draft = {
   middle_name: string;
   birth_date: string;
   company_name: string;
-  phone: string;
-  phone_messenger: Messenger;
-  email: string;
+  contacts: ContactRow[];
 };
 
 const EMPTY: Draft = {
@@ -206,14 +205,12 @@ const EMPTY: Draft = {
   middle_name: "",
   birth_date: "",
   company_name: "",
-  phone: "",
-  phone_messenger: "",
-  email: "",
+  contacts: [{ choice: "", value: "" }],
 };
 
 /** Possible existing cards for entered data (§ 6.1.11); the manager compares and decides. */
 export function useMatches(
-  draft: Pick<Draft, "first_name" | "last_name" | "birth_date" | "company_name" | "phone" | "email">,
+  draft: Pick<Draft, "first_name" | "last_name" | "birth_date" | "company_name"> & { phone: string; email: string },
   enabled = true,
 ) {
   const company = useCompany();
@@ -253,14 +250,12 @@ export function ClientForm({ onCreated }: { onCreated?: (client: Client) => void
   const company = useCompany();
   const client = useQueryClient();
   const [draft, setDraft] = useState<Draft>(EMPTY);
-  const matches = useMatches(draft);
+  const matches = useMatches({ ...draft, ...phoneAndEmail(draft.contacts) });
   const create = useCommand<Record<string, unknown>, { client: Client }>(`/c/${company.public_id}/clients`);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    const contacts: ClientContact[] = [];
-    if (draft.phone.trim()) contacts.push({ kind: "phone", value: draft.phone, messenger: draft.phone_messenger });
-    if (draft.email.trim()) contacts.push({ kind: "email", value: draft.email });
+    const contacts = contactsOf(draft.contacts);
     const body: Record<string, unknown> =
       draft.kind === "person"
         ? {
@@ -312,18 +307,7 @@ export function ClientForm({ onCreated }: { onCreated?: (client: Client) => void
             <input value={draft.company_name} onChange={set("company_name")} />
           </Field>
         )}
-        <div className="row">
-          <Field label={t("clients.phone")}>
-            <input type="tel" value={draft.phone} onChange={set("phone")} />
-          </Field>
-          <MessengerField
-            value={draft.phone_messenger}
-            onChange={(messenger) => setDraft({ ...draft, phone_messenger: messenger })}
-          />
-          <Field label={t("auth.email")}>
-            <input type="email" value={draft.email} onChange={set("email")} />
-          </Field>
-        </div>
+        <ContactsEditor rows={draft.contacts} onChange={(contacts) => setDraft({ ...draft, contacts })} />
         <p className="muted small">{t("clients.minimum")}</p>
         {(matches.data ?? []).length > 0 ? (
           <div className="alert warn">
@@ -360,35 +344,9 @@ export function ClientForm({ onCreated }: { onCreated?: (client: Client) => void
 
 /** Client card: data, contacts, settlement balance (§ 6.2.12, § 6.7.2). */
 
-/** The priority way of contact by a phone: a call or SMS by default, or one messenger from the
- * list of common ones (customer's decisions of 30.10.2026). */
-export function MessengerField({
-  value,
-  onChange,
-  disabled = false,
-}: {
-  value: Messenger;
-  onChange: (value: Messenger) => void;
-  disabled?: boolean;
-}) {
-  const { t } = useTranslation();
-  return (
-    <Field label={t("clients.messenger")}>
-      <select value={value} disabled={disabled} onChange={(e) => onChange(e.target.value as Messenger)}>
-        {MESSENGERS.map((m) => (
-          <option key={m} value={m}>
-            {t(`clients.messenger_${m || "none"}`)}
-          </option>
-        ))}
-      </select>
-    </Field>
-  );
-}
-
 /** A contact as text, with the messenger of a phone. */
 export function contactText(t: (key: string) => string, c: ClientContact): string {
-  const label = c.kind === "phone" ? t("clients.phone") : t("auth.email");
-  return `${label}: ${c.value}${c.messenger ? ` (${t(`clients.messenger_${c.messenger}`)})` : ""}`;
+  return `${contactLabel(t, c)}: ${c.value}`;
 }
 
 /** Contacts beyond the first phone and the first email, which the form edits. */

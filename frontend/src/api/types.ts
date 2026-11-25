@@ -948,7 +948,7 @@ export type Messenger =
   | "facebook_messenger"
   | "other";
 
-export type ClientContact = { kind: "phone" | "email"; value: string; messenger?: Messenger };
+export type ClientContact = { kind: "phone" | "email" | "messenger"; value: string; messenger?: Messenger };
 
 export type Client = {
   id: string;

@@ -18,6 +18,7 @@ from c4rsys.companies.models import Company
 from c4rsys.parties import extended
 from c4rsys.parties.models import Counterparty, CounterpartyContact, ProfileLink
 from c4rsys.parties.services import Contact, MatchQuery, has_minimum, loose_matches
+from c4rsys.parties.services import expand as services_expand
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
 
@@ -84,6 +85,7 @@ def snapshot(card: Counterparty) -> dict[str, Any]:
 
 def write_contacts(card: Counterparty, contacts: list[Contact]) -> None:
     CounterpartyContact.objects.filter(counterparty=card).delete()
+    contacts = services_expand(contacts)
     CounterpartyContact.objects.bulk_create(
         CounterpartyContact(
             company_id=card.company_id,
@@ -350,6 +352,7 @@ def matches(company_id: UUID, query: MatchQuery) -> list[tuple[Counterparty, lis
                 CounterpartyContact.objects.filter(
                     counterparty__company_id=company_id,
                     kind=contact.kind,
+                    messenger=contact.messenger,
                     value_normalized=contact.normalized,
                 ).values_list("counterparty_id", flat=True)
             ),

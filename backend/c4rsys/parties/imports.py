@@ -214,11 +214,8 @@ class PartiesTemplate:
                 contact = services.normalize_contact(
                     contact_kind, values[column], column, values.get(f"{column}_messenger", "")
                 )
-                if all(
-                    (c.kind, c.normalized) != (contact.kind, contact.normalized) for c in contacts
-                ):
-                    contacts.append(contact)
-        return contacts
+                contacts.append(contact)
+        return services.expand(contacts)
 
     def remove(self, ctx: CommandContext, company_id: UUID, record_ids: list[UUID]) -> None:
         """A card linked to a profile is a confirmed link and stops the cancel (§ 22.2.5); so does a

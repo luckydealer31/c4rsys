@@ -392,19 +392,29 @@ test("base example from registration to closing survives a restart", async ({ pa
   await expect(page.getByRole("checkbox", { name: "Toyota Yaris" })).toBeChecked();
 
   await page.goto(`${base}/clients`);
-  // The client is created step by step: kind, the request by the ID is skipped, name, birth
-  // date is skipped, contacts.
+  // The client is created step by step: kind, name, birth date is skipped, contacts — no step of
+  // an ID; a contact is added by its kind first, a messenger is a contact of its own (customer's
+  // remarks of 25.11.2026).
   await page.getByRole("link", { name: t("clients.new_button") }).click();
   const further = page.getByRole("button", { name: t("wizard.next"), exact: true });
   const skip = page.getByRole("button", { name: t("wizard.skip"), exact: true });
   await further.click();
-  await skip.click();
   await page.getByLabel(t("profile.first_name"), { exact: true }).fill("Иван");
   await page.getByLabel(t("profile.last_name"), { exact: true }).fill("Петров");
   await further.click();
   await skip.click();
-  await page.getByLabel(t("clients.phone"), { exact: true }).fill("+66 81 234 5678");
+  const contacts = page.getByTestId("contacts-editor");
+  // The kind of a contact is chosen first from «Choose»; a phone takes only digits (25.11.2026).
+  await expect(contacts.getByLabel(t("clients.contact_kind"), { exact: true }).first()).toHaveValue("");
+  await contacts.locator("select").first().selectOption("phone");
+  await contacts.getByLabel(t("clients.contact_value_phone")).fill("+66 81 234 5678");
+  await expect(contacts.getByLabel(t("clients.contact_value_phone"))).toHaveValue("+66812345678");
+  await contacts.getByRole("button", { name: t("clients.contact_add") }).click();
+  await contacts.locator("select").nth(1).selectOption("telegram");
+  await contacts.getByLabel(t("clients.contact_value_messenger")).fill("@ivan_petrov");
   await page.getByRole("button", { name: t("clients.create") }).click();
+  await expect(page.getByRole("main")).toContainText("@ivan_petrov");
+  await expect(page.getByRole("main")).toContainText(t("clients.messenger_telegram"));
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Иван");
   await page.goto(`${base}/clients`);
   await expect(page.getByRole("link", { name: "Иван Петров" })).toBeVisible();
@@ -647,7 +657,19 @@ test("base example from registration to closing survives a restart", async ({ pa
   await expect(rented).toHaveCount(1);
   await expect(rented).toContainText("Toyota Yaris");
   await page.getByRole("tab", { name: t("cards.tab_more") }).click();
-  await expect(card(page, t("links.title")).getByRole("button", { name: t("links.start") })).toBeVisible();
+  // The link is asked from the card: by a contact confirmed in a profile, by a letter to an email,
+  // or by an ID (customer's decisions of 25.11.2026). No contact of this card is confirmed and it
+  // has no email, so only the ID is left.
+  const linking = card(page, t("links.title"));
+  await linking.getByRole("button", { name: t("links.start") }).click();
+  await expect(linking).toContainText(t("links.none_confirmed_no_email"));
+  // The phone and the Telegram nickname are offered, but cannot be chosen.
+  const disabled = linking.locator("option[disabled]");
+  await expect(disabled).toHaveCount(2);
+  await expect(disabled.filter({ hasText: `${t("clients.phone")}: +66812345678` })).toHaveCount(1);
+  await expect(disabled.filter({ hasText: `${t("clients.messenger_telegram")}: @ivan_petrov` })).toHaveCount(1);
+  await expect(linking.getByLabel(t("links.send_to"))).toHaveValue("id");
+  await expect(linking.getByLabel(t("links.target_id"))).toBeVisible();
 });
 
 /** A PDF of one page with a coloured rectangle, with a correct table of objects. */

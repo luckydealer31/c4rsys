@@ -3,26 +3,24 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router";
 
-import type { Client, ClientContact, Counterparty, Messenger } from "../../api/types";
+import type { Client, Counterparty } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field } from "../../components/ui";
-import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
-import { clientName, MessengerField, useMatches } from "./ClientsPage";
+import { companyPath, useCompany } from "../../layout/CompanyShell";
+import { clientName, useMatches } from "./ClientsPage";
+import { ContactsEditor, contactValid, contactsOf, phoneAndEmail, type ContactRow } from "./ContactsEditor";
 
 type CardType = "client" | "counterparty";
-type Step = "kind" | "link" | "name" | "birth" | "contacts";
+type Step = "kind" | "name" | "birth" | "contacts";
 
 type Form = {
   kind: "person" | "company";
-  target: string;
   first_name: string;
   last_name: string;
   middle_name: string;
   birth_date: string;
   company_name: string;
-  phone: string;
-  phone_messenger: Messenger;
-  email: string;
+  contacts: ContactRow[];
   comment: string;
 };
 
@@ -35,14 +33,13 @@ export function NewCounterpartyPage() {
 }
 
 /** Step-by-step creation of a client or a counterparty (customer's decision of 11.11.2026), as
- * the creation of a vehicle: the kind; then, first of all, a request to a profile by its ID in
- * place of filling the card (§ 6.2.9), which may be skipped; then the name, the birth date of a
- * person, the contacts with the preferred way of contact. The minimum of § 6.2.7–6.2.8 stays:
+ * the creation of a vehicle: the kind, the name, the birth date of a person, the contacts — «Add a
+ * contact», the kind first, then the value (customer's remarks of 25.11.2026). The link with a
+ * profile is asked from the card afterwards, by a contact or by an ID. The minimum of § 6.2.7–6.2.8 stays:
  * the first and the last name or the company name, and a phone or an email. */
 function NewCardWizard({ cardType }: { cardType: CardType }) {
   const { t } = useTranslation();
   const company = useCompany();
-  const can = useCan();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const path = cardType === "client" ? "clients" : "counterparties";
@@ -51,15 +48,12 @@ function NewCardWizard({ cardType }: { cardType: CardType }) {
   const back = companyPath(company, cardType === "client" ? "/clients?tab=clients" : "/clients?tab=counterparties");
   const [form, setForm] = useState<Form>({
     kind: cardType === "client" ? "person" : "company",
-    target: "",
     first_name: "",
     last_name: "",
     middle_name: "",
     birth_date: "",
     company_name: "",
-    phone: "",
-    phone_messenger: "",
-    email: "",
+    contacts: [{ choice: "", value: "" }],
     comment: "",
   });
   const [index, setIndex] = useState(0);
@@ -68,15 +62,13 @@ function NewCardWizard({ cardType }: { cardType: CardType }) {
   const create = useCommand<Record<string, unknown>, { client?: Client; counterparty?: Counterparty }>(
     `/c/${company.public_id}/${path}`,
   );
-  const request = useCommand<{ kind: string; target: string }, { client?: Client; counterparty?: Counterparty }>(
-    `/c/${company.public_id}/${path}/provisional`,
-  );
   // Possible existing clients for the entered data (§ 6.1.11); the manager compares and decides.
-  const matches = useMatches(form, cardType === "client");
+  const matches = useMatches({ ...form, ...phoneAndEmail(form.contacts) }, cardType === "client");
 
   const steps: Step[] = [
+    // No step of an ID: the card is made of the data; the link with a profile is asked from the
+    // card afterwards (customer's remark of 25.11.2026).
     "kind",
-    ...(can(`${cardType}.link.request`) ? (["link"] as Step[]) : []),
     "name",
     ...(cardType === "client" && form.kind === "person" ? (["birth"] as Step[]) : []),
     "contacts",
@@ -85,9 +77,9 @@ function NewCardWizard({ cardType }: { cardType: CardType }) {
   const last = step === "contacts";
   const named =
     form.kind === "person" ? Boolean(form.first_name.trim() && form.last_name.trim()) : Boolean(form.company_name.trim());
-  const reachable = Boolean(form.phone.trim() || form.email.trim());
-  const ready = step === "name" ? named : step === "contacts" ? reachable : step === "link" ? Boolean(form.target.trim()) : true;
-  const pending = create.pending || request.pending;
+  const reachable = contactsOf(form.contacts).length > 0 && form.contacts.every(contactValid);
+  const ready = step === "name" ? named : step === "contacts" ? reachable : true;
+  const pending = create.pending;
 
   async function opened(result: { client?: Client; counterparty?: Counterparty } | null) {
     const card = result?.client ?? result?.counterparty;
@@ -97,9 +89,7 @@ function NewCardWizard({ cardType }: { cardType: CardType }) {
   }
 
   async function save() {
-    const contacts: ClientContact[] = [];
-    if (form.phone.trim()) contacts.push({ kind: "phone", value: form.phone, messenger: form.phone_messenger });
-    if (form.email.trim()) contacts.push({ kind: "email", value: form.email });
+    const contacts = contactsOf(form.contacts);
     const body: Record<string, unknown> =
       form.kind === "person"
         ? {
@@ -118,21 +108,17 @@ function NewCardWizard({ cardType }: { cardType: CardType }) {
   function next(event: FormEvent) {
     event.preventDefault();
     if (!ready || pending) return;
-    // The request by the ID creates the card at once, in place of filling it.
-    if (step === "link") void request.run({ kind: form.kind, target: form.target }).then(opened);
-    else if (last) void save();
+    if (last) void save();
     else setIndex(index + 1);
   }
 
   function skip() {
-    if (step === "link") set({ target: "" });
     if (step === "birth") set({ birth_date: "" });
     setIndex(index + 1);
   }
 
   const titles: Record<Step, string> = {
     kind: t("clients.kind"),
-    link: t("cards.provisional_title"),
     name: form.kind === "person" ? t("clients.wizard_name_person") : t("clients.company_name"),
     birth: t("clients.birth_date"),
     contacts: t("clients.wizard_contacts"),
@@ -149,18 +135,6 @@ function NewCardWizard({ cardType }: { cardType: CardType }) {
             {t(`clients.kind_${kind}`)}
           </label>
         ))}
-      </div>
-    );
-  } else if (step === "link") {
-    content = (
-      <div className="stack">
-        <Field
-          label={t(form.kind === "company" ? "links.target_company" : "links.target_person")}
-          hint={t("cards.provisional_hint")}
-        >
-          <input autoFocus value={form.target} onChange={text("target")} />
-        </Field>
-        <ErrorMessage error={request.error} />
       </div>
     );
   } else if (step === "name") {
@@ -197,15 +171,7 @@ function NewCardWizard({ cardType }: { cardType: CardType }) {
   } else {
     content = (
       <div className="stack">
-        <div className="row">
-          <Field label={t("clients.phone")}>
-            <input autoFocus type="tel" value={form.phone} onChange={text("phone")} />
-          </Field>
-          <MessengerField value={form.phone_messenger} onChange={(phone_messenger) => set({ phone_messenger })} />
-          <Field label={t("auth.email")}>
-            <input type="email" value={form.email} onChange={text("email")} />
-          </Field>
-        </div>
+        <ContactsEditor titled={false} rows={form.contacts} onChange={(contacts) => set({ contacts })} />
         {cardType === "counterparty" ? (
           <Field label={t("warehouse.comment")}>
             <input value={form.comment} onChange={text("comment")} />
@@ -233,7 +199,7 @@ function NewCardWizard({ cardType }: { cardType: CardType }) {
     );
   }
 
-  const optional = step === "link" || step === "birth";
+  const optional = step === "birth";
   return (
     <div className="page">
       <p>
@@ -257,7 +223,7 @@ function NewCardWizard({ cardType }: { cardType: CardType }) {
               </button>
             ) : null}
             <button type="submit" disabled={!ready || pending}>
-              {step === "link" ? t("cards.provisional_send") : last ? t(`${path}.create`) : t("wizard.next")}
+              {last ? t(`${path}.create`) : t("wizard.next")}
             </button>
           </div>
         </Card>

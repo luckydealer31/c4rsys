@@ -11,13 +11,11 @@ import { Link } from "react-router";
 import { useApi } from "../../api/queries";
 import type {
   Client,
-  ClientContact,
   ClientHistory,
   Counterparty,
   DriverLicense,
   ExtendedCard,
   IdDocument,
-  Messenger,
   OtherDocument,
   ProfileLink,
 } from "../../api/types";
@@ -29,19 +27,8 @@ import { deviceTimeZone, formatMoment } from "../../time";
 export type CardType = "client" | "counterparty";
 type AnyCard = (Client | Counterparty) & ExtendedCard;
 
-export const MESSENGERS: Messenger[] = [
-  "",
-  "whatsapp",
-  "telegram",
-  "line",
-  "wechat",
-  "viber",
-  "signal",
-  "kakaotalk",
-  "zalo",
-  "facebook_messenger",
-  "other",
-];
+
+import { ContactsEditor, contactLabel, contactsOf, rowsOf, type ContactRow } from "./ContactsEditor";
 
 type Row = [label: string, value: ReactNode];
 
@@ -97,9 +84,7 @@ type MainDraft = {
   last_name: string;
   middle_name: string;
   company_name: string;
-  phone: string;
-  phone_messenger: Messenger;
-  email: string;
+  contacts: ContactRow[];
   registration_address: string;
   residence_address: string;
   comment: string;
@@ -110,15 +95,12 @@ type MainDraft = {
 };
 
 function draftOf(card: AnyCard): MainDraft {
-  const phone = card.contacts.find((c) => c.kind === "phone");
   return {
     first_name: card.first_name,
     last_name: card.last_name,
     middle_name: card.middle_name,
     company_name: card.company_name,
-    phone: phone?.value ?? "",
-    phone_messenger: phone?.messenger ?? "",
-    email: card.contacts.find((c) => c.kind === "email")?.value ?? "",
+    contacts: rowsOf(card.contacts),
     registration_address: card.registration_address,
     residence_address: card.residence_address,
     comment: card.comment,
@@ -129,12 +111,6 @@ function draftOf(card: AnyCard): MainDraft {
   };
 }
 
-/** Contacts beyond the first phone and the first email, which the form edits. */
-function furtherContacts(contacts: ClientContact[]): ClientContact[] {
-  const firstPhone = contacts.find((c) => c.kind === "phone");
-  const firstEmail = contacts.find((c) => c.kind === "email");
-  return contacts.filter((c) => c !== firstPhone && c !== firstEmail);
-}
 
 /** The main card: the name, the contacts, the addresses and the comment; edited in a window. */
 export function MainCard({
@@ -160,21 +136,10 @@ export function MainCard({
     `/c/${company.public_id}/profile-links?card_type=${cardType}&card_id=${card.id}`,
   );
   const linked = links.data?.links[0]?.state === "accepted" ? links.data.links[0].linked_profile : null;
-  const phone = card.contacts.find((c) => c.kind === "phone");
-  const email = card.contacts.find((c) => c.kind === "email");
   const rows: Row[] = [
     person && "birth_date" in card && card.birth_date ? [t("clients.birth_date"), card.birth_date] : ["", ""],
-    [
-      t("clients.phone"),
-      phone ? `${phone.value}${phone.messenger ? ` · ${t(`clients.messenger_${phone.messenger}`)}` : ""}` : "",
-    ],
-    [t("auth.email"), email?.value ?? ""],
-    ...furtherContacts(card.contacts).map(
-      (c): Row => [
-        c.kind === "phone" ? t("clients.phone") : t("auth.email"),
-        `${c.value}${c.messenger ? ` · ${t(`clients.messenger_${c.messenger}`)}` : ""}`,
-      ],
-    ),
+    // Every contact under its own kind: a phone, a messenger, an email (25.11.2026).
+    ...card.contacts.map((c): Row => [contactLabel(t, c), c.value]),
     person ? [t("cards.field_registration_address"), card.registration_address] : ["", ""],
     person ? [t("cards.field_residence_address"), card.residence_address] : ["", ""],
     // The single address of the old form: shown while it is filled (for example from an import).
@@ -219,7 +184,7 @@ function MainForm({ cardType, card, onDone }: { cardType: CardType; card: AnyCar
   const update = useCommand<Record<string, unknown>, unknown>(`/c/${company.public_id}/${path(cardType)}/${card.id}`, "PATCH");
   const [draft, setDraft] = useState<MainDraft>(draftOf(card));
   const person = card.kind === "person";
-  const text = (key: keyof MainDraft, label: string, area = false) => (
+  const text = (key: Exclude<keyof MainDraft, "contacts">, label: string, area = false) => (
     <FloatField label={label}>
       {area ? (
         <textarea value={draft[key]} onChange={(e) => setDraft({ ...draft, [key]: e.target.value })} />
@@ -230,11 +195,7 @@ function MainForm({ cardType, card, onDone }: { cardType: CardType; card: AnyCar
   );
   async function submit(event: FormEvent) {
     event.preventDefault();
-    const contacts: ClientContact[] = [];
-    if (draft.phone.trim()) contacts.push({ kind: "phone", value: draft.phone, messenger: draft.phone_messenger });
-    if (draft.email.trim()) contacts.push({ kind: "email", value: draft.email });
-    // Further phones and emails (from an import) are kept as they are.
-    contacts.push(...furtherContacts(card.contacts));
+    const contacts = contactsOf(draft.contacts);
     const body: Record<string, unknown> = {
       ...(person
         ? {
@@ -266,17 +227,6 @@ function MainForm({ cardType, card, onDone }: { cardType: CardType; card: AnyCar
         ) : (
           text("company_name", t("clients.company_name"))
         )}
-        {text("email", t("auth.email"))}
-        {text("phone", t("clients.phone"))}
-        <FloatField label={t("clients.messenger")}>
-          <select value={draft.phone_messenger} onChange={(e) => setDraft({ ...draft, phone_messenger: e.target.value as Messenger })}>
-            {MESSENGERS.map((m) => (
-              <option key={m} value={m}>
-                {t(`clients.messenger_${m || "none"}`)}
-              </option>
-            ))}
-          </select>
-        </FloatField>
         {person ? (
           <>
             {text("registration_address", t("cards.field_registration_address"))}
@@ -292,6 +242,7 @@ function MainForm({ cardType, card, onDone }: { cardType: CardType; card: AnyCar
         {/* The single address of the old form is offered only while it is filled. */}
         {card.address ? text("address", t("cards.field_address")) : null}
       </div>
+      <ContactsEditor rows={draft.contacts} onChange={(contacts) => setDraft({ ...draft, contacts })} />
       {text("comment", t("cards.field_comment"), true)}
       <ErrorMessage error={update.error} />
       <div className="actions">

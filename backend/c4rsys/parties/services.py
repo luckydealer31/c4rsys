@@ -53,6 +53,39 @@ class Contact:
         return {"kind": self.kind, "value": self.value, "messenger": self.messenger}
 
 
+_NICKNAME_RE = re.compile(r"^[\w.\-]{2,64}$")
+
+
+def expand(contacts: list[Contact]) -> list[Contact]:
+    """A phone with a messenger bound to it, as it was given before (an import column, the data
+    of before), is two contacts now: the phone and the messenger with the same number (customer's
+    decision of 25.11.2026). The same contact is kept once."""
+    found: list[Contact] = []
+    for c in contacts:
+        items = (
+            [
+                Contact(ClientContact.Kind.PHONE, c.value, c.normalized),
+                Contact(ClientContact.Kind.MESSENGER, c.value, c.normalized, c.messenger),
+            ]
+            if c.kind == ClientContact.Kind.PHONE and c.messenger
+            else [c]
+        )
+        for item in items:
+            if all(
+                (x.kind, x.messenger, x.normalized) != (item.kind, item.messenger, item.normalized)
+                for x in found
+            ):
+                found.append(item)
+    return found
+
+
+def is_phone_value(contact: Contact) -> bool:
+    """A phone, or a messenger given by a number: a profile may be found by it."""
+    return contact.kind == ClientContact.Kind.PHONE or (
+        contact.kind == ClientContact.Kind.MESSENGER and bool(_PHONE_RE.match(contact.normalized))
+    )
+
+
 def normalize_contact(
     kind: str, value: str, field: str = "contacts", messenger: str = ""
 ) -> Contact:
@@ -62,6 +95,17 @@ def normalize_contact(
     an email has no messenger."""
     raw = value.strip()
     messenger = messenger.strip().lower()
+    if kind == ClientContact.Kind.MESSENGER:
+        # A messenger by a number or by a nickname (customer's decision of 25.11.2026).
+        if messenger not in MESSENGERS:
+            raise errors.validation_error(field, code="MESSENGER_INVALID")
+        phone = _PHONE_SEPARATORS.sub("", raw)
+        if _PHONE_RE.match(phone):
+            return Contact(kind, raw, phone, messenger)
+        nickname = raw.lstrip("@").lower()
+        if not _NICKNAME_RE.match(nickname):
+            raise errors.validation_error(field, code="MESSENGER_VALUE_INVALID")
+        return Contact(kind, raw, nickname, messenger)
     if messenger and (kind != ClientContact.Kind.PHONE or messenger not in MESSENGERS):
         raise errors.validation_error(field, code="MESSENGER_INVALID")
     if kind == ClientContact.Kind.EMAIL:
@@ -91,9 +135,8 @@ def parse_contacts(value: Any, *, required: bool) -> list[Contact]:
         messenger = item.get("messenger") or ""
         if not isinstance(messenger, str):
             raise errors.validation_error(where)
-        contact = normalize_contact(str(item.get("kind")), item["value"], where, messenger)
-        if all((c.kind, c.normalized) != (contact.kind, contact.normalized) for c in contacts):
-            contacts.append(contact)
+        contacts.append(normalize_contact(str(item.get("kind")), item["value"], where, messenger))
+    contacts = expand(contacts)
     if required and not contacts:
         raise errors.validation_error("contacts", code="CONTACT_REQUIRED")
     return contacts
@@ -173,6 +216,7 @@ def snapshot(card: ClientCard) -> dict[str, Any]:
 
 def write_contacts(card: ClientCard, contacts: list[Contact]) -> None:
     ClientContact.objects.filter(client=card).delete()
+    contacts = expand(contacts)
     ClientContact.objects.bulk_create(
         ClientContact(
             company_id=card.company_id,
@@ -575,7 +619,10 @@ def matches(company_id: UUID, query: MatchQuery) -> list[tuple[ClientCard, list[
     for contact in query.contacts:
         add(
             ClientContact.objects.filter(
-                company_id=company_id, kind=contact.kind, value_normalized=contact.normalized
+                company_id=company_id,
+                kind=contact.kind,
+                messenger=contact.messenger,
+                value_normalized=contact.normalized,
             ).values_list("client_id", flat=True),
             contact.kind,
         )

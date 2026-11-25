@@ -8,6 +8,7 @@ from django.db import IntegrityError, transaction
 from django.test import Client
 from django.utils import timezone
 
+from c4rsys.accounts.models import LoginContact, UserAccount
 from c4rsys.notifications.models import Notification
 from c4rsys.parties import links, notices
 from c4rsys.parties.models import ClientCard, Counterparty, ProfileLink
@@ -155,6 +156,13 @@ def test_target_rules_cancel_and_expiry(owner: Client, cmp: str) -> None:
     assert missing.json()["error"]["code"] == "LINK_TARGET_NOT_FOUND"
     wrong_kind = ask(owner, cmp, card_id, cmp)
     assert wrong_kind.json()["error"]["code"] == "LINK_TARGET_NOT_FOUND"
+    # A request goes by a phone only when it is confirmed in a profile (decision of 25.11.2026).
+    unconfirmed = ask(owner, cmp, card_id, "+66 (81) 999-0000")
+    assert unconfirmed.json()["error"]["code"] == "LINK_CONTACT_NOT_CONFIRMED"
+    _holder, holder_usr = user_client("holder@example.com")
+    LoginContact.objects.create(
+        user=UserAccount.objects.get(public_id=holder_usr), kind="phone", value="+66819990000"
+    )
     phone = ask(owner, cmp, card_id, "+66 (81) 999-0000")
     assert phone.json()["link"]["target"] == "+66819990000"
     assert phone.json()["link"]["by_phone"] is True
@@ -311,3 +319,34 @@ def test_an_answer_for_a_company_needs_the_right_for_the_whole_company(
     whole, _ = hire(supplier, other, "whole@example.com", grant("company.link.answer"))
     assert whole.get(f"/api/c/{other}/incoming-links").status_code == 200
     assert whole.get(f"/api/c/{other}/incoming-owner-requests").status_code == 200
+
+
+def test_the_card_shows_which_contacts_can_carry_a_request(owner: Client, cmp: str) -> None:
+    """Decision of 25.11.2026: a contact confirmed in a profile carries the request into the
+    system; an email without a profile gets a letter; other contacts cannot be used yet."""
+    _somchai, usr = user_client("somchai@example.com")
+    LoginContact.objects.create(
+        user=UserAccount.objects.get(public_id=usr), kind="phone", value="+66812345678"
+    )
+    body = {
+        "kind": "person",
+        "first_name": "Somchai",
+        "last_name": "K",
+        "contacts": [
+            {"kind": "phone", "value": "+66 81 234 5678"},
+            {"kind": "email", "value": "nobody@example.com"},
+            {"kind": "messenger", "messenger": "whatsapp", "value": "+66 81 000 2222"},
+            {"kind": "messenger", "messenger": "telegram", "value": "@somchai_k"},
+        ],
+    }
+    card_id = post(owner, f"/api/c/{cmp}/clients", body, key()).json()["client"]["id"]
+    url = f"/api/c/{cmp}/profile-links?card_type=client&card_id={card_id}"
+    reach = {c["value"]: c["reach"] for c in owner.get(url).json()["contacts"]}
+    assert reach == {
+        "+66 81 234 5678": "profile",
+        "nobody@example.com": "email",
+        "+66 81 000 2222": "none",
+        "@somchai_k": "none",
+    }
+    sent = ask(owner, cmp, card_id, "+66 81 234 5678")
+    assert sent.status_code == 201, sent.content

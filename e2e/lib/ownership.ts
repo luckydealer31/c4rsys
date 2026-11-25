@@ -51,7 +51,7 @@ export async function ownershipScenario(page: Page, s: Company, email: string): 
   await picker.locator("select").first().selectOption("person");
   // No search of its own and no ID here: the matches come as the last name alone is typed
   // (customer's remark of 25.11.2026).
-  await expect(picker.getByRole("textbox")).toHaveCount(6);
+  await expect(picker.getByRole("textbox")).toHaveCount(5);
   await picker.getByLabel(t("vehicles.owner_last_name")).fill("Щукин");
   const matches = page.getByTestId("owner-matches");
   await expect(matches).toContainText("Щукин Тимофей Андреевич");

@@ -256,3 +256,43 @@ def test_contact_must_belong_to_card_of_same_company(owner: Client, cmp: str) ->
             value="x@example.com",
             value_normalized="x@example.com",
         )
+
+
+def test_a_messenger_is_a_contact_of_its_own(owner: Client, cmp: str) -> None:
+    """Customer's decisions of 25.11.2026: «Add a contact» — a phone, an email or a messenger with
+    a number or a nickname; any one contact is enough; a phone with a messenger bound to it, as it
+    was given before, is two contacts."""
+    only_telegram = {
+        "kind": "person",
+        "first_name": "Ivan",
+        "last_name": "Telegramov",
+        "contacts": [{"kind": "messenger", "messenger": "telegram", "value": "@Ivan_T"}],
+    }
+    created = _create(owner, cmp, only_telegram)
+    assert created.status_code == 201, created.content
+    assert created.json()["client"]["contacts"] == [
+        {"kind": "messenger", "value": "@Ivan_T", "messenger": "telegram"}
+    ]
+    assert ClientContact.objects.get(kind="messenger").value_normalized == "ivan_t"
+    bound = {
+        **PERSON,
+        "last_name": "Whatsappov",
+        "contacts": [{"kind": "phone", "value": "+66 81 000 1111", "messenger": "whatsapp"}],
+    }
+    split = _create(owner, cmp, bound).json()["client"]["contacts"]
+    assert sorted((c["kind"], c["messenger"]) for c in split) == [
+        ("messenger", "whatsapp"),
+        ("phone", ""),
+    ]
+    bad = _create(
+        owner,
+        cmp,
+        {
+            **only_telegram,
+            "contacts": [{"kind": "messenger", "messenger": "pigeon", "value": "x1"}],
+        },
+    )
+    assert bad.json()["error"]["code"] == "MESSENGER_INVALID"
+    # The same number in WhatsApp is found as a WhatsApp contact.
+    found = _matches(owner, cmp, {"phone": "+66810001111"}).json()["matches"]
+    assert [m["matched"] for m in found] == [["phone"]]

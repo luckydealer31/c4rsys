@@ -3,12 +3,16 @@ import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useApi } from "../../api/queries";
-import type { ProfileLink } from "../../api/types";
+import type { ClientContact, ProfileLink } from "../../api/types";
+
+/** A contact of the card and how it can carry a request (decision of 25.11.2026). */
+type ReachContact = ClientContact & { reach: "profile" | "email" | "none" };
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field } from "../../components/ui";
 import { deviceTimeZone, formatMoment } from "../../time";
 import { useCan, useCompany } from "../../layout/CompanyShell";
 import { DataRequestsPanel } from "./DataRequests";
+import { contactLabel } from "./ContactsEditor";
 
 /** Fields of the snapshot that can be taken into the working data of a card (§ 6.4.2). */
 const APPLICABLE: Record<"client" | "counterparty", string[]> = {
@@ -104,8 +108,12 @@ export function ProfileLinkCard({
     formatMoment(value, company.timezone || deviceTimeZone(), i18n.language);
   const queryClient = useQueryClient();
   const base = `/c/${company.public_id}/profile-links`;
-  const key = ["profile-links", company.public_id, cardType, cardId];
-  const links = useApi<{ links: ProfileLink[] }>(key, `${base}?card_type=${cardType}&card_id=${cardId}`);
+  // The version is in the key: the contacts are checked again after the card is changed.
+  const key = ["profile-links", company.public_id, cardType, cardId, version];
+  const links = useApi<{ links: ProfileLink[]; contacts?: ReachContact[] }>(
+    key,
+    `${base}?card_type=${cardType}&card_id=${cardId}`,
+  );
   const send = useCommand<{ card_type: string; card_id: string; target: string }, unknown>(base);
   const cancel = useCommand<Record<string, never>, unknown>(
     () => `${base}/${links.data?.links[0]?.id}/cancel`,
@@ -119,6 +127,18 @@ export function ProfileLinkCard({
     () => `${base}/${links.data?.links[0]?.id}/apply`,
   );
   const [target, setTarget] = useState("");
+  // A person is asked by a contact of the card confirmed in a profile — the request comes into the
+  // system; without one, by a letter to an email; or by the ID of the profile (customer's
+  // decisions of 25.11.2026). A company by its CMP ID.
+  const reach = cardKind === "person" ? (links.data?.contacts ?? []) : [];
+  const sendable = reach.filter((c) => c.reach !== "none");
+  const confirmed = reach.some((c) => c.reach === "profile");
+  const [picked, setPicked] = useState<string | null>(null);
+  const first = reach.findIndex((c) => c.reach === "profile");
+  const fallback = first >= 0 ? first : reach.findIndex((c) => c.reach === "email");
+  const choice = picked ?? (fallback >= 0 ? String(fallback) : "id");
+  const chosen = choice === "id" ? undefined : reach[Number(choice)];
+  const sending = chosen ? chosen.value : target.trim();
   // The request is started by a button; the field appears after it (decision of 15.11.2026).
   const [asking, setAsking] = useState(false);
   const [initiator, setInitiator] = useState("company");
@@ -133,8 +153,9 @@ export function ProfileLinkCard({
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if ((await send.run({ card_type: cardType, card_id: cardId, target })) !== null) {
+    if ((await send.run({ card_type: cardType, card_id: cardId, target: sending })) !== null) {
       setTarget("");
+      setPicked(null);
       setAsking(false);
       await refresh();
     }
@@ -166,7 +187,6 @@ export function ProfileLinkCard({
               ? ` · ${t("links.broken_at", { at: formatDateTime(last.broken_at) })} (${t(`links.initiator_${last.broken_initiator}`)})`
               : ""}
           </p>
-          {state === "pending" && last.by_phone ? <p className="muted small">{t("links.no_sms")}</p> : null}
           {state === "pending" && editable ? (
             <div className="actions">
               <button
@@ -274,12 +294,29 @@ export function ProfileLinkCard({
       ) : null}
       {!open && requestable && asking ? (
         <form className="stack" onSubmit={submit}>
-          <Field label={t(cardKind === "company" ? "links.target_company" : "links.target_person")}>
-            <input value={target} onChange={(e) => setTarget(e.target.value)} />
-          </Field>
+          {reach.length > 0 ? (
+            <Field label={t("links.send_to")}>
+              <select value={choice} onChange={(e) => setPicked(e.target.value)}>
+                {reach.map((c, i) => (
+                  <option key={`${c.kind}${c.messenger ?? ""}${c.value}`} value={String(i)} disabled={c.reach === "none"}>
+                    {`${contactLabel(t, c)}: ${c.value} — ${t(`links.reach_${c.reach}`)}`}
+                  </option>
+                ))}
+                <option value="id">{t("links.send_to_id")}</option>
+              </select>
+            </Field>
+          ) : null}
+          {choice === "id" ? (
+            <Field label={t(cardKind === "company" ? "links.target_company" : "links.target_id")}>
+              <input value={target} onChange={(e) => setTarget(e.target.value)} />
+            </Field>
+          ) : null}
+          {reach.length > 0 && !confirmed ? (
+            <p className="muted small">{t(sendable.length > 0 ? "links.none_confirmed" : "links.none_confirmed_no_email")}</p>
+          ) : null}
           <p className="muted small">{t(cardKind === "company" ? "links.hint_company" : "links.hint_person")}</p>
           <div className="actions">
-            <button type="submit" disabled={!target.trim() || send.pending}>
+            <button type="submit" disabled={!sending || send.pending}>
               {t("links.send")}
             </button>
             <button type="button" className="secondary" onClick={() => setAsking(false)}>

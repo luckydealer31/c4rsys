@@ -146,6 +146,9 @@ class ClientContact(models.Model):
     class Kind(models.TextChoices):
         PHONE = "phone"
         EMAIL = "email"
+        # A messenger is a contact of its own (customer's decision of 25.11.2026): WhatsApp,
+        # Telegram… with a number or a nickname.
+        MESSENGER = "messenger"
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
@@ -153,18 +156,21 @@ class ClientContact(models.Model):
     kind = models.CharField(max_length=10, choices=Kind.choices)
     value = models.CharField(max_length=254)
     value_normalized = models.CharField(max_length=254)
-    # The way of contact by this phone: empty — a call or SMS (the default); otherwise a
-    # messenger bound to the number (customer's decision of 30.10.2026). Emails have none.
+    # The messenger of a «messenger» contact; a phone and an email have none (customer's decision
+    # of 25.11.2026, in place of the messenger bound to a phone of 30.10.2026).
     messenger = models.CharField(max_length=20, blank=True, default="")
 
     class Meta:
         db_table = "client_contact"
         constraints = [
             models.UniqueConstraint(
-                fields=["client", "kind", "value_normalized"], name="client_contact_uniq"
+                fields=["client", "kind", "messenger", "value_normalized"],
+                name="client_contact_uniq_by_messenger",
             ),
             models.CheckConstraint(
-                condition=Q(messenger="") | Q(kind="phone"), name="client_contact_messenger_phone"
+                condition=(Q(kind="messenger") & ~Q(messenger=""))
+                | (~Q(kind="messenger") & Q(messenger="")),
+                name="client_contact_messenger_kind",
             ),
         ]
         indexes = [
@@ -274,6 +280,8 @@ class CounterpartyContact(models.Model):
     class Kind(models.TextChoices):
         PHONE = "phone"
         EMAIL = "email"
+        # A messenger is a contact of its own (customer's decision of 25.11.2026).
+        MESSENGER = "messenger"
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
@@ -283,20 +291,21 @@ class CounterpartyContact(models.Model):
     kind = models.CharField(max_length=10, choices=Kind.choices)
     value = models.CharField(max_length=254)
     value_normalized = models.CharField(max_length=254)
-    # The way of contact by this phone: empty — a call or SMS (the default); otherwise a
-    # messenger bound to the number (customer's decision of 30.10.2026). Emails have none.
+    # The messenger of a «messenger» contact; a phone and an email have none (customer's decision
+    # of 25.11.2026, in place of the messenger bound to a phone of 30.10.2026).
     messenger = models.CharField(max_length=20, blank=True, default="")
 
     class Meta:
         db_table = "counterparty_contact"
         constraints = [
             models.UniqueConstraint(
-                fields=["counterparty", "kind", "value_normalized"],
-                name="counterparty_contact_uniq",
+                fields=["counterparty", "kind", "messenger", "value_normalized"],
+                name="counterparty_contact_uniq_by_messenger",
             ),
             models.CheckConstraint(
-                condition=Q(messenger="") | Q(kind="phone"),
-                name="counterparty_contact_messenger_phone",
+                condition=(Q(kind="messenger") & ~Q(messenger=""))
+                | (~Q(kind="messenger") & Q(messenger="")),
+                name="counterparty_contact_messenger_kind",
             ),
         ]
 

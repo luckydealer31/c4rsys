@@ -451,6 +451,8 @@ test("storage places are a list of the warehouse", async ({ page }) => {
   await reading.getByRole("button", { name: t("recognition.supplier_create"), exact: true }).click();
   const window = page.getByRole("dialog", { name: t("receipts.new_supplier_title") });
   await expect(window.locator('input[value="Phuket Parts"]')).toHaveCount(1);
+  // A contact is added by its kind first (customer's remark of 25.11.2026).
+  await window.getByTestId("contacts-editor").locator("select").first().selectOption("email");
   await window.locator('input[type="email"]').fill("parts@example.com");
   await window.locator('button[type="submit"]').click();
   await expect(window).toHaveCount(0);

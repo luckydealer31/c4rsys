@@ -111,7 +111,31 @@ def resolve_target(card_kind: str, value: str) -> Target:
         email = services.normalize_contact("email", text, "target").normalized
         return Target(Profile.PERSON, email, user=accounts.find_user_by_email(email), email=email)
     phone = services.normalize_contact("phone", text, "target").normalized
-    return Target(Profile.PERSON, phone, user=accounts.find_user_by_phone(phone), phone=phone)
+    user = accounts.find_user_by_phone(phone)
+    # A request goes into the system only by a contact confirmed in a profile; without one it is
+    # a letter to an email (customer's decision of 25.11.2026; SMS later).
+    if user is None:
+        raise errors.business_rule("LINK_CONTACT_NOT_CONFIRMED", field="target")
+    return Target(Profile.PERSON, phone, user=user, phone=phone)
+
+
+def contact_reach(card: Card) -> list[dict[str, str]]:
+    """How each contact of a person card can carry a link request (customer's decision of
+    25.11.2026): `profile` — it is confirmed in a profile, the request comes into the system;
+    `email` — an email not confirmed in any profile, the request is a letter; `none` — a phone
+    or a messenger not confirmed in a profile, nothing can be sent by it yet."""
+    if card.kind == ClientCard.Kind.COMPANY:
+        return []
+    found = []
+    for c in _contacts(card):
+        if c.kind == "email":
+            reach = "profile" if accounts.find_user_by_email(c.normalized) else "email"
+        elif services.is_phone_value(c):
+            reach = "profile" if accounts.find_user_by_phone(c.normalized) else "none"
+        else:
+            reach = "none"
+        found.append({**c.as_dict(), "reach": reach})
+    return found
 
 
 # --- Cards ------------------------------------------------------------------------------------

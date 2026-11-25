@@ -5,14 +5,15 @@ import { Link, useLocation, useNavigate, useParams, useSearchParams } from "reac
 import { ProfileLinkCard } from "./ProfileLinkCard";
 
 import { useApi } from "../../api/queries";
-import type { ClientContact, Counterparty, Messenger } from "../../api/types";
+import type { Counterparty } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, IconButton, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { SectionTabs } from "../../layout/SectionTabs";
 import { useFirstTab } from "../../layout/tabOrder";
 import { TagsLine } from "../tags/Tags";
-import { CardBadges, MessengerField } from "./ClientsPage";
+import { CardBadges } from "./ClientsPage";
+import { ContactsEditor, contactsOf, type ContactRow } from "./ContactsEditor";
 import { ContractorHistoryCard, MergeCard } from "./CardExtras";
 import { DocumentsCard, Facts, MainCard, SupplierHistoryCard } from "./CardParts";
 import { LinkedDocuments } from "../documents/DocumentsPage";
@@ -24,9 +25,7 @@ type Draft = {
   last_name: string;
   middle_name: string;
   company_name: string;
-  phone: string;
-  phone_messenger: Messenger;
-  email: string;
+  contacts: ContactRow[];
   comment: string;
 };
 
@@ -36,18 +35,10 @@ const EMPTY: Draft = {
   last_name: "",
   middle_name: "",
   company_name: "",
-  phone: "",
-  phone_messenger: "",
-  email: "",
+  contacts: [{ choice: "", value: "" }],
   comment: "",
 };
 
-function contactsOf(draft: Pick<Draft, "phone" | "phone_messenger" | "email">): ClientContact[] {
-  const contacts: ClientContact[] = [];
-  if (draft.phone.trim()) contacts.push({ kind: "phone", value: draft.phone, messenger: draft.phone_messenger });
-  if (draft.email.trim()) contacts.push({ kind: "email", value: draft.email });
-  return contacts;
-}
 
 /** Counterparties — suppliers of the company (§ 6.1.4), a list of its own apart from clients
  * (§ 6.1.7). The minimal list of the warehouse stage (customer's decision of 25.10.2026). */
@@ -142,7 +133,7 @@ export function CounterpartyForm({
   async function submit(event: FormEvent) {
     event.preventDefault();
     event.stopPropagation();
-    const contacts = contactsOf(draft);
+    const contacts = contactsOf(draft.contacts);
     const body: Record<string, unknown> =
       draft.kind === "person"
         ? {
@@ -190,18 +181,7 @@ export function CounterpartyForm({
             <input value={draft.company_name} onChange={set("company_name")} />
           </Field>
         )}
-        <div className="row">
-          <Field label={t("clients.phone")}>
-            <input type="tel" value={draft.phone} onChange={set("phone")} />
-          </Field>
-          <MessengerField
-            value={draft.phone_messenger}
-            onChange={(messenger) => setDraft({ ...draft, phone_messenger: messenger })}
-          />
-          <Field label={t("auth.email")}>
-            <input type="email" value={draft.email} onChange={set("email")} />
-          </Field>
-        </div>
+        <ContactsEditor rows={draft.contacts} onChange={(contacts) => setDraft({ ...draft, contacts })} />
         <Field label={t("warehouse.comment")}>
           <input value={draft.comment} onChange={set("comment")} />
         </Field>

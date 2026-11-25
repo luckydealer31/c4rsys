@@ -249,8 +249,11 @@ def test_counterparties_are_searched_in_their_own_list(owner: Client) -> None:
     assert body["rows"][0]["result"] == "created"
     card = Counterparty.objects.get(company_name="Parts Co")
     assert (card.registration, card.category) == ("TAX 123", "Parts")
-    # A messenger is bound to the phone number (decision of 30.10.2026).
-    assert card.contacts.get().messenger == "line"
+    # The messenger column of a phone gives a contact of its own (decision of 25.11.2026).
+    assert sorted(card.contacts.values_list("kind", "messenger")) == [
+        ("messenger", "line"),
+        ("phone", ""),
+    ]
 
 
 def test_messenger_belongs_to_a_phone(owner: Client) -> None:
@@ -296,7 +299,9 @@ def test_messenger_belongs_to_a_phone(owner: Client) -> None:
     )
     assert created.status_code == 201, created.content
     contacts = created.json()["client"]["contacts"]
-    assert {"kind": "phone", "value": "+6682222", "messenger": "whatsapp"} in contacts
+    # A phone with a messenger is two contacts now (customer's decision of 25.11.2026).
+    assert {"kind": "phone", "value": "+6682222", "messenger": ""} in contacts
+    assert {"kind": "messenger", "value": "+6682222", "messenger": "whatsapp"} in contacts
     refused = post(
         owner,
         f"/api/c/{s.cmp}/clients",

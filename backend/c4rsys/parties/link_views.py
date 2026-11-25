@@ -85,7 +85,16 @@ def card_links(request: HttpRequest, cmp: str) -> JsonResponse:
             links.payload(link, now)
             for link in links.links_of_card(context.company.id, card_type, card_id)
         ]
-        return JsonResponse({"links": items})
+        answer: dict[str, Any] = {"links": items}
+        # Which contacts of the card can carry a request: shown only to who may send it.
+        card = (
+            links.card_model(card_type)
+            .objects.filter(company_id=context.company.id, pk=card_id)
+            .first()
+        )
+        if card is not None and _has(actor, REQUEST[card_type]):
+            answer["contacts"] = links.contact_reach(card)
+        return JsonResponse(answer)
 
     data = parse_json(request)
     card_type = _card_type(get_str(data, "card_type", max_length=20))
