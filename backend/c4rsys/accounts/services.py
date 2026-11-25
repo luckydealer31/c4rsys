@@ -723,6 +723,8 @@ def shareable_profile(user: UserAccount) -> dict[str, Any]:
             "expires_on": (
                 user.document_expires_on.isoformat() if user.document_expires_on else None
             ),
+            # Only a driving licence has them (customer's decision of 25.11.2026).
+            **({"categories": user.document_categories} if user.document_categories else {}),
         }
         if user.document_number
         else None,

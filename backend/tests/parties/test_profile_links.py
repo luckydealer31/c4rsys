@@ -358,3 +358,88 @@ def test_the_card_shows_which_contacts_can_carry_a_request(owner: Client, cmp: s
     }
     sent = ask(owner, cmp, card_id, "+66 81 234 5678")
     assert sent.status_code == 201, sent.content
+
+
+def test_the_document_type_of_the_profile_is_kept_in_the_card() -> None:
+    """Customer's remark of 25.11.2026: a passport of the profile came into the card as «Other»;
+    the profile keeps the type as the text of the person's language."""
+    from c4rsys.parties.links import document_type
+
+    for text in ("Паспорт", "Passport", "passport", "Заграничный паспорт", "หนังสือเดินทาง"):
+        assert document_type(text) == "passport", text
+    for text in ("ID-карта", "ID card", "id_card"):
+        assert document_type(text) == "national_id", text
+    for other in ("Водительское удостоверение", "Driver's license", "", None):
+        assert document_type(other) == "other", other
+
+
+def test_a_driving_licence_of_the_profile_goes_to_the_licence_of_the_card(
+    owner: Client, cmp: str
+) -> None:
+    """Customer's remark of 25.11.2026: every person card has its own driving licence; a licence
+    given from the profile goes there, not to the identity document."""
+    card_id = person(owner, cmp)
+    ClientCard.objects.filter(pk=card_id).update(
+        id_document={
+            "type": "passport",
+            "number": "P1",
+            "country": "",
+            "issued_on": None,
+            "expires_on": None,
+        },
+        driver_license={
+            "number": "77 01 123456",
+            "country": "RU",
+            "issued_on": None,
+            "expires_on": None,
+            "categories": ["B"],
+        },
+    )
+    somchai, usr = user_client("somchai@example.com")
+    UserAccount.objects.filter(public_id=usr).update(
+        document_type="Водительское удостоверение",
+        document_number="7701123456",
+        document_issued_on="2020-01-02",
+        document_expires_on="2030-01-02",
+    )
+    link = ask(owner, cmp, card_id, usr).json()["link"]
+    post(somchai, f"/api/profile-links/{link['id']}/accept", {"fields": ["document"]}, key())
+    compared = links_of(owner, cmp, card_id)[0]["compare"]["document"]
+    assert compared["status"] == "same" and compared["current"]["number"] == "77 01 123456"
+    version = owner.get(f"/api/c/{cmp}/clients/{card_id}").json()["client"]["version"]
+    applied = post(
+        owner,
+        f"/api/c/{cmp}/profile-links/{link['id']}/apply",
+        {"field": "document", "expected_version": version},
+        key(),
+    )
+    assert applied.status_code == 200, applied.content
+    card = ClientCard.objects.get(pk=card_id)
+    assert (card.id_document or {})["number"] == "P1"
+    # The profile has no categories: those of the card stay with the same licence.
+    assert card.driver_license == {
+        "number": "7701123456",
+        "country": "RU",
+        "issued_on": "2020-01-02",
+        "expires_on": "2030-01-02",
+        "categories": ["B"],
+    }
+
+    # The categories given by the profile take the place of those of the card.
+    UserAccount.objects.filter(public_id=usr).update(document_categories=["B", "C"])
+    post(
+        owner,
+        f"/api/c/{cmp}/profile-links/{link['id']}/break",
+        {"initiator": "company"},
+        key(),
+    )
+    again = ask(owner, cmp, card_id, usr).json()["link"]
+    post(somchai, f"/api/profile-links/{again['id']}/accept", {"fields": ["document"]}, key())
+    version = owner.get(f"/api/c/{cmp}/clients/{card_id}").json()["client"]["version"]
+    post(
+        owner,
+        f"/api/c/{cmp}/profile-links/{again['id']}/apply",
+        {"field": "document", "expected_version": version},
+        key(),
+    )
+    assert (ClientCard.objects.get(pk=card_id).driver_license or {})["categories"] == ["B", "C"]

@@ -246,3 +246,18 @@ def test_taken_email_is_told_only_after_its_code(client: Client) -> None:
 
     assert done.json()["error"]["code"] == "EMAIL_ALREADY_REGISTERED"
     assert LoginContact.objects.filter(value="owner@example.com").exists()
+
+
+def test_a_driving_licence_keeps_its_categories(client: Client) -> None:
+    """Customer's decision of 25.11.2026: the profile has the categories of a driving licence."""
+    register(client)
+    licence = {
+        **FULL,
+        "document_type": "Водительское удостоверение",
+        "document_categories": ["b", "C1E", "B", " "],
+    }
+    response = post(client, "/api/me/personal-data", licence, key())
+    assert response.status_code == 200, response.content
+    assert response.json()["user"]["document_categories"] == ["B", "C1E"]
+    wrong = post(client, "/api/me/personal-data", {**licence, "document_categories": "B"}, key())
+    assert wrong.json()["error"]["field"] == "document_categories"

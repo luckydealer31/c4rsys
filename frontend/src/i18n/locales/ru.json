@@ -1937,6 +1937,8 @@
     "device": "Устройство",
     "document": "Документ",
     "document_driver_license": "Водительское удостоверение",
+    "document_categories": "Категории",
+    "document_categories_hint": "Через запятую, например: B, C",
     "document_expires_on": "Срок действия",
     "document_id_card": "ID-карта",
     "document_issued_on": "Дата выдачи",

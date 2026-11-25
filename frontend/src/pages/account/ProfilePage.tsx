@@ -60,6 +60,8 @@ type Personal = {
   document_number: string;
   document_issued_on: string;
   document_expires_on: string;
+  /** The categories of a driving licence, typed as «B, C». */
+  document_categories: string;
 };
 
 function personalOf(user: User): Personal {
@@ -75,7 +77,18 @@ function personalOf(user: User): Personal {
     document_number: user.document_number,
     document_issued_on: user.document_issued_on ?? "",
     document_expires_on: user.document_expires_on ?? "",
+    document_categories: (user.document_categories ?? []).join(", "),
   };
+}
+
+/** Whether the type of the document is a driving licence: only it has categories (customer's
+ * decision of 25.11.2026). The type is a free text chosen from the hints. */
+function isLicence(type: string, licence: string): boolean {
+  const value = type.trim().toLowerCase();
+  return (
+    value === licence.toLowerCase() ||
+    ["водительск", "driver", "driving", "ใบขับขี่"].some((word) => value.includes(word))
+  );
 }
 
 function formatDate(value: string | null, locale: string): string {
@@ -113,7 +126,12 @@ function PersonalCard({ user }: { user: User }) {
       }
       return;
     }
-    const body = { ...form, avatar: form.avatar ?? "" };
+    const licence = isLicence(form.document_type, t("profile.document_driver_license"));
+    const body = {
+      ...form,
+      avatar: form.avatar ?? "",
+      document_categories: licence ? form.document_categories.split(/[,\s]+/).filter(Boolean) : [],
+    };
     const result = await save.run(flow ? { ...body, flow: flow.flow, code } : body);
     if (result) {
       client.setQueryData(ME_KEY, result.user);
@@ -158,6 +176,12 @@ function PersonalCard({ user }: { user: User }) {
               ? `${documentType} ${user.document_number}`.trim()
               : "—"}
           </dd>
+          {user.document_categories?.length ? (
+            <>
+              <dt>{t("profile.document_categories")}</dt>
+              <dd>{user.document_categories.join(", ")}</dd>
+            </>
+          ) : null}
           <dt>{t("profile.document_issued_on")}</dt>
           <dd>{formatDate(user.document_issued_on, i18n.language)}</dd>
           <dt>{t("profile.document_expires_on")}</dt>
@@ -261,6 +285,14 @@ function PersonalCard({ user }: { user: User }) {
               onChange={(e) => set({ document_expires_on: e.target.value })}
             />
           </Field>
+          {isLicence(form.document_type, t("profile.document_driver_license")) ? (
+            <Field label={t("profile.document_categories")} hint={t("profile.document_categories_hint")}>
+              <input
+                value={form.document_categories}
+                onChange={(e) => set({ document_categories: e.target.value })}
+              />
+            </Field>
+          ) : null}
         </div>
         {flow ? (
           <Field label={t("auth.code")} hint={t("profile.code_for_change")}>

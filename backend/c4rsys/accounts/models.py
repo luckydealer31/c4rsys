@@ -49,6 +49,8 @@ class UserAccount(models.Model):
     document_number = models.CharField(max_length=100, blank=True, default="")
     document_issued_on = models.DateField(null=True, blank=True)
     document_expires_on = models.DateField(null=True, blank=True)
+    # The categories of a driving licence (customer's decision of 25.11.2026), e.g. ["B", "C"].
+    document_categories = models.JSONField(default=list, blank=True)
     # Personal time zone of the interface (customer's decision of 24.10.2026); empty — device.
     time_zone = models.CharField(max_length=64, blank=True, default="")
     password_hash = models.CharField(max_length=255)

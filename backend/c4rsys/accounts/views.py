@@ -84,6 +84,7 @@ def _user_payload(user: UserAccount) -> dict[str, Any]:
         "document_expires_on": (
             user.document_expires_on.isoformat() if user.document_expires_on else None
         ),
+        "document_categories": user.document_categories,
         "language": user.language,
         "theme": user.theme,
         "timezone": user.time_zone,
@@ -299,6 +300,21 @@ def _date(data: dict[str, Any], key: str) -> str:
     return value
 
 
+def _categories(data: dict[str, Any]) -> list[str]:
+    """The categories of a driving licence: short codes such as «B» or «C1E», each once."""
+    value = data.get("document_categories") or []
+    if not isinstance(value, list) or len(value) > 20:
+        raise errors.validation_error("document_categories")
+    found: list[str] = []
+    for item in value:
+        if not isinstance(item, str) or len(item.strip()) > 10:
+            raise errors.validation_error("document_categories")
+        code = item.strip().upper()
+        if code and code not in found:
+            found.append(code)
+    return found
+
+
 def _personal_values(data: dict[str, Any], user: UserAccount) -> dict[str, Any]:
     values: dict[str, Any] = {
         "last_name": get_str(data, "last_name", max_length=150),
@@ -311,6 +327,7 @@ def _personal_values(data: dict[str, Any], user: UserAccount) -> dict[str, Any]:
         "document_number": get_str(data, "document_number", max_length=100, required=False),
         "document_issued_on": _date(data, "document_issued_on"),
         "document_expires_on": _date(data, "document_expires_on"),
+        "document_categories": _categories(data),
         "avatar": get_str(data, "avatar", max_length=36, required=False),
     }
     if values["contact_email"]:
@@ -348,6 +365,7 @@ PERSONAL_FIELDS = (
     "document_number",
     "document_issued_on",
     "document_expires_on",
+    "document_categories",
     "avatar",
 )
 
@@ -382,6 +400,7 @@ def personal_data(request: HttpRequest) -> JsonResponse:
             setattr(locked, key, values[key])
         locked.document_type = values["document_type"]
         locked.document_number = values["document_number"]
+        locked.document_categories = values["document_categories"]
         for key in ("birth_date", "document_issued_on", "document_expires_on"):
             setattr(locked, key, date.fromisoformat(values[key]) if values[key] else None)
         locked.avatar_id = UUID(values["avatar"]) if values["avatar"] else None

@@ -851,6 +851,26 @@ def _identifiers(value: Any) -> str:
     )
 
 
+def is_driver_license(text: Any) -> bool:
+    """A document of the profile that is a driving licence goes to the licence of the card, which
+    every person card has apart from the identity document (customer's remark of 25.11.2026)."""
+    value = str(text or "").strip().lower().replace("_", " ")
+    return "водительск" in value or "driver" in value or "driving" in value or "ใบขับขี่" in value
+
+
+def document_type(text: Any) -> str:
+    """The type of the card's document for the type written in the profile, where it is a free
+    text chosen from the hints «Passport», «ID card», «Driver's license» in the language of the
+    person (customer's remark of 25.11.2026: a passport came as «Other»). PROPOSAL: a type that
+    names a passport is a passport, an ID card is an ID card, anything else is «Other»."""
+    value = str(text or "").strip().lower()
+    if "passport" in value or "паспорт" in value or "หนังสือเดินทาง" in value:
+        return "passport"
+    if value.replace("-", " ").replace("_", " ") in {"id card", "national id", "id", "id карта"}:
+        return "national_id"
+    return "other"
+
+
 def apply_value(
     ctx: CommandContext,
     company_id: UUID,
@@ -901,11 +921,32 @@ def apply_value(
         changes[field] = str(value)[: 100 if field == "legal_form" else 500]
     elif field == "country" and card.kind == "company":
         changes["country"] = str(value)[:2].upper()
+    elif (
+        field == "document"
+        and card.kind == "person"
+        and isinstance(value, dict)
+        and is_driver_license(value.get("type"))
+    ):
+        # The categories given by the profile; without them those of the card stay while the
+        # number is the same.
+        held = card.driver_license or {}
+        same = _same_number(held.get("number"), value.get("number"))
+        given = value.get("categories") if isinstance(value.get("categories"), list) else []
+        changes["driver_license"] = extended.parse_value(
+            "driver_license",
+            {
+                "number": value.get("number") or "",
+                "country": held.get("country") if same else None,
+                "issued_on": value.get("issued_on"),
+                "expires_on": value.get("expires_on"),
+                "categories": given or (held.get("categories", []) if same else []),
+            },
+        )
     elif field == "document" and card.kind == "person" and isinstance(value, dict):
         changes["id_document"] = extended.parse_value(
             "id_document",
             {
-                "type": "passport" if value.get("type") == "passport" else "other",
+                "type": document_type(value.get("type")),
                 "number": value.get("number") or "",
                 "issued_on": value.get("issued_on"),
                 "expires_on": value.get("expires_on"),
@@ -960,6 +1001,15 @@ def _same_text(a: Any, b: Any) -> bool:
     return str(a or "").strip().casefold() == str(b or "").strip().casefold()
 
 
+def _same_number(a: Any, b: Any) -> bool:
+    """Document numbers are the same whatever spaces or dashes they are written with (PROPOSAL)."""
+
+    def bare(value: Any) -> str:
+        return "".join(ch for ch in str(value or "") if ch.isalnum()).casefold()
+
+    return bare(a) == bare(b)
+
+
 def compare(card: Card, card_type: str, data: dict[str, Any]) -> dict[str, dict[str, Any]]:
     """What the card holds now for each value given by the profile, to compare before taking it
     (customer's remark of 25.11.2026): `same` — the card has this value; `empty` — the card has
@@ -997,7 +1047,8 @@ def compare(card: Card, card_type: str, data: dict[str, Any]) -> dict[str, dict[
             current = getattr(card, field, "") or None
         elif field == "document":
             absent = card.kind != "person"
-            current = card.id_document or None
+            licence = isinstance(value, dict) and is_driver_license(value.get("type"))
+            current = (card.driver_license if licence else card.id_document) or None
         elif field == "identifiers":
             absent = card_type != "counterparty"
             current = getattr(card, "registration", "") or None
@@ -1009,7 +1060,7 @@ def compare(card: Card, card_type: str, data: dict[str, Any]) -> dict[str, dict[
             status = "empty"
         elif field == "document" and isinstance(value, dict) and isinstance(current, dict):
             status = (
-                "same" if _same_text(value.get("number"), current.get("number")) else "different"
+                "same" if _same_number(value.get("number"), current.get("number")) else "different"
             )
         elif field == "identifiers":
             status = "same" if _same_text(_identifiers(value), current) else "different"

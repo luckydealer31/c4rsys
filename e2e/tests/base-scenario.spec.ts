@@ -72,8 +72,14 @@ test("base example from registration to closing survives a restart", async ({ pa
   const name = card(page, t("profile.personal_title"));
   await name.getByLabel(t("profile.first_name")).fill(author.first);
   await name.getByLabel(t("profile.last_name")).fill(author.last);
+  // A driving licence has its categories (customer's decision of 25.11.2026).
+  await expect(name.getByLabel(t("profile.document_categories"))).toHaveCount(0);
+  await name.getByLabel(t("profile.document_type")).fill(t("profile.document_driver_license"));
+  await name.getByLabel(t("profile.document_number")).fill("7701123456");
+  await name.getByLabel(t("profile.document_categories")).fill("B, C");
   await name.getByRole("button", { name: t("common.save") }).click();
   await expect(name.getByText(t("common.saved"))).toBeVisible();
+  await expect(name).toContainText("B, C");
 
   // The block «Telegram» (customer's decisions of 22.11.2026) is not shown while the bot is not
   // connected; connected, it makes a one-time link to the bot. The bot is not connected here:
