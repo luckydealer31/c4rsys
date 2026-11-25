@@ -955,6 +955,76 @@ def _profile_of(link: ProfileLink) -> dict[str, str] | None:
     return None
 
 
+def _same_text(a: Any, b: Any) -> bool:
+    return str(a or "").strip().casefold() == str(b or "").strip().casefold()
+
+
+def compare(card: Card, card_type: str, data: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """What the card holds now for each value given by the profile, to compare before taking it
+    (customer's remark of 25.11.2026): `same` — the card has this value; `empty` — the card has
+    nothing there; `different` — the card has another value; `absent` — the card has no such
+    field. The mapping is the one of `apply_value`."""
+    contacts = _contacts(card)
+    found: dict[str, dict[str, Any]] = {}
+    for field, value in data.items():
+        current: Any = None
+        absent = False
+        if field in ("email", "phone"):
+            mine = [c for c in contacts if c.kind == field]
+            current = ", ".join(c.value for c in mine) or None
+            try:
+                given = services.normalize_contact(field, str(value), "field").normalized
+            except errors.ApiError:
+                given = str(value)
+            status = (
+                "same"
+                if any(c.normalized == given for c in mine)
+                else ("different" if mine else "empty")
+            )
+            found[field] = {"current": current, "status": status}
+            continue
+        if field in ("first_name", "last_name", "middle_name"):
+            current = getattr(card, field, "") or None
+        elif field == "birth_date":
+            absent = card_type != "client"
+            birth = getattr(card, "birth_date", None)
+            current = birth.isoformat() if birth else None
+        elif field in ("display_name", "legal_name"):
+            current = card.company_name or None
+        elif field in ("legal_address", "actual_address", "legal_form", "country"):
+            absent = card.kind != "company"
+            current = getattr(card, field, "") or None
+        elif field == "document":
+            absent = card.kind != "person"
+            current = card.id_document or None
+        elif field == "identifiers":
+            absent = card_type != "counterparty"
+            current = getattr(card, "registration", "") or None
+        else:
+            absent = True
+        if absent:
+            status = "absent"
+        elif current is None:
+            status = "empty"
+        elif field == "document" and isinstance(value, dict) and isinstance(current, dict):
+            status = (
+                "same" if _same_text(value.get("number"), current.get("number")) else "different"
+            )
+        elif field == "identifiers":
+            status = "same" if _same_text(_identifiers(value), current) else "different"
+        else:
+            status = "same" if _same_text(value, current) else "different"
+        found[field] = {"current": None if absent else current, "status": status}
+    return found
+
+
+def _compare_link(link: ProfileLink) -> dict[str, dict[str, Any]]:
+    card_type = card_type_of(link)
+    card = card_model(card_type).objects.filter(pk=current_card_id(link)).first()
+    data = (link.shared or {}).get("data", {})
+    return compare(card, card_type, data) if card is not None and data else {}
+
+
 def payload(link: ProfileLink, now: datetime) -> dict[str, Any]:
     """For the requesting company."""
     accepted = link.state in (State.ACCEPTED, State.BROKEN)
@@ -973,6 +1043,7 @@ def payload(link: ProfileLink, now: datetime) -> dict[str, Any]:
         "linked_profile": _profile_of(link),
         "shared": (link.shared or {}).get("data", {}) if accepted else {},
         "shared_at": (link.shared or {}).get("at") if accepted else None,
+        "compare": _compare_link(link) if accepted else {},
         "card_id": str(card_id_of(link)),
         "access_revoked_at": link.access_revoked_at.isoformat() if link.access_revoked_at else None,
         "access_revoke_reason": link.access_revoke_reason,

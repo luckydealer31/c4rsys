@@ -1,9 +1,10 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { useLocation } from "react-router";
 
 import { useApi } from "../../api/queries";
-import type { ClientContact, ProfileLink } from "../../api/types";
+import type { ClientContact, ProfileLink, SharedCompare } from "../../api/types";
 
 /** A contact of the card and how it can carry a request (decision of 25.11.2026). */
 type ReachContact = ClientContact & { reach: "profile" | "email" | "none" };
@@ -161,12 +162,21 @@ export function ProfileLinkCard({
     }
   }
 
+  // A notification of the answer leads straight here (customer's remark of 25.11.2026).
+  const anchor = useRef<HTMLDivElement>(null);
+  const { hash } = useLocation();
+  const loaded = Boolean(links.data);
+  useEffect(() => {
+    if (hash === "#profile-link" && loaded) anchor.current?.scrollIntoView({ block: "start" });
+  }, [hash, loaded]);
+
   const last = links.data?.links[0];
   const state = last?.state;
   const open = state === "pending" || state === "accepted";
   const shown = last && (state === "accepted" || state === "broken") ? last : undefined;
 
   return (
+    <div id="profile-link" ref={anchor}>
     <Card title={t("links.title")}>
       {!last || !open ? <p className="muted">{t("links.not_linked")}</p> : null}
       {last ? (
@@ -205,30 +215,15 @@ export function ProfileLinkCard({
             <>
               <h3>{t("links.shared_title")}</h3>
               <p className="muted small">{t("links.shared_hint")}</p>
-              <table className="table">
-                <tbody>
-                  {orderedFields(shown.shared).map(([field, value]) => (
-                    <tr key={field}>
-                      <td>{t(`links.field_${field}`)}</td>
-                      <td>{sharedValue(value)}</td>
-                      <td>
-                        {editable && APPLICABLE[cardType].includes(field) ? (
-                          <button
-                            type="button"
-                            className="secondary small"
-                            disabled={apply.pending}
-                            onClick={async () => {
-                              if ((await apply.run({ field, expected_version: version })) !== null) await refresh();
-                            }}
-                          >
-                            {t("links.apply")}
-                          </button>
-                        ) : null}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <SharedTable
+                data={shown.shared}
+                compare={shown.compare}
+                applicable={editable ? APPLICABLE[cardType] : []}
+                pending={apply.pending}
+                onApply={async (field) => {
+                  if ((await apply.run({ field, expected_version: version })) !== null) await refresh();
+                }}
+              />
             </>
           ) : null}
           {state === "accepted" ? (
@@ -327,5 +322,62 @@ export function ProfileLinkCard({
       ) : null}
       <ErrorMessage error={send.error ?? cancel.error ?? breakLink.error ?? apply.error} />
     </Card>
+    </div>
+  );
+}
+
+/** The values given by a profile beside what the card holds now, so it is seen what is new, what
+ * is the same and what differs before taking a value; a taken value shows «In the card»
+ * (customer's remark of 25.11.2026). */
+export function SharedTable({
+  data,
+  compare,
+  applicable,
+  pending,
+  onApply,
+}: {
+  data: Record<string, unknown>;
+  compare: Record<string, SharedCompare>;
+  applicable: string[];
+  pending: boolean;
+  onApply: (field: string) => Promise<void>;
+}) {
+  const { t } = useTranslation();
+  return (
+    <table className="table" data-testid="shared-table">
+      <thead>
+        <tr>
+          <th />
+          <th>{t("links.from_profile")}</th>
+          <th>{t("links.in_card")}</th>
+          <th />
+        </tr>
+      </thead>
+      <tbody>
+        {orderedFields(data).map(([field, value]) => {
+          const found = compare[field];
+          const status = found?.status ?? "empty";
+          const contact = field === "email" || field === "phone";
+          return (
+            <tr key={field}>
+              <td>{t(`links.field_${field}`)}</td>
+              <td>{sharedValue(value)}</td>
+              <td className={status === "different" ? "" : "muted"}>
+                {status === "absent" ? t("links.no_such_field") : found?.current ? sharedValue(found.current) : "—"}
+              </td>
+              <td>
+                {status === "same" ? (
+                  <span className="badge ok" style={{ whiteSpace: "nowrap" }}>{t("links.taken")}</span>
+                ) : status !== "absent" && applicable.includes(field) ? (
+                  <button type="button" className="secondary small" disabled={pending} onClick={() => void onApply(field)}>
+                    {t(status === "empty" ? "links.apply" : contact ? "links.apply_add" : "links.apply_replace")}
+                  </button>
+                ) : null}
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }

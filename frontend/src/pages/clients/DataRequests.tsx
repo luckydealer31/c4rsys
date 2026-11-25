@@ -9,7 +9,7 @@ import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field } from "../../components/ui";
 import { useCompany } from "../../layout/CompanyShell";
 import { deviceTimeZone, formatMoment } from "../../time";
-import { orderedFields, sharedValue } from "./ProfileLinkCard";
+import { orderedFields, SharedTable, sharedValue } from "./ProfileLinkCard";
 
 /** § 6.4.4: a request of fresh data from the linked profile, only when the client asks for a
  * service; the answer is a new snapshot whose values are taken one by one (§ 6.4.2). */
@@ -96,31 +96,19 @@ export function DataRequestsPanel({
             </div>
           ) : null}
           {r.state === "accepted" && Object.keys(r.shared).length ? (
-            <table className="table">
-              <tbody>
-                {orderedFields(r.shared).map(([field, value]) => (
-                  <tr key={field}>
-                    <td>{t(`links.field_${field}`)}</td>
-                    <td>{sharedValue(value)}</td>
-                    <td>
-                      {editable && applicable.includes(field) ? (
-                        <button
-                          type="button"
-                          className="secondary small"
-                          disabled={apply.pending}
-                          onClick={async () => {
-                            const body = { field, expected_version: version, data_request_id: r.id };
-                            if ((await apply.run(body)) !== null) await onApplied();
-                          }}
-                        >
-                          {t("links.apply")}
-                        </button>
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <SharedTable
+              data={r.shared}
+              compare={r.compare}
+              applicable={editable ? applicable : []}
+              pending={apply.pending}
+              onApply={async (field) => {
+                const body = { field, expected_version: version, data_request_id: r.id };
+                if ((await apply.run(body)) !== null) {
+                  await refresh();
+                  await onApplied();
+                }
+              }}
+            />
           ) : null}
         </div>
       ))}

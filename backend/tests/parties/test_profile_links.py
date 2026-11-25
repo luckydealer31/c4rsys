@@ -103,6 +103,12 @@ def test_request_by_id_accept_apply_and_break(owner: Client, cmp: str) -> None:
         "last_name": "Petrova",
         "email": "somchai@example.com",
     }
+    # What the card holds now beside each given value (customer's remark of 25.11.2026).
+    assert shown["compare"] == {
+        "first_name": {"current": "Somchai", "status": "different"},
+        "last_name": {"current": "K", "status": "different"},
+        "email": {"current": None, "status": "empty"},
+    }
 
     version = owner.get(f"/api/c/{cmp}/clients/{card_id}").json()["client"]["version"]
     for field in ("email", "last_name"):
@@ -116,6 +122,8 @@ def test_request_by_id_accept_apply_and_break(owner: Client, cmp: str) -> None:
         version = applied.json()["version"]
     client = owner.get(f"/api/c/{cmp}/clients/{card_id}").json()["client"]
     assert client["last_name"] == "Petrova"
+    taken = links_of(owner, cmp, card_id)[0]["compare"]
+    assert taken["last_name"]["status"] == "same" and taken["email"]["status"] == "same"
     assert {c["value"] for c in client["contacts"]} == {"+66 81 234 5678", "somchai@example.com"}
     assert AuditEvent.objects.filter(action="profile_link.value_applied").count() == 2
 

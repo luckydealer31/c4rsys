@@ -50,6 +50,15 @@ const OBJECT_PATHS: Record<string, string> = {
   warehouse_item: "/warehouse/items/",
 };
 
+/** Where a notification leads: its object; the answer to a request to link opens the block of
+ * the link in the card (customer's remark of 25.11.2026). */
+function objectHref(n: CentreNotification): string | null {
+  const path = n.object_type && n.object_id && OBJECT_PATHS[n.object_type];
+  if (!path) return null;
+  const answer = n.event === "link.answered" || n.event === "link.data_answered";
+  return `/c/${n.company.public_id}${path}${n.object_id}${answer ? "?tab=more#profile-link" : ""}`;
+}
+
 // How many notifications the popup of the bell shows; the rest is on the page of all.
 const POPUP_ROWS = 8;
 
@@ -103,7 +112,7 @@ export function NotificationBell() {
           {latest.isLoading ? <Loading /> : null}
           {latest.data && !items.length ? <p className="muted small bell-empty">{t("notifications.none")}</p> : null}
           {items.map((n) => {
-            const path = n.object_type && n.object_id && OBJECT_PATHS[n.object_type];
+            const href = objectHref(n);
             const body = (
               <>
                 <span style={{ fontWeight: n.read ? 400 : 600 }}>{notificationText(t, n)}</span>
@@ -112,8 +121,8 @@ export function NotificationBell() {
                 </span>
               </>
             );
-            return path ? (
-              <Link key={n.id} className="menu-row bell-row" to={`/c/${n.company.public_id}${path}${n.object_id}`} onClick={close}>
+            return href ? (
+              <Link key={n.id} className="menu-row bell-row" to={href} onClick={close}>
                 {body}
               </Link>
             ) : (
@@ -136,6 +145,9 @@ export function notificationText(t: (key: string, options?: Record<string, unkno
   if (n.limited) {
     // Only the employee and the fact (§ 5.2.3).
     return t(`notifications.event_${event}_limited`, { ...n.params, defaultValue: n.event });
+  }
+  if (n.event === "link.answered" && typeof n.params.accepted === "boolean") {
+    return t(`notifications.event_link_answered_${n.params.accepted ? "yes" : "no"}`, n.params);
   }
   if (n.event === "task.overdue" && n.params.assignee_name) {
     return t("notifications.event_task_overdue_of", { ...n.params });
@@ -274,12 +286,12 @@ export function NotificationsPage({ current = "" }: { current?: string }) {
         {list.isLoading ? <Loading /> : null}
         {list.data && !items.length ? <p className="muted">{t("notifications.none")}</p> : null}
         {items.map((n) => {
-          const path = n.object_type && n.object_id && OBJECT_PATHS[n.object_type];
+          const href = objectHref(n);
           const text = notificationText(t, n);
           return (
             <div key={n.id} className="small" style={{ padding: "8px 0", borderBottom: "1px solid var(--border, #ddd)", fontWeight: n.read ? 400 : 600 }}>
               <span className={`badge ${n.kind === "warning" || n.kind === "action" ? "warn" : ""}`}>{t(`notifications.kind_${n.kind}`)}</span>{" "}
-              {path ? <Link to={`/c/${n.company.public_id}${path}${n.object_id}`}>{text}</Link> : text}
+              {href ? <Link to={href}>{text}</Link> : text}
               <div className="muted" style={{ fontWeight: 400 }}>
                 {current && n.company.public_id !== current ? (
                   <span className="badge">{t("notifications.other_company", { name: n.company.name })}</span>

@@ -4732,7 +4732,9 @@
     "read_all_here": "Mark all of this company as read",
     "other_company": "another company: {{name}}",
     "open_all": "Open all",
-    "state_pending": "Active and unread"
+    "state_pending": "Active and unread",
+    "event_link_answered_yes": "Link confirmed ({{target}}): profile data received",
+    "event_link_answered_no": "Link declined ({{target}})"
   },
   "reports": {
     "metric_rental_issues_today": "Issues expected today",
@@ -4998,8 +5000,8 @@
     "hint_person": "The client confirms the link and chooses which data to give. Without a profile with this email the client gets an invitation to register.",
     "hint_company": "The company's director or an employee with the right answers the request.",
     "shared_title": "Data from the profile",
-    "shared_hint": "Given by the client when accepting. They do not change the card by themselves: take a value into the working data if needed.",
-    "apply": "Use in the card",
+    "shared_hint": "Given when the link was confirmed. They do not change the card by themselves: compare with what the card holds now and take what is needed.",
+    "apply": "Take into the card",
     "break": "Break the link",
     "break_confirm": "Break the link? The history given before stays with the client; new operations are no longer shown to them.",
     "my_title": "Links with companies",
@@ -5038,7 +5040,13 @@
     "reach_email": "not confirmed, a letter is sent",
     "reach_none": "not confirmed in c4rsys",
     "none_confirmed": "No contact is confirmed in c4rsys: the request can be sent by a letter to an email or by the ID of the profile.",
-    "none_confirmed_no_email": "No contact is confirmed in c4rsys and there is no email: add an email to the card or give the ID of the profile. SMS comes later."
+    "none_confirmed_no_email": "No contact is confirmed in c4rsys and there is no email: add an email to the card or give the ID of the profile. SMS comes later.",
+    "from_profile": "From the profile",
+    "in_card": "Now in the card",
+    "no_such_field": "no such field",
+    "taken": "✓ In the card",
+    "apply_replace": "Replace",
+    "apply_add": "Add"
   },
   "owner_requests": {
     "title": "Confirmation by the owner",

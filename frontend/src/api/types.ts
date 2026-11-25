@@ -330,6 +330,8 @@ export type ProfileLink = {
   linked_profile: { public_id: string; name: string } | null;
   shared: Record<string, unknown>;
   shared_at: string | null;
+  /** What the card holds now for each given value (customer's remark of 25.11.2026). */
+  compare: Record<string, SharedCompare>;
   card_id: string;
   access_revoked_at: string | null;
   access_revoke_reason: string;
@@ -346,7 +348,12 @@ export type DataRequest = {
   decided_at: string | null;
   shared: Record<string, unknown>;
   shared_at: string | null;
+  compare: Record<string, SharedCompare>;
 };
+
+/** A value given by a profile against the card: the card has it, nothing there, another value,
+ * or no such field. */
+export type SharedCompare = { current: unknown; status: "same" | "empty" | "different" | "absent" };
 
 /** The same request seen by its recipient. */
 export type IncomingDataRequest = {

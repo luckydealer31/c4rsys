@@ -217,7 +217,18 @@ def payload(item: ProfileDataRequest, now: datetime) -> dict[str, Any]:
         "decided_at": item.decided_at.isoformat() if item.decided_at else None,
         "shared": (item.shared or {}).get("data", {}),
         "shared_at": (item.shared or {}).get("at"),
+        "compare": _compare(item),
     }
+
+
+def _compare(item: ProfileDataRequest) -> dict[str, dict[str, Any]]:
+    """What the card holds now for each given value (customer's remark of 25.11.2026)."""
+    data = (item.shared or {}).get("data", {})
+    if not data:
+        return {}
+    card_type = links.card_type_of(item.link)
+    card = links.card_model(card_type).objects.filter(pk=links.current_card_id(item.link)).first()
+    return links.compare(card, card_type, data) if card is not None else {}
 
 
 def incoming_payload(
