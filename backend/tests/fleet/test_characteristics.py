@@ -196,6 +196,7 @@ def test_managed_vehicle_owner_by_profile_does_not_reveal_it(
         "address": "",
         "source": "",
         "confirmed": False,
+        "withdrawn_at": None,
         "ownership_confirmed": False,
         "waiting": False,
         "conflict": False,

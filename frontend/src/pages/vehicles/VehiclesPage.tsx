@@ -665,6 +665,11 @@ export function VehiclePage() {
       {data.restriction?.state === "active" ? (
         <div className="alert warn">{t("vehicles.restricted_banner")}</div>
       ) : null}
+      {/* The owner took his consent to the management back: seen on every tab until the company
+          names another owner, asks him again or ends the management (decision of 26.11.2026). */}
+      {data.owner?.withdrawn_at ? (
+        <div className="alert warn" data-testid="owner-withdrew-banner">{t("vehicles.owner_withdrew_banner")}</div>
+      ) : null}
       <SectionTabs
         section="vehicle_card"
         current={tab}

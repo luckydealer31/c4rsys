@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "../../api/client";
 import type { IncomingOwnerRequest } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { Card, ErrorMessage, Info, Loading, Modal } from "../../components/ui";
+import { Card, ErrorMessage, Field, Info, Loading, Modal } from "../../components/ui";
 import { DocumentChecklist } from "../vehicles/VehicleDocuments";
 
 const QUESTIONS = ["link", "ownership", "management"] as const;
@@ -32,7 +32,7 @@ export function OwnerRequests({ base, title, hideEmpty }: { base: string; title:
         <OwnerRequestOpen key={r.id} base={base} request={r} />
       ))}
       {answered.map((r) => (
-        <OwnerRequestResult key={r.id} request={r} />
+        <OwnerRequestResult key={r.id} base={base} request={r} />
       ))}
     </>
   );
@@ -75,8 +75,9 @@ function OwnerRequestOpen({ base, request }: { base: string; request: IncomingOw
 }
 
 /** An answered request: what was answered. */
-function OwnerRequestResult({ request }: { request: IncomingOwnerRequest }) {
+function OwnerRequestResult({ base, request }: { base: string; request: IncomingOwnerRequest }) {
   const { t } = useTranslation();
+  const client = useQueryClient();
   const short = { link: "result_link", ownership: "result_ownership", management: "result_management" } as const;
   return (
     <Card title={request.company.display_name}>
@@ -93,7 +94,84 @@ function OwnerRequestResult({ request }: { request: IncomingOwnerRequest }) {
           </div>
         ))}
       </dl>
+      {/* The owner — a person or a company — takes the consent back here (26.11.2026). */}
+      {request.consent_active ? (
+        <WithdrawConsent
+          path={`${base}/${request.id}/withdraw`}
+          company={request.company.display_name}
+          onDone={async () => {
+            await client.invalidateQueries({ queryKey: ["incoming-owner-requests", base] });
+          }}
+        />
+      ) : null}
     </Card>
+  );
+}
+
+/** The owner takes back his consent to the management by one company (customer's decision of
+ * 26.11.2026): a button; then what he is to know — the rentals that last and the bookings that
+ * wait — a comment and «Confirm». The consent is taken back at once. */
+export function WithdrawConsent({
+  path,
+  company,
+  onDone,
+}: {
+  path: string;
+  company: string;
+  onDone: () => Promise<void>;
+}) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const [comment, setComment] = useState("");
+  const load = useQuery({
+    queryKey: ["withdraw-load", path],
+    queryFn: () => api<{ active_rentals: number; bookings: number }>(path),
+    enabled: open,
+    retry: false,
+  });
+  const withdraw = useCommand<{ comment: string }, unknown>(path);
+  if (!open) {
+    return (
+      <div className="actions">
+        <button type="button" className="secondary small" data-testid="withdraw-consent" onClick={() => setOpen(true)}>
+          {t("cabinet.withdraw_start")}
+        </button>
+      </div>
+    );
+  }
+  const busy = (load.data?.active_rentals ?? 0) + (load.data?.bookings ?? 0) > 0;
+  return (
+    <div className="stack" data-testid="withdraw-form" style={{ maxWidth: 460 }}>
+      {load.isLoading ? <Loading /> : null}
+      {load.data ? (
+        <p className={busy ? "alert warn small" : "muted small"}>
+          {t("cabinet.withdraw_load", { rentals: load.data.active_rentals, bookings: load.data.bookings })}
+        </p>
+      ) : null}
+      <p className="small">{t("cabinet.withdraw_warning", { company })}</p>
+      <Field label={t("cabinet.withdraw_comment")}>
+        <input value={comment} onChange={(e) => setComment(e.target.value)} />
+      </Field>
+      <ErrorMessage error={withdraw.error} />
+      <div className="actions">
+        <button
+          type="button"
+          className="small"
+          disabled={withdraw.pending || !load.data}
+          onClick={async () => {
+            if ((await withdraw.run({ comment: comment.trim() })) !== null) {
+              setOpen(false);
+              await onDone();
+            }
+          }}
+        >
+          {t("links.break_yes")}
+        </button>
+        <button type="button" className="secondary small" onClick={() => setOpen(false)}>
+          {t("common.cancel")}
+        </button>
+      </div>
+    </div>
   );
 }
 

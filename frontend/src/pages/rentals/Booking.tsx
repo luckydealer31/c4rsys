@@ -205,7 +205,14 @@ export function BookingPage({ mode = "booking" }: { mode?: "booking" | "rental" 
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    await send(false);
+  }
+
+  // `acknowledged`: the employee was warned that the owner took his consent to the management
+  // back and goes on (customer's decision of 26.11.2026) — asked every time.
+  async function send(acknowledged: boolean) {
     const result = await create.run({
+      ...(acknowledged ? { owner_withdrawn_ack: true } : {}),
       vehicle_card_id: vehicleId,
       planned_start: startAt,
       planned_end: endAt,
@@ -434,6 +441,7 @@ export function BookingPage({ mode = "booking" }: { mode?: "booking" | "rental" 
           </Card>
         ) : null}
         <ErrorMessage error={create.error} />
+        <OwnerWithdrawnAck error={create.error} pending={create.pending} onConfirm={() => void send(true)} />
         <div className="actions">
           <button
             type="submit"
@@ -756,8 +764,13 @@ function ReplaceVehicle({ rental, onDone }: FormProps) {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    await send(false);
+  }
+
+  async function send(acknowledged: boolean) {
     const body: Record<string, unknown> = { vehicle_card_id: vehicleId, expected_version: rental.version };
     if (tariffId) body.tariff_id = tariffId;
+    if (acknowledged) body.owner_withdrawn_ack = true;
     const result = await replace.run(body);
     if (result) await onDone(result.rental);
   }
@@ -789,6 +802,7 @@ function ReplaceVehicle({ rental, onDone }: FormProps) {
         </Field>
       </div>
       <ErrorMessage error={replace.error} />
+      <OwnerWithdrawnAck error={replace.error} pending={replace.pending} onConfirm={() => void send(true)} />
       <div className="actions">
         <button type="submit" disabled={replace.pending || !vehicleId}>
           {t("bookings.action_vehicle")}
@@ -914,5 +928,30 @@ function BookingDeposit({ rental, onDone }: FormProps) {
         </button>
       </div>
     </form>
+  );
+}
+
+/** The owner of the vehicle took his consent to the management back: the booking or the rental
+ * goes on only after the employee confirms — every time (customer's decision of 26.11.2026). */
+function OwnerWithdrawnAck({
+  error,
+  pending,
+  onConfirm,
+}: {
+  error: { code: string } | null;
+  pending: boolean;
+  onConfirm: () => void;
+}) {
+  const { t } = useTranslation();
+  if (error?.code !== "OWNER_WITHDREW_CONSENT") return null;
+  return (
+    <div className="alert warn" data-testid="owner-withdrawn-ack">
+      <p className="small">{t("bookings.owner_withdrawn_warning")}</p>
+      <div className="actions">
+        <button type="button" className="small" disabled={pending} onClick={onConfirm}>
+          {t("bookings.owner_withdrawn_confirm")}
+        </button>
+      </div>
+    </div>
   );
 }

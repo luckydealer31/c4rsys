@@ -248,7 +248,8 @@ export const vehicle: Vehicle = {
     "name": "",
     "ownership_confirmed": false,
     "source": "",
-    "waiting": false
+    "waiting": false,
+    "withdrawn_at": null
   },
   "relation": "own",
   "rental_readiness": {

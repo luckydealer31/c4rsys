@@ -218,6 +218,8 @@ def _resolve(lookup: str) -> Any:
 
 
 def declare(ctx: CommandContext, company: Company, card: VehicleCard, owner: Owner) -> None:
+    # Before the new declaration is written: whether the owner named now took his consent back.
+    taken_back = owner_requests.withdrawn_at(card, same_management=True)
     user = _resolve(owner.lookup) if owner.kind == VehicleOwnerClaim.Kind.PROFILE else None
     client = None
     counterparty = None
@@ -273,6 +275,11 @@ def declare(ctx: CommandContext, company: Company, card: VehicleCard, owner: Own
             # card of the vehicle. The confirmation ends first — by breaking the link with his
             # profile (customer's decision of 26.11.2026).
             raise errors.business_rule("OWNER_CONFIRMED_LOCKED")
+        if taken_back is not None:
+            # The owner took his consent back: the company does not simply name another one and
+            # go on (customer's decision of 26.11.2026). The management ends — the vehicle
+            # becomes a client's one — and is taken anew with its owner.
+            raise errors.business_rule("OWNER_WITHDREW_LOCKED")
         owner_requests.close_for_new_owner(ctx, card)
     ctx.audit(
         "vehicle.owner_declared",

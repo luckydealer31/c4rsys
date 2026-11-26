@@ -18,6 +18,7 @@ urlpatterns = [
     path(G, garage_views.vehicle),
     path(f"{G}/documents", garage_views.add_document),
     path(f"{G}/documents/pass", garage_views.pass_documents),
+    path(f"{G}/managers/<uuid:card_id>/withdraw", garage_views.withdraw_consent),
     path(f"{G}/documents/<uuid:document_id>/archive", garage_views.archive_document),
     path(f"{G}/documents/versions/<uuid:version_id>/file", garage_views.document_file),
     path(f"{G}/copies/<uuid:card_id>/<uuid:version_id>/file", garage_views.copy_file),

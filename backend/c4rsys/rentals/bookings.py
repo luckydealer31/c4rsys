@@ -225,6 +225,8 @@ class BookingData:
     # Said before the rental is created (decision of 15.11.2026): without it a rental created
     # ahead of its issue gets a planned inspection at the issue, to be conducted later.
     without_inspection: bool = False
+    # The employee was warned that the owner took his consent to the management back and goes on.
+    owner_withdrawn_ack: bool = False
 
 
 def _previous(company_id: UUID, data: BookingData) -> Rental | None:
@@ -276,6 +278,7 @@ def create(ctx: CommandContext, company_id: UUID, data: BookingData) -> Rental:
         raise errors.business_rule("TARIFF_REQUIRED", field="tariff_id")
     card = fleet.lock_card(company_id, data.vehicle_card_id)
     fleet.require_open_for_new(card)
+    fleet.require_owner_consent(ctx, card, data.owner_withdrawn_ack)
     _require_free(card.id, data.planned_start, data.planned_end)
     # TODO(spec): § 4.2.3 — a booking outside the schedule of the context gives a warning and
     # continues only with «the corresponding permission», which the spec does not name. The
@@ -526,6 +529,7 @@ def replace_vehicle(
     vehicle_card_id: UUID,
     tariff_id: UUID | None,
     expected_version: int,
+    owner_withdrawn_ack: bool = False,
 ) -> Rental:
     """Another vehicle for an upcoming booking (§ 14.1.6, § 14.6.2). The agreed terms stay when
     the tariff is available for the new vehicle; otherwise the employee chooses new terms
@@ -536,6 +540,7 @@ def replace_vehicle(
     before = snapshot(rental)
     card = fleet.lock_card(company_id, vehicle_card_id)
     fleet.require_open_for_new(card)
+    fleet.require_owner_consent(ctx, card, owner_withdrawn_ack)
     if rental.planned_start is None or rental.planned_end is None:  # a booking has both
         raise errors.business_rule("BOOKING_NOT_ACTIVE")
     _require_free(card.id, rental.planned_start, rental.planned_end, exclude=rental.id)
@@ -797,3 +802,13 @@ def after_unblock(company_id: UUID, _blocked_at: datetime, unblocked_at: datetim
             object_id=rental.id,
             params=params,
         )
+
+
+def load_of_card(card_id: UUID) -> dict[str, int]:
+    """How many rentals of the vehicle last now and how many bookings wait: told to the owner
+    before he takes his consent to the management back."""
+    query = Rental.objects.filter(vehicle_card_id=card_id)
+    return {
+        "active_rentals": query.filter(state=Rental.State.ACTIVE).count(),
+        "bookings": query.filter(state=Rental.State.BOOKED).count(),
+    }

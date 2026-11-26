@@ -23,7 +23,7 @@ from c4rsys.fleet import (
     services,
     vehicle_documents,
 )
-from c4rsys.fleet.models import VehicleCard
+from c4rsys.fleet.models import VehicleCard, VehicleOwnerClaim
 from c4rsys.fleet.views import _actor, _allowed, _payload
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
@@ -305,6 +305,10 @@ def take_into_management(request: HttpRequest, cmp: str, card_id: UUID) -> JsonR
     expected_version = get_int(body, "expected_version")
     reason = get_str(body, "reason", max_length=REASON_MAX)
     owner = owners.parse(body, VehicleCard.Relation.MANAGED)
+    if owner.kind == VehicleOwnerClaim.Kind.NONE:
+        # A vehicle is taken into the management from its owner: he — an investor — is named
+        # with it (customer's decisions of 26.11.2026); a request to him may follow later.
+        raise errors.validation_error("owner_kind", code="FIELD_REQUIRED")
     owners.check_rights(actor, owner)
 
     def handler(ctx: CommandContext) -> CommandResult:

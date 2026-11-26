@@ -53,6 +53,7 @@ Question = VehicleOwnerAnswer.Question
 QUESTIONS = (Question.LINK, Question.OWNERSHIP, Question.MANAGEMENT)
 OWNER_CHANGED = "owner_changed"
 LINK_BROKEN = "link_broken"
+OWNER_WITHDREW = "owner_withdrew"
 
 
 def effective_state(request: VehicleOwnerRequest, now: datetime) -> str:
@@ -102,12 +103,16 @@ def same_owner(request: VehicleOwnerRequest, claim: VehicleOwnerClaim) -> bool:
 def _confirmed_by(request: VehicleOwnerRequest, claim: VehicleOwnerClaim) -> bool:
     """A declaration made after the answers keeps them only while the confirmation they began
     lasts: another owner declared in between ended it (§ 8.3.4)."""
-    if request.claim_id == claim.id:
-        return True
     from c4rsys.fleet import disclosure
+    from c4rsys.fleet.models import VehicleManagementConfirmation
 
     active = disclosure.confirmed_now(request.vehicle_card_id)
-    return active is not None and active.request_id == request.id
+    if active is not None and active.request_id == request.id:
+        return True
+    # The confirmation these answers began has ended — the owner took his consent back, the link
+    # of his card with the profile was broken: the answers do not confirm any more.
+    ended = VehicleManagementConfirmation.objects.filter(request_id=request.id).exists()
+    return request.claim_id == claim.id and not ended
 
 
 def management_confirmed(card: VehicleCard) -> bool:
@@ -254,6 +259,127 @@ def on_link_broken(ctx: CommandContext, card_type: str, card_id: UUID) -> None:
         claim = _claim(card)
         if claim is not None and claim.counterparty_id == card_id:
             close_open(ctx, card, LINK_BROKEN)
+
+
+def withdraw(
+    ctx: CommandContext,
+    card: VehicleCard,
+    comment: str,
+    *,
+    user_id: UUID | None = None,
+    company_id: UUID | None = None,
+    request_id: UUID | None = None,
+) -> None:
+    """The owner takes back his consent to the management of one vehicle (customer's decision of
+    26.11.2026) — at once, by himself: he sells the vehicle or stops working with the company.
+    The confirmed management ends and nothing more is passed to him; what he got stays. The card
+    stays with the company, the owner in it is not confirmed, and the company may name another
+    one. The card is locked by the caller."""
+    from c4rsys.fleet import disclosure
+
+    confirmed = disclosure.confirmed_now(card.id)
+    mine = confirmed is not None and (
+        confirmed.owner_company_id == company_id
+        if company_id is not None
+        else user_id is not None and confirmed.owner_user_id == user_id
+    )
+    if confirmed is None or not mine or request_id not in (None, confirmed.request_id):
+        raise errors.business_rule("MANAGEMENT_NOT_CONFIRMED")
+    close_open(ctx, card, OWNER_WITHDREW)
+    if company_id is not None:
+        # The journal of the company that owns the vehicle.
+        ctx.audit(
+            "vehicle.management_consent_withdrawn",
+            object_type="owner_request",
+            object_id=confirmed.request_id,
+            after={"manager": str(card.company_id), "comment": comment},
+            company_id=company_id,
+        )
+    ctx.audit(
+        "vehicle.management_withdrawn",
+        object_type="vehicle_card",
+        object_id=card.id,
+        after={"request": str(confirmed.request_id), "comment": comment},
+        reason=comment,
+        company_id=card.company_id,
+    )
+
+
+def withdraw_by_request(
+    ctx: CommandContext,
+    query: QuerySet[VehicleOwnerRequest],
+    request_id: UUID,
+    comment: str,
+    *,
+    user_id: UUID | None = None,
+    company_id: UUID | None = None,
+) -> VehicleOwnerRequest:
+    """The same by the request the owner answered: a person among his requests, a company among
+    those addressed to it."""
+    request = query.filter(pk=request_id).first()
+    if request is None:
+        raise errors.not_found()
+    card = VehicleCard.objects.select_for_update().get(pk=request.vehicle_card_id)
+    withdraw(ctx, card, comment, user_id=user_id, company_id=company_id, request_id=request.id)
+    return request
+
+
+def consent_active(request: VehicleOwnerRequest) -> bool:
+    """Whether the management these answers confirmed lasts now."""
+    from c4rsys.fleet import disclosure
+
+    active = disclosure.confirmed_now(request.vehicle_card_id)
+    return active is not None and active.request_id == request.id
+
+
+def withdrawn_at(card: VehicleCard, *, same_management: bool = False) -> datetime | None:
+    """When the owner named in the card took his consent back, while he has not confirmed anew
+    and no other owner is named. It goes with the owner: a vehicle whose management was ended
+    and that is taken anew from the same owner shows it again (customer's decision of
+    26.11.2026). `same_management` asks only for a consent taken back in the management that
+    lasts now — then another owner may not be named over him."""
+    from c4rsys.fleet.models import VehicleManagementConfirmation
+
+    if card.relation != VehicleCard.Relation.MANAGED or card.state != VehicleCard.State.ACTIVE:
+        return None
+    last = (
+        VehicleManagementConfirmation.objects.select_related("request")
+        .filter(vehicle_card_id=card.id)
+        .order_by("-started_at")
+        .first()
+    )
+    if last is None or last.ended_at is None or last.end_reason != OWNER_WITHDREW:
+        return None
+    claim = _claim(card)
+    if claim is None or not same_owner(last.request, claim):
+        return None
+    if same_management:
+        # The management ended after it and began anew: there another owner may be named.
+        from c4rsys.fleet.models import VehicleCardPeriod
+
+        period = VehicleCardPeriod.objects.filter(
+            vehicle_card_id=card.id, ended_at__isnull=True
+        ).first()
+        if period is not None and period.started_at > last.ended_at:
+            return None
+    return last.ended_at
+
+
+def require_consent(ctx: CommandContext, card: VehicleCard, acknowledged: bool) -> None:
+    """A new booking or rental of a vehicle whose owner took his consent back goes on only after
+    the employee is warned and confirms — every time (customer's decision of 26.11.2026); the
+    confirmation is journaled."""
+    at = withdrawn_at(card)
+    if at is None:
+        return
+    if not acknowledged:
+        raise errors.business_rule("OWNER_WITHDREW_CONSENT", at=at.isoformat())
+    ctx.audit(
+        "vehicle.owner_withdrawal_acknowledged",
+        object_type="vehicle_card",
+        object_id=card.id,
+        after={"withdrawn_at": at.isoformat()},
+    )
 
 
 def close_open(ctx: CommandContext, card: VehicleCard, reason: str) -> None:
@@ -672,8 +798,11 @@ def owner_status(card: VehicleCard, batch: "Batch | None" = None) -> dict[str, A
     confirmed = current and all(given.get(q) is True for q in QUESTIONS)
     if confirmed and request is not None and claim is not None:
         confirmed = _confirmed_by(request, claim)
+    # In the card only: the lists do not ask for it.
+    taken_back = withdrawn_at(card) if batch is None else None
     return {
         "confirmed": confirmed,
+        "withdrawn_at": taken_back.isoformat() if taken_back else None,
         "ownership_confirmed": given.get(Question.OWNERSHIP) is True,
         # The request is sent and not answered in full yet.
         "waiting": current
@@ -715,6 +844,8 @@ def incoming_payload(
         "owned": owns(request.vehicle_id, user_id=user_id, company_id=company_id),
         "id": str(request.id),
         "state": effective_state(request, now),
+        # The management these answers confirmed lasts: the owner may take his consent back.
+        "consent_active": state == State.COMPLETE and consent_active(request),
         # What the company itself made public (§ 3.5.3): the owner sees who asks.
         "company": {
             "public_id": company.public_id,

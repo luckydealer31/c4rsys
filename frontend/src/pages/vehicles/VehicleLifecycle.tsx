@@ -11,6 +11,7 @@ import { Card, ErrorMessage, Field, Info, Modal } from "../../components/ui";
 import { useCan, useCompany } from "../../layout/CompanyShell";
 import { formatMoment, fromLocalInput, toLocalInput } from "../../time";
 import { useLocations } from "../settings/LocationsPage";
+import { NO_OWNER, OwnerCardPicker, ownerBody, type OwnerValue } from "./OwnerCardPicker";
 
 /** Block 12, part Б: the lifecycle of the vehicle card (ТЗ § 8.1.6, § 8.2.3–8.2.13, § 8.3, § 8.4.2,
  * § 8.7.5–8.7.6, § 8.8). */
@@ -419,6 +420,9 @@ export function RelationCard({ vehicle }: { vehicle: Vehicle }) {
   const archive = useVehicleCommand(vehicle, "archive");
   const end = useVehicleCommand(vehicle, "end-management");
   const take = useVehicleCommand(vehicle, "take-into-management");
+  // The owner — an investor — is named when the vehicle is taken into the management
+  // (customer's decisions of 26.11.2026).
+  const [taken, setTaken] = useState<OwnerValue>({ ...NO_OWNER, party: "person" });
   const restore = useVehicleCommand(vehicle, "restore");
   const active = (locations.data?.locations ?? []).filter((l) => l.state !== "deactivated");
   const archived = vehicle.state === "archived";
@@ -539,13 +543,14 @@ export function RelationCard({ vehicle }: { vehicle: Vehicle }) {
           {action === "take" ? (
             <Modal title={t("vehicles.take_into_management_button")} onClose={close}>
               {locationField}
+              <OwnerCardPicker relation="managed" required value={taken} set={(change) => setTaken({ ...taken, ...change })} />
               {reasonField}
               <ErrorMessage error={take.error} />
               <div className="actions">
                 <button
                   type="button"
                   disabled={!reason.trim() || !location || take.pending}
-                  onClick={() => void run(take, { location_id: location, owner_kind: "none" })}
+                  onClick={() => void run(take, { location_id: location, ...ownerBody("managed", taken) })}
                 >
                   {t("vehicles.take_into_management_button")}
                 </button>

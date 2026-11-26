@@ -95,6 +95,7 @@ def booking_create(request: HttpRequest, cmp: str) -> JsonResponse:
         previous_booking_id=_optional_uuid(data, "previous_booking_id"),
         direct=direct,
         without_inspection=without_inspection,
+        owner_withdrawn_ack=data.get("owner_withdrawn_ack") is True,
     )
 
     def handler(ctx: CommandContext) -> CommandResult:
@@ -183,10 +184,17 @@ def booking_vehicle(request: HttpRequest, cmp: str, rental_id: UUID) -> JsonResp
     vehicle_id = _uuid(data, "vehicle_card_id")
     tariff_id = _optional_uuid(data, "tariff_id")
     expected_version = get_int(data, "expected_version")
+    acknowledged = data.get("owner_withdrawn_ack") is True
 
     def handler(ctx: CommandContext) -> CommandResult:
         bookings.replace_vehicle(
-            ctx, context.company.id, rental_id, vehicle_id, tariff_id, expected_version
+            ctx,
+            context.company.id,
+            rental_id,
+            vehicle_id,
+            tariff_id,
+            expected_version,
+            acknowledged,
         )
         return _result(context.company.id, rental_id)
 
@@ -195,6 +203,7 @@ def booking_vehicle(request: HttpRequest, cmp: str, rental_id: UUID) -> JsonResp
         "vehicle_card_id": str(vehicle_id),
         "tariff_id": str(tariff_id) if tariff_id else None,
         "expected_version": expected_version,
+        "owner_withdrawn_ack": acknowledged,
     }
     return run_and_respond(request, "rental.booking_vehicle", actor, payload, handler)
 

@@ -397,6 +397,18 @@ def test_managed_vehicle_kept_as_a_client_one_is_not_doubled(owner: Client, s: S
         location_id=s.location,
         owner_kind="none",
     )
+    # The owner is named when a vehicle is taken into the management (decision of 26.11.2026).
+    assert taken.json()["error"]["field"] == "owner_kind"
+    taken = _do(
+        owner,
+        s,
+        {"id": client_card["id"], "version": error["params"]["version"]},
+        "take-into-management",
+        reason="Added as managed",
+        location_id=s.location,
+        owner_kind="organization",
+        owner_name="Owner Co",
+    )
     assert taken.status_code == 200
     assert taken.json()["vehicle"]["relation"] == "managed"
     # Another vehicle is made as before; own vehicles are not touched by the rule.

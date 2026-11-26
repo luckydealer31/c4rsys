@@ -4,6 +4,7 @@ The company works from the vehicle card with the right to change vehicles in its
 owner answers: a person in the personal area, a company in its own interface (§ 6.3.8).
 """
 
+from typing import Any
 from uuid import UUID
 
 from django.http import HttpRequest, JsonResponse
@@ -19,7 +20,7 @@ from c4rsys.fleet.models import VehicleCard
 from c4rsys.parties import counterparties
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
-from c4rsys.platform.http import parse_json
+from c4rsys.platform.http import get_str, parse_json
 
 
 def _actor(request: HttpRequest, cmp: str) -> tuple[companies.CompanyContext, Actor]:
@@ -223,3 +224,57 @@ def my_answer(request: HttpRequest, request_id: UUID) -> JsonResponse:
         "document_ids": sorted(str(d) for d in documents),
     }
     return run_and_respond(request, "vehicle.owner_answer", actor, payload, handler)
+
+
+def _withdraw(
+    request: HttpRequest,
+    request_id: UUID,
+    query: Any,
+    actor: Actor,
+    *,
+    user_id: UUID | None = None,
+    company_id: UUID | None = None,
+) -> JsonResponse:
+    """The owner takes back his consent to the management (customer's decisions of 26.11.2026).
+    GET tells what he is to know before: the rentals that last and the bookings that wait."""
+    found = query.filter(pk=request_id).first()
+    if found is None:
+        raise errors.not_found()
+    if request.method == "GET":
+        from c4rsys.rentals import bookings
+
+        if not owner_requests.consent_active(found):
+            raise errors.business_rule("MANAGEMENT_NOT_CONFIRMED")
+        return JsonResponse(bookings.load_of_card(found.vehicle_card_id))
+    comment = get_str(parse_json(request), "comment", max_length=500, required=False)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        done = owner_requests.withdraw_by_request(
+            ctx, query, request_id, comment, user_id=user_id, company_id=company_id
+        )
+        return CommandResult(
+            200,
+            {
+                "request": owner_requests.incoming_payload(
+                    done, timezone.now(), user_id=user_id, company_id=company_id
+                )
+            },
+        )
+
+    payload = {"request_id": str(request_id), "comment": comment}
+    return run_and_respond(request, "vehicle.management_withdraw", actor, payload, handler)
+
+
+@require_http_methods(["GET", "POST"])
+def incoming_withdraw(request: HttpRequest, cmp: str, request_id: UUID) -> JsonResponse:
+    context, actor = _answerer(request, cmp)
+    query = owner_requests.for_company(context.company.id).select_related("company", "vehicle")
+    return _withdraw(request, request_id, query, actor, company_id=context.company.id)
+
+
+@require_http_methods(["GET", "POST"])
+def my_withdraw(request: HttpRequest, request_id: UUID) -> JsonResponse:
+    user, session = require_user(request)
+    query = owner_requests.for_user(user).select_related("company", "vehicle")
+    actor = Actor(user_id=user.id, session_id=session.id)
+    return _withdraw(request, request_id, query, actor, user_id=user.id)

@@ -39,7 +39,12 @@ export function OwnerRequestCard({ vehicle }: { vehicle: Vehicle }) {
     await queryClient.invalidateQueries({ queryKey: ["vehicle", company.public_id, vehicle.id] });
   }
 
-  const canSend = editable && !owner?.confirmed && (!last || last.state !== "open");
+  // After the owner took his consent back a new request is not offered (customer's remark of
+  // 26.11.2026): the management ends or goes on with the former owner and the warning.
+  const canSend = editable && !owner?.confirmed && !owner?.withdrawn_at && (!last || last.state !== "open");
+  // To the same owner the request may be sent anew — he took the consent back by mistake or
+  // changed his mind — by one button, with nothing to enter (customer's decision of 26.11.2026).
+  const canResend = editable && Boolean(owner?.withdrawn_at) && (!last || last.state !== "open");
   // Only the last request is shown; the earlier ones — withdrawn, declined, to another owner —
   // are the history and open by a line under it (customer's remark of 26.11.2026).
   const [earlier, setEarlier] = useState(false);
@@ -51,6 +56,26 @@ export function OwnerRequestCard({ vehicle }: { vehicle: Vehicle }) {
     <Card title={t("owner_requests.title")}>
       {owner?.confirmed && !last ? <p><span className="badge ok">{t("owner_requests.confirmed")}</span></p> : null}
       {owner?.conflict ? <p><span className="badge warn">{t("owner_requests.conflict")}</span></p> : null}
+      {owner?.withdrawn_at ? (
+        <p className="alert warn small" data-testid="owner-withdrew">
+          {t("owner_requests.withdrew", { at: when(owner.withdrawn_at) })}
+        </p>
+      ) : null}
+      {canResend ? (
+        <div className="actions">
+          <button
+            type="button"
+            className="secondary small"
+            data-testid="owner-request-again"
+            disabled={send.pending}
+            onClick={async () => {
+              if ((await send.run({})) !== null) await refresh();
+            }}
+          >
+            {t("owner_requests.send_same")}
+          </button>
+        </div>
+      ) : null}
       {canSend ? (
         <div className="row short-fields" style={{ alignItems: "flex-end" }}>
           <Field label={t("owner_requests.lookup")} info={t("owner_requests.lookup_hint")}>

@@ -185,7 +185,11 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
   const company = useCompany();
   const can = useCan();
   // The owner who confirmed the management is not changed in this form (decision of 26.11.2026).
-  const lockedOwner = vehicle && vehicle.relation === "managed" && vehicle.owner?.confirmed ? vehicle.owner : null;
+  // Nor after he took his consent back: the management ends and the vehicle is taken anew.
+  const lockedOwner =
+    vehicle && vehicle.relation === "managed" && (vehicle.owner?.confirmed || vehicle.owner?.withdrawn_at)
+      ? vehicle.owner
+      : null;
   const client = useQueryClient();
   const navigate = useNavigate();
   const route = useLocation();
@@ -613,7 +617,7 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
             // his name with a link to the card of the investor; to name another owner the link
             // with his profile is broken first.
             <div style={{ marginTop: 12 }} data-testid="owner-locked">
-              <Field label={t("vehicles.owner_kind")} info={t("vehicles.owner_locked_hint")}>
+              <Field label={t("vehicles.owner_kind")} info={t(lockedOwner.withdrawn_at ? "vehicles.owner_withdrew_locked_hint" : "vehicles.owner_locked_hint")}>
                 {lockedOwner.counterparty && can("investor.view") ? (
                   <Link to={companyPath(company, `/clients/investors/${lockedOwner.counterparty.id}`)}>
                     {lockedOwner.counterparty.name}

@@ -43,6 +43,7 @@ class FleetConfig(AppConfig):
 
         disclosure.register_provider("mileage_fuel", disclosure.readings_for_owner)
         rules.on_journal("vehicle.owner_answered", owner_notices.on_answer)
+        rules.on_journal("vehicle.management_withdrawn", owner_notices.on_withdrawn)
         # The link of an investor with a profile is broken: nothing is passed to the owner.
         from c4rsys.fleet import owner_requests
         from c4rsys.parties import links as profile_links

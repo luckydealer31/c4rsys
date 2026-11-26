@@ -65,6 +65,11 @@ urlpatterns = [
         "c/<str:cmp>/incoming-owner-requests/<uuid:request_id>/answer",
         owner_views.incoming_answer,
     ),
+    path(
+        "c/<str:cmp>/incoming-owner-requests/<uuid:request_id>/withdraw",
+        owner_views.incoming_withdraw,
+    ),
     path("owner-requests", owner_views.mine),
     path("owner-requests/<uuid:request_id>/answer", owner_views.my_answer),
+    path("owner-requests/<uuid:request_id>/withdraw", owner_views.my_withdraw),
 ]

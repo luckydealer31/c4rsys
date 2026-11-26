@@ -127,10 +127,12 @@ export async function ownershipScenario(page: Page, s: Company, email: string): 
   await expect
     .poll(async () => ((await ok(page, "GET", `/c/${s.cmp}/vehicles/${earlier.id}`)).vehicle as { relation: string }).relation)
     .toBe("client");
-  // A client card: «Take into management» asks the location and the reason; «Delete» says the
+  // A client card: «Take into management» asks the location, the owner and the reason; «Delete» says the
   // card is moved to the archive and then asks the reason.
   await page.getByRole("button", { name: t("vehicles.take_into_management_button"), exact: true }).click();
   await expect(asking.getByLabel(t("vehicles.location"))).toBeVisible();
+  // The owner — an investor — is named when the vehicle is taken (decision of 26.11.2026).
+  await expect(asking.getByTestId("owner-picker")).toBeVisible();
   await expect(asking.getByLabel(t("vehicles.lifecycle_reason"))).toBeVisible();
   await asking.getByRole("button", { name: t("common.cancel"), exact: true }).click();
   await page.getByRole("button", { name: t("vehicles.delete_button"), exact: true }).click();

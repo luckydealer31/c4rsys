@@ -147,6 +147,37 @@ def pass_documents(
     )
 
 
+def _managed_card(vehicle: Vehicle, card_id: UUID) -> VehicleCard:
+    card = (
+        VehicleCard.objects.select_for_update()
+        .filter(pk=card_id, vehicle_id__in=identity.family(identity.resolve(vehicle.id)))
+        .first()
+    )
+    if card is None:
+        raise errors.not_found()
+    return card
+
+
+def withdraw_consent(
+    ctx: CommandContext, user_id: UUID, vehicle: Vehicle, card_id: UUID, comment: str
+) -> None:
+    """The owner takes back his consent to the management by one company."""
+    from c4rsys.fleet import owner_requests
+
+    owner_requests.withdraw(ctx, _managed_card(vehicle, card_id), comment, user_id=user_id)
+
+
+def managed_card_id(user_id: UUID, vehicle: Vehicle, card_id: UUID) -> UUID:
+    """The card of a company whose management this owner confirmed now."""
+    found = disclosure.confirmed_now(card_id)
+    card = VehicleCard.objects.filter(
+        pk=card_id, vehicle_id__in=identity.family(identity.resolve(vehicle.id))
+    ).first()
+    if card is None or found is None or found.owner_user_id != user_id:
+        raise errors.not_found()
+    return card.id
+
+
 def open_reversals(user_id: UUID) -> list[dict[str, Any]]:
     return [
         lifecycle.reversal_payload(r)

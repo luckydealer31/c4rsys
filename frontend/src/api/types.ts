@@ -293,6 +293,8 @@ export type OwnerRequest = {
 
 /** The same request seen by the owner. */
 export type IncomingOwnerRequest = {
+  /** The management these answers confirmed lasts: the consent may be taken back. */
+  consent_active?: boolean;
   id: string;
   state: "open" | "complete" | "cancelled" | "superseded" | "expired";
   company: {
@@ -620,6 +622,8 @@ export type Vehicle = {
     address?: string;
     /** Three «yes» to the request of § 8.3.1. */
     confirmed: boolean;
+    /** The owner took his consent to the management back and nothing was done about it yet. */
+    withdrawn_at?: string | null;
     ownership_confirmed?: boolean;
     /** The request is sent and not answered in full yet. */
     waiting?: boolean;

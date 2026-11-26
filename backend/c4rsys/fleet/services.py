@@ -431,6 +431,13 @@ def require_open_for_new(card: VehicleCard) -> None:
         )
 
 
+def require_owner_consent(ctx: CommandContext, card: VehicleCard, acknowledged: bool) -> None:
+    """See owner_requests.require_consent: the owner took his consent to the management back."""
+    from c4rsys.fleet import owner_requests
+
+    owner_requests.require_consent(ctx, card, acknowledged)
+
+
 @dataclass(frozen=True)
 class VehicleChanges:
     """The name and the usage contexts change; location and odometer unit do not (location by

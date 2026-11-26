@@ -13,6 +13,7 @@ from c4rsys.platform.models import AuditEvent
 
 REQUESTED = "vehicle.owner_requested"
 ANSWERED = "vehicle.owner_answered"
+WITHDREW = "vehicle.owner_withdrew"
 
 
 def requests(now: datetime) -> int:
@@ -73,6 +74,38 @@ def on_answer(entry: AuditEvent) -> int:
             object_type="vehicle",
             object_id=request.vehicle_card_id,
             params={"target": request.target_label, "complete": bool(after.get("complete"))},
+            recipients=[author.id],
+            now=timezone.now(),
+            done=True,
+        )
+    )
+
+
+def on_withdrawn(entry: AuditEvent) -> int:
+    """The owner took his consent to the management back: told to the employee who sent the
+    request he had answered (agent's choice — there is no other addressee named)."""
+    from c4rsys.companies.models import Employment
+    from c4rsys.notifications import rules
+
+    request_id = (entry.after or {}).get("request")
+    request = VehicleOwnerRequest.objects.filter(pk=str(request_id)).first() if request_id else None
+    if request is None:
+        return 0
+    author = Employment.objects.filter(
+        company_id=request.company_id,
+        user_id=request.created_by_user_id,
+        state=Employment.State.ACTIVE,
+    ).first()
+    if author is None:
+        return 0
+    return int(
+        rules.raise_event(
+            request.company_id,
+            WITHDREW,
+            condition=f"{WITHDREW}:{entry.id}",
+            object_type="vehicle",
+            object_id=request.vehicle_card_id,
+            params={"target": request.target_label},
             recipients=[author.id],
             now=timezone.now(),
             done=True,

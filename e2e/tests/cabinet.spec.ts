@@ -159,6 +159,28 @@ test("a client links the card in the cabinet and sees the rental", async ({ page
     management: false,
   });
 
+  // The owner confirms the management (a new request, three «yes» through the API), then takes
+  // his consent back in the garage: he is told of the rentals and the bookings, confirms, and
+  // the company sees it on the card of the vehicle (customer's decisions of 26.11.2026).
+  const again = (
+    await ok(page, "POST", `/c/${s.cmp}/vehicles/${managed.id}/owner-requests`, { owner_lookup: clientEmail })
+  ).request as { id: string };
+  await ok(client, "POST", `/owner-requests/${again.id}/answer`, {
+    answers: { link: true, ownership: true, management: true },
+  });
+  await client.goto("/garage");
+  await client.getByRole("link", { name: /Honda/ }).first().click();
+  await client.getByTestId("withdraw-consent").click();
+  const withdrawing = client.getByTestId("withdraw-form");
+  await expect(withdrawing).toContainText(t("cabinet.withdraw_load", { rentals: 0, bookings: 0 }));
+  await withdrawing.getByLabel(t("cabinet.withdraw_comment")).fill("Продаю");
+  await withdrawing.getByRole("button", { name: t("links.break_yes"), exact: true }).click();
+  await expect(client.getByText(t("cabinet.manager_not_confirmed"))).toBeVisible();
+  await expect(client.getByTestId("withdraw-consent")).toHaveCount(0);
+  await page.goto(`${s.base}/vehicles/${managed.id}?tab=settings&part=access`);
+  await expect(page.getByTestId("owner-withdrew-banner")).toBeVisible();
+  await expect(page.getByTestId("owner-withdrew")).toBeVisible();
+
   // The company interface is not served on the cabinet domain.
   await client.goto(`${s.base}/rentals`);
   await expect(client.getByRole("heading", { level: 1 })).toHaveText(t("cabinet.companies"));

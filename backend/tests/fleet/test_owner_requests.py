@@ -235,6 +235,21 @@ def test_company_owner_and_a_dispute(owner: Client, cmp: str, location: str) -> 
     owner_notices.requests(timezone.now())
     assert Notification.objects.get(event="vehicle.owner_requested").state == "done"
 
+    # A company that owns the vehicle takes its consent back too (customer's remark of
+    # 26.11.2026): among the requests it answered.
+    from c4rsys.fleet import disclosure
+
+    url = f"/api/c/{other}/incoming-owner-requests/{request['id']}/withdraw"
+    shown = lessor.get(f"/api/c/{other}/incoming-owner-requests").json()["requests"][0]
+    assert shown["consent_active"] is True
+    assert lessor.get(url).json() == {"active_rentals": 0, "bookings": 0}
+    done = post(lessor, url, {"comment": "Sold"}, key())
+    assert done.status_code == 200, done.content
+    assert done.json()["request"]["consent_active"] is False
+    assert disclosure.confirmed_now(VehicleCard.objects.get(pk=card["id"]).id) is None
+    status = owner.get(f"/api/c/{cmp}/vehicles/{card['id']}").json()["vehicle"]["owner"]
+    assert not status["confirmed"] and status["withdrawn_at"]
+
 
 def test_ownership_dispute_is_not_resolved_automatically(
     owner: Client, cmp: str, location: str
@@ -824,6 +839,136 @@ def test_breaking_the_link_of_the_investor_stops_passing_to_the_owner(
     assert not owner_requests.management_confirmed(found)
     assert disclosure.confirmed_now(found.id) is None
     assert VehicleManagementConfirmation.objects.get().end_reason == "link_broken"
+
+
+def test_the_owner_takes_his_consent_back(owner: Client, cmp: str, location: str) -> None:
+    """Customer's decisions of 26.11.2026: the owner takes back his consent to the management of
+    one vehicle by himself, at once, after he is told of the rentals and bookings. The card
+    stays with the company; a new booking needs the employee's confirmation every time; another
+    owner may be named."""
+    from c4rsys.fleet import disclosure, owner_notices, owner_requests
+    from c4rsys.notifications.models import Notification
+    from c4rsys.platform.models import AuditEvent
+
+    somchai, usr = person("somchai@example.com")
+    card = vehicle(owner, cmp, location, relation="managed", owner_kind="profile", owner_lookup=usr)
+    request = ask(owner, cmp, card["id"]).json()["request"]
+    assert answer(somchai, request["id"], link=True, ownership=True, management=True)
+    found = VehicleCard.objects.get(pk=card["id"])
+    vhl = found.vehicle.public_id
+    url = f"/api/cabinet/garage/{vhl}/managers/{card['id']}/withdraw"
+
+    # A stranger does not see the card; the owner is told what lasts.
+    stranger, _usr = person("stranger@example.com")
+    assert stranger.get(url).status_code == 404
+    assert somchai.get(url).json() == {"active_rentals": 0, "bookings": 0}
+    done = post(somchai, url, {"comment": "Selling the bike"}, key())
+    assert done.status_code == 200, done.content
+    assert post(somchai, url, {}, key()).json()["error"]["code"] == "MANAGEMENT_NOT_CONFIRMED"
+
+    found.refresh_from_db()
+    assert found.relation == "managed" and found.state == "active"
+    assert disclosure.confirmed_now(found.id) is None
+    assert not owner_requests.management_confirmed(found)
+    status = owner.get(f"/api/c/{cmp}/vehicles/{card['id']}").json()["vehicle"]["owner"]
+    assert not status["confirmed"] and status["withdrawn_at"]
+    entry = AuditEvent.objects.get(action="vehicle.management_withdrawn")
+    assert entry.reason == "Selling the bike"
+    assert owner_notices.on_withdrawn(entry) == 1
+    assert Notification.objects.filter(event="vehicle.owner_withdrew").count() == 1
+
+    # A new booking of the vehicle is refused until the employee confirms that he was warned.
+    start = timezone.now() + timedelta(days=3)
+    booking = {
+        "vehicle_card_id": card["id"],
+        "planned_start": start.isoformat(),
+        "planned_end": (start + timedelta(days=2)).isoformat(),
+        "contact": "Walk-in",
+    }
+    warned = post(owner, f"/api/c/{cmp}/bookings", booking, key())
+    assert warned.json()["error"]["code"] == "OWNER_WITHDREW_CONSENT"
+    confirmed = post(
+        owner, f"/api/c/{cmp}/bookings", {**booking, "owner_withdrawn_ack": True}, key()
+    )
+    assert confirmed.json().get("error", {}).get("code") != "OWNER_WITHDREW_CONSENT"
+
+    # The company does not simply name another owner and go on: the management ends first.
+    url = f"/api/c/{cmp}/vehicles/{card['id']}"
+    refused = owner.put(
+        f"{url}/details",
+        data={
+            "name": "Yaris",
+            "vin": "JTDBT923771234567",
+            "expected_version": owner.get(url).json()["vehicle"]["version"],
+            "owner_kind": "person",
+            "owner_last_name": "Petrov",
+            "owner_first_name": "I",
+        },
+        content_type="application/json",
+        headers=key(),
+    )
+    assert refused.json()["error"]["code"] == "OWNER_WITHDREW_LOCKED"
+    # The same owner saved again is not a change.
+    same = _redeclare(owner, cmp, card["id"], owner_kind="profile", owner_lookup=usr)
+    assert same["withdrawn_at"]
+    # The request may be sent to the same owner anew: his «yes» confirms the management again.
+    again = ask(owner, cmp, card["id"])
+    assert again.status_code == 201, again.content
+    assert answer(somchai, again.json()["request"]["id"], ownership=True, management=True)
+    status = owner.get(url).json()["vehicle"]["owner"]
+    assert status["confirmed"] and status["withdrawn_at"] is None
+
+
+def test_the_withdrawal_goes_with_the_owner_into_a_new_management(
+    owner: Client, cmp: str, location: str
+) -> None:
+    """Customer's decisions of 26.11.2026: after the owner took his consent back the management
+    is ended — the vehicle becomes a client's one. Taken anew from the same owner, it shows the
+    warning again; taken from a new owner, it works without a confirmation and has no warning."""
+    somchai, usr = person("somchai@example.com")
+    card = vehicle(owner, cmp, location, relation="managed", owner_kind="profile", owner_lookup=usr)
+    request = ask(owner, cmp, card["id"]).json()["request"]
+    assert answer(somchai, request["id"], link=True, ownership=True, management=True)
+    vhl = VehicleCard.objects.get(pk=card["id"]).vehicle.public_id
+    done = post(
+        somchai, f"/api/cabinet/garage/{vhl}/managers/{card['id']}/withdraw", {"comment": ""}, key()
+    )
+    assert done.status_code == 200, done.content
+    url = f"/api/c/{cmp}/vehicles/{card['id']}"
+
+    def act(action: str, **body: Any) -> Any:
+        version = owner.get(url).json()["vehicle"]["version"]
+        return post(owner, f"{url}/{action}", {"expected_version": version, **body}, key())
+
+    ended = act("end-management", reason="Owner took the consent back", then="client")
+    assert ended.status_code == 200, ended.content
+    assert ended.json()["vehicle"]["relation"] == "client"
+
+    # The same owner again: the warning is back, and he may be asked anew.
+    same = act(
+        "take-into-management",
+        reason="Back",
+        location_id=location,
+        owner_kind="profile",
+        owner_lookup=usr,
+    )
+    assert same.status_code == 200, same.content
+    status = owner.get(url).json()["vehicle"]["owner"]
+    assert status["withdrawn_at"] and not status["confirmed"]
+
+    # A new owner: no warning, no confirmation; the request to him is sent apart.
+    assert act("end-management", reason="Sold", then="client").status_code == 200
+    other = act(
+        "take-into-management",
+        reason="New owner",
+        location_id=location,
+        owner_kind="person",
+        owner_last_name="Pronkin",
+        owner_first_name="Ivan",
+    )
+    assert other.status_code == 200, other.content
+    status = owner.get(url).json()["vehicle"]["owner"]
+    assert status["withdrawn_at"] is None and not status["confirmed"]
 
 
 def test_a_managed_vehicle_is_created_with_its_owner(

@@ -8,6 +8,7 @@ import type { GarageVehicleDetail, GlobalDocument, TransferReversal } from "../a
 import { useCommand } from "../api/useCommand";
 import { FilePreview } from "../components/FilePreview";
 import { Card, ErrorMessage, Field, IconButton, Loading, Modal } from "../components/ui";
+import { WithdrawConsent } from "../pages/account/OwnerRequests";
 import { DocumentChecklist, DocumentForm, useDetails } from "../pages/vehicles/VehicleDocuments";
 import { deviceTimeZone, formatMoment } from "../time";
 
@@ -17,6 +18,7 @@ import { deviceTimeZone, formatMoment } from "../time";
 export function GarageVehicle() {
   const { t, i18n } = useTranslation();
   const { vehicleId = "" } = useParams();
+  const client = useQueryClient();
   const key = ["cabinet-garage", vehicleId];
   const detail = useApi<{ vehicle: GarageVehicleDetail }>(key, `/cabinet/garage/${vehicleId}`);
   const when = (value: string | null | undefined) => formatMoment(value ?? null, deviceTimeZone(), i18n.language);
@@ -39,6 +41,15 @@ export function GarageVehicle() {
       {v.managers.map((m) => (
         <Card key={m.company.public_id} title={t("cabinet.manager_title", { company: m.company.display_name })}>
           <p className="small">{m.confirmed ? t("cabinet.manager_confirmed") : t("cabinet.manager_not_confirmed")}</p>
+          {m.confirmed ? (
+            <WithdrawConsent
+              path={`/cabinet/garage/${vehicleId}/managers/${m.card_id}/withdraw`}
+              company={m.company.display_name}
+              onDone={async () => {
+                await client.invalidateQueries({ queryKey: key });
+              }}
+            />
+          ) : null}
           {m.categories.length === 0 ? <p className="muted small">{t("cabinet.manager_nothing")}</p> : null}
           {m.categories.map((c) => (
             <div key={c.category} style={{ marginBottom: 8 }}>

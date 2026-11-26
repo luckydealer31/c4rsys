@@ -6,7 +6,7 @@ from typing import Any
 from uuid import UUID
 
 from django.http import HttpRequest, HttpResponse, JsonResponse
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from c4rsys.accounts.middleware import require_user
 from c4rsys.companies.views import run_and_respond
@@ -137,6 +137,29 @@ def pass_documents(request: HttpRequest, vehicle_id: str) -> JsonResponse:
     }
     actor = Actor(user_id=user.id, session_id=session.id)
     return run_and_respond(request, "cabinet.vehicle_documents_pass", actor, payload, handler)
+
+
+@require_http_methods(["GET", "POST"])
+def withdraw_consent(request: HttpRequest, vehicle_id: str, card_id: UUID) -> JsonResponse:
+    """The owner takes back his consent to the management by one company (customer's decision of
+    26.11.2026). GET tells what he is to know before: the rentals that last and the bookings
+    that wait. POST takes the consent back at once."""
+    from c4rsys.rentals import bookings
+
+    user, session = require_user(request)
+    entity = owner_view.vehicle_of(user.id, vehicle_id.upper())
+    if request.method == "GET":
+        found = owner_view.managed_card_id(user.id, entity, card_id)
+        return JsonResponse(bookings.load_of_card(found))
+    comment = get_str(parse_json(request), "comment", max_length=500, required=False)
+
+    def handler(ctx: CommandContext) -> CommandResult:
+        owner_view.withdraw_consent(ctx, user.id, entity, card_id, comment)
+        return CommandResult(200, {"vehicle": owner_view.detail(user.id, entity.public_id)})
+
+    payload = {"vehicle": entity.public_id, "card_id": str(card_id), "comment": comment}
+    actor = Actor(user_id=user.id, session_id=session.id)
+    return run_and_respond(request, "cabinet.management_withdraw", actor, payload, handler)
 
 
 @require_GET

@@ -1398,7 +1398,10 @@
     "owner_card_not_active": "This card is archived or merged — choose an active one.",
     "messenger_value_invalid": "Give a phone number or a messenger nickname (letters, digits, dot, dash, underscore).",
     "link_contact_not_confirmed": "This number is not confirmed in any c4rsys profile: send the request to an email or by the ID of the profile.",
-    "owner_confirmed_locked": "The owner confirmed the management: another owner may be named after the link of his investor card with the profile is broken."
+    "owner_confirmed_locked": "The owner confirmed the management: another owner may be named after the link of his investor card with the profile is broken.",
+    "owner_withdrew_consent": "The owner took back his consent to the management of this vehicle.",
+    "management_not_confirmed": "The management by this company is not confirmed.",
+    "owner_withdrew_locked": "The owner took back his consent to the management: he cannot be changed in the card. End the management, then take the vehicle into the management anew with its new owner."
   },
   "history": {
     "action": "Action",
@@ -2995,7 +2998,9 @@
     "owner_contact_person": "Contact person",
     "owner_matches_title": "Similar cards are in the list already — you may choose one:",
     "owner_use_existing": "Choose: {{name}}",
-    "owner_locked_hint": "The owner confirmed the management, so he is not changed here. To name another owner, first break the link of his investor card with the profile."
+    "owner_locked_hint": "The owner confirmed the management, so he is not changed here. To name another owner, first break the link of his investor card with the profile.",
+    "owner_withdrew_banner": "The owner took back his consent to the management of this vehicle. End the management (“Settings → Card”) or go on with this warning.",
+    "owner_withdrew_locked_hint": "The owner took back his consent to the management, so he cannot be changed here. End the management: the vehicle becomes a client’s one. If the vehicle has a new owner, take it into the management anew and name him."
   },
   "warehouse": {
     "action_create": "Create",
@@ -3765,7 +3770,9 @@
     "action_transfer": "Move to another order",
     "total_rental": "Rental",
     "total": "Total",
-    "paid": "Paid"
+    "paid": "Paid",
+    "owner_withdrawn_warning": "The owner took back his consent to the management of this vehicle. The company has to act: end the management — the vehicle becomes a client’s one. Go on anyway?",
+    "owner_withdrawn_confirm": "Confirm and go on"
   },
   "issue_rules": {
     "page_hint": "Rules of the issue and auto-cancel of bookings: for the whole company, and a location may have its own.",
@@ -4764,7 +4771,8 @@
     "state_pending": "Active and unread",
     "event_link_answered_yes": "Link confirmed ({{target}}): profile data received",
     "event_link_answered_no": "Link declined ({{target}})",
-    "event_link_data_given": "Updated data of the profile are given ({{target}})"
+    "event_link_data_given": "Updated data of the profile are given ({{target}})",
+    "event_vehicle_owner_withdrew": "The owner took back his consent to the management ({{target}})"
   },
   "reports": {
     "metric_rental_issues_today": "Issues expected today",
@@ -5129,7 +5137,9 @@
     "result_management": "Management by the company",
     "closed_link_broken": "Closed: the link of the investor card with the profile was broken.",
     "earlier_show": "Earlier requests: {{count}}",
-    "earlier_hide": "Hide the earlier requests"
+    "earlier_hide": "Hide the earlier requests",
+    "withdrew": "The owner took back his consent to the management {{at}}. Send him the request anew, end the management — the vehicle becomes a client’s one (“Settings → Card”) — or go on: the warning stays. The owner cannot be changed in the card.",
+    "send_same": "Send the request to this owner anew"
   },
   "cabinet": {
     "title": "Personal cabinet",
@@ -5250,7 +5260,11 @@
     "working_title": "Where you work",
     "client_title": "Where you are a client",
     "working_owner": "Owner",
-    "working_open": "Open in the working interface"
+    "working_open": "Open in the working interface",
+    "withdraw_start": "Take back the consent to the management",
+    "withdraw_load": "For this vehicle now: rentals that last — {{rentals}}, bookings — {{bookings}}.",
+    "withdraw_warning": "“{{company}}” loses your confirmation, and you get no new data from it. What you already got stays with you. The consent is taken back at once.",
+    "withdraw_comment": "Comment"
   },
   "exports": {
     "title": "Full data export",
