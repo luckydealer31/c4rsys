@@ -74,7 +74,8 @@ export function OwnerRequestCard({ vehicle }: { vehicle: Vehicle }) {
       ) : null}
       {shown.map((r) => {
         // One line: the state, whom it was sent to, when it was sent and answered. The answers
-        // stand in a row beside each other (customer's remark of 26.11.2026). The name of the
+        // stand in a column, like the categories in the block beside (customer's remarks of
+        // 26.11.2026). The name of the
         // one who answered is told only for a company: a person answers for himself.
         const times = new Set(r.answers.map((a) => a.at));
         const people = new Set(r.answers.map((a) => a.by));
@@ -103,17 +104,17 @@ export function OwnerRequestCard({ vehicle }: { vehicle: Vehicle }) {
               </span>
             </div>
             {r.answers.length ? (
-              <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 6 }} className="small">
+              <div style={{ marginTop: 8 }}>
                 {r.answers.map((a) => (
-                  <span key={a.question}>
-                    {t(`owner_requests.question_${a.question}`)}{" "}
-                    <span className={`badge ${a.answer ? "ok" : "warn"}`}>
+                  <div key={a.question} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                    <span className={`badge ${a.answer ? "ok" : "warn"}`} style={{ minWidth: 34, textAlign: "center" }}>
                       {a.answer ? t("owner_requests.yes") : t("owner_requests.no")}
                     </span>
+                    <span>{t(`owner_requests.question_${a.question}`)}</span>
                     {together ? null : (
-                      <span className="muted"> {forCompany ? `${a.by} · ` : ""}{when(a.at)}</span>
+                      <span className="muted small">{forCompany ? `${a.by} · ` : ""}{when(a.at)}</span>
                     )}
-                  </span>
+                  </div>
                 ))}
               </div>
             ) : null}

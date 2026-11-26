@@ -1137,3 +1137,8 @@ table.fit { width: auto; }
   .pick-split > .pick-peek { grid-row: 1; position: static; }
   .pick-split > .pick-list > .card { max-height: none; overflow-y: visible; }
 }
+
+/* The access of a vehicle: the owner's confirmation and what is passed to him stand beside each
+   other at one height (customer's remark of 26.11.2026). */
+.access-pair > div { display: flex; }
+.access-pair > div > .card { flex: 1; min-width: 0; }

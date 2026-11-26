@@ -1397,7 +1397,8 @@
     "pages_not_photos": "Several files at once must be photos. A PDF is uploaded as one file.",
     "owner_card_not_active": "This card is archived or merged — choose an active one.",
     "messenger_value_invalid": "Give a phone number or a messenger nickname (letters, digits, dot, dash, underscore).",
-    "link_contact_not_confirmed": "This number is not confirmed in any c4rsys profile: send the request to an email or by the ID of the profile."
+    "link_contact_not_confirmed": "This number is not confirmed in any c4rsys profile: send the request to an email or by the ID of the profile.",
+    "owner_confirmed_locked": "The owner confirmed the management: another owner may be named after the link of his investor card with the profile is broken."
   },
   "history": {
     "action": "Action",
@@ -2993,7 +2994,8 @@
     "owner_card_other": "Choose another",
     "owner_contact_person": "Contact person",
     "owner_matches_title": "Similar cards are in the list already — you may choose one:",
-    "owner_use_existing": "Choose: {{name}}"
+    "owner_use_existing": "Choose: {{name}}",
+    "owner_locked_hint": "The owner confirmed the management, so he is not changed here. To name another owner, first break the link of his investor card with the profile."
   },
   "warehouse": {
     "action_create": "Create",

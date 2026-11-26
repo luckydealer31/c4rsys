@@ -753,9 +753,9 @@ export function VehiclePage() {
           {settingsPart === "access" ? (
             // The two blocks stand beside each other, each as wide as its content needs
             // (customer's remark of 26.11.2026); on a narrow screen one goes under the other.
-            <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
+            <div className="access-pair" style={{ display: "flex", gap: 16, alignItems: "stretch", flexWrap: "wrap" }}>
               {data.relation === "managed" ? (
-                <div style={{ flex: "1 1 460px", maxWidth: 760, minWidth: 0 }}>
+                <div style={{ flex: "1 1 340px", maxWidth: 480, minWidth: 0 }}>
                   <OwnerRequestCard vehicle={data} />
                 </div>
               ) : null}

@@ -756,15 +756,39 @@ def test_the_same_owner_declared_anew_keeps_the_confirmation(
     assert ask(owner, cmp, card["id"]).json()["error"]["code"] == "OWNER_ALREADY_CONFIRMED"
     assert VehicleOwnerRequest.objects.get().state == "complete"
 
-    other = _redeclare(
-        owner, cmp, card["id"], owner_kind="person", owner_last_name="Petrov", owner_first_name="I"
+    # Another owner is not named over the one who confirmed (customer's decision of 26.11.2026):
+    # the link of his card with the profile is broken first.
+    url = f"/api/c/{cmp}/vehicles/{card['id']}"
+    another = {"owner_kind": "person", "owner_last_name": "Petrov", "owner_first_name": "I"}
+    refused = owner.put(
+        f"{url}/details",
+        data={
+            "name": "Yaris",
+            "vin": "JTDBT923771234567",
+            "expected_version": owner.get(url).json()["vehicle"]["version"],
+            **another,
+        },
+        content_type="application/json",
+        headers=key(),
     )
+    assert refused.json()["error"]["code"] == "OWNER_CONFIRMED_LOCKED"
+    assert owner.get(url).json()["vehicle"]["owner"]["confirmed"]
+    link = owner.get(f"/api/c/{cmp}/profile-links?card_type=investor&card_id={investor.id}").json()[
+        "links"
+    ][0]
+    broken = post(
+        owner,
+        f"/api/c/{cmp}/profile-links/{link['id']}/break",
+        {"initiator": "company", "reason": "Another owner"},
+        key(),
+    )
+    assert broken.status_code == 200, broken.content
+    other = _redeclare(owner, cmp, card["id"], **another)
     assert not other["confirmed"]
     back = _redeclare(
         owner, cmp, card["id"], owner_kind="counterparty", owner_counterparty_id=str(investor.id)
     )
     assert not back["confirmed"]
-    assert ask(owner, cmp, card["id"]).status_code == 201
 
 
 def test_breaking_the_link_of_the_investor_stops_passing_to_the_owner(
@@ -852,7 +876,10 @@ def test_a_confirmation_ended_by_the_same_owner_is_restored(
     assert found.ended_at is None and found.end_reason == ""
     assert owner.get(url).json()["vehicle"]["owner"]["confirmed"]
 
-    # Another owner ended it: that stays ended.
+    # Another owner ended it (possible before the decision of 26.11.2026): that stays ended.
+    VehicleManagementConfirmation.objects.filter(pk=found.pk).update(
+        ended_at=timezone.now(), end_reason="owner_changed"
+    )
     _redeclare(
         owner, cmp, card["id"], owner_kind="person", owner_last_name="Petrov", owner_first_name="I"
     )

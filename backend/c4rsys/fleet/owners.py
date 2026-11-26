@@ -266,6 +266,13 @@ def declare(ctx: CommandContext, company: Company, card: VehicleCard, owner: Own
     # request, its answers and the confirmed management (customer's remark of 26.11.2026).
     asked = owner_requests.latest(card)
     if asked is None or not owner_requests.same_owner(asked, claim):
+        from c4rsys.fleet import disclosure
+
+        if disclosure.confirmed_now(card.id) is not None:
+            # The owner confirmed the management: another owner is not named over him in the
+            # card of the vehicle. The confirmation ends first — by breaking the link with his
+            # profile (customer's decision of 26.11.2026).
+            raise errors.business_rule("OWNER_CONFIRMED_LOCKED")
         owner_requests.close_for_new_owner(ctx, card)
     ctx.audit(
         "vehicle.owner_declared",

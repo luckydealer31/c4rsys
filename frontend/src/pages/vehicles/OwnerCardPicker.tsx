@@ -79,6 +79,23 @@ export function ownerOf(vehicle: Vehicle): OwnerValue {
   };
 }
 
+/** The owner of a saved vehicle sent back as he is: the same card, or the same data given
+ * before the cards. Used when the owner may not be changed. */
+export function sameOwnerBody(o: NonNullable<Vehicle["owner"]>): Record<string, unknown> {
+  if (o.counterparty) return { owner_kind: "counterparty", owner_counterparty_id: o.counterparty.id };
+  if (o.client) return { owner_kind: "client", owner_client_id: o.client.id };
+  return {
+    owner_kind: o.kind,
+    owner_lookup: o.lookup,
+    owner_name: o.name,
+    owner_last_name: o.last_name ?? "",
+    owner_first_name: o.first_name ?? "",
+    owner_middle_name: o.middle_name ?? "",
+    owner_contact: o.contact,
+    owner_address: o.address ?? "",
+  };
+}
+
 /** What the server is sent for the owner. */
 export function ownerBody(relation: string, v: OwnerValue): Record<string, unknown> {
   if (v.party === "none") return { owner_kind: "none" };
