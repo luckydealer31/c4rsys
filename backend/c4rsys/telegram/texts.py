@@ -172,7 +172,7 @@ TEXTS: dict[str, dict[str, str]] = {
     "cancelled": {"ru": "Отменено.", "en": "Cancelled.", "th": "ยกเลิกแล้ว"},
     "whose": {"ru": "Чьё это Т/С?", "en": "Whose vehicle is it?", "th": "รถคันนี้เป็นของใคร?"},
     "rel_own": {"ru": "Компании", "en": "The company's", "th": "ของบริษัท"},
-    "rel_managed": {"ru": "В управлении", "en": "Managed", "th": "รับบริหาร"},
+    "rel_managed": {"ru": "Инвесторское", "en": "Investor's", "th": "ของนักลงทุน"},
     "rel_client": {"ru": "Клиента", "en": "A client's", "th": "ของลูกค้า"},
     "where": {
         "ru": "В какой локации учитывать Т/С?",

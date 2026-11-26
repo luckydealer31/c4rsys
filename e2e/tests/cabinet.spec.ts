@@ -143,6 +143,11 @@ test("a client links the card in the cabinet and sees the rental", async ({ page
   await expect(result).toContainText(t("owner_requests.result_management"));
   await expect(result.getByRole("button", { name: t("owner_requests.answer"), exact: true })).toHaveCount(0);
   await expect(client.locator(".rail-count")).toHaveCount(0);
+  // The company sees the request in one line with the answers in a row (customer's remark of
+  // 26.11.2026).
+  await page.goto(`${s.base}/vehicles/${managed.id}?tab=settings&part=access`);
+  await expect(page.getByTestId("owner-request")).toHaveCount(1);
+  await expect(page.getByTestId("owner-request")).toContainText(t("owner_requests.question_ownership"));
   const history = (await ok(page, "GET", `/c/${s.cmp}/vehicles/${managed.id}/owner-requests`)).requests as {
     state: string;
     answers: { question: string; answer: boolean }[];

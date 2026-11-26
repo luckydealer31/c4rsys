@@ -121,7 +121,7 @@ class VehiclesTemplate:
         ),
         "relation": (
             "own or managed; required",
-            "own (владение) или managed (управление); обязательно",
+            "own (собственное) или managed (инвесторское); обязательно",
             "own",
         ),
         "name": (
@@ -188,7 +188,7 @@ class VehiclesTemplate:
         ),
         "owner_kind": (
             "Managed only: profile, person, organization or none",
-            "Только для управления: profile, person, organization или none",
+            "Только для инвесторского Т/С: profile, person, organization или none",
             "",
         ),
         "owner_lookup": (

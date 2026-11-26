@@ -40,10 +40,16 @@ export function OwnerRequestCard({ vehicle }: { vehicle: Vehicle }) {
   }
 
   const canSend = editable && !owner?.confirmed && (!last || last.state !== "open");
+  // Only the last request is shown; the earlier ones — withdrawn, declined, to another owner —
+  // are the history and open by a line under it (customer's remark of 26.11.2026).
+  const [earlier, setEarlier] = useState(false);
+  const all = requests.data?.requests ?? [];
+  const shown = earlier ? all : all.slice(0, 1);
 
   return (
+    <div style={{ maxWidth: 760 }}>
     <Card title={t("owner_requests.title")}>
-      {owner?.confirmed ? <p><span className="badge ok">{t("owner_requests.confirmed")}</span></p> : null}
+      {owner?.confirmed && !last ? <p><span className="badge ok">{t("owner_requests.confirmed")}</span></p> : null}
       {owner?.conflict ? <p><span className="badge warn">{t("owner_requests.conflict")}</span></p> : null}
       {canSend ? (
         <div className="row short-fields" style={{ alignItems: "flex-end" }}>
@@ -66,49 +72,67 @@ export function OwnerRequestCard({ vehicle }: { vehicle: Vehicle }) {
           </button>
         </div>
       ) : null}
-      {(requests.data?.requests ?? []).map((r) => (
-        <div key={r.id} className="stack" style={{ marginBottom: 12 }}>
-          <p>
-            <span className={`badge ${r.state === "complete" ? "ok" : r.state === "open" || r.state === "awaiting_rest" ? "warn" : ""}`}>
-              {t(`owner_requests.state_${r.state}`)}
-            </span>{" "}
-            {r.target}
-          </p>
-          <p className="muted small">
-            {t("links.sent_at", { at: when(r.created_at) })}
-            {r.state === "open" || r.state === "awaiting_rest"
-              ? ` · ${t("links.expires_at", { at: when(r.expires_at) })}`
-              : ""}
-          </p>
-          {r.answers.length ? (
-            <table className="table">
-              <tbody>
+      {shown.map((r) => {
+        // One line: the state, whom it was sent to, when it was sent and answered. The answers
+        // stand in a row beside each other (customer's remark of 26.11.2026). The name of the
+        // one who answered is told only for a company: a person answers for himself.
+        const times = new Set(r.answers.map((a) => a.at));
+        const people = new Set(r.answers.map((a) => a.by));
+        const together = r.answers.length > 0 && times.size === 1 && people.size === 1;
+        const forCompany = r.target.toUpperCase().startsWith("CMP-");
+        const first = r.answers[0];
+        return (
+          <div key={r.id} style={{ margin: "10px 0 8px" }} data-testid="owner-request">
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              {r === last && owner?.confirmed ? (
+                <span className="badge ok">{t("owner_requests.confirmed")}</span>
+              ) : (
+                <span className={`badge ${r.state === "complete" ? "ok" : r.state === "open" || r.state === "awaiting_rest" ? "warn" : ""}`}>
+                  {t(`owner_requests.state_${r.state}`)}
+                </span>
+              )}
+              <span>{r.target}</span>
+              <span className="muted small">
+                {t("links.sent_at", { at: when(r.created_at) })}
+                {r.state === "open" || r.state === "awaiting_rest"
+                  ? ` · ${t("links.expires_at", { at: when(r.expires_at) })}`
+                  : ""}
+                {together && first
+                  ? ` · ${t("links.decided_at", { at: when(first.at) })}${forCompany ? ` (${first.by})` : ""}`
+                  : ""}
+              </span>
+            </div>
+            {r.answers.length ? (
+              <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 6 }} className="small">
                 {r.answers.map((a) => (
-                  <tr key={a.question}>
-                    <td>{t(`owner_requests.question_${a.question}`)}</td>
-                    <td>
-                      <span className={`badge ${a.answer ? "ok" : "warn"}`}>
-                        {a.answer ? t("owner_requests.yes") : t("owner_requests.no")}
-                      </span>
-                    </td>
-                    <td className="small muted">
-                      {a.by} · {when(a.at)}
-                    </td>
-                  </tr>
+                  <span key={a.question}>
+                    {t(`owner_requests.question_${a.question}`)}{" "}
+                    <span className={`badge ${a.answer ? "ok" : "warn"}`}>
+                      {a.answer ? t("owner_requests.yes") : t("owner_requests.no")}
+                    </span>
+                    {together ? null : (
+                      <span className="muted"> {forCompany ? `${a.by} · ` : ""}{when(a.at)}</span>
+                    )}
+                  </span>
                 ))}
-              </tbody>
-            </table>
-          ) : null}
-          {r.closed_reason === "link_broken" ? (
-            <p className="muted small">{t("owner_requests.closed_link_broken")}</p>
-          ) : null}
-          {r.closed_reason === "owner_changed" ? (
-            <p className="muted small">{t("owner_requests.closed_owner_changed")}</p>
-          ) : null}
-          {r.ownership_dispute ? <p className="alert warn">{t("owner_requests.dispute")}</p> : null}
-          {r.by_phone && r.state === "open" ? <p className="muted small">{t("links.no_sms")}</p> : null}
-        </div>
-      ))}
+              </div>
+            ) : null}
+            {r.closed_reason === "link_broken" ? (
+              <p className="muted small">{t("owner_requests.closed_link_broken")}</p>
+            ) : null}
+            {r.closed_reason === "owner_changed" ? (
+              <p className="muted small">{t("owner_requests.closed_owner_changed")}</p>
+            ) : null}
+            {r.ownership_dispute ? <p className="alert warn">{t("owner_requests.dispute")}</p> : null}
+            {r.by_phone && r.state === "open" ? <p className="muted small">{t("links.no_sms")}</p> : null}
+          </div>
+        );
+      })}
+      {all.length > 1 ? (
+        <button type="button" className="link small" data-testid="owner-requests-earlier" onClick={() => setEarlier(!earlier)}>
+          {earlier ? t("owner_requests.earlier_hide") : t("owner_requests.earlier_show", { count: all.length - 1 })}
+        </button>
+      ) : null}
       <ErrorMessage error={send.error ?? cancel.error} />
       <div className="actions">
         {editable && last && (last.state === "open" || last.state === "awaiting_rest") ? (
@@ -125,5 +149,6 @@ export function OwnerRequestCard({ vehicle }: { vehicle: Vehicle }) {
         ) : null}
       </div>
     </Card>
+    </div>
   );
 }
