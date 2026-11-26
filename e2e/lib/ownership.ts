@@ -75,6 +75,10 @@ export async function ownershipScenario(page: Page, s: Company, email: string): 
   };
   expect(card.relation).toBe("managed");
   expect(card.owner.counterparty?.name).toBe("Щукин Тимофей Андреевич");
+  // The owner in the card of the vehicle opens the card of the investor (customer's remark of
+  // 26.11.2026).
+  await expect(page.getByTestId("owner-card-link")).toHaveText("Щукин Тимофей Андреевич");
+  await expect(page.getByTestId("owner-card-link")).toHaveAttribute("href", /\/clients\/investors\//);
   // The investors are a tab of their own, apart from the counterparties; the card of an investor
   // shows the vehicles he gave into the management (customer's decision of 26.11.2026).
   await page.goto(`/c/${s.cmp}/clients?tab=counterparties`);

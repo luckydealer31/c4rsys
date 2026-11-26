@@ -362,6 +362,14 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
         : owner.kind === "none"
           ? t("vehicles.owner_not_given")
           : [owner.name, owner.contact, owner.address].filter(Boolean).join(", ");
+  // The owner kept as a card — an investor or a client — opens that card (customer's remark
+  // of 26.11.2026); only for who may see its list.
+  const ownerCard =
+    owner?.kind === "counterparty" && owner.counterparty && can("investor.view")
+      ? { name: owner.counterparty.name, path: `/clients/investors/${owner.counterparty.id}` }
+      : owner?.kind === "client" && owner.client && (can("client.list") || can("client.find"))
+        ? { name: owner.client.name, path: `/clients/${owner.client.id}` }
+        : null;
   const working = vehicle.working_values ?? {};
   const confirmed = new Set(vehicle.confirmed_fields ?? []);
   const facts: [string, string, string?][] = [
@@ -449,6 +457,13 @@ function VehicleFacts({ vehicle }: { vehicle: Vehicle }) {
                           value: named(field ?? "", own.global.display),
                         })}
                       </span>
+                    </>
+                  ) : label === t("vehicles.section_owner") && ownerCard && value.startsWith(ownerCard.name) ? (
+                    <>
+                      <Link to={companyPath(company, ownerCard.path)} data-testid="owner-card-link">
+                        {ownerCard.name}
+                      </Link>
+                      {value.slice(ownerCard.name.length)}
                     </>
                   ) : (
                     value

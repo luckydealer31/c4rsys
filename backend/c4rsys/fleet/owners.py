@@ -261,8 +261,12 @@ def declare(ctx: CommandContext, company: Company, card: VehicleCard, owner: Own
         manual_address=owner.address,
         created_by_user_id=ctx.actor.user_id,
     )
-    # The request to the previous owner is not answered any more (§ 8.3.13).
-    owner_requests.close_for_new_owner(ctx, card)
+    # The request to the previous owner is not answered any more (§ 8.3.13). The same owner
+    # declared anew — his data saved again, a card of the list in place of his ID — keeps the
+    # request, its answers and the confirmed management (customer's remark of 26.11.2026).
+    asked = owner_requests.latest(card)
+    if asked is None or not owner_requests.same_owner(asked, claim):
+        owner_requests.close_for_new_owner(ctx, card)
     ctx.audit(
         "vehicle.owner_declared",
         object_type="vehicle_card",

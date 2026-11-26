@@ -72,14 +72,51 @@ def latest(card: VehicleCard) -> VehicleOwnerRequest | None:
     return card.owner_requests.order_by("-created_at").first()
 
 
+def owner_profile(claim: VehicleOwnerClaim) -> tuple[UUID | None, UUID | None]:
+    """The profile the declaration names: a person and a company. A card of the list names the
+    profile it is linked to."""
+    card = claim.counterparty
+    if card is not None:
+        return card.linked_user_id, card.linked_company_id
+    return claim.owner_user_id, None
+
+
+def same_owner(request: VehicleOwnerRequest, claim: VehicleOwnerClaim) -> bool:
+    """Whether the request was addressed to the owner the declaration names (customer's remark
+    of 26.11.2026). The owner is declared anew every time his data are saved in the card of the
+    vehicle — the name, the address, a card of the list in place of the ID; while it is the same
+    profile, the request and its answers stay his."""
+    if request.claim_id == claim.id:
+        return True
+    user_id, company_id = owner_profile(claim)
+    if request.target_company_id is not None:
+        return company_id == request.target_company_id
+    if request.target_user_id is not None:
+        return user_id == request.target_user_id
+    # Not a profile yet: the same email or phone asked.
+    asked = request.claim
+    return bool(claim.lookup) and (claim.kind, claim.lookup) == (asked.kind, asked.lookup)
+
+
+def _confirmed_by(request: VehicleOwnerRequest, claim: VehicleOwnerClaim) -> bool:
+    """A declaration made after the answers keeps them only while the confirmation they began
+    lasts: another owner declared in between ended it (§ 8.3.4)."""
+    if request.claim_id == claim.id:
+        return True
+    from c4rsys.fleet import disclosure
+
+    active = disclosure.confirmed_now(request.vehicle_card_id)
+    return active is not None and active.request_id == request.id
+
+
 def management_confirmed(card: VehicleCard) -> bool:
-    """Three «yes» to the request of the current declaration (§ 8.3.1)."""
+    """Three «yes» to the request to the owner of the current declaration (§ 8.3.1)."""
     request = latest(card)
     claim = _claim(card)
-    if request is None or claim is None or request.claim_id != claim.id:
+    if request is None or claim is None or not same_owner(request, claim):
         return False
     given = answers_of(request)
-    return all(given.get(q) is True for q in QUESTIONS)
+    return all(given.get(q) is True for q in QUESTIONS) and _confirmed_by(request, claim)
 
 
 # --- The company -------------------------------------------------------------------------------
@@ -123,7 +160,7 @@ def send(ctx: CommandContext, company: Company, card_id: UUID) -> VehicleOwnerRe
         raise errors.business_rule("LINK_SELF")
     now = timezone.now()
     previous = latest(card)
-    if previous is not None and previous.state == State.OPEN and previous.claim_id != claim.id:
+    if previous is not None and previous.state == State.OPEN and not same_owner(previous, claim):
         # Left open by a change of the owner made before such requests were closed with it.
         close_for_new_owner(ctx, card)
         previous.refresh_from_db()
@@ -134,8 +171,9 @@ def send(ctx: CommandContext, company: Company, card_id: UUID) -> VehicleOwnerRe
             raise errors.business_rule("OWNER_REQUEST_PENDING")
         if (
             state == State.COMPLETE
-            and previous.claim_id == claim.id
+            and same_owner(previous, claim)
             and all(given.get(q) is True for q in QUESTIONS)
+            and _confirmed_by(previous, claim)
         ):
             raise errors.business_rule("OWNER_ALREADY_CONFIRMED")
         if state in (State.OPEN, State.EXPIRED) and previous.state == State.OPEN:
@@ -389,7 +427,7 @@ def _answer(
     claim = _claim(card)
     if (
         claim is None
-        or claim.id != request.claim_id
+        or not same_owner(request, claim)
         or card.state != VehicleCard.State.ACTIVE
         or card.relation != VehicleCard.Relation.MANAGED
     ):
@@ -608,12 +646,15 @@ def owner_status(card: VehicleCard, batch: "Batch | None" = None) -> dict[str, A
     """The state of the owner's confirmation shown with the declared owner."""
     request = batch.requests.get(card.id) if batch is not None else latest(card)
     claim = batch.claims.get(card.id) if batch is not None else _claim(card)
-    current = request is not None and claim is not None and request.claim_id == claim.id
+    current = request is not None and claim is not None and same_owner(request, claim)
     given: dict[str, bool] = {}
     if current and request is not None:
         given = batch.answers.get(request.id, {}) if batch is not None else answers_of(request)
+    confirmed = current and all(given.get(q) is True for q in QUESTIONS)
+    if confirmed and request is not None and claim is not None:
+        confirmed = _confirmed_by(request, claim)
     return {
-        "confirmed": current and all(given.get(q) is True for q in QUESTIONS),
+        "confirmed": confirmed,
         "ownership_confirmed": given.get(Question.OWNERSHIP) is True,
         # The request is sent and not answered in full yet.
         "waiting": current

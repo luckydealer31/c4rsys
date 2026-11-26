@@ -710,3 +710,99 @@ def test_a_person_is_named_by_the_parts_and_a_company_by_its_name() -> None:
         {"owner_kind": "person", "owner_name": "Somchai Jaidee"}, VehicleCard.Relation.MANAGED
     )
     assert (joined.name, joined.last_name) == ("Somchai Jaidee", "")
+
+
+def _redeclare(owner: Client, cmp: str, card_id: str, **data: Any) -> dict[str, Any]:
+    url = f"/api/c/{cmp}/vehicles/{card_id}"
+    version = owner.get(url).json()["vehicle"]["version"]
+    saved = owner.put(
+        f"{url}/details",
+        data={"name": "Yaris", "vin": "JTDBT923771234567", "expected_version": version, **data},
+        content_type="application/json",
+        headers=key(),
+    )
+    assert saved.status_code == 200, saved.content
+    status: dict[str, Any] = owner.get(url).json()["vehicle"]["owner"]
+    return status
+
+
+def test_the_same_owner_declared_anew_keeps_the_confirmation(
+    owner: Client, cmp: str, location: str
+) -> None:
+    """Customer's remark of 26.11.2026: three «yes» were given, then the card of the vehicle was
+    saved again — the owner's address, then his card of the list in place of the ID — and the
+    management showed as not confirmed. The same owner keeps it; another owner ends it, and
+    naming the first one again does not bring it back."""
+    from c4rsys.fleet import disclosure
+
+    somchai, usr = person("somchai@example.com")
+    card = vehicle(owner, cmp, location, relation="managed", owner_kind="profile", owner_lookup=usr)
+    request = ask(owner, cmp, card["id"]).json()["request"]
+    given = answer(somchai, request["id"], link=True, ownership=True, management=True)
+    assert given.status_code == 200, given.content
+    investor = Counterparty.objects.get()
+
+    saved = _redeclare(
+        owner, cmp, card["id"], owner_kind="profile", owner_lookup=usr, owner_address="Phuket"
+    )
+    assert saved["confirmed"] and saved["address"] == "Phuket"
+    as_card = _redeclare(
+        owner, cmp, card["id"], owner_kind="counterparty", owner_counterparty_id=str(investor.id)
+    )
+    assert as_card["confirmed"] and as_card["counterparty"]["id"] == str(investor.id)
+    assert disclosure.confirmed_now(VehicleCard.objects.get(pk=card["id"]).id) is not None
+    assert ask(owner, cmp, card["id"]).json()["error"]["code"] == "OWNER_ALREADY_CONFIRMED"
+    assert VehicleOwnerRequest.objects.get().state == "complete"
+
+    other = _redeclare(
+        owner, cmp, card["id"], owner_kind="person", owner_last_name="Petrov", owner_first_name="I"
+    )
+    assert not other["confirmed"]
+    back = _redeclare(
+        owner, cmp, card["id"], owner_kind="counterparty", owner_counterparty_id=str(investor.id)
+    )
+    assert not back["confirmed"]
+    assert ask(owner, cmp, card["id"]).status_code == 201
+
+
+def test_a_confirmation_ended_by_the_same_owner_is_restored(
+    owner: Client, cmp: str, location: str
+) -> None:
+    """The migration brings back what the same owner declared anew had ended, and nothing that
+    another owner ended."""
+    import importlib
+
+    from django.apps import apps
+
+    from c4rsys.fleet.models import VehicleManagementConfirmation
+
+    migration = importlib.import_module(
+        "c4rsys.fleet.migrations.0035_same_owner_keeps_confirmation"
+    )
+    somchai, usr = person("somchai@example.com")
+    card = vehicle(owner, cmp, location, relation="managed", owner_kind="profile", owner_lookup=usr)
+    request = ask(owner, cmp, card["id"]).json()["request"]
+    assert answer(somchai, request["id"], link=True, ownership=True, management=True)
+    investor = Counterparty.objects.get()
+    _redeclare(
+        owner, cmp, card["id"], owner_kind="counterparty", owner_counterparty_id=str(investor.id)
+    )
+    # As it was before the correction: the same owner declared anew ended the confirmation.
+    found = VehicleManagementConfirmation.objects.get()
+    VehicleManagementConfirmation.objects.filter(pk=found.pk).update(
+        ended_at=timezone.now(), end_reason="owner_changed"
+    )
+    url = f"/api/c/{cmp}/vehicles/{card['id']}"
+    assert not owner.get(url).json()["vehicle"]["owner"]["confirmed"]
+    migration.restore(apps, None)
+    found.refresh_from_db()
+    assert found.ended_at is None and found.end_reason == ""
+    assert owner.get(url).json()["vehicle"]["owner"]["confirmed"]
+
+    # Another owner ended it: that stays ended.
+    _redeclare(
+        owner, cmp, card["id"], owner_kind="person", owner_last_name="Petrov", owner_first_name="I"
+    )
+    migration.restore(apps, None)
+    found.refresh_from_db()
+    assert found.ended_at is not None
