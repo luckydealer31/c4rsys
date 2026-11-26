@@ -88,6 +88,10 @@ export async function ownershipScenario(page: Page, s: Company, email: string): 
   await expect(page.getByRole("link", { name: t("investors.new_button"), exact: true })).toBeVisible();
   await page.getByRole("link", { name: /Щукин/ }).click();
   await expect(page).toHaveURL(/\/clients\/investors\//);
+  // The card: the data and the documents; the vehicles are a tab of their own, the link with
+  // the profile is in «Settings → Access» (customer's decisions of 26.11.2026).
+  await expect(page.getByRole("tab", { name: t("cards.tab_settings"), exact: true })).toBeVisible();
+  await page.getByRole("tab", { name: t("cards.tab_vehicles"), exact: true }).click();
   await expect(page.getByTestId("investor-vehicles")).toContainText("Client Forza");
   await page.getByTestId("investor-vehicles").getByRole("link", { name: "Client Forza" }).click();
   await expect(page).toHaveURL(new RegExp(`/vehicles/${earlier.id}`));

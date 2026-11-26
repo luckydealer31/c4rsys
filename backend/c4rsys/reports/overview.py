@@ -391,16 +391,15 @@ def _unconfirmed_counts(company: Company, where: Area) -> list[Block]:
 
 
 def _requests(company: Company, now: datetime) -> list[Block]:
-    """§ 21.3.1, § 6.3.8, § 6.4.4, § 8.3.1: requests addressed to the company and waiting for its
-    answer — to link a card with its profile, for fresh data of the profile, to the company as
-    the owner of a vehicle. PROPOSAL: counted for those who answer them («company.link.answer»
+    """§ 21.3.1, § 6.3.8, § 8.3.1: requests addressed to the company and waiting for its
+    answer — to link a card with its profile, to the company as the owner of a vehicle.
+    PROPOSAL: counted for those who answer them («company.link.answer»
     for the whole company), since the requests are not bound to a location."""
     from c4rsys.fleet import owner_requests
-    from c4rsys.parties import data_requests, links
+    from c4rsys.parties import links
 
     count = (
         links.for_company(company.id).filter(state="pending", expires_at__gt=now).count()
-        + data_requests.for_company(company.id).filter(state="pending", expires_at__gt=now).count()
         + owner_requests.for_company(company.id).filter(state="open", expires_at__gt=now).count()
     )
     return [

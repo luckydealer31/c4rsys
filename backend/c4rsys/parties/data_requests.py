@@ -1,19 +1,17 @@
-"""Requests of fresh data from a linked profile (ТЗ § 6.4.4, § 6.4.1–6.4.3, § 6.3.8).
+"""Fresh data of a linked profile (ТЗ § 6.4.4, § 6.4.1–6.4.3, § 6.3.8).
 
-* Later changes of the profile do not reach the company by themselves (§ 6.4.3). The company may
-  ask for the current data only when the client asks for a service: the employee states what the
-  client asked for; nothing is sent automatically or periodically.
-* The request goes through a confirmed link. The person answers in the personal cabinet; a
-  company — its top-authority director or an employee with the right (§ 6.3.8). The recipient
-  chooses what to give; the request does not open every field.
-* The answer is kept as a new snapshot next to the link; the working fields of the card change
-  only when an employee takes a value (§ 6.4.2, links.apply_value).
+* Later changes of the profile do not reach the company by themselves (§ 6.4.3), and the company
+  does not ask for them (customer's decision of 26.11.2026): the holder of the profile gives the
+  fresh data on his own — a person in the personal cabinet, a company by its top-authority
+  director or an employee with the right (§ 6.3.8). He chooses what to give.
+* The data go through a confirmed link and are kept as a new snapshot next to it; the working
+  fields of the card change only when an employee takes a value (§ 6.4.2, links.apply_value).
 
-PROPOSAL: one request waits at a time per link; it is valid 30 days like a request to link; the
-person is not sent a letter (the cabinet shows the request).
+The table keeps the requests the companies sent before the decision; those that waited for an
+answer were cancelled (migration 0017).
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -25,195 +23,92 @@ from c4rsys.accounts.models import UserAccount
 from c4rsys.companies import services as companies
 from c4rsys.companies.models import Company
 from c4rsys.parties import links
-from c4rsys.parties.models import ClientCard, ProfileDataRequest, ProfileLink
+from c4rsys.parties.models import ProfileDataRequest, ProfileLink
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
 
-TTL = timedelta(days=30)
 State = ProfileDataRequest.State
-
-
-def effective_state(item: ProfileDataRequest, now: datetime) -> str:
-    if item.state == State.PENDING and item.expires_at <= now:
-        return State.EXPIRED
-    return item.state
+GIVEN = "profile_data.given"
 
 
 def of_link(company_id: UUID, link_id: UUID) -> QuerySet[ProfileDataRequest]:
-    return ProfileDataRequest.objects.filter(company_id=company_id, link_id=link_id).order_by(
-        "-created_at"
-    )
+    """The data given through the link after it was confirmed, the latest first."""
+    return ProfileDataRequest.objects.filter(
+        company_id=company_id, link_id=link_id, state=State.ACCEPTED
+    ).order_by("-created_at")
 
 
-def request(
-    ctx: CommandContext, company_id: UUID, link_id: UUID, occasion: str
+def _give(
+    ctx: CommandContext, query: QuerySet[ProfileLink], link_id: UUID, data: dict[str, Any]
 ) -> ProfileDataRequest:
-    occasion = occasion.strip()
-    if not occasion:
-        # § 6.4.4: only when the client asks for a service — what they asked for is stated.
-        raise errors.validation_error("occasion", code="FIELD_REQUIRED")
-    peek = ProfileLink.objects.filter(company_id=company_id, pk=link_id).first()
+    if not data:
+        raise errors.validation_error("fields", code="FIELD_REQUIRED")
+    peek = query.filter(pk=link_id).first()
     if peek is None:
         raise errors.not_found()
-    card = links._lock_link_card(peek)
+    # The card first, then its link: the same order as the other commands of a link.
+    links._lock_link_card(peek)
     link = ProfileLink.objects.select_for_update().get(pk=link_id)
     if link.state != ProfileLink.State.ACCEPTED or link.access_revoked_at is not None:
+        # Nothing is given through a broken link (§ 6.6.3).
         raise errors.business_rule("LINK_NOT_ACCEPTED")
-    if card.state != ClientCard.State.ACTIVE:
-        raise errors.business_rule("CARD_ARCHIVED")
     now = timezone.now()
-    pending = (
-        ProfileDataRequest.objects.select_for_update()
-        .filter(link=link, state=State.PENDING)
-        .first()
-    )
-    if pending is not None:
-        if effective_state(pending, now) != State.EXPIRED:
-            raise errors.business_rule("DATA_REQUEST_PENDING")
-        pending.state = State.EXPIRED
-        pending.save(update_fields=["state"])
     item = ProfileDataRequest.objects.create(
-        company_id=company_id,
+        company_id=link.company_id,
         link=link,
-        occasion=occasion,
+        state=State.ACCEPTED,
         created_by_user_id=ctx.actor.user_id,
         created_at=now,
-        expires_at=now + TTL,
+        expires_at=now,
+        decided_at=now,
+        decided_by_user_id=ctx.actor.user_id,
+        shared={"data": data, "at": now.isoformat()},
     )
     ctx.audit(
-        "profile_data_request.sent",
+        GIVEN,
         object_type="profile_link",
         object_id=link.id,
-        after={"request": str(item.id), "occasion": occasion, "expires_at": item.expires_at},
+        after={"request": str(item.id), "fields": sorted(data)},
+        company_id=link.company_id,
     )
     return item
 
 
-def cancel(ctx: CommandContext, company_id: UUID, request_id: UUID) -> ProfileDataRequest:
-    item = (
-        ProfileDataRequest.objects.select_for_update()
-        .filter(company_id=company_id, pk=request_id)
-        .first()
-    )
-    if item is None:
-        raise errors.not_found()
-    if effective_state(item, timezone.now()) != State.PENDING:
-        raise errors.business_rule("DATA_REQUEST_NOT_PENDING")
-    item.state = State.CANCELLED
-    item.decided_at = timezone.now()
-    item.save(update_fields=["state", "decided_at"])
-    ctx.audit(
-        "profile_data_request.cancelled",
-        object_type="profile_link",
-        object_id=item.link_id,
-        after={"request": str(item.id)},
-    )
-    return item
-
-
-# --- The recipient (§ 6.3.8) -------------------------------------------------------------------
-
-
-def for_user(user: UserAccount) -> QuerySet[ProfileDataRequest]:
-    return ProfileDataRequest.objects.select_related("link", "company").filter(
-        link__profile=ProfileLink.Profile.PERSON, link__target_user_id=user.id
-    )
-
-
-def for_company(company_id: UUID) -> QuerySet[ProfileDataRequest]:
-    return ProfileDataRequest.objects.select_related("link", "company").filter(
-        link__profile=ProfileLink.Profile.COMPANY, link__target_company_id=company_id
-    )
-
-
-def _locked(query: QuerySet[ProfileDataRequest], request_id: UUID) -> ProfileDataRequest:
-    item = query.select_for_update(of=("self",)).filter(pk=request_id).first()
-    if item is None:
-        raise errors.not_found()
-    state = effective_state(item, timezone.now())
-    if state == State.EXPIRED:
-        raise errors.business_rule("DATA_REQUEST_EXPIRED")
-    if state != State.PENDING:
-        raise errors.business_rule("DATA_REQUEST_NOT_PENDING")
-    if item.link.state != ProfileLink.State.ACCEPTED:
-        # The link was broken meanwhile: nothing is given through it (§ 6.6.3).
-        raise errors.business_rule("LINK_NOT_ACCEPTED")
-    return item
-
-
-def _answer(
-    ctx: CommandContext, item: ProfileDataRequest, data: dict[str, Any] | None
+def give_as_user(
+    ctx: CommandContext, user: UserAccount, link_id: UUID, fields: list[str]
 ) -> ProfileDataRequest:
-    now = timezone.now()
-    item.state = State.ACCEPTED if data is not None else State.DECLINED
-    item.decided_at = now
-    item.decided_by_user_id = ctx.actor.user_id
-    if data is not None:
-        item.shared = {"data": data, "at": now.isoformat()}
-    item.save(update_fields=["state", "decided_at", "decided_by_user_id", "shared"])
-    ctx.audit(
-        "profile_data_request.accepted" if data is not None else "profile_data_request.declined",
-        object_type="profile_link",
-        object_id=item.link_id,
-        after={"request": str(item.id), "fields": sorted(data or {})},
-        company_id=item.company_id,
-    )
-    return item
-
-
-def accept_as_user(
-    ctx: CommandContext, user: UserAccount, request_id: UUID, fields: list[str]
-) -> ProfileDataRequest:
-    item = _locked(for_user(user), request_id)
+    query = ProfileLink.objects.filter(profile=ProfileLink.Profile.PERSON, target_user_id=user.id)
     data = links._chosen(accounts.shareable_profile(user), fields, links.PERSON_FIELDS)
-    return _answer(ctx, item, data)
+    return _give(ctx, query, link_id, data)
 
 
-def decline_as_user(ctx: CommandContext, user: UserAccount, request_id: UUID) -> ProfileDataRequest:
-    return _answer(ctx, _locked(for_user(user), request_id), None)
-
-
-def accept_as_company(
-    ctx: CommandContext, company: Company, request_id: UUID, fields: list[str]
+def give_as_company(
+    ctx: CommandContext, company: Company, link_id: UUID, fields: list[str]
 ) -> ProfileDataRequest:
-    item = _locked(for_company(company.id), request_id)
     data = links._chosen(companies.shareable_profile(company), fields, links.COMPANY_FIELDS)
-    _answered(ctx, item, company.id, accepted=True)
-    return _answer(ctx, item, data)
-
-
-def decline_as_company(
-    ctx: CommandContext, company: Company, request_id: UUID
-) -> ProfileDataRequest:
-    item = _locked(for_company(company.id), request_id)
-    _answered(ctx, item, company.id, accepted=False)
-    return _answer(ctx, item, None)
-
-
-def _answered(
-    ctx: CommandContext, item: ProfileDataRequest, company_id: UUID, *, accepted: bool
-) -> None:
+    item = _give(ctx, links.for_company(company.id), link_id, data)
+    # The journal of the company that gave its data.
     ctx.audit(
-        "profile_data_request.answered",
+        "profile_data.sent",
         object_type="profile_data_request",
         object_id=item.id,
-        after={"accepted": accepted, "requester": str(item.company_id)},
-        company_id=company_id,
+        after={"fields": sorted(data), "receiver": str(item.company_id)},
+        company_id=company.id,
     )
+    return item
 
 
 # --- Payloads ------------------------------------------------------------------------------------
 
 
 def payload(item: ProfileDataRequest, now: datetime) -> dict[str, Any]:
-    """For the requesting company."""
+    """For the company that received the data."""
     return {
         "id": str(item.id),
         "link_id": str(item.link_id),
-        "state": effective_state(item, now),
+        "state": item.state,
         "occasion": item.occasion,
         "created_at": item.created_at.isoformat(),
-        "expires_at": item.expires_at.isoformat(),
         "decided_at": item.decided_at.isoformat() if item.decided_at else None,
         "shared": (item.shared or {}).get("data", {}),
         "shared_at": (item.shared or {}).get("at"),
@@ -231,22 +126,11 @@ def _compare(item: ProfileDataRequest) -> dict[str, dict[str, Any]]:
     return links.compare(card, card_type, data) if card is not None else {}
 
 
-def incoming_payload(
-    item: ProfileDataRequest, now: datetime, available: dict[str, Any]
-) -> dict[str, Any]:
-    """For the recipient: who asks and why, and the recipient's own data that may be given."""
+def given_payload(item: ProfileDataRequest) -> dict[str, Any]:
+    """For the one who gave the data."""
     return {
         "id": str(item.id),
-        "state": effective_state(item, now),
-        "company": {
-            "public_id": item.company.public_id,
-            "display_name": item.company.display_name,
-        },
-        "card_type": links.list_of(item.link),
-        "occasion": item.occasion,
-        "created_at": item.created_at.isoformat(),
-        "expires_at": item.expires_at.isoformat(),
-        "decided_at": item.decided_at.isoformat() if item.decided_at else None,
-        "available": available,
+        "link_id": str(item.link_id),
+        "given_at": item.created_at.isoformat(),
         "shared": (item.shared or {}).get("data", {}),
     }

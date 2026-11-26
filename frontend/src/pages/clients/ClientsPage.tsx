@@ -6,6 +6,7 @@ import { Link, useLocation, useNavigate, useParams, useSearchParams } from "reac
 import { api } from "../../api/client";
 import { useApi } from "../../api/queries";
 import { ProfileLinkCard } from "./ProfileLinkCard";
+import { CardSettings } from "./CardSettings";
 import { ClientGroupsCard } from "../orders/Discounts";
 import type { CardDuplicate, Client, ClientContact } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
@@ -421,11 +422,11 @@ export function extraContacts(contacts: ClientContact[]): ClientContact[] {
   return contacts.filter((c) => c !== firstPhone && c !== firstEmail);
 }
 
-const CLIENT_TABS = ["main", "finance", "history", "more"] as const;
+const CLIENT_TABS = ["main", "finance", "history", "settings"] as const;
 
 /** The card of a client (customer's decisions of 15.11.2026): it looks like «About the company»
  * — the filled data as text, edited in a window by the pencil — with the tabs «Main», «Finance»,
- * «History» and «More». */
+ * «History» and «Settings» (the former «More»; customer's decision of 26.11.2026). */
 export function ClientPage() {
   const { t } = useTranslation();
   const { id = "" } = useParams();
@@ -485,12 +486,15 @@ export function ClientPage() {
         </>
       ) : null}
       {tab === "history" ? <ClientInteractionsCard clientId={data.id} /> : null}
-      {tab === "more" ? (
-        <>
-          {/* The link with the profile is made and broken here (decision of 15.11.2026). */}
-          <div style={{ maxWidth: 760 }}>
-            <ProfileLinkCard cardType="client" cardId={data.id} cardKind={data.kind} version={data.version} onChanged={reload} />
-          </div>
+      {tab === "settings" ? (
+        <CardSettings
+          section="client_settings"
+          access={
+            <div style={{ maxWidth: 760 }}>
+              <ProfileLinkCard cardType="client" cardId={data.id} cardKind={data.kind} version={data.version} onChanged={reload} />
+            </div>
+          }
+        >
           {/* Contracts, acts and other files of the client — not its personal documents. */}
           <LinkedDocuments objectType="client" objectId={data.id} />
           {data.state !== "merged" ? <RestrictionsCard clientId={data.id} onChanged={reload} /> : null}
@@ -507,7 +511,7 @@ export function ClientPage() {
               <ArchiveActions card={data} onChanged={reload} />
             </Card>
           ) : null}
-        </>
+        </CardSettings>
       ) : null}
     </div>
   );

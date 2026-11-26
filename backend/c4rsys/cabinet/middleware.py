@@ -18,7 +18,6 @@ EXACT = frozenset(
         "/api/site",
         "/api/me",
         "/api/profile-links",
-        "/api/profile-data-requests",
         "/api/owner-requests",
     }
 )
@@ -27,7 +26,6 @@ PREFIXES = (
     "/api/me/",
     "/api/cabinet/",
     "/api/profile-links/",
-    "/api/profile-data-requests/",
     "/api/owner-requests/",
 )
 # The profile photo is the only file of the cabinet in the general file API: a document file is

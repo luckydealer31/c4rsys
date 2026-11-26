@@ -13,7 +13,7 @@ import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field } from "../../components/ui";
 import { deviceTimeZone, formatMoment } from "../../time";
 import { useCan, useCompany } from "../../layout/CompanyShell";
-import { DataRequestsPanel } from "./DataRequests";
+import { GivenDataPanel } from "./DataRequests";
 import { contactLabel } from "./ContactsEditor";
 
 /** Fields of the snapshot that can be taken into the working data of a card (§ 6.4.2). */
@@ -144,7 +144,11 @@ export function ProfileLinkCard({
   const breakLink = useCommand<{ initiator: string; revoke: boolean; reason: string }, unknown>(
     () => `${base}/${links.data?.links[0]?.id}/break`,
   );
-  const [revoke, setRevoke] = useState(false);
+  // The break is started by a button beside the state; then one reason of three is chosen
+  // (customer's decision of 26.11.2026). «Correction of an error» takes back the access to the
+  // history shown by mistake (§ 6.5.5) and needs an explanation and the right of its own.
+  const [breaking, setBreaking] = useState(false);
+  const [breakReason, setBreakReason] = useState<"company" | "client" | "error">("company");
   const [revokeReason, setRevokeReason] = useState("");
   const apply = useCommand<{ field: string; expected_version: number }, unknown>(
     () => `${base}/${links.data?.links[0]?.id}/apply`,
@@ -164,7 +168,6 @@ export function ProfileLinkCard({
   const sending = chosen ? chosen.value : target.trim();
   // The request is started by a button; the field appears after it (decision of 15.11.2026).
   const [asking, setAsking] = useState(false);
-  const [initiator, setInitiator] = useState("company");
   const editable = can(`${cardType}.edit`);
   // § 23.8.2 (block 14): sending an invitation or a request to link is a right of its own.
   const requestable = can(`${cardType}.link.request`);
@@ -206,14 +209,64 @@ export function ProfileLinkCard({
       {!last || !open ? <p className="muted">{t("links.not_linked")}</p> : null}
       {last ? (
         <div className="stack">
-          <p>
-            <span className={`badge ${state === "accepted" ? "ok" : state === "pending" ? "warn" : ""}`}>
-              {t(`links.state_${state}`)}
-            </span>{" "}
-            {shown?.linked_profile
-              ? `${shown.linked_profile.name} (${shown.linked_profile.public_id})`
-              : last.target}
-          </p>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <span>
+              <span className={`badge ${state === "accepted" ? "ok" : state === "pending" ? "warn" : ""}`}>
+                {t(`links.state_${state}`)}
+              </span>{" "}
+              {shown?.linked_profile
+                ? `${shown.linked_profile.name} (${shown.linked_profile.public_id})`
+                : last.target}
+            </span>
+            {state === "accepted" && editable && !breaking ? (
+              <button type="button" className="secondary small" data-testid="break-link" onClick={() => setBreaking(true)}>
+                {t("links.break")}
+              </button>
+            ) : null}
+          </div>
+          {state === "accepted" && editable && breaking ? (
+            <div className="stack" data-testid="break-form" style={{ maxWidth: 420 }}>
+              <Field label={t("links.break_reason")}>
+                <select value={breakReason} onChange={(e) => setBreakReason(e.target.value as typeof breakReason)}>
+                  <option value="company">{t("links.reason_company")}</option>
+                  <option value="client">{t("links.reason_client")}</option>
+                  {can(`${cardType}.split`) ? <option value="error">{t("links.reason_error")}</option> : null}
+                </select>
+              </Field>
+              {breakReason === "error" ? (
+                <Field label={t("links.revoke_reason")}>
+                  <input value={revokeReason} onChange={(e) => setRevokeReason(e.target.value)} />
+                </Field>
+              ) : null}
+              <p className="muted small">{t(breakReason === "error" ? "links.break_hint_error" : "links.break_hint")}</p>
+              <div className="actions">
+                <button
+                  type="button"
+                  className="small"
+                  disabled={breakLink.pending || (breakReason === "error" && !revokeReason.trim())}
+                  onClick={async () => {
+                    const error = breakReason === "error";
+                    const body = {
+                      initiator: breakReason === "client" ? "client" : "company",
+                      revoke: error,
+                      reason: error ? revokeReason : "",
+                    };
+                    if ((await breakLink.run(body)) !== null) {
+                      setBreaking(false);
+                      setBreakReason("company");
+                      setRevokeReason("");
+                      await refresh();
+                    }
+                  }}
+                >
+                  {t("links.break")}
+                </button>
+                <button type="button" className="secondary small" onClick={() => setBreaking(false)}>
+                  {t("common.cancel")}
+                </button>
+              </div>
+            </div>
+          ) : null}
           <p className="muted small">
             {t("links.sent_at", { at: formatDateTime(last.created_at) })}
             {state === "pending" ? ` · ${t("links.expires_at", { at: formatDateTime(last.expires_at) })}` : ""}
@@ -252,7 +305,7 @@ export function ProfileLinkCard({
             </>
           ) : null}
           {state === "accepted" ? (
-            <DataRequestsPanel
+            <GivenDataPanel
               linkId={last.id}
               editable={editable}
               applicable={applicable}
@@ -262,46 +315,6 @@ export function ProfileLinkCard({
           ) : null}
           {last.access_revoked_at ? (
             <p className="alert warn small">{t("links.access_revoked", { reason: last.access_revoke_reason })}</p>
-          ) : null}
-          {state === "accepted" && editable ? (
-            <div className="row">
-              {can(`${cardType}.split`) ? (
-                <>
-                  <label className="small" style={{ alignSelf: "end" }}>
-                    <input type="checkbox" checked={revoke} onChange={(e) => setRevoke(e.target.checked)} />{" "}
-                    {t("links.revoke")}
-                  </label>
-                  {revoke ? (
-                    <Field label={t("links.revoke_reason")}>
-                      <input value={revokeReason} onChange={(e) => setRevokeReason(e.target.value)} />
-                    </Field>
-                  ) : null}
-                </>
-              ) : null}
-              <Field label={t("links.initiator")}>
-                <select value={initiator} onChange={(e) => setInitiator(e.target.value)}>
-                  <option value="company">{t("links.initiator_company")}</option>
-                  <option value="client">{t("links.initiator_client")}</option>
-                </select>
-              </Field>
-              <div className="actions">
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled={breakLink.pending || (revoke && !revokeReason.trim())}
-                  onClick={async () => {
-                    if (!window.confirm(t("links.break_confirm"))) return;
-                    if ((await breakLink.run({ initiator, revoke, reason: revokeReason })) !== null) {
-                      setRevoke(false);
-                      setRevokeReason("");
-                      await refresh();
-                    }
-                  }}
-                >
-                  {t("links.break")}
-                </button>
-              </div>
-            </div>
           ) : null}
         </div>
       ) : null}

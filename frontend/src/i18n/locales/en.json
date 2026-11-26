@@ -3144,7 +3144,6 @@
     "list_not_allowed": "You have no right to view the list of investors.",
     "create_title": "New investor",
     "new_button": "New investor",
-    "vehicles_title": "Vehicles under management",
     "vehicles_none": "No vehicles under management from this investor.",
     "vehicles_hidden": "More vehicles at locations you have no access to: {{count}}."
   },
@@ -4763,7 +4762,8 @@
     "open_all": "Open all",
     "state_pending": "Active and unread",
     "event_link_answered_yes": "Link confirmed ({{target}}): profile data received",
-    "event_link_answered_no": "Link declined ({{target}})"
+    "event_link_answered_no": "Link declined ({{target}})",
+    "event_link_data_given": "Updated data of the profile are given ({{target}})"
   },
   "reports": {
     "metric_rental_issues_today": "Issues expected today",
@@ -5017,7 +5017,6 @@
     "expires_at": "valid until {{at}}",
     "decided_at": "answered {{at}}",
     "broken_at": "broken {{at}}",
-    "initiator": "Initiative",
     "initiator_company": "by the company",
     "initiator_client": "after the client asked",
     "initiator_": "",
@@ -5032,7 +5031,6 @@
     "shared_hint": "Given when the link was confirmed. They do not change the card by themselves: compare with what the card holds now and take what is needed.",
     "apply": "Take into the card",
     "break": "Break the link",
-    "break_confirm": "Break the link? The history given before stays with the client; new operations are no longer shown to them.",
     "my_title": "Links with companies",
     "incoming_title": "Requests to link with the company",
     "none_incoming": "No requests.",
@@ -5060,8 +5058,7 @@
     "field_identifiers": "Registration and tax numbers",
     "field_legal_address": "Legal address",
     "field_actual_address": "Actual address",
-    "revoke": "Correcting a mistake: revoke the access to the shown history",
-    "revoke_reason": "Reason of the correction",
+    "revoke_reason": "Explanation",
     "access_revoked": "The access to the history was revoked: {{reason}}. What was downloaded is not returned.",
     "start": "Link with a profile",
     "profile_id": "C4Rsys ID: {{id}}",
@@ -5078,7 +5075,13 @@
     "no_such_field": "no such field",
     "taken": "✓ In the card",
     "apply_replace": "Replace",
-    "apply_add": "Add"
+    "apply_add": "Add",
+    "break_reason": "Reason",
+    "reason_company": "Decision of the company",
+    "reason_client": "The client asked",
+    "reason_error": "Correction of an error",
+    "break_hint": "The history given before stays with the client; new operations are no longer shown to them.",
+    "break_hint_error": "The link was made by mistake: the access to the history shown is taken back. Data already downloaded do not return."
   },
   "owner_requests": {
     "title": "Confirmation by the owner",
@@ -6413,7 +6416,6 @@
     "operation_service_work": "service",
     "tab_main": "Main",
     "tab_finance": "Finance",
-    "tab_more": "More",
     "money_title": "Charges and payments",
     "money_when": "When",
     "money_kind": "Kind",
@@ -6481,22 +6483,18 @@
     "duplicates_counterparty": "Matches the counterparties:",
     "duplicates_investor": "Matches the investors:",
     "duplicates_by": "matched",
-    "duplicates_none": "No matches now: the cards have changed."
+    "duplicates_none": "No matches now: the cards have changed.",
+    "tab_settings": "Settings",
+    "tab_vehicles": "Vehicles",
+    "settings_access": "Access",
+    "settings_other": "Other"
   },
   "data_requests": {
-    "title": "Fresh data from the profile",
-    "hint": "Only when the client asks for a service; nothing is sent automatically. The client chooses what to give.",
-    "occasion": "What the client asks for",
-    "send": "Request fresh data",
-    "state_pending": "waiting",
-    "state_accepted": "given",
-    "state_declined": "declined",
-    "state_cancelled": "cancelled",
-    "state_expired": "expired",
-    "my_title": "Requests of fresh data",
-    "incoming_title": "Requests of fresh data from the company profile",
-    "asks": "asks for your current data: {{occasion}}",
-    "choose": "Choose what to give:",
+    "title": "Updates from the profile",
+    "given_at": "Given {{at}}",
+    "give_start": "Update the data given",
+    "given": "The data are given",
+    "choose": "Choose what to give to «{{company}}». It receives only what is ticked.",
     "give": "Give the chosen data"
   },
   "permission_sections": {

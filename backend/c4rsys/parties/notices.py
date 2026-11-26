@@ -20,7 +20,7 @@ from c4rsys.platform.models import AuditEvent
 REQUESTED = "link.requested"
 ANSWERED = "link.answered"
 DATA_REQUESTED = "link.data_requested"
-DATA_ANSWERED = "link.data_answered"
+DATA_GIVEN = "link.data_given"
 
 
 def requests(now: datetime) -> int:
@@ -60,44 +60,20 @@ def requests(now: datetime) -> int:
 
 
 def data_requests(now: datetime) -> int:
-    """§ 6.4.4: a request of fresh data from a company profile is told to those who may answer,
-    until the answer, the cancel or the expiry."""
-    from c4rsys.companies import services as companies
-    from c4rsys.notifications import rules
+    """A company does not ask for fresh data any more (customer's decision of 26.11.2026): the
+    notifications of the former requests are closed."""
     from c4rsys.notifications import services as notifications
-    from c4rsys.parties import data_requests as requests_of_data
 
     changed = 0
-    awaited: set[str] = set()
-    for item in ProfileDataRequest.objects.select_related("company", "link").filter(
-        state=ProfileDataRequest.State.PENDING,
-        link__profile=ProfileLink.Profile.COMPANY,
-        link__target_company_id__isnull=False,
-    ):
-        target = item.link.target_company_id
-        if target is None or requests_of_data.effective_state(item, now) != item.State.PENDING:
-            continue
-        condition = f"{DATA_REQUESTED}:{item.id}"
-        awaited.add(condition)
-        changed += rules.raise_event(
-            target,
-            DATA_REQUESTED,
-            condition=condition,
-            object_type="profile_data_request",
-            object_id=item.id,
-            params={"company": item.company.display_name},
-            recipients=[e.id for e in companies.link_answerers(target)],
-            now=now,
-        )
     for n in Notification.objects.filter(event=DATA_REQUESTED, state=Notification.State.ACTIVE):
-        if n.condition not in awaited:
-            notifications.resolve(n.company_id, n.condition, "link_answered", now)
-            changed += 1
+        notifications.resolve(n.company_id, n.condition, "link_answered", now)
+        changed += 1
     return changed
 
 
-def on_data_answer(entry: AuditEvent) -> int:
-    """The answer to a request of fresh data is told to the employee who sent it."""
+def on_data_given(entry: AuditEvent) -> int:
+    """The fresh data given by the holder of a profile are told to the employee who made the
+    link (agent's choice: there is no request and no author of it any more)."""
     from c4rsys.companies.models import Employment
     from c4rsys.notifications import rules
 
@@ -109,7 +85,7 @@ def on_data_answer(entry: AuditEvent) -> int:
         return 0
     author = Employment.objects.filter(
         company_id=found.company_id,
-        user_id=found.created_by_user_id,
+        user_id=found.link.created_by_user_id,
         state=Employment.State.ACTIVE,
     ).first()
     if author is None:
@@ -117,14 +93,11 @@ def on_data_answer(entry: AuditEvent) -> int:
     return int(
         rules.raise_event(
             found.company_id,
-            DATA_ANSWERED,
-            condition=f"{DATA_ANSWERED}:{entry.id}",
-            object_type=links.card_type_of(found.link),
+            DATA_GIVEN,
+            condition=f"{DATA_GIVEN}:{entry.id}",
+            object_type=links.list_of(found.link),
             object_id=links.current_card_id(found.link),
-            params={
-                "target": found.link.target_label,
-                "accepted": entry.action.endswith("accepted"),
-            },
+            params={"target": found.link.target_label},
             recipients=[author.id],
             now=timezone.now(),
             done=True,
@@ -149,7 +122,7 @@ def on_answer(entry: AuditEvent) -> int:
             link.company_id,
             ANSWERED,
             condition=f"{ANSWERED}:{entry.id}",
-            object_type=links.card_type_of(link),
+            object_type=links.list_of(link),
             object_id=links.card_id_of(link),
             params={"target": link.target_label, "accepted": entry.action.endswith("accepted")},
             recipients=[author.id],

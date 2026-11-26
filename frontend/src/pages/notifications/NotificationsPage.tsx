@@ -40,6 +40,7 @@ const OBJECT_PATHS: Record<string, string> = {
   vehicle: "/vehicles/",
   client: "/clients/",
   counterparty: "/clients/counterparties/",
+  investor: "/clients/investors/",
   profile_link: "/link-requests/",
   owner_request: "/link-requests/",
   service_operation: "/service/operations/",
@@ -55,8 +56,8 @@ const OBJECT_PATHS: Record<string, string> = {
 function objectHref(n: CentreNotification): string | null {
   const path = n.object_type && n.object_id && OBJECT_PATHS[n.object_type];
   if (!path) return null;
-  const answer = n.event === "link.answered" || n.event === "link.data_answered";
-  return `/c/${n.company.public_id}${path}${n.object_id}${answer ? "?tab=more#profile-link" : ""}`;
+  const answer = n.event === "link.answered" || n.event === "link.data_answered" || n.event === "link.data_given";
+  return `/c/${n.company.public_id}${path}${n.object_id}${answer ? "?tab=settings&part=access#profile-link" : ""}`;
 }
 
 // How many notifications the popup of the bell shows; the rest is on the page of all.

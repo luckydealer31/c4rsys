@@ -605,10 +605,11 @@ class CardMerge(models.Model):
 
 
 class ProfileDataRequest(models.Model):
-    """A request of fresh data from the linked profile (§ 6.4.4), sent only when the client asks
-    for a service: never automatically or periodically. The recipient chooses what to give; the
-    answer is a new snapshot of the link, it does not change the working fields by itself
-    (§ 6.4.2–6.4.3)."""
+    """Fresh data of the linked profile (§ 6.4.4): its holder gives them on his own and chooses
+    what to give (customer's decision of 26.11.2026); the company does not ask. The data are a
+    new snapshot of the link, they do not change the working fields by themselves
+    (§ 6.4.2–6.4.3). Before the decision the company sent a request with an occasion: those rows
+    and their states are kept as history."""
 
     class State(models.TextChoices):
         PENDING = "pending"
@@ -620,8 +621,9 @@ class ProfileDataRequest(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
     link = models.ForeignKey(ProfileLink, on_delete=models.PROTECT, related_name="data_requests")
-    # What the client asked for when the request was sent (the occasion of § 6.4.4).
-    occasion = models.CharField(max_length=500)
+    # Of the former requests of a company: what the client asked for. Empty when the holder of
+    # the profile gave the data himself.
+    occasion = models.CharField(max_length=500, blank=True, default="")
     state = models.CharField(max_length=10, choices=State.choices, default=State.PENDING)
     created_by_user_id = models.UUIDField()
     created_at = models.DateTimeField(default=now)
@@ -633,7 +635,6 @@ class ProfileDataRequest(models.Model):
     class Meta:
         db_table = "profile_data_request"
         constraints = [
-            models.CheckConstraint(condition=~Q(occasion=""), name="profile_data_request_occasion"),
             models.UniqueConstraint(
                 fields=["link"],
                 condition=Q(state="pending"),

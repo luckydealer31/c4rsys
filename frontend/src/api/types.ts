@@ -346,14 +346,13 @@ export type ProfileLink = {
   access_revoke_reason: string;
 };
 
-/** A request of fresh data from a linked profile (§ 6.4.4), seen by the requesting company. */
+/** Fresh data the holder of a linked profile gave (§ 6.4.4), seen by the company. */
 export type DataRequest = {
   id: string;
   link_id: string;
   state: "pending" | "accepted" | "declined" | "cancelled" | "expired";
   occasion: string;
   created_at: string;
-  expires_at: string;
   decided_at: string | null;
   shared: Record<string, unknown>;
   shared_at: string | null;
@@ -363,20 +362,6 @@ export type DataRequest = {
 /** A value given by a profile against the card: the card has it, nothing there, another value,
  * or no such field. */
 export type SharedCompare = { current: unknown; status: "same" | "empty" | "different" | "absent" };
-
-/** The same request seen by its recipient. */
-export type IncomingDataRequest = {
-  id: string;
-  state: DataRequest["state"];
-  company: { public_id: string; display_name: string };
-  card_type: "client" | "counterparty" | "investor";
-  occasion: string;
-  created_at: string;
-  expires_at: string;
-  decided_at: string | null;
-  available: Record<string, unknown>;
-  shared: Record<string, unknown>;
-};
 
 /** The same request seen by its recipient: who asks and what may be given. */
 export type IncomingLink = {

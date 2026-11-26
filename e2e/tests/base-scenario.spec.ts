@@ -680,7 +680,7 @@ test("base example from registration to closing survives a restart", async ({ pa
   const rented = page.getByRole("row").filter({ hasText: t("cards.kind_rental") });
   await expect(rented).toHaveCount(1);
   await expect(rented).toContainText("Toyota Yaris");
-  await page.getByRole("tab", { name: t("cards.tab_more") }).click();
+  await page.getByRole("tab", { name: t("cards.tab_settings") }).click();
   // The link is asked from the card: by a contact confirmed in a profile, by a letter to an email,
   // or by an ID (customer's decisions of 25.11.2026). No contact of this card is confirmed and it
   // has no email, so only the ID is left.

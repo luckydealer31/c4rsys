@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { ProfileLinkCard } from "./ProfileLinkCard";
+import { CardSettings } from "./CardSettings";
 import { apiList, cardPath, listPath, type PartyList } from "./cardLists";
 
 import { useApi } from "../../api/queries";
@@ -209,10 +210,12 @@ export function CounterpartyForm({
   );
 }
 
-const CARD_TABS = ["main", "finance", "history", "more"] as const;
+const CARD_TABS = ["main", "finance", "history", "settings"] as const;
 // The settlements with an investor are not decided yet (OPEN, 26.11.2026): his card has no
-// tabs of the money and of the supplies of a counterparty.
-const INVESTOR_TABS = ["main", "more"] as const;
+// tabs of the money and of the supplies of a counterparty. The vehicles he gave into the
+// management are a tab of their own (customer's decision of 26.11.2026).
+const INVESTOR_TABS = ["main", "vehicles", "settings"] as const;
+type CardTab = (typeof CARD_TABS)[number] | (typeof INVESTOR_TABS)[number];
 
 /** Card of an investor (customer's decision of 26.11.2026): the data, the vehicles he gave into
  * the management, the link with a profile. */
@@ -231,7 +234,7 @@ function InvestorVehicles({ id }: { id: string }) {
   const vehicles = found.data?.vehicles ?? [];
   const hidden = (found.data?.count ?? 0) - vehicles.length;
   return (
-    <Card title={t("investors.vehicles_title")}>
+    <Card>
       <div data-testid="investor-vehicles">
         {found.isLoading ? <Loading /> : null}
         {found.data && found.data.count === 0 ? <p className="muted">{t("investors.vehicles_none")}</p> : null}
@@ -268,7 +271,7 @@ export function CounterpartyPage({ list: of = "counterparty" }: { list?: PartyLi
   const data = card.data?.counterparty;
   if (!data) return <div className="page full"><ErrorMessage error={null} /></div>;
   const current = data;
-  const tabs: readonly (typeof CARD_TABS)[number][] = investor ? INVESTOR_TABS : CARD_TABS;
+  const tabs: readonly CardTab[] = investor ? INVESTOR_TABS : CARD_TABS;
   const tab = tabs.find((x) => x === params.get("tab")) ?? firstTab(tabs) ?? "main";
   const money = can("finance.account.view") || can("finance.settlement.manage") || can("finance.payout");
   const mergedInto = data.merged_into;
@@ -309,10 +312,10 @@ export function CounterpartyPage({ list: of = "counterparty" }: { list?: PartyLi
       {tab === "main" ? (
         <>
           <MainCard cardType={of} card={data} badges={<CardBadges card={data} cardType={of} />} onSaved={refresh} />
-          {investor ? <InvestorVehicles id={data.id} /> : null}
           <DocumentsCard cardType={of} card={data} onSaved={refresh} />
         </>
       ) : null}
+      {tab === "vehicles" ? <InvestorVehicles id={data.id} /> : null}
       {tab === "finance" ? (
         money ? (
           <SupplierCard counterpartyId={data.id} name={t("cards.money_supplier")} />
@@ -333,12 +336,15 @@ export function CounterpartyPage({ list: of = "counterparty" }: { list?: PartyLi
           ) : null}
         </>
       ) : null}
-      {tab === "more" ? (
-        <>
-          {/* The link with the profile is made and broken here (decision of 15.11.2026). */}
-          <div style={{ maxWidth: 760 }}>
-            <ProfileLinkCard cardType={of} cardId={data.id} cardKind={data.kind} version={data.version} onChanged={refresh} />
-          </div>
+      {tab === "settings" ? (
+        <CardSettings
+          section={`${of}_settings`}
+          access={
+            <div style={{ maxWidth: 760 }}>
+              <ProfileLinkCard cardType={of} cardId={data.id} cardKind={data.kind} version={data.version} onChanged={refresh} />
+            </div>
+          }
+        >
           {/* § 18.1.1–18.1.2: documents of the relations with the counterparty. */}
           {investor ? null : <LinkedDocuments objectType="counterparty" objectId={data.id} />}
           <MergeCard cardType={of} card={data} onChanged={refresh} />
@@ -378,7 +384,7 @@ export function CounterpartyPage({ list: of = "counterparty" }: { list?: PartyLi
               </div>
             </Card>
           ) : null}
-        </>
+        </CardSettings>
       ) : null}
     </div>
   );

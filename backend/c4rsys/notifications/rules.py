@@ -59,6 +59,8 @@ EVENTS: dict[str, Event] = {
     # PROPOSAL: mandatory like the requests to link.
     "link.data_requested": Event(Kind.ACTION, "company.link.answer", mandatory=True),
     "link.data_answered": Event(Kind.INFO, None, mandatory=True),
+    # The holder of a linked profile gave fresh data (customer's decision of 26.11.2026).
+    "link.data_given": Event(Kind.INFO, None, mandatory=True),
     # Requests to the owner of a vehicle and the answers (§ 8.3.1, part К5).
     "vehicle.owner_requested": Event(Kind.ACTION, "company.link.answer", mandatory=True),
     "vehicle.owner_answered": Event(Kind.INFO, None, mandatory=True),

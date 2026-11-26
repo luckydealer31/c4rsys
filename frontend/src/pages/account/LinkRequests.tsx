@@ -7,6 +7,7 @@ import type { IncomingLink } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Loading } from "../../components/ui";
 import { deviceTimeZone, formatMoment } from "../../time";
+import { GiveFreshData } from "../clients/DataRequests";
 import { orderedFields, sharedValue } from "../clients/ProfileLinkCard";
 
 /** Requests of companies to link their card with this profile and the links it has (§ 6.2.5,
@@ -45,11 +46,15 @@ export function LinkRequests({
       {linked.length ? (
         <Card title={t("links.linked_companies")}>
           {linked.map((link) => (
-            <p key={link.id}>
-              <strong>{link.company.display_name}</strong>{" "}
-              <span className="muted small">{link.company.public_id}</span>{" "}
-              <span className={`badge ${link.state === "accepted" ? "ok" : ""}`}>{t(`links.state_${link.state}`)}</span>
-            </p>
+            <div key={link.id} className="stack">
+              <p>
+                <strong>{link.company.display_name}</strong>{" "}
+                <span className="muted small">{link.company.public_id}</span>{" "}
+                <span className={`badge ${link.state === "accepted" ? "ok" : ""}`}>{t(`links.state_${link.state}`)}</span>
+              </p>
+              {/* § 6.4.4: the fresh data are given by the holder of the profile. */}
+              {link.state === "accepted" ? <GiveFreshData base={base} link={link} /> : null}
+            </div>
           ))}
         </Card>
       ) : null}

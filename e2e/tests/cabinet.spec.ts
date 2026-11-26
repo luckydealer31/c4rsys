@@ -66,7 +66,7 @@ test("a client links the card in the cabinet and sees the rental", async ({ page
   // The company: the notification of the answer leads straight to the link in the card, where
   // each given value stands beside what the card holds now (customer's remark of 25.11.2026).
   // (The notifications are raised by the schedule, not run here: the address it leads to.)
-  await page.goto(`${s.base}/clients/${s.client}?tab=more#profile-link`);
+  await page.goto(`${s.base}/clients/${s.client}?tab=settings&part=access#profile-link`);
   const shared = page.getByTestId("shared-table");
   await expect(shared).toContainText(t("links.from_profile"));
   await expect(shared).toContainText(t("links.in_card"));
@@ -78,6 +78,20 @@ test("a client links the card in the cabinet and sees the rental", async ({ page
   // The linked company and its history: the order with the rental of Toyota Yaris.
   await client.getByRole("link", { name: /Тест Аренда/ }).click();
   await expect(client).toHaveURL(/\/companies\/[0-9a-f-]+$/);
+  // The fresh data of the profile are given by the person himself, from the page of the linked
+  // company; the company does not ask for them (customer's decision of 26.11.2026).
+  await client.getByTestId("give-data").click();
+  const giving = client.getByTestId("give-data-form");
+  await giving.getByRole("checkbox", { name: new RegExp(`^${t("links.field_email")}:`) }).check();
+  await giving.getByRole("button", { name: t("data_requests.give") }).click();
+  await expect(client.getByText(t("data_requests.given"))).toBeVisible();
+  await page.reload();
+  await expect(page.getByTestId("given-data")).toContainText(t("data_requests.title"));
+  await expect(page.getByTestId("given-data")).toContainText(t("links.field_email"));
+  // The break is started by a button beside the state of the link; then a reason is chosen.
+  await page.getByTestId("break-link").click();
+  await expect(page.getByTestId("break-form").getByLabel(t("links.break_reason"))).toBeVisible();
+  await page.getByTestId("break-form").getByRole("button", { name: t("common.cancel") }).click();
   await expect(client.getByText(t("cabinet.order", { number: 1 }))).toBeVisible();
   await expect(client.getByText(`${t("cabinet.op_rental")}: Toyota Yaris`)).toBeVisible();
 

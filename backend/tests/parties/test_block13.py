@@ -705,45 +705,47 @@ def test_break_with_revoke_hides_history_and_needs_reason(owner: Client, s: Scen
     assert AuditEvent.objects.filter(action="profile_link.access_revoked").count() == 1
 
 
-# --- Fresh data from the linked profile (§ 6.4.4) -------------------------------------------------
+# --- Fresh data of the linked profile (§ 6.4.4) ---------------------------------------------------
 
 
-def test_fresh_data_request_answered_in_the_cabinet(owner: Client, s: Scenario) -> None:
+def test_the_person_gives_fresh_data_from_the_cabinet(owner: Client, s: Scenario) -> None:
+    """Customer's decision of 26.11.2026: the company does not ask; the holder of the profile
+    gives the fresh data himself and chooses what to give."""
     ivan, link_id = link_person(owner, s.cmp, s.client, "ivan@example.com")
     url = f"/api/c/{s.cmp}/profile-links/{link_id}/data-requests"
-    no_occasion = post(owner, url, {"occasion": ""}, key())
-    assert no_occasion.status_code == 400
-    sent = post(owner, url, {"occasion": "Rents a car today"}, key())
-    assert sent.status_code == 201, sent.content
-    assert post(owner, url, {"occasion": "again"}, key()).json()["error"]["code"] == (
-        "DATA_REQUEST_PENDING"
-    )
-    mine = ivan.get("/api/profile-data-requests").json()["requests"]
-    assert mine[0]["occasion"] == "Rents a car today" and mine[0]["state"] == "pending"
-    accepted = post(
-        ivan,
-        f"/api/profile-data-requests/{mine[0]['id']}/accept",
-        {"fields": ["last_name"]},
-        key(),
-    )
-    assert accepted.status_code == 200, accepted.content
-    answered = owner.get(url).json()["requests"][0]
-    # The request does not open every field (§ 6.4.4).
-    assert answered["state"] == "accepted" and answered["shared"] == {"last_name": "Petrova"}
+    # The company has nothing to send.
+    assert post(owner, url, {"occasion": "Rents a car today"}, key()).status_code == 405
+    assert owner.get(url).json()["requests"] == []
+    nothing = post(ivan, f"/api/profile-links/{link_id}/give", {"fields": []}, key())
+    assert nothing.status_code == 400
+    given = post(ivan, f"/api/profile-links/{link_id}/give", {"fields": ["last_name"]}, key())
+    assert given.status_code == 201, given.content
+    received = owner.get(url).json()["requests"][0]
+    # Only what was chosen is given.
+    assert received["state"] == "accepted" and received["shared"] == {"last_name": "Petrova"}
     assert card(owner, s.cmp, s.client)["last_name"] == "Petrov"
     version = card(owner, s.cmp, s.client)["version"]
     applied = post(
         owner,
         f"/api/c/{s.cmp}/profile-links/{link_id}/apply",
-        {"field": "last_name", "expected_version": version, "data_request_id": answered["id"]},
+        {"field": "last_name", "expected_version": version, "data_request_id": received["id"]},
         key(),
     )
     assert applied.status_code == 200, applied.content
     assert card(owner, s.cmp, s.client)["last_name"] == "Petrova"
+    # The employee who made the link is told.
+    from c4rsys.notifications.models import Notification
+    from c4rsys.parties import notices
+
+    entry = AuditEvent.objects.get(action="profile_data.given")
+    assert notices.on_data_given(entry) == 1
+    assert Notification.objects.get(event="link.data_given").object_type == "client"
 
 
-def test_fresh_data_needs_a_confirmed_link(owner: Client, s: Scenario) -> None:
-    _user, usr = user_client("pending@example.com")
+def test_fresh_data_go_only_through_a_confirmed_link_of_the_giver(
+    owner: Client, s: Scenario
+) -> None:
+    pending, usr = user_client("pending@example.com")
     sent = post(
         owner,
         f"/api/c/{s.cmp}/profile-links",
@@ -751,25 +753,29 @@ def test_fresh_data_needs_a_confirmed_link(owner: Client, s: Scenario) -> None:
         key(),
     ).json()["link"]
     refused = post(
-        owner,
-        f"/api/c/{s.cmp}/profile-links/{sent['id']}/data-requests",
-        {"occasion": "service"},
-        key(),
+        pending, f"/api/profile-links/{sent['id']}/give", {"fields": ["last_name"]}, key()
     )
     assert refused.json()["error"]["code"] == "LINK_NOT_ACCEPTED"
+    # A link of another person is not found.
+    stranger, _usr = user_client("stranger@example.com")
+    foreign = post(
+        stranger, f"/api/profile-links/{sent['id']}/give", {"fields": ["last_name"]}, key()
+    )
+    assert foreign.status_code == 404
     assert ProfileDataRequest.objects.count() == 0
 
 
-def test_fresh_data_declined(owner: Client, s: Scenario) -> None:
+def test_nothing_is_given_through_a_broken_link(owner: Client, s: Scenario) -> None:
     ivan, link_id = link_person(owner, s.cmp, s.client, "ivan@example.com")
-    sent = post(
+    broken = post(
         owner,
-        f"/api/c/{s.cmp}/profile-links/{link_id}/data-requests",
-        {"occasion": "service"},
+        f"/api/c/{s.cmp}/profile-links/{link_id}/break",
+        {"initiator": "client", "revoke": False, "reason": ""},
         key(),
-    ).json()["request"]
-    declined = post(ivan, f"/api/profile-data-requests/{sent['id']}/decline", {}, key())
-    assert declined.json()["request"]["state"] == "declined"
+    )
+    assert broken.status_code == 200, broken.content
+    refused = post(ivan, f"/api/profile-links/{link_id}/give", {"fields": ["last_name"]}, key())
+    assert refused.json()["error"]["code"] == "LINK_NOT_ACCEPTED"
 
 
 # --- History in the cards (§ 6.1.14, § 8.1.2) ----------------------------------------------------
@@ -845,7 +851,7 @@ def test_customer_company_sees_contractor_history(owner: Client, s: Scenario) ->
     assert [o["id"] for o in history.json()["orders"]] == [made["id"]]
 
 
-def test_company_profile_answers_a_fresh_data_request(owner: Client, s: Scenario) -> None:
+def test_company_profile_gives_fresh_data(owner: Client, s: Scenario) -> None:
     from c4rsys.notifications.models import Notification
     from c4rsys.parties import notices
 
@@ -869,25 +875,20 @@ def test_company_profile_answers_a_fresh_data_request(owner: Client, s: Scenario
         key(),
     ).json()["link"]
     post(other, f"/api/c/{cmp_b}/incoming-links/{link['id']}/accept", {"fields": []}, key())
-    sent = post(
-        owner,
-        f"/api/c/{s.cmp}/profile-links/{link['id']}/data-requests",
-        {"occasion": "Fleet service"},
-        key(),
-    ).json()["request"]
-    notices.requests(timezone.now())
-    assert Notification.objects.filter(event="link.data_requested").count() == 1
-    incoming = other.get(f"/api/c/{cmp_b}/incoming-data-requests").json()["requests"]
-    assert [r["id"] for r in incoming] == [sent["id"]]
-    answered = post(
+    given = post(
         other,
-        f"/api/c/{cmp_b}/incoming-data-requests/{sent['id']}/accept",
+        f"/api/c/{cmp_b}/incoming-links/{link['id']}/give",
         {"fields": ["display_name"]},
         key(),
     )
-    assert answered.status_code == 200, answered.content
+    assert given.status_code == 201, given.content
+    received = owner.get(f"/api/c/{s.cmp}/profile-links/{link['id']}/data-requests").json()
+    assert received["requests"][0]["shared"] == {"display_name": "Customer B"}
+    # Both companies have it in their journals; the receiver is told.
+    assert AuditEvent.objects.filter(action="profile_data.sent").count() == 1
+    entry = AuditEvent.objects.get(action="profile_data.given")
+    assert notices.on_data_given(entry) == 1
+    assert Notification.objects.filter(event="link.data_given").count() == 1
+    # The notifications of the former requests of companies are closed, nothing new is raised.
     notices.requests(timezone.now())
-    assert not Notification.objects.filter(event="link.data_requested", state="active").exists()
-    entry = AuditEvent.objects.get(action="profile_data_request.accepted")
-    assert notices.on_data_answer(entry) == 1
-    assert Notification.objects.get(event="link.data_answered").params["accepted"] is True
+    assert not Notification.objects.filter(event="link.data_requested").exists()

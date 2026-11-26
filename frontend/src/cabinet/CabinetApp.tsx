@@ -5,14 +5,14 @@ import { Link, Navigate, Route, Routes, useParams } from "react-router";
 
 import { api } from "../api/client";
 import { useApi } from "../api/queries";
-import type { IncomingDataRequest, IncomingLink, IncomingOwnerRequest, User } from "../api/types";
+import type { IncomingLink, IncomingOwnerRequest, User } from "../api/types";
 import { useCommand } from "../api/useCommand";
 import { Card, ErrorMessage, Field, Loading } from "../components/ui";
 import { RailLink } from "../layout/AppShell";
 import { UserMenu } from "../layout/UserMenu";
 import { LinkRequests } from "../pages/account/LinkRequests";
 import { OwnerRequests } from "../pages/account/OwnerRequests";
-import { IncomingDataRequests } from "../pages/clients/DataRequests";
+import { GiveFreshData } from "../pages/clients/DataRequests";
 import { ProfilePage } from "../pages/account/ProfilePage";
 import { deviceTimeZone, formatMoment } from "../time";
 import { GarageVehicle } from "./GarageVehicle";
@@ -109,14 +109,9 @@ function useWaitingRequests(): number {
     queryKey: ["incoming-links", "/profile-links"],
     queryFn: async () => (await api<{ links: IncomingLink[] }>("/profile-links")).links,
   });
-  const data = useQuery({
-    queryKey: ["incoming-data-requests", "/profile-data-requests"],
-    queryFn: async () => (await api<{ requests: IncomingDataRequest[] }>("/profile-data-requests")).requests,
-  });
   return (
     (owners.data ?? []).filter((r) => r.state === "open").length +
-    (links.data ?? []).filter((l) => l.state === "pending").length +
-    (data.data ?? []).filter((r) => r.state === "pending").length
+    (links.data ?? []).filter((l) => l.state === "pending").length
   );
 }
 
@@ -178,7 +173,6 @@ function CabinetHome() {
     <div className="page">
       <h1>{t("cabinet.companies")}</h1>
       <LinkRequests base="/profile-links" title={t("links.my_title")} hideEmpty pendingOnly />
-      <IncomingDataRequests base="/profile-data-requests" title={t("data_requests.my_title")} />
       {/* The companies the person owns or works in stand apart from those the person is a
           client of (decision of 14.11.2026): a card with the name only; the company itself opens
           in the working interface. */}
@@ -271,10 +265,17 @@ function CompanyHistory() {
     `/cabinet/companies/${linkId}/history`,
   );
   const company = companies.data?.companies.find((c) => c.link_id === linkId);
+  // § 6.4.4: the person gives the fresh data of the profile to the company himself.
+  const links = useQuery({
+    queryKey: ["incoming-links", "/profile-links"],
+    queryFn: async () => (await api<{ links: IncomingLink[] }>("/profile-links")).links,
+  });
+  const link = (links.data ?? []).find((l) => l.id === linkId && l.state === "accepted");
   return (
     <div className="page">
       <h1>{company?.company.display_name ?? ""}</h1>
       {company?.state === "broken" ? <p className="alert warn">{t("cabinet.broken_hint")}</p> : null}
+      {link ? <GiveFreshData base="/profile-links" link={link} /> : null}
       {history.isLoading ? <Loading /> : null}
       <ErrorMessage error={history.error as never} />
       {history.data?.orders.length === 0 ? <p className="muted">{t("cabinet.no_history")}</p> : null}
@@ -545,7 +546,6 @@ function Requests() {
   return (
     <div className="page">
       <LinkRequests base="/profile-links" title={t("links.my_title")} hideEmpty pendingOnly />
-      <IncomingDataRequests base="/profile-data-requests" title={t("data_requests.my_title")} />
       <OwnerRequests base="/owner-requests" title={t("owner_requests.my_title")} />
     </div>
   );

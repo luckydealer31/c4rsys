@@ -9,21 +9,17 @@ from django.http import HttpRequest, JsonResponse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
-from c4rsys.accounts import services as accounts
 from c4rsys.accounts.middleware import require_user
-from c4rsys.companies import services as companies
 from c4rsys.companies.views import run_and_respond
 from c4rsys.parties import counterparties, data_requests, history, links, lists, merges
 from c4rsys.parties.link_views import (
-    REQUEST,
     VIEW,
     _actor,
     _answerer,
     _fields,
     _has,
-    _own_link,
 )
-from c4rsys.parties.models import CardMerge, ProfileDataRequest, ProfileLink
+from c4rsys.parties.models import CardMerge, ProfileLink
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_str, parse_json
@@ -173,139 +169,50 @@ def counterparty_history(
     return JsonResponse({"orders": history.contractor_history(context.company.id, card)})
 
 
-# --- Fresh data from a linked profile (§ 6.4.4) --------------------------------------------------
+# --- Fresh data of a linked profile (§ 6.4.4) ----------------------------------------------------
 
 
-@require_http_methods(["GET", "POST"])
+@require_GET
 def link_data_requests(request: HttpRequest, cmp: str, link_id: UUID) -> JsonResponse:
+    """The data the holder of the profile gave after the link was confirmed."""
     context, actor = _actor(request, cmp)
-    if request.method == "GET":
-        link = ProfileLink.objects.filter(company_id=context.company.id, pk=link_id).first()
-        if link is None:
-            raise errors.not_found()
-        card_type = links.list_of(link)
-        if not _has(actor, *VIEW[card_type]):
-            raise errors.permission_denied(VIEW[card_type][0])
-        now = timezone.now()
-        items = [
-            data_requests.payload(r, now)
-            for r in data_requests.of_link(context.company.id, link_id)
-        ]
-        return JsonResponse({"requests": items})
-
-    _own_link(context.company.id, link_id, actor, REQUEST)  # § 23.8.2, block 14
-    occasion = get_str(parse_json(request), "occasion", max_length=500)
-
-    def handler(ctx: CommandContext) -> CommandResult:
-        found = data_requests.request(ctx, context.company.id, link_id, occasion)
-        return CommandResult(201, {"request": data_requests.payload(found, timezone.now())})
-
-    payload = {"link_id": str(link_id), "occasion": occasion}
-    return run_and_respond(request, "profile_data_request.send", actor, payload, handler)
-
-
-@require_POST
-def data_request_cancel(request: HttpRequest, cmp: str, request_id: UUID) -> JsonResponse:
-    context, actor = _actor(request, cmp)
-    found = ProfileDataRequest.objects.filter(company_id=context.company.id, pk=request_id).first()
-    if found is None:
+    link = ProfileLink.objects.filter(company_id=context.company.id, pk=link_id).first()
+    if link is None:
         raise errors.not_found()
-    _own_link(context.company.id, found.link_id, actor)
-
-    def handler(ctx: CommandContext) -> CommandResult:
-        item = data_requests.cancel(ctx, context.company.id, request_id)
-        return CommandResult(200, {"request": data_requests.payload(item, timezone.now())})
-
-    return run_and_respond(
-        request, "profile_data_request.cancel", actor, {"request_id": str(request_id)}, handler
-    )
-
-
-@require_GET
-def incoming_data_requests(request: HttpRequest, cmp: str) -> JsonResponse:
-    context, _a = _answerer(request, cmp)
+    card_type = links.list_of(link)
+    if not _has(actor, *VIEW[card_type]):
+        raise errors.permission_denied(VIEW[card_type][0])
     now = timezone.now()
-    available = companies.shareable_profile(context.company)
     items = [
-        data_requests.incoming_payload(r, now, available)
-        for r in data_requests.for_company(context.company.id).order_by("-created_at")[:100]
+        data_requests.payload(r, now) for r in data_requests.of_link(context.company.id, link_id)
     ]
     return JsonResponse({"requests": items})
 
 
 @require_POST
-def incoming_data_accept(request: HttpRequest, cmp: str, request_id: UUID) -> JsonResponse:
+def incoming_data_give(request: HttpRequest, cmp: str, link_id: UUID) -> JsonResponse:
+    """A company gives the fresh data of its profile to a company it is linked with."""
     context, actor = _answerer(request, cmp)
     fields = _fields(parse_json(request))
 
     def handler(ctx: CommandContext) -> CommandResult:
-        item = data_requests.accept_as_company(ctx, context.company, request_id, fields)
-        available = companies.shareable_profile(context.company)
-        return CommandResult(
-            200, {"request": data_requests.incoming_payload(item, timezone.now(), available)}
-        )
+        item = data_requests.give_as_company(ctx, context.company, link_id, fields)
+        return CommandResult(201, {"given": data_requests.given_payload(item)})
 
-    payload = {"request_id": str(request_id), "fields": fields}
-    return run_and_respond(request, "profile_data_request.accept", actor, payload, handler)
+    payload = {"link_id": str(link_id), "fields": fields}
+    return run_and_respond(request, "profile_data.give", actor, payload, handler)
 
 
 @require_POST
-def incoming_data_decline(request: HttpRequest, cmp: str, request_id: UUID) -> JsonResponse:
-    context, actor = _answerer(request, cmp)
-
-    def handler(ctx: CommandContext) -> CommandResult:
-        item = data_requests.decline_as_company(ctx, context.company, request_id)
-        available = companies.shareable_profile(context.company)
-        return CommandResult(
-            200, {"request": data_requests.incoming_payload(item, timezone.now(), available)}
-        )
-
-    return run_and_respond(
-        request, "profile_data_request.decline", actor, {"request_id": str(request_id)}, handler
-    )
-
-
-@require_GET
-def my_data_requests(request: HttpRequest) -> JsonResponse:
-    user, _session = require_user(request)
-    now = timezone.now()
-    available = accounts.shareable_profile(user)
-    items = [
-        data_requests.incoming_payload(r, now, available)
-        for r in data_requests.for_user(user).order_by("-created_at")[:100]
-    ]
-    return JsonResponse({"requests": items})
-
-
-@require_POST
-def my_data_accept(request: HttpRequest, request_id: UUID) -> JsonResponse:
+def my_data_give(request: HttpRequest, link_id: UUID) -> JsonResponse:
+    """A person gives the fresh data of the profile to a linked company (personal cabinet)."""
     user, session = require_user(request)
     fields = _fields(parse_json(request))
 
     def handler(ctx: CommandContext) -> CommandResult:
-        item = data_requests.accept_as_user(ctx, user, request_id, fields)
-        available = accounts.shareable_profile(user)
-        return CommandResult(
-            200, {"request": data_requests.incoming_payload(item, timezone.now(), available)}
-        )
+        item = data_requests.give_as_user(ctx, user, link_id, fields)
+        return CommandResult(201, {"given": data_requests.given_payload(item)})
 
     actor = Actor(user_id=user.id, session_id=session.id)
-    payload = {"request_id": str(request_id), "fields": fields}
-    return run_and_respond(request, "profile_data_request.accept", actor, payload, handler)
-
-
-@require_POST
-def my_data_decline(request: HttpRequest, request_id: UUID) -> JsonResponse:
-    user, session = require_user(request)
-
-    def handler(ctx: CommandContext) -> CommandResult:
-        item = data_requests.decline_as_user(ctx, user, request_id)
-        available = accounts.shareable_profile(user)
-        return CommandResult(
-            200, {"request": data_requests.incoming_payload(item, timezone.now(), available)}
-        )
-
-    actor = Actor(user_id=user.id, session_id=session.id)
-    return run_and_respond(
-        request, "profile_data_request.decline", actor, {"request_id": str(request_id)}, handler
-    )
+    payload = {"link_id": str(link_id), "fields": fields}
+    return run_and_respond(request, "profile_data.give", actor, payload, handler)
