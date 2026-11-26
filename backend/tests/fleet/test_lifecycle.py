@@ -375,6 +375,8 @@ def test_managed_vehicle_kept_as_a_client_one_is_not_doubled(owner: Client, s: S
         "location_id": s.location,
         "odometer_unit": "km",
         "relation": "managed",
+        "owner_kind": "organization",
+        "owner_name": "Owner Co",
         "frame_number": "MLHNF0975",
     }
 

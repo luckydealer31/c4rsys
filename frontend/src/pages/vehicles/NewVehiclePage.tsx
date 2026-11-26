@@ -607,6 +607,7 @@ function VehicleForm({ vehicle }: { vehicle?: Vehicle }) {
             <div style={{ marginTop: 12 }}>
               <OwnerCardPicker
                 relation={form.relation === "client" ? "client" : "managed"}
+                required={!vehicle && form.relation === "managed"}
                 value={form.owner}
                 set={(change) => set({ owner: { ...form.owner, ...change } })}
               />

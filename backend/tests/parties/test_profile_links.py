@@ -128,10 +128,14 @@ def test_request_by_id_accept_apply_and_break(owner: Client, cmp: str) -> None:
     assert AuditEvent.objects.filter(action="profile_link.value_applied").count() == 2
 
     broken = post(
-        owner, f"/api/c/{cmp}/profile-links/{link['id']}/break", {"initiator": "client"}, key()
+        owner,
+        f"/api/c/{cmp}/profile-links/{link['id']}/break",
+        {"initiator": "client", "reason": "Asked to"},
+        key(),
     )
     assert broken.json()["link"]["state"] == "broken"
     assert broken.json()["link"]["broken_initiator"] == "client"
+    assert broken.json()["link"]["broken_reason"] == "Asked to"
     assert ClientCard.objects.get(pk=card_id).linked_user_id is None
     # § 6.6.3: the person still sees the link of the history given before.
     assert somchai.get("/api/profile-links").json()["links"][0]["state"] == "broken"
@@ -441,7 +445,7 @@ def test_a_driving_licence_of_the_profile_goes_to_the_licence_of_the_card(
     post(
         owner,
         f"/api/c/{cmp}/profile-links/{link['id']}/break",
-        {"initiator": "company"},
+        {"initiator": "company", "reason": "No more work"},
         key(),
     )
     again = ask(owner, cmp, card_id, usr).json()["link"]

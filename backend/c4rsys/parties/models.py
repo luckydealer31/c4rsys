@@ -381,6 +381,9 @@ class ProfileLink(models.Model):
     broken_initiator = models.CharField(
         max_length=10, choices=Initiator.choices, blank=True, default=""
     )
+    # Why the link was broken, in the employee's words: asked whatever the reason chosen
+    # (customer's remark of 26.11.2026). Empty in the links broken before it.
+    broken_reason = models.CharField(max_length=500, blank=True, default="")
     # § 6.5.5: access to wrongly shown history revoked when correcting a mistake; the record of
     # the correction stays with the company. What was downloaded is not returned.
     access_revoked_at = models.DateTimeField(null=True, blank=True)

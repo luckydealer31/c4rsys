@@ -182,6 +182,8 @@ def test_without_an_owner_every_card_keeps_its_value(
         vin=VIN,
         year=2019,
         relation="managed",
+        owner_kind="organization",
+        owner_name="Owner Co",
     ).json()
     assert "vehicle" in first, first
     second = create(owner, two["b"], two["lb"], vin=VIN, relation="client").json()["vehicle"]
@@ -279,7 +281,15 @@ def test_only_the_verification_closes_a_dispute(
     owner: Client, two: dict[str, str], verifier: Member, support: Member
 ) -> None:
     first = create(owner, two["a"], two["la"], vin=VIN).json()["vehicle"]
-    create(owner, two["b"], two["lb"], vin=VIN, relation="managed")
+    create(
+        owner,
+        two["b"],
+        two["lb"],
+        vin=VIN,
+        relation="managed",
+        owner_kind="organization",
+        owner_name="Owner Co",
+    )
     assert same_vehicle(verifier, first["vehicle_id"]).status_code == 200
     dispute = VehicleOperationalDispute.objects.get()
     denied = sp(support, f"vehicle-disputes/{dispute.id}/close", {"reason": "x"})

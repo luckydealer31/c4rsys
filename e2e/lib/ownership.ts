@@ -184,6 +184,8 @@ export async function ownershipScenario(page: Page, s: Company, email: string): 
         location_id: s.location,
         odometer_unit: "km",
         relation: "managed",
+        owner_kind: "organization",
+        owner_name: "Owner Co",
         vehicle_type: "motorcycle",
         frame_number: frame,
       })
@@ -205,6 +207,9 @@ export async function ownershipScenario(page: Page, s: Company, email: string): 
   await conflicts.getByRole("link", { name: t("vehicles.conflict_merge"), exact: true }).click();
   const merge = page.locator(".card", { hasText: t("vehicles.merge_title") });
   await merge.getByRole("radio").first().check();
+  // The first card was made with its owner (customer's decision of 26.11.2026), the second one
+  // came without: the owner of the merged card is chosen too.
+  await merge.getByRole("radio", { name: /Owner Co/ }).check();
   const sentBefore = await mailCode(email);
   await merge.getByRole("button", { name: t("vehicles.merge_send_code"), exact: true }).click();
   await merge.getByLabel(t("vehicles.merge_code")).fill(await mailCode(email, sentBefore));

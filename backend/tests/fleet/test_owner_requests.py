@@ -521,9 +521,11 @@ def test_the_vehicle_is_locked_before_the_ownership_is_recorded(
 
 def test_the_owner_is_named_and_asked_at_once(owner: Client, cmp: str, location: str) -> None:
     """Customer's remark of 25.11.2026: in «Access» the owner is named by his ID and asked in
-    one command; a vehicle with no owner given gets one."""
+    one command; a vehicle whose owner is described by hand gets his profile."""
     somchai, usr = person("somchai@example.com")
-    card = vehicle(owner, cmp, location, relation="managed")
+    card = vehicle(
+        owner, cmp, location, relation="managed", owner_kind="organization", owner_name="Owner Co"
+    )
     url = f"/api/c/{cmp}/vehicles/{card['id']}/owner-requests"
 
     sent = post(owner, url, {"owner_lookup": usr.lower()}, key())
@@ -763,6 +765,57 @@ def test_the_same_owner_declared_anew_keeps_the_confirmation(
     )
     assert not back["confirmed"]
     assert ask(owner, cmp, card["id"]).status_code == 201
+
+
+def test_breaking_the_link_of_the_investor_stops_passing_to_the_owner(
+    owner: Client, cmp: str, location: str
+) -> None:
+    """Customer's decision of 26.11.2026: the link of the card of an investor with a profile is
+    broken — the vehicle stays in the management, nothing is passed to the profile any more."""
+    from c4rsys.fleet import disclosure, owner_requests
+    from c4rsys.fleet.models import VehicleManagementConfirmation
+
+    somchai, usr = person("somchai@example.com")
+    card = vehicle(owner, cmp, location, relation="managed", owner_kind="profile", owner_lookup=usr)
+    request = ask(owner, cmp, card["id"]).json()["request"]
+    assert answer(somchai, request["id"], link=True, ownership=True, management=True)
+    investor = Counterparty.objects.get()
+    _redeclare(
+        owner, cmp, card["id"], owner_kind="counterparty", owner_counterparty_id=str(investor.id)
+    )
+    found = VehicleCard.objects.get(pk=card["id"])
+    assert owner_requests.management_confirmed(found)
+    link = owner.get(f"/api/c/{cmp}/profile-links?card_type=investor&card_id={investor.id}").json()[
+        "links"
+    ][0]
+    broken = post(
+        owner,
+        f"/api/c/{cmp}/profile-links/{link['id']}/break",
+        {"initiator": "company", "reason": "No more work"},
+        key(),
+    )
+    assert broken.status_code == 200, broken.content
+    found.refresh_from_db()
+    assert found.relation == "managed" and found.state == "active"
+    assert not owner_requests.management_confirmed(found)
+    assert disclosure.confirmed_now(found.id) is None
+    assert VehicleManagementConfirmation.objects.get().end_reason == "link_broken"
+
+
+def test_a_managed_vehicle_is_created_with_its_owner(
+    owner: Client, cmp: str, location: str
+) -> None:
+    """Customer's decision of 26.11.2026: the owner — an investor — is named when the card of a
+    vehicle in the management is made; a request to him is not required."""
+    refused = post(
+        owner,
+        f"/api/c/{cmp}/vehicles",
+        {"name": "Nobody's", "relation": "managed", "location_id": location, "odometer_unit": "km"},
+        key(),
+    )
+    assert refused.status_code == 400, refused.content
+    error = refused.json()["error"]
+    assert (error["code"], error["field"]) == ("FIELD_REQUIRED", "owner_kind")
 
 
 def test_a_confirmation_ended_by_the_same_owner_is_restored(

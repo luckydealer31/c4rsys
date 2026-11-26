@@ -691,6 +691,9 @@ def test_break_with_revoke_hides_history_and_needs_reason(owner: Client, s: Scen
     url = f"/api/c/{s.cmp}/profile-links/{link_id}/break"
     no_reason = post(owner, url, {"initiator": "company", "revoke": True}, key())
     assert no_reason.json()["error"]["code"] == "FIELD_REQUIRED"
+    # The explanation is asked whatever the reason (customer's remark of 26.11.2026).
+    plain = post(owner, url, {"initiator": "client"}, key())
+    assert plain.json()["error"]["code"] == "FIELD_REQUIRED"
     editor, _ = hire(owner, s.cmp, "e@example.com", grant("client.find", "client.edit"))
     denied = post(editor, url, {"initiator": "company", "revoke": True, "reason": "x"}, key())
     assert denied.status_code == 403
@@ -770,7 +773,7 @@ def test_nothing_is_given_through_a_broken_link(owner: Client, s: Scenario) -> N
     broken = post(
         owner,
         f"/api/c/{s.cmp}/profile-links/{link_id}/break",
-        {"initiator": "client", "revoke": False, "reason": ""},
+        {"initiator": "client", "revoke": False, "reason": "Asked to"},
         key(),
     )
     assert broken.status_code == 200, broken.content

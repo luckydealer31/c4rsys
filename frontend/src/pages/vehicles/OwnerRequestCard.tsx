@@ -99,6 +99,9 @@ export function OwnerRequestCard({ vehicle }: { vehicle: Vehicle }) {
               </tbody>
             </table>
           ) : null}
+          {r.closed_reason === "link_broken" ? (
+            <p className="muted small">{t("owner_requests.closed_link_broken")}</p>
+          ) : null}
           {r.closed_reason === "owner_changed" ? (
             <p className="muted small">{t("owner_requests.closed_owner_changed")}</p>
           ) : null}

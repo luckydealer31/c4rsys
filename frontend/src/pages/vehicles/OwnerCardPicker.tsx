@@ -126,10 +126,14 @@ export function OwnerCardPicker({
   relation,
   value,
   set,
+  required = false,
 }: {
   relation: "managed" | "client";
   value: OwnerValue;
   set: (change: Partial<OwnerValue>) => void;
+  /** A new vehicle in the management has its owner — an investor (customer's decision of
+   * 26.11.2026): «not given» is not offered. */
+  required?: boolean;
 }) {
   const { t } = useTranslation();
   const company = useCompany();
@@ -163,6 +167,12 @@ export function OwnerCardPicker({
     },
   });
 
+  const missing = required && value.party === "none";
+  useEffect(() => {
+    if (missing) set({ ...NO_OWNER, party: "person" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [missing]);
+
   const choose = (card: Card) =>
     set({ ...NO_OWNER, party: card.kind, card_id: card.id, card_name: card.name, card_contacts: card.contacts });
   const path = (id: string) => companyPath(company, client ? `/clients/${id}` : `/clients/investors/${id}`);
@@ -179,7 +189,7 @@ export function OwnerCardPicker({
           <select value={value.party} onChange={(e) => set({ ...NO_OWNER, party: e.target.value as OwnerValue["party"] })}>
             <option value="person">{t("vehicles.owner_party_person")}</option>
             <option value="company">{t("vehicles.owner_party_company")}</option>
-            <option value="none">{t("vehicles.owner_kind_none")}</option>
+            {required ? null : <option value="none">{t("vehicles.owner_kind_none")}</option>}
           </select>
         </Field>
         {value.card_id ? (

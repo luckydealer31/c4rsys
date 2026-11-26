@@ -14,6 +14,7 @@
   (§ 6.6.2–6.6.3). A new request after it links the same card (§ 6.6.6).
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any
@@ -317,6 +318,19 @@ def cancel(ctx: CommandContext, company_id: UUID, link_id: UUID) -> ProfileLink:
     return link
 
 
+# What else ends with a link: (the context, the list the card is stored in, the card).
+_on_break: list[Callable[[CommandContext, str, UUID], None]] = []
+
+
+def register_on_break(hook: Callable[[CommandContext, str, UUID], None]) -> None:
+    _on_break.append(hook)
+
+
+def _broken(ctx: CommandContext, link: ProfileLink) -> None:
+    for hook in _on_break:
+        hook(ctx, card_type_of(link), card_id_of(link))
+
+
 def break_link(
     ctx: CommandContext,
     company_id: UUID,
@@ -332,7 +346,10 @@ def break_link(
     record stays with the company and what was downloaded is not returned (§ 6.5.5)."""
     if initiator not in (ProfileLink.Initiator.COMPANY, ProfileLink.Initiator.CLIENT):
         raise errors.validation_error("initiator")
-    if revoke and not reason.strip():
+    # The explanation is asked whatever the reason (customer's remark of 26.11.2026): later it
+    # is seen why the link was broken.
+    reason = reason.strip()
+    if not reason:
         raise errors.validation_error("reason", code="FIELD_REQUIRED")
     query = ProfileLink.objects.filter(company_id=company_id)
     peek = query.filter(pk=link_id).first()
@@ -347,7 +364,7 @@ def break_link(
     if revoke:
         link.access_revoked_at = now
         link.access_revoked_by_user_id = ctx.actor.user_id
-        link.access_revoke_reason = reason.strip()
+        link.access_revoke_reason = reason
         link.save(
             update_fields=["access_revoked_at", "access_revoked_by_user_id", "access_revoke_reason"]
         )
@@ -365,13 +382,24 @@ def break_link(
     link.broken_at = now
     link.broken_by_user_id = ctx.actor.user_id
     link.broken_initiator = initiator
-    link.save(update_fields=["state", "broken_at", "broken_by_user_id", "broken_initiator"])
+    link.broken_reason = reason
+    link.save(
+        update_fields=[
+            "state",
+            "broken_at",
+            "broken_by_user_id",
+            "broken_initiator",
+            "broken_reason",
+        ]
+    )
     ctx.audit(
         "profile_link.broken",
         object_type="profile_link",
         object_id=link.id,
         after={"initiator": initiator},
+        reason=reason,
     )
+    _broken(ctx, link)
     return link
 
 
@@ -1146,6 +1174,7 @@ def payload(link: ProfileLink, now: datetime) -> dict[str, Any]:
         "decided_at": link.decided_at.isoformat() if link.decided_at else None,
         "broken_at": link.broken_at.isoformat() if link.broken_at else None,
         "broken_initiator": link.broken_initiator,
+        "broken_reason": link.broken_reason,
         "linked_profile": _profile_of(link),
         "shared": (link.shared or {}).get("data", {}) if accepted else {},
         "shared_at": (link.shared or {}).get("at") if accepted else None,

@@ -333,7 +333,14 @@ def test_own_vehicle_goes_to_warehouse_only_without_contexts(owner: Client, cmp:
 def test_managed_vehicle_is_not_transferred(owner: Client, cmp: str) -> None:
     location_id = _location(owner, cmp, "Phuket")
     storage = _warehouse(owner, cmp, location_id)
-    vehicle = _create(owner, cmp, location_id, relation="managed").json()["vehicle"]
+    vehicle = _create(
+        owner,
+        cmp,
+        location_id,
+        relation="managed",
+        owner_kind="organization",
+        owner_name="Owner Co",
+    ).json()["vehicle"]
 
     response = _to_warehouse(owner, cmp, vehicle["id"], storage, vehicle["version"])
 

@@ -580,6 +580,7 @@ export function NewVehiclePage() {
         {form.relation === "own" ? null : (
           <OwnerCardPicker
             relation={form.relation === "client" ? "client" : "managed"}
+            required={form.relation === "managed"}
             value={form.owner}
             set={(change) => set({ owner: { ...form.owner, ...change } })}
           />

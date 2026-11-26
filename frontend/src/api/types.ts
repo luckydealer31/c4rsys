@@ -336,6 +336,7 @@ export type ProfileLink = {
   decided_at: string | null;
   broken_at: string | null;
   broken_initiator: "" | "company" | "client";
+  broken_reason: string;
   linked_profile: { public_id: string; name: string } | null;
   shared: Record<string, unknown>;
   shared_at: string | null;

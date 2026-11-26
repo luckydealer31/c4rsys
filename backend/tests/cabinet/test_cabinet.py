@@ -93,7 +93,12 @@ def test_history_of_a_linked_company(owner: Client, s: Scenario) -> None:
     link_id = owner.get(f"/api/c/{s.cmp}/profile-links?card_type=client&card_id={s.client}").json()[
         "links"
     ][0]["id"]
-    post(owner, f"/api/c/{s.cmp}/profile-links/{link_id}/break", {"initiator": "client"}, key())
+    post(
+        owner,
+        f"/api/c/{s.cmp}/profile-links/{link_id}/break",
+        {"initiator": "client", "reason": "Asked to"},
+        key(),
+    )
     after = ivan.get(f"/api/cabinet/companies/{companies[0]['link_id']}/history").json()
     assert len(after["orders"]) == 1
     assert ivan.get("/api/cabinet/companies").json()["companies"][0]["state"] == "broken"
@@ -164,7 +169,10 @@ def _break(owner: Client, s: Scenario) -> None:
     query = f"card_type=client&card_id={s.client}"
     link_id = owner.get(f"/api/c/{s.cmp}/profile-links?{query}").json()["links"][0]["id"]
     broken = post(
-        owner, f"/api/c/{s.cmp}/profile-links/{link_id}/break", {"initiator": "client"}, key()
+        owner,
+        f"/api/c/{s.cmp}/profile-links/{link_id}/break",
+        {"initiator": "client", "reason": "Asked to"},
+        key(),
     )
     assert broken.status_code == 200, broken.content
 

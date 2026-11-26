@@ -52,6 +52,7 @@ State = VehicleOwnerRequest.State
 Question = VehicleOwnerAnswer.Question
 QUESTIONS = (Question.LINK, Question.OWNERSHIP, Question.MANAGEMENT)
 OWNER_CHANGED = "owner_changed"
+LINK_BROKEN = "link_broken"
 
 
 def effective_state(request: VehicleOwnerRequest, now: datetime) -> str:
@@ -235,6 +236,24 @@ def close_for_new_owner(ctx: CommandContext, card: VehicleCard) -> None:
     its answers; a request to the new owner may be sent. The confirmed management of the earlier
     declaration ends (§ 8.3.4). The card is locked by the caller."""
     close_open(ctx, card, OWNER_CHANGED)
+
+
+def on_link_broken(ctx: CommandContext, card_type: str, card_id: UUID) -> None:
+    """The link of the card of an investor with a profile is broken (customer's decision of
+    26.11.2026): the vehicles stay in the management — it ends only by hand — but nothing is
+    passed to the profile any more. The confirmed management of his vehicles ends and the open
+    requests to him are closed; what the owner got before stays."""
+    if card_type != "counterparty":
+        return
+    ids = set(
+        VehicleOwnerClaim.objects.filter(counterparty_id=card_id).values_list(
+            "vehicle_card_id", flat=True
+        )
+    )
+    for card in VehicleCard.objects.select_for_update().filter(pk__in=ids).order_by("pk"):
+        claim = _claim(card)
+        if claim is not None and claim.counterparty_id == card_id:
+            close_open(ctx, card, LINK_BROKEN)
 
 
 def close_open(ctx: CommandContext, card: VehicleCard, reason: str) -> None:

@@ -30,7 +30,14 @@ from c4rsys.fleet import (
     services,
 )
 from c4rsys.fleet.catalog.match import in_text as catalog_match_in_text
-from c4rsys.fleet.models import Vehicle, VehicleCard, VehicleMake, VehicleModel, VehicleMove
+from c4rsys.fleet.models import (
+    Vehicle,
+    VehicleCard,
+    VehicleMake,
+    VehicleModel,
+    VehicleMove,
+    VehicleOwnerClaim,
+)
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
 from c4rsys.platform.http import get_int, get_str, parse_json
@@ -242,6 +249,11 @@ def vehicle_list(request: HttpRequest, cmp: str) -> JsonResponse:
     if relation not in VehicleCard.Relation.values:
         raise errors.validation_error("relation")
     owner = owners.parse(data, relation)
+    if relation == VehicleCard.Relation.MANAGED and owner.kind == VehicleOwnerClaim.Kind.NONE:
+        # A vehicle is taken into the management from somebody: its owner — an investor — is
+        # named when the card is made (customer's decision of 26.11.2026). A request to him is
+        # not required.
+        raise errors.validation_error("owner_kind", code="FIELD_REQUIRED")
     owners.check_rights(actor, owner)
     unit = get_str(data, "odometer_unit", max_length=2)
     if unit not in VehicleCard.OdometerUnit.values:

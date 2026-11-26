@@ -145,16 +145,18 @@ export function ProfileLinkCard({
     () => `${base}/${links.data?.links[0]?.id}/break`,
   );
   // The break is started by a button beside the state; then one reason of three is chosen
-  // (customer's decision of 26.11.2026). «Correction of an error» takes back the access to the
+  // (customer's decision of 26.11.2026), a comment is written and the break is confirmed by the
+  // button «Confirm» — no second «Break the link» (customer's remark of 26.11.2026); the form
+  // warns that the company cannot bring the link back alone (§ 6.6.6).
+  // «Correction of an error» takes back the access to the
   // history shown by mistake (§ 6.5.5) and needs an explanation and the right of its own.
   const [breaking, setBreaking] = useState(false);
   const [breakReason, setBreakReason] = useState<"company" | "client" | "error">("company");
   const [revokeReason, setRevokeReason] = useState("");
-  // One more question before the break (customer's remark of 26.11.2026): the company cannot
-  // bring the link back alone — a new request is to be confirmed by the client (§ 6.6.6).
-  const [confirming, setConfirming] = useState(false);
-  const apply = useCommand<{ field: string; expected_version: number }, unknown>(
-    () => `${base}/${links.data?.links[0]?.id}/apply`,
+  // A value is taken from the snapshot of the link it was given through: the last one, or an
+  // earlier one whose data stay in the card.
+  const apply = useCommand<{ link_id: string; field: string; expected_version: number }, unknown>(
+    (body) => `${base}/${body.link_id}/apply`,
   );
   const [target, setTarget] = useState("");
   // A person is asked by a contact of the card confirmed in a profile — the request comes into the
@@ -205,6 +207,13 @@ export function ProfileLinkCard({
   const state = last?.state;
   const open = state === "pending" || state === "accepted";
   const shown = last && (state === "accepted" || state === "broken") ? last : undefined;
+  // The data given through an earlier link stay in the card while a new request waits or after
+  // it was declined (customer's remark of 26.11.2026; § 6.6.1: the snapshots are not deleted).
+  const earlier = shown
+    ? undefined
+    : (links.data?.links ?? [])
+        .slice(1)
+        .find((l) => (l.state === "accepted" || l.state === "broken") && Object.keys(l.shared).length > 0);
 
   // A new request is started above, beside the state of the link — where the break is
   // (customer's remark of 26.11.2026), not under the data of the profile.
@@ -287,43 +296,24 @@ export function ProfileLinkCard({
                   {can(`${cardType}.split`) ? <option value="error">{t("links.reason_error")}</option> : null}
                 </select>
               </Field>
-              {breakReason === "error" ? (
-                <Field label={t("links.revoke_reason")}>
-                  <input value={revokeReason} onChange={(e) => setRevokeReason(e.target.value)} />
-                </Field>
-              ) : null}
+              <Field label={t("links.revoke_reason")}>
+                <input value={revokeReason} onChange={(e) => setRevokeReason(e.target.value)} />
+              </Field>
               <p className="muted small">{t(breakReason === "error" ? "links.break_hint_error" : "links.break_hint")}</p>
-              {!confirming ? (
-                <div className="actions">
-                  <button
-                    type="button"
-                    className="small"
-                    disabled={breakReason === "error" && !revokeReason.trim()}
-                    onClick={() => setConfirming(true)}
-                  >
-                    {t("links.break")}
-                  </button>
-                  <button type="button" className="secondary small" onClick={() => setBreaking(false)}>
-                    {t("common.cancel")}
-                  </button>
-                </div>
-              ) : (
-              <div className="alert warn stack" data-testid="break-confirm">
-              <p className="small">{t("links.break_confirm")}</p>
+              <p className="alert warn small" data-testid="break-confirm">{t("links.break_confirm")}</p>
               <div className="actions">
                 <button
                   type="button"
                   className="small"
-                  disabled={breakLink.pending || (breakReason === "error" && !revokeReason.trim())}
+                  disabled={breakLink.pending || !revokeReason.trim()}
                   onClick={async () => {
                     const error = breakReason === "error";
                     const body = {
                       initiator: breakReason === "client" ? "client" : "company",
                       revoke: error,
-                      reason: error ? revokeReason : "",
+                      reason: revokeReason,
                     };
                     if ((await breakLink.run(body)) !== null) {
-                      setConfirming(false);
                       setBreaking(false);
                       setBreakReason("company");
                       setRevokeReason("");
@@ -333,12 +323,10 @@ export function ProfileLinkCard({
                 >
                   {t("links.break_yes")}
                 </button>
-                <button type="button" className="secondary small" onClick={() => setConfirming(false)}>
+                <button type="button" className="secondary small" onClick={() => setBreaking(false)}>
                   {t("common.cancel")}
                 </button>
               </div>
-              </div>
-              )}
             </div>
           ) : null}
           <p className="muted small">
@@ -348,6 +336,7 @@ export function ProfileLinkCard({
             {last.broken_at
               ? ` · ${t("links.broken_at", { at: formatDateTime(last.broken_at) })} (${t(`links.initiator_${last.broken_initiator}`)})`
               : ""}
+            {last.broken_at && last.broken_reason ? `: ${last.broken_reason}` : ""}
           </p>
           {state === "pending" && editable ? (
             <div className="actions">
@@ -373,10 +362,30 @@ export function ProfileLinkCard({
                 applicable={editable ? applicable : []}
                 pending={apply.pending}
                 onApply={async (field) => {
-                  if ((await apply.run({ field, expected_version: version })) !== null) await refresh();
+                  if ((await apply.run({ link_id: shown.id, field, expected_version: version })) !== null) await refresh();
                 }}
               />
             </>
+          ) : null}
+          {earlier ? (
+            <div className="stack" data-testid="earlier-link">
+              <h3>{t("links.earlier_title")}</h3>
+              <p className="muted small">
+                {earlier.linked_profile ? `${earlier.linked_profile.name} (${earlier.linked_profile.public_id}) · ` : ""}
+                {earlier.broken_at
+                  ? `${t("links.broken_at", { at: formatDateTime(earlier.broken_at) })} (${t(`links.initiator_${earlier.broken_initiator}`)})${earlier.broken_reason ? `: ${earlier.broken_reason}` : ""}`
+                  : ""}
+              </p>
+              <SharedTable
+                data={earlier.shared}
+                compare={earlier.compare}
+                applicable={editable ? applicable : []}
+                pending={apply.pending}
+                onApply={async (field) => {
+                  if ((await apply.run({ link_id: earlier.id, field, expected_version: version })) !== null) await refresh();
+                }}
+              />
+            </div>
           ) : null}
           {state === "accepted" ? (
             <GivenDataPanel

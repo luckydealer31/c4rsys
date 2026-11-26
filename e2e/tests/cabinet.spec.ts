@@ -91,11 +91,15 @@ test("a client links the card in the cabinet and sees the rental", async ({ page
   // The break is started by a button beside the state of the link; then a reason is chosen.
   await page.getByTestId("break-link").click();
   await expect(page.getByTestId("break-form").getByLabel(t("links.break_reason"))).toBeVisible();
-  // One more question before the break; «Cancel» leaves the link as it is.
-  await page.getByTestId("break-form").getByRole("button", { name: t("links.break") }).click();
+  // A reason, a comment, then «Confirm»: without the comment the link cannot be broken; the
+  // form warns that the link is not brought back by the company alone. «Cancel» leaves it.
+  const breaking = page.getByTestId("break-form");
+  await expect(breaking.getByRole("button", { name: t("links.break_yes") })).toBeDisabled();
+  await expect(breaking.getByRole("button", { name: t("links.break") })).toHaveCount(0);
+  await breaking.getByLabel(t("links.revoke_reason")).fill("Проверка");
   await expect(page.getByTestId("break-confirm")).toContainText(t("links.break_confirm"));
-  await page.getByTestId("break-confirm").getByRole("button", { name: t("common.cancel") }).click();
-  await page.getByTestId("break-form").getByRole("button", { name: t("common.cancel") }).click();
+  await expect(breaking.getByRole("button", { name: t("links.break_yes") })).toBeEnabled();
+  await breaking.getByRole("button", { name: t("common.cancel") }).click();
   await expect(page.getByTestId("break-link")).toBeVisible();
   await expect(client.getByText(t("cabinet.order", { number: 1 }))).toBeVisible();
   await expect(client.getByText(`${t("cabinet.op_rental")}: Toyota Yaris`)).toBeVisible();
@@ -108,6 +112,9 @@ test("a client links the card in the cabinet and sees the rental", async ({ page
     await ok(page, "POST", `/c/${s.cmp}/vehicles`, {
       name: "Honda Forza",
       relation: "managed",
+      // A vehicle in the management is made with its owner (customer's decision of 26.11.2026).
+      owner_kind: "organization",
+      owner_name: "Owner Co",
       location_id: s.location,
       odometer_unit: "km",
       vehicle_type: "motorcycle",
@@ -151,4 +158,20 @@ test("a client links the card in the cabinet and sees the rental", async ({ page
   await client.goto(`${s.base}/rentals`);
   await expect(client.getByRole("heading", { level: 1 })).toHaveText(t("cabinet.companies"));
   await cabinet.close();
+  // The link is broken with an explanation. A new request is started above, beside the state;
+  // while it waits, the data given through the earlier link stay in the card (customer's
+  // remarks of 26.11.2026).
+  await page.goto(`${s.base}/clients/${s.client}?tab=settings&part=access`);
+  await page.getByTestId("break-link").click();
+  await page.getByTestId("break-form").getByLabel(t("links.revoke_reason")).fill("Клиент попросил");
+  await page.getByTestId("break-form").getByRole("button", { name: t("links.break_yes") }).click();
+  const linkCard = page.locator("#profile-link");
+  await expect(linkCard).toContainText(t("links.state_broken"));
+  await expect(linkCard).toContainText("Клиент попросил");
+  await expect(page.getByTestId("shared-table").first()).toBeVisible();
+  await page.getByTestId("start-link").click();
+  await linkCard.getByRole("button", { name: t("links.send") }).click();
+  await expect(linkCard).toContainText(t("links.state_pending"));
+  await expect(page.getByTestId("earlier-link")).toContainText(t("links.earlier_title"));
+  await expect(page.getByTestId("earlier-link")).toContainText("Клиент попросил");
 });

@@ -5058,7 +5058,7 @@
     "field_identifiers": "Registration and tax numbers",
     "field_legal_address": "Legal address",
     "field_actual_address": "Actual address",
-    "revoke_reason": "Explanation",
+    "revoke_reason": "Comment",
     "access_revoked": "The access to the history was revoked: {{reason}}. What was downloaded is not returned.",
     "start": "Link with a profile",
     "profile_id": "C4Rsys ID: {{id}}",
@@ -5082,8 +5082,9 @@
     "reason_error": "Correction of an error",
     "break_hint": "The history given before stays with the client; new operations are no longer shown to them.",
     "break_hint_error": "The link was made by mistake: the access to the history shown is taken back. Data already downloaded do not return.",
-    "break_confirm": "Break the link? The company cannot bring it back alone: a new request is needed, and the client has to confirm it.",
-    "break_yes": "Confirm"
+    "break_confirm": "The company cannot bring the link back alone: a new request is needed, and the client has to confirm it.",
+    "break_yes": "Confirm",
+    "earlier_title": "Data of the earlier link"
   },
   "owner_requests": {
     "title": "Confirmation by the owner",
@@ -5124,7 +5125,8 @@
     "step_management": "Do you agree that “{{company}}” manages this vehicle?",
     "result_link": "Link with the company",
     "result_ownership": "The vehicle is yours",
-    "result_management": "Management by the company"
+    "result_management": "Management by the company",
+    "closed_link_broken": "Closed: the link of the investor card with the profile was broken."
   },
   "cabinet": {
     "title": "Personal cabinet",

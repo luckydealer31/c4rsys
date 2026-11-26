@@ -239,11 +239,12 @@ def test_managed_owner_described_by_hand_or_not_given(
         owner_name="ООО «Авто»",
         owner_contact="+7 900 000-00-00",
     ).json()["vehicle"]
-    none = create(owner, cmp, location, name="E", relation="managed").json()["vehicle"]
+    # The owner is named when the card is made (customer's decision of 26.11.2026).
+    none = create(owner, cmp, location, name="E", relation="managed").json()["error"]
 
     assert by_hand["owner"]["name"] == "ООО «Авто»"
-    assert none["owner"]["kind"] == "none"
-    assert none["rental_readiness"]["missing"] != ["not_owned_or_managed"]
+    assert by_hand["rental_readiness"]["missing"] != ["not_owned_or_managed"]
+    assert (none["code"], none["field"]) == ("FIELD_REQUIRED", "owner_kind")
 
 
 def test_client_vehicle_has_no_location_and_only_service(
