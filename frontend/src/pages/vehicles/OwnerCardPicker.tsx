@@ -184,6 +184,23 @@ export function OwnerCardPicker({
     },
   });
 
+  // The owner of an investor's vehicle is an investor: chosen from the list of the investors
+  // or added as a new one — not just some data typed in (customer's remark of 26.11.2026).
+  const investors = useQuery({
+    queryKey: ["investors-for-owner", company.public_id],
+    enabled: !client && can("investor.view"),
+    retry: false,
+    queryFn: async () =>
+      (await api<{ counterparties: Counterparty[] }>(`/c/${company.public_id}/investors`)).counterparties.map(asCard),
+  });
+  const listed = investors.data ?? [];
+  const typed = Boolean(value.last_name || value.first_name || value.company_name);
+  const [picked, setPicked] = useState<"" | "new" | null>(null);
+  // «New» at once when there is nobody to choose from or the data are there already (read from
+  // a paper of the vehicle).
+  const mode: "" | "new" = picked ?? (typed || (investors.isFetched && listed.length === 0) || !can("investor.view") ? "new" : "");
+  const entering = client || mode === "new";
+
   const missing = required && value.party === "none";
   useEffect(() => {
     if (missing) set({ ...NO_OWNER, party: "person" });
@@ -202,13 +219,55 @@ export function OwnerCardPicker({
   return (
     <div data-testid="owner-picker">
       <div className="row short-fields">
-        <Field label={t("vehicles.owner_kind")} info={t(client ? "vehicles.owner_client_hint" : "vehicles.owner_managed_hint")}>
-          <select value={value.party} onChange={(e) => set({ ...NO_OWNER, party: e.target.value as OwnerValue["party"] })}>
-            <option value="person">{t("vehicles.owner_party_person")}</option>
-            <option value="company">{t("vehicles.owner_party_company")}</option>
-            {required ? null : <option value="none">{t("vehicles.owner_kind_none")}</option>}
-          </select>
-        </Field>
+        {!client && !value.card_id ? (
+          <Field label={t("vehicles.owner_card_counterparty")} info={t("vehicles.owner_managed_hint")}>
+            <select
+              data-testid="owner-investor"
+              value={value.party === "none" ? "none" : mode}
+              onChange={(e) => {
+                const next = e.target.value;
+                if (next === "none") {
+                  setPicked(null);
+                  set({ ...NO_OWNER });
+                } else if (next === "" || next === "new") {
+                  setPicked(next);
+                  set({ ...NO_OWNER, party: "person" });
+                } else {
+                  const found = listed.find((c) => c.id === next);
+                  if (found) {
+                    setPicked(null);
+                    choose(found);
+                  }
+                }
+              }}
+            >
+              <option value="">{t("vehicles.owner_investor_choose")}</option>
+              {listed.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+              <option value="new">{t("vehicles.owner_investor_new")}</option>
+              {required ? null : <option value="none">{t("vehicles.owner_kind_none")}</option>}
+            </select>
+          </Field>
+        ) : null}
+        {client || (entering && value.party !== "none" && !value.card_id) ? (
+          <Field
+            label={t(client ? "vehicles.owner_kind" : "vehicles.owner_party_label")}
+            info={client ? t("vehicles.owner_client_hint") : undefined}
+          >
+            <select
+              data-testid="owner-party"
+              value={value.party}
+              onChange={(e) => set({ ...NO_OWNER, party: e.target.value as OwnerValue["party"] })}
+            >
+              <option value="person">{t("vehicles.owner_party_person")}</option>
+              <option value="company">{t("vehicles.owner_party_company")}</option>
+              {client && !required ? <option value="none">{t("vehicles.owner_kind_none")}</option> : null}
+            </select>
+          </Field>
+        ) : null}
         {value.card_id ? (
           <Field label={t(client ? "vehicles.owner_card_client" : "vehicles.owner_card_counterparty")}>
             <span className="row" style={{ alignItems: "center", gap: 6 }}>
@@ -221,13 +280,16 @@ export function OwnerCardPicker({
               <IconButton
                 icon="close"
                 label={t("vehicles.owner_card_other")}
-                onClick={() => set({ ...NO_OWNER, party: value.party })}
+                onClick={() => {
+                  setPicked(null);
+                  set({ ...NO_OWNER, party: value.party });
+                }}
               />
             </span>
           </Field>
         ) : null}
       </div>
-      {value.party !== "none" && !value.card_id ? (
+      {entering && value.party !== "none" && !value.card_id ? (
         <>
           <div className="row short-fields">
             {person ? (

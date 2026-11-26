@@ -30,7 +30,6 @@ export async function ownershipScenario(page: Page, s: Company, email: string): 
   await skip.click();
   await page.getByRole("main").getByRole("textbox").first().fill("Managed Forza");
   await next.click();
-  await page.getByLabel(t("vehicles.owner_short_managed"), { exact: true }).check();
   // The owner of a managed vehicle is an investor (customer's decision of 26.11.2026, in place
   // of the counterparty of 25.11.2026): a person or a company, chosen from the list or entered
   // anew; what is in the list already is shown while it is entered.
@@ -41,14 +40,22 @@ export async function ownershipScenario(page: Page, s: Company, email: string): 
     middle_name: "Андреевич",
     contacts: [{ kind: "phone", value: "+66 81 555 0101" }],
   });
+  await page.getByLabel(t("vehicles.owner_short_managed"), { exact: true }).check();
   const picker = page.getByTestId("owner-picker");
-  await picker.locator("select").first().selectOption("person");
+  // An investor is chosen from the list of the investors or added as a new one (customer's
+  // remark of 26.11.2026): the fields of a new one appear after «New investor».
+  const investor = picker.getByTestId("owner-investor");
+  await expect(investor.locator("option", { hasText: "Щукин Тимофей Андреевич" })).toHaveCount(1);
+  await expect(picker.getByLabel(t("vehicles.owner_last_name"))).toHaveCount(0);
+  await investor.selectOption("new");
+  const party = picker.getByTestId("owner-party");
+  await party.selectOption("person");
   await expect(picker.getByLabel(t("vehicles.owner_last_name"))).toBeVisible();
   await expect(picker.getByLabel(t("vehicles.owner_middle_name"))).toBeVisible();
-  await picker.locator("select").first().selectOption("company");
+  await party.selectOption("company");
   await expect(picker.getByLabel(t("vehicles.owner_name_company"))).toBeVisible();
   await expect(picker.getByLabel(t("vehicles.owner_contact_person"))).toBeVisible();
-  await picker.locator("select").first().selectOption("person");
+  await party.selectOption("person");
   // No search of its own and no ID here: the matches come as the last name alone is typed
   // (customer's remark of 25.11.2026).
   await expect(picker.getByRole("textbox")).toHaveCount(5);
@@ -127,12 +134,15 @@ export async function ownershipScenario(page: Page, s: Company, email: string): 
   await expect
     .poll(async () => ((await ok(page, "GET", `/c/${s.cmp}/vehicles/${earlier.id}`)).vehicle as { relation: string }).relation)
     .toBe("client");
+  // What became of the card is told at once (customer's remark of 26.11.2026).
+  await expect(page.getByTestId("management-ended")).toContainText(t("vehicles.ended_now_client"));
   // A client card: «Take into management» asks the location, the owner and the reason; «Delete» says the
   // card is moved to the archive and then asks the reason.
   await page.getByRole("button", { name: t("vehicles.take_into_management_button"), exact: true }).click();
   await expect(asking.getByLabel(t("vehicles.location"))).toBeVisible();
   // The owner — an investor — is named when the vehicle is taken (decision of 26.11.2026).
   await expect(asking.getByTestId("owner-picker")).toBeVisible();
+  await expect(asking.getByTestId("owner-investor").locator("option", { hasText: "Щукин Тимофей Андреевич" })).toHaveCount(1);
   await expect(asking.getByLabel(t("vehicles.lifecycle_reason"))).toBeVisible();
   await asking.getByRole("button", { name: t("common.cancel"), exact: true }).click();
   await page.getByRole("button", { name: t("vehicles.delete_button"), exact: true }).click();

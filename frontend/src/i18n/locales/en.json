@@ -2522,7 +2522,7 @@
     "owner_kind_profile": "A c4rsys profile (ID, email or phone)",
     "owner_lookup": "Owner's c4rsys ID, email or phone",
     "owner_lookup_hint": "The company is not told whether such a profile exists. The confirmation request to the owner comes with the next task.",
-    "owner_managed_hint": "The owner of an investor's vehicle is an investor of the company. Enter his data: a similar card in the list is offered and may be chosen. The request to the owner goes to his email or phone, or to the profile linked to the investor; the ID of the profile is given in the card of the investor.",
+    "owner_managed_hint": "The owner of an investor’s vehicle is an investor of the company. Choose him from the list of investors or add a new one: he appears on the tab “Investors”. The request to the owner goes to his email or phone, or to the profile linked to the investor card.",
     "owner_name_organization": "Organization name",
     "owner_not_given": "Not given",
     "owner_other": "Another owner — an investor's vehicle",
@@ -3000,7 +3000,12 @@
     "owner_use_existing": "Choose: {{name}}",
     "owner_locked_hint": "The owner confirmed the management, so he is not changed here. To name another owner, first break the link of his investor card with the profile.",
     "owner_withdrew_banner": "The owner took back his consent to the management of this vehicle. End the management (“Settings → Card”) or go on with this warning.",
-    "owner_withdrew_locked_hint": "The owner took back his consent to the management, so he cannot be changed here. End the management: the vehicle becomes a client’s one. If the vehicle has a new owner, take it into the management anew and name him."
+    "owner_withdrew_locked_hint": "The owner took back his consent to the management, so he cannot be changed here. End the management: the vehicle becomes a client’s one. If the vehicle has a new owner, take it into the management anew and name him.",
+    "owner_investor_choose": "— choose from the list —",
+    "owner_investor_new": "+ New investor",
+    "owner_party_label": "The new investor is",
+    "ended_now_client": "The management is ended. The vehicle is a client’s one now: in the park it is on the tab “Client”.",
+    "ended_now_archive": "The management is ended. The card is moved to the archive: turn the archive on in the park."
   },
   "warehouse": {
     "action_create": "Create",

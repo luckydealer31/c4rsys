@@ -432,10 +432,14 @@ export function RelationCard({ vehicle }: { vehicle: Vehicle }) {
     setAction(next);
   };
   const close = () => setAction("");
+  // What became of the card after the management was ended: told at once, so that the card is
+  // not looked for where it was (customer's remark of 26.11.2026).
+  const [ended, setEnded] = useState<"" | "client" | "archive">("");
   const run = async (command: ReturnType<typeof useVehicleCommand>, body: Record<string, unknown>) => {
     if ((await command.run({ ...body, reason, expected_version: vehicle.version })) !== null) {
       setReason("");
       setAction("");
+      setEnded(command === end ? (body.then === "client" ? "client" : "archive") : "");
       await refresh();
     }
   };
@@ -462,6 +466,11 @@ export function RelationCard({ vehicle }: { vehicle: Vehicle }) {
   );
   return (
     <Card title={archived ? t("vehicles.restore_title") : t("vehicles.relation_title")}>
+      {ended ? (
+        <p className="alert ok small" data-testid="management-ended">
+          {t(ended === "client" ? "vehicles.ended_now_client" : "vehicles.ended_now_archive")}
+        </p>
+      ) : null}
       {archived ? (
         <>
           {/* A card is restored as what it was archived from, with no choice (customer's
@@ -549,7 +558,13 @@ export function RelationCard({ vehicle }: { vehicle: Vehicle }) {
               <div className="actions">
                 <button
                   type="button"
-                  disabled={!reason.trim() || !location || take.pending}
+                  disabled={
+                    !reason.trim() ||
+                    !location ||
+                    take.pending ||
+                    // An investor is chosen from the list or a new one is being entered.
+                    !(taken.card_id || taken.last_name.trim() || taken.company_name.trim())
+                  }
                   onClick={() => void run(take, { location_id: location, ...ownerBody("managed", taken) })}
                 >
                   {t("vehicles.take_into_management_button")}
