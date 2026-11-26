@@ -47,7 +47,7 @@ export function OwnerRequestCard({ vehicle }: { vehicle: Vehicle }) {
   const shown = earlier ? all : all.slice(0, 1);
 
   return (
-    <div style={{ maxWidth: 760 }}>
+    <>
     <Card title={t("owner_requests.title")}>
       {owner?.confirmed && !last ? <p><span className="badge ok">{t("owner_requests.confirmed")}</span></p> : null}
       {owner?.conflict ? <p><span className="badge warn">{t("owner_requests.conflict")}</span></p> : null}
@@ -149,6 +149,6 @@ export function OwnerRequestCard({ vehicle }: { vehicle: Vehicle }) {
         ) : null}
       </div>
     </Card>
-    </div>
+    </>
   );
 }

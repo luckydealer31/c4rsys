@@ -751,10 +751,20 @@ export function VehiclePage() {
             </>
           ) : null}
           {settingsPart === "access" ? (
-            <>
-              {data.relation === "managed" ? <OwnerRequestCard vehicle={data} /> : null}
-              {linked ? <DisclosureCard vehicle={data} /> : null}
-            </>
+            // The two blocks stand beside each other, each as wide as its content needs
+            // (customer's remark of 26.11.2026); on a narrow screen one goes under the other.
+            <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
+              {data.relation === "managed" ? (
+                <div style={{ flex: "1 1 460px", maxWidth: 760, minWidth: 0 }}>
+                  <OwnerRequestCard vehicle={data} />
+                </div>
+              ) : null}
+              {linked ? (
+                <div style={{ flex: "1 1 340px", maxWidth: 480, minWidth: 0 }}>
+                  <DisclosureCard vehicle={data} />
+                </div>
+              ) : null}
+            </div>
           ) : null}
           {/* To end the management, to archive, to restore, to merge and to split are actions with
               the card itself (customer's remarks of 24.11.2026). */}

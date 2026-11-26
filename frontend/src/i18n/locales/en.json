@@ -2728,7 +2728,6 @@
     "reversal_button": "Ask the new owner",
     "disclosure_title": "What the owner receives",
     "disclosure_hint": "Only after the owner confirms the link, the ownership and the management. A reduction stops passing new records; the passed ones stay.",
-    "disclosure_confirmed": "Management confirmed since {{at}}",
     "disclosure_not_confirmed": "Management not confirmed: the owner sees only the list of categories.",
     "disclosure_operation_periods": "Operation periods and load",
     "disclosure_mileage_fuel": "Mileage and fuel",

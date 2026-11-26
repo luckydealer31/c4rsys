@@ -687,13 +687,13 @@ export function DisclosureCard({ vehicle }: { vehicle: Vehicle }) {
   const current = chosen ?? data.categories;
   const editable = can("vehicle.disclosure") && vehicle.state === "active";
   return (
-    <Card title={t("vehicles.disclosure_title")}>
-      <p className="muted small">{t("vehicles.disclosure_hint")}</p>
-      <p className="small">
-        {data.confirmed_since
-          ? t("vehicles.disclosure_confirmed", { at: when(data.confirmed_since) })
-          : t("vehicles.disclosure_not_confirmed")}
-      </p>
+    // The explanation is under «i»; when the management is confirmed, it is told in the block of
+    // the owner's confirmation beside — not here again (customer's remark of 26.11.2026).
+    <section className="card" data-testid="disclosure-card">
+      <h2>
+        {t("vehicles.disclosure_title")} <Info text={t("vehicles.disclosure_hint")} />
+      </h2>
+      {data.confirmed_since ? null : <p className="small">{t("vehicles.disclosure_not_confirmed")}</p>}
       {data.all.map((c) => (
         <label key={c} style={{ display: "block" }}>
           <input
@@ -710,6 +710,7 @@ export function DisclosureCard({ vehicle }: { vehicle: Vehicle }) {
         <div className="actions">
           <button
             type="button"
+            className="small"
             disabled={chosen === null || save.pending}
             onClick={async () => {
               if ((await save.run({ categories: current })) !== null) {
@@ -731,7 +732,7 @@ export function DisclosureCard({ vehicle }: { vehicle: Vehicle }) {
           ))}
         </ul>
       ) : null}
-    </Card>
+    </section>
   );
 }
 
