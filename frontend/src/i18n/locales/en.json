@@ -5081,7 +5081,9 @@
     "reason_client": "The client asked",
     "reason_error": "Correction of an error",
     "break_hint": "The history given before stays with the client; new operations are no longer shown to them.",
-    "break_hint_error": "The link was made by mistake: the access to the history shown is taken back. Data already downloaded do not return."
+    "break_hint_error": "The link was made by mistake: the access to the history shown is taken back. Data already downloaded do not return.",
+    "break_confirm": "Break the link? The company cannot bring it back alone: a new request is needed, and the client has to confirm it.",
+    "break_yes": "Confirm"
   },
   "owner_requests": {
     "title": "Confirmation by the owner",

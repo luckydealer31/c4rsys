@@ -150,6 +150,9 @@ export function ProfileLinkCard({
   const [breaking, setBreaking] = useState(false);
   const [breakReason, setBreakReason] = useState<"company" | "client" | "error">("company");
   const [revokeReason, setRevokeReason] = useState("");
+  // One more question before the break (customer's remark of 26.11.2026): the company cannot
+  // bring the link back alone — a new request is to be confirmed by the client (§ 6.6.6).
+  const [confirming, setConfirming] = useState(false);
   const apply = useCommand<{ field: string; expected_version: number }, unknown>(
     () => `${base}/${links.data?.links[0]?.id}/apply`,
   );
@@ -203,10 +206,59 @@ export function ProfileLinkCard({
   const open = state === "pending" || state === "accepted";
   const shown = last && (state === "accepted" || state === "broken") ? last : undefined;
 
+  // A new request is started above, beside the state of the link — where the break is
+  // (customer's remark of 26.11.2026), not under the data of the profile.
+  const startButton =
+    !open && requestable && !asking ? (
+      <button type="button" className="secondary small" data-testid="start-link" onClick={() => setAsking(true)}>
+        {t("links.start")}
+      </button>
+    ) : null;
+  const startForm =
+    !open && requestable && asking ? (
+        <form className="stack" onSubmit={submit}>
+          {reach.length > 0 ? (
+            <Field label={t("links.send_to")}>
+              <select value={choice} onChange={(e) => setPicked(e.target.value)}>
+                {reach.map((c, i) => (
+                  <option key={`${c.kind}${c.messenger ?? ""}${c.value}`} value={String(i)} disabled={c.reach === "none"}>
+                    {`${contactLabel(t, c)}: ${c.value} — ${t(`links.reach_${c.reach}`)}`}
+                  </option>
+                ))}
+                <option value="id">{t("links.send_to_id")}</option>
+              </select>
+            </Field>
+          ) : null}
+          {choice === "id" ? (
+            <Field label={t(cardKind === "company" ? "links.target_company" : "links.target_id")}>
+              <input value={target} onChange={(e) => setTarget(e.target.value)} />
+            </Field>
+          ) : null}
+          {reach.length > 0 && !confirmed ? (
+            <p className="muted small">{t(sendable.length > 0 ? "links.none_confirmed" : "links.none_confirmed_no_email")}</p>
+          ) : null}
+          <p className="muted small">{t(cardKind === "company" ? "links.hint_company" : "links.hint_person")}</p>
+          <div className="actions">
+            <button type="submit" disabled={!sending || send.pending}>
+              {t("links.send")}
+            </button>
+            <button type="button" className="secondary" onClick={() => setAsking(false)}>
+              {t("common.cancel")}
+            </button>
+          </div>
+        </form>
+    ) : null;
+
   return (
     <div id="profile-link" ref={anchor}>
     <Card title={t("links.title")}>
       {!last || !open ? <p className="muted">{t("links.not_linked")}</p> : null}
+      {!last ? (
+        <>
+          {startButton ? <div className="actions">{startButton}</div> : null}
+          {startForm}
+        </>
+      ) : null}
       {last ? (
         <div className="stack">
           <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
@@ -223,7 +275,9 @@ export function ProfileLinkCard({
                 {t("links.break")}
               </button>
             ) : null}
+            {startButton}
           </div>
+          {startForm}
           {state === "accepted" && editable && breaking ? (
             <div className="stack" data-testid="break-form" style={{ maxWidth: 420 }}>
               <Field label={t("links.break_reason")}>
@@ -239,6 +293,23 @@ export function ProfileLinkCard({
                 </Field>
               ) : null}
               <p className="muted small">{t(breakReason === "error" ? "links.break_hint_error" : "links.break_hint")}</p>
+              {!confirming ? (
+                <div className="actions">
+                  <button
+                    type="button"
+                    className="small"
+                    disabled={breakReason === "error" && !revokeReason.trim()}
+                    onClick={() => setConfirming(true)}
+                  >
+                    {t("links.break")}
+                  </button>
+                  <button type="button" className="secondary small" onClick={() => setBreaking(false)}>
+                    {t("common.cancel")}
+                  </button>
+                </div>
+              ) : (
+              <div className="alert warn stack" data-testid="break-confirm">
+              <p className="small">{t("links.break_confirm")}</p>
               <div className="actions">
                 <button
                   type="button"
@@ -252,6 +323,7 @@ export function ProfileLinkCard({
                       reason: error ? revokeReason : "",
                     };
                     if ((await breakLink.run(body)) !== null) {
+                      setConfirming(false);
                       setBreaking(false);
                       setBreakReason("company");
                       setRevokeReason("");
@@ -259,12 +331,14 @@ export function ProfileLinkCard({
                     }
                   }}
                 >
-                  {t("links.break")}
+                  {t("links.break_yes")}
                 </button>
-                <button type="button" className="secondary small" onClick={() => setBreaking(false)}>
+                <button type="button" className="secondary small" onClick={() => setConfirming(false)}>
                   {t("common.cancel")}
                 </button>
               </div>
+              </div>
+              )}
             </div>
           ) : null}
           <p className="muted small">
@@ -317,46 +391,6 @@ export function ProfileLinkCard({
             <p className="alert warn small">{t("links.access_revoked", { reason: last.access_revoke_reason })}</p>
           ) : null}
         </div>
-      ) : null}
-      {!open && requestable && !asking ? (
-        <div className="actions">
-          <button type="button" className="secondary" onClick={() => setAsking(true)}>
-            {t("links.start")}
-          </button>
-        </div>
-      ) : null}
-      {!open && requestable && asking ? (
-        <form className="stack" onSubmit={submit}>
-          {reach.length > 0 ? (
-            <Field label={t("links.send_to")}>
-              <select value={choice} onChange={(e) => setPicked(e.target.value)}>
-                {reach.map((c, i) => (
-                  <option key={`${c.kind}${c.messenger ?? ""}${c.value}`} value={String(i)} disabled={c.reach === "none"}>
-                    {`${contactLabel(t, c)}: ${c.value} — ${t(`links.reach_${c.reach}`)}`}
-                  </option>
-                ))}
-                <option value="id">{t("links.send_to_id")}</option>
-              </select>
-            </Field>
-          ) : null}
-          {choice === "id" ? (
-            <Field label={t(cardKind === "company" ? "links.target_company" : "links.target_id")}>
-              <input value={target} onChange={(e) => setTarget(e.target.value)} />
-            </Field>
-          ) : null}
-          {reach.length > 0 && !confirmed ? (
-            <p className="muted small">{t(sendable.length > 0 ? "links.none_confirmed" : "links.none_confirmed_no_email")}</p>
-          ) : null}
-          <p className="muted small">{t(cardKind === "company" ? "links.hint_company" : "links.hint_person")}</p>
-          <div className="actions">
-            <button type="submit" disabled={!sending || send.pending}>
-              {t("links.send")}
-            </button>
-            <button type="button" className="secondary" onClick={() => setAsking(false)}>
-              {t("common.cancel")}
-            </button>
-          </div>
-        </form>
       ) : null}
       <ErrorMessage error={send.error ?? cancel.error ?? breakLink.error ?? apply.error} />
     </Card>

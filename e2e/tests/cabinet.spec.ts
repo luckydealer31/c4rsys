@@ -91,7 +91,12 @@ test("a client links the card in the cabinet and sees the rental", async ({ page
   // The break is started by a button beside the state of the link; then a reason is chosen.
   await page.getByTestId("break-link").click();
   await expect(page.getByTestId("break-form").getByLabel(t("links.break_reason"))).toBeVisible();
+  // One more question before the break; «Cancel» leaves the link as it is.
+  await page.getByTestId("break-form").getByRole("button", { name: t("links.break") }).click();
+  await expect(page.getByTestId("break-confirm")).toContainText(t("links.break_confirm"));
+  await page.getByTestId("break-confirm").getByRole("button", { name: t("common.cancel") }).click();
   await page.getByTestId("break-form").getByRole("button", { name: t("common.cancel") }).click();
+  await expect(page.getByTestId("break-link")).toBeVisible();
   await expect(client.getByText(t("cabinet.order", { number: 1 }))).toBeVisible();
   await expect(client.getByText(`${t("cabinet.op_rental")}: Toyota Yaris`)).toBeVisible();
 
