@@ -15,6 +15,7 @@ class PartiesConfig(AppConfig):
 
         platform_search.register("client", parties_search.clients)
         platform_search.register("counterparty", parties_search.counterparty_hits)
+        platform_search.register("investor", parties_search.investor_hits)
         from c4rsys.notifications import rules
         from c4rsys.notifications import services as notifications
         from c4rsys.parties import notices

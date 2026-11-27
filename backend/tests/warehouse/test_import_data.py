@@ -248,7 +248,11 @@ def test_counterparties_are_searched_in_their_own_list(owner: Client) -> None:
     body = run(owner, s.cmp, operation, "post").json()["import"]
     assert body["rows"][0]["result"] == "created"
     card = Counterparty.objects.get(company_name="Parts Co")
-    assert (card.registration, card.category) == ("TAX 123", "Parts")
+    # The category of the file is a tag of the card (customer's decision of 28.11.2026).
+    assert (card.registration, card.category) == ("TAX 123", "")
+    marked = owner.get(f"/api/c/{s.cmp}/tag-links?type=counterparty").json()["links"]
+    names = {t["id"]: t["name"] for t in owner.get(f"/api/c/{s.cmp}/tags").json()["tags"]}
+    assert [names[i] for i in marked[str(card.id)]] == ["Parts"]
     # The messenger column of a phone gives a contact of its own (decision of 25.11.2026).
     assert sorted(card.contacts.values_list("kind", "messenger")) == [
         ("messenger", "line"),

@@ -61,6 +61,37 @@ test("tags of the company and personal tags are put on records and find them tog
   await expect(group("client").getByRole("link")).toHaveCount(1);
   await expect(group("vehicle").getByRole("link", { name: "Toyota Yaris" })).toBeVisible();
 
+  // The contacts (customer's decisions of 28.11.2026): the tags stand in the rows of the lists
+  // of the clients, the investors and the counterparties, and the lists are filtered by them;
+  // an investor carries tags as the others do.
+  const phone = [{ kind: "phone", value: "+66 80 111 2222" }];
+  const cmpPath = new URL(page.url()).pathname.match(/^\/c\/([^/]+)/)?.[1] ?? "";
+  await ok(page, "POST", `/c/${cmpPath}/clients`, { kind: "company", company_name: "Plain Client", contacts: phone });
+  const investor = (
+    (await ok(page, "POST", `/c/${cmpPath}/investors`, { kind: "company", company_name: "Tagged Capital", contacts: phone }))
+      .counterparty as { id: string }
+  ).id;
+  await ok(page, "POST", `/c/${cmpPath}/investors`, { kind: "company", company_name: "Plain Capital", contacts: phone });
+  await page.goto(`${s.base}/clients`);
+  await expect(page.locator("table tbody tr")).toHaveCount(2);
+  await expect(page.locator("table tbody tr .row-tags .tag-chip")).toHaveText(["VIP"]);
+  await page.getByTestId("tag-filter").getByRole("combobox").selectOption({ label: "VIP" });
+  await expect(page.locator("table tbody tr")).toHaveCount(1);
+  await expect(page.getByRole("link", { name: "Plain Client" })).toHaveCount(0);
+  await page.getByTestId("tag-filter").getByRole("button", { name: new RegExp(t("tags.filter_remove")) }).click();
+  await expect(page.locator("table tbody tr")).toHaveCount(2);
+  await page.goto(`${s.base}/clients/investors/${investor}`);
+  await choose(page, ["VIP"]);
+  await expect(page.locator(".tags-line .tag-chip")).toHaveText(["VIP"]);
+  await page.goto(`${s.base}/clients?tab=investors`);
+  await expect(page.locator("table tbody tr")).toHaveCount(2);
+  await page.getByTestId("tag-filter").getByRole("combobox").selectOption({ label: "VIP" });
+  await expect(page.locator("table tbody tr")).toHaveCount(1);
+  await expect(page.getByRole("link", { name: "Tagged Capital" })).toBeVisible();
+  // The category of a counterparty is not a field any more.
+  await page.goto(`${s.base}/clients?tab=counterparties`);
+  await expect(page.getByLabel(t("cards.field_category"))).toHaveCount(0);
+
   // The tags are seen in the lists of vehicles too: in the park and in the garage.
   await page.goto(`${s.base}/rentals?tab=park`);
   await expect(page.locator("table tbody tr .row-tags .tag-chip")).toHaveText(["VIP", "Проверить"]);
@@ -116,8 +147,8 @@ test("tags of the company and personal tags are put on records and find them tog
 
   // Archived, it is shown on no record; restored, its marks are back.
   await page.goto(`${s.base}/company/tags`);
-  // The client, the vehicle and the booking.
-  await expect(rows.filter({ hasText: "Gold" })).toContainText(t("tags.count", { count: 3 }));
+  // The client, the investor, the vehicle and the booking.
+  await expect(rows.filter({ hasText: "Gold" })).toContainText(t("tags.count", { count: 4 }));
   await rows.filter({ hasText: "Gold" }).getByRole("button", { name: t("tags.archive"), exact: true }).click();
   await expect(rows).toHaveCount(1);
   await page.goto(`${s.base}/vehicles/${s.vehicle}`);

@@ -20,7 +20,17 @@ from c4rsys.platform.commands import Actor, CommandContext
 from c4rsys.tags.models import NAME_MAX, Tag, TagGroup, TagGroupMember, TagLink
 
 # The kinds of records a tag is put on — as the single search names them.
-TYPES = ("client", "counterparty", "vehicle", "item", "order", "rental", "service_operation")
+# An investor is a kind of its own, as its list is (customer's decision of 28.11.2026).
+TYPES = (
+    "client",
+    "counterparty",
+    "investor",
+    "vehicle",
+    "item",
+    "order",
+    "rental",
+    "service_operation",
+)
 # The names of the same records in the journal, where they differ.
 JOURNAL_TYPES = {"client": "client_card", "vehicle": "vehicle_card", "item": "warehouse_item"}
 # Kinds shown on the page of a tag besides these: their sections put the tags by their own rules
@@ -323,6 +333,52 @@ def matching_ids(company_id: UUID, user_id: UUID | None, object_type: str, text:
             company_id=company_id, object_type=object_type, tag__in=tags
         ).values_list("object_id", flat=True)
     )
+
+
+def having_all(company_id: UUID, user_id: UUID, object_type: str, tag_ids: list[UUID]) -> set[UUID]:
+    """The records of a kind that carry every one of the tags — of the company or the user's
+    own: the filter of a list by tags (customer's decision of 28.11.2026). A tag the user does
+    not see finds nothing."""
+    seen = set(_active(company_id, user_id).filter(pk__in=tag_ids).values_list("id", flat=True))
+    if not tag_ids or seen != set(tag_ids):
+        return set()
+    found: set[UUID] | None = None
+    for tag_id in seen:
+        marked = set(
+            TagLink.objects.filter(
+                company_id=company_id, object_type=object_type, tag_id=tag_id
+            ).values_list("object_id", flat=True)
+        )
+        found = marked if found is None else found & marked
+    return found or set()
+
+
+def put_named(
+    ctx: CommandContext, company_id: UUID, object_type: str, object_id: UUID, name: str
+) -> Tag:
+    """A tag of the company by its name — made when there is none, taken out of the archive when
+    it lies there — put on the record besides the tags it has. The category of a counterparty
+    is a tag from now (customer's decision of 28.11.2026)."""
+    name = _name(name[:NAME_MAX])
+    tag = Tag.objects.filter(
+        company_id=company_id, owner_user_id__isnull=True, name_key=name.lower()
+    ).first()
+    if tag is None:
+        tag = Tag.objects.create(
+            company_id=company_id,
+            name=name,
+            name_key=name.lower(),
+            color=PALETTE[0],
+            created_by_user_id=ctx.actor.user_id,
+        )
+        _journal(ctx, "created", tag, after={"name": name, "color": tag.color})
+    elif tag.archived_at is not None:
+        tag.archived_at = None
+        tag.version += 1
+        tag.save(update_fields=["archived_at", "version"])
+        _journal(ctx, "restored", tag, after={"name": tag.name})
+    add_company_links(ctx.actor.user_id, company_id, object_type, [object_id], [tag])
+    return tag
 
 
 def _of_company(company_id: UUID) -> QuerySet[Tag]:

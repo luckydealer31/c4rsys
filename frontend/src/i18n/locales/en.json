@@ -6824,7 +6824,10 @@
     "add_to_group": "A tag in the group «{{group}}»",
     "system_group_storage_places": "Storage places",
     "system_where_storage_places": "Offered at the warehouse: the place of a unit or a lot.",
-    "add_first": "Add a tag"
+    "add_first": "Add a tag",
+    "filter": "Tag",
+    "filter_more": "One more tag",
+    "filter_remove": "Remove from the filter"
   },
   "moment": {
     "date": "date",

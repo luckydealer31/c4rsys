@@ -39,6 +39,14 @@ def _has(actor: Actor, *permissions: str) -> bool:
     return any(resolver.has_permission(actor, p) for p in permissions)
 
 
+def _tag_ids(request: HttpRequest) -> list[UUID]:
+    """`?tags=<id>,<id>` of a list: the tags its cards must carry."""
+    try:
+        return [UUID(x) for x in request.GET.get("tags", "").split(",") if x][:20]
+    except ValueError as exc:
+        raise errors.validation_error("tags") from exc
+
+
 def _require(actor: Actor, permission: str) -> None:
     if not _has(actor, permission):
         raise errors.permission_denied(permission)
@@ -110,7 +118,14 @@ def client_list(request: HttpRequest, cmp: str) -> JsonResponse:
         if state not in (ClientCard.State.ACTIVE, ClientCard.State.ARCHIVED):
             raise errors.validation_error("state")
         also = tags.matching_ids(context.company.id, actor.user_id, "client", text)
-        found = list(services.search(context.company.id, text, state, also)[:LIST_LIMIT])
+        cards = services.search(context.company.id, text, state, also)
+        chosen = _tag_ids(request)
+        if chosen:
+            # Only the cards that carry every chosen tag (customer's decision of 28.11.2026).
+            cards = cards.filter(
+                pk__in=tags.having_all(context.company.id, actor.user_id, "client", chosen)
+            )
+        found = list(cards[:LIST_LIMIT])
         return JsonResponse({"clients": _payloads(context.company.id, found)})
 
     _require(actor, "client.create")
@@ -470,10 +485,14 @@ def counterparty_list(request: HttpRequest, cmp: str, role: str = COUNTERPARTY) 
             raise errors.validation_error("state")
         text = request.GET.get("q", "")[:100]
         category = request.GET.get("category", "")[:100]
-        also = tags.matching_ids(context.company.id, actor.user_id, "counterparty", text)
-        found = counterparties.search(context.company.id, text, state, category, also, role)[
-            :LIST_LIMIT
-        ]
+        also = tags.matching_ids(context.company.id, actor.user_id, role, text)
+        cards = counterparties.search(context.company.id, text, state, category, also, role)
+        chosen = _tag_ids(request)
+        if chosen:
+            cards = cards.filter(
+                pk__in=tags.having_all(context.company.id, actor.user_id, role, chosen)
+            )
+        found = cards[:LIST_LIMIT]
         return JsonResponse({"counterparties": [_counterparty_payload(c) for c in found]})
 
     _require(actor, f"{role}.create")

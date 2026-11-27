@@ -6824,7 +6824,10 @@
     "add_to_group": "Тег в группу «{{group}}»",
     "system_group_storage_places": "Места хранения",
     "system_where_storage_places": "Где: склад — место экземпляра или партии.",
-    "add_first": "Добавить тег"
+    "add_first": "Добавить тег",
+    "filter": "Тег",
+    "filter_more": "Ещё тег",
+    "filter_remove": "Убрать из отбора"
   },
   "moment": {
     "date": "дата",

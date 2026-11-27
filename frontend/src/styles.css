@@ -851,6 +851,9 @@ a.tag-chip:hover { border-color: var(--tag); }
 .tag-chip.personal { background: transparent; border: 1px dashed var(--tag); border-radius: 5px; }
 .tags-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: var(--gap); }
 /* The tags of a row of a list: smaller, beside the name. */
+.tag-filter { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.tag-filter select { width: auto; }
+.tag-filter-chosen { display: inline-flex; align-items: center; gap: 4px; padding: 0 4px; min-height: 0; background: transparent; border: 0; color: var(--muted); cursor: pointer; }
 .row-tags { display: inline-flex; flex-wrap: wrap; gap: 4px; vertical-align: middle; }
 .row-tags .tag-chip { font-size: 0.75rem; padding: 0 8px; }
 .card-head .tags-line { margin-bottom: 0; }

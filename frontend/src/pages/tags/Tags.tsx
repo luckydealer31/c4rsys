@@ -54,7 +54,7 @@ export function offeredFor(tag: Tag, groups: TagGroup[], kind: string) {
   return !group || group.kinds.length === 0 || group.kinds.includes(kind);
 }
 /** The kinds of records a tag is put on — as the single search names them. */
-export type TagKind = "client" | "counterparty" | "vehicle" | "item" | "order" | "rental" | "service_operation";
+export type TagKind = "client" | "counterparty" | "investor" | "vehicle" | "item" | "order" | "rental" | "service_operation";
 
 export function useTags() {
   const company = useCompany();
@@ -93,6 +93,49 @@ export function useTagsOf(kind: TagKind) {
     (links.data?.links[id] ?? [])
       .flatMap((tag) => byId.get(tag) ?? [])
       .sort((a, b) => Number(a.personal) - Number(b.personal) || a.name.localeCompare(b.name));
+}
+
+/** The filter of a list by tags (customer's decision of 28.11.2026): the tags offered for the
+ * kind are chosen one by one; the list shows the records that carry every chosen tag. */
+export function TagFilter({ kind, chosen, onChange }: { kind: TagKind; chosen: string[]; onChange: (ids: string[]) => void }) {
+  const { t } = useTranslation();
+  const tags = useTags();
+  const offered = (tags.data?.tags ?? []).filter((tag) => !tag.archived && offeredFor(tag, tags.data?.groups ?? [], kind));
+  if (!offered.length) return null;
+  const picked = offered.filter((tag) => chosen.includes(tag.id));
+  const rest = offered.filter((tag) => !chosen.includes(tag.id));
+  return (
+    <span className="tag-filter" data-testid="tag-filter">
+      {picked.map((tag) => (
+        <button
+          key={tag.id}
+          type="button"
+          className="tag-filter-chosen"
+          aria-label={`${t("tags.filter_remove")}: ${tag.name}`}
+          title={t("tags.filter_remove")}
+          onClick={() => onChange(chosen.filter((id) => id !== tag.id))}
+        >
+          <TagChip tag={tag} /> ×
+        </button>
+      ))}
+      {rest.length ? (
+        <select
+          value=""
+          aria-label={t("tags.filter")}
+          onChange={(e) => {
+            if (e.target.value) onChange([...chosen, e.target.value]);
+          }}
+        >
+          <option value="">{t(picked.length ? "tags.filter_more" : "tags.filter")}</option>
+          {rest.map((tag) => (
+            <option key={tag.id} value={tag.id}>
+              {tag.name}
+            </option>
+          ))}
+        </select>
+      ) : null}
+    </span>
+  );
 }
 
 /** The tags of a row of a list: small marks that lead to the page of the tag. */

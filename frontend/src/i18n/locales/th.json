@@ -6824,7 +6824,10 @@
     "add_to_group": "แท็กในกลุ่ม «{{group}}»",
     "system_group_storage_places": "ตำแหน่งจัดเก็บ",
     "system_where_storage_places": "แสดงที่คลังสินค้า: ตำแหน่งของชิ้นหรือล็อต",
-    "add_first": "เพิ่มแท็ก"
+    "add_first": "เพิ่มแท็ก",
+    "filter": "แท็ก",
+    "filter_more": "แท็กเพิ่มเติม",
+    "filter_remove": "นำออกจากตัวกรอง"
   },
   "moment": {
     "date": "วันที่",

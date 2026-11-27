@@ -13,7 +13,7 @@ import { Card, ErrorMessage, Field, IconButton, Loading } from "../../components
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { SectionTabs } from "../../layout/SectionTabs";
 import { useFirstTab } from "../../layout/tabOrder";
-import { TagsLine } from "../tags/Tags";
+import { RowTags, TagFilter, TagsLine, useTagsOf } from "../tags/Tags";
 import { CardBadges } from "./ClientsPage";
 import { ContactsEditor, contactsOf, type ContactRow } from "./ContactsEditor";
 import { ContractorHistoryCard, MergeCard } from "./CardExtras";
@@ -57,16 +57,14 @@ export function CounterpartiesList({ list: of = "counterparty" }: { list?: Party
   const investors = of === "investor";
   const [query, setQuery] = useState("");
   const [archived, setArchived] = useState(false);
-  // The list is filtered by the categories of the directory of the company (15.11.2026).
-  const [category, setCategory] = useState("");
-  const categories = useApi<{ categories: string[] }>(
-    ["counterparty-categories", company.public_id],
-    `/c/${company.public_id}/counterparties/categories`,
-    !investors && can("counterparty.view"),
-  );
+  // The list is filtered by tags; the category of a counterparty is a tag now (customer's
+  // decisions of 28.11.2026).
+  const [tags, setTags] = useState<string[]>([]);
+  const kind = investors ? "investor" : "counterparty";
+  const tagsOf = useTagsOf(kind);
   const list = useApi<{ counterparties: Counterparty[] }>(
-    [api, company.public_id, query, archived, category],
-    `/c/${company.public_id}/${api}?q=${encodeURIComponent(query)}&state=${archived ? "archived" : "active"}&category=${encodeURIComponent(category)}`,
+    [api, company.public_id, query, archived, tags.join(",")],
+    `/c/${company.public_id}/${api}?q=${encodeURIComponent(query)}&state=${archived ? "archived" : "active"}&tags=${tags.join(",")}`,
     can(`${of}.view`),
   );
   return (
@@ -83,16 +81,7 @@ export function CounterpartiesList({ list: of = "counterparty" }: { list?: Party
               aria-label={t("counterparties.search")}
               data-testid={`${api}-search`}
             />
-            {categories.data?.categories.length ? (
-              <select value={category} aria-label={t("cards.field_category")} onChange={(e) => setCategory(e.target.value)}>
-                <option value="">{t("cards.category_all")}</option>
-                {categories.data.categories.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-            ) : null}
+            <TagFilter kind={kind} chosen={tags} onChange={setTags} />
             <label>
               <input type="checkbox" checked={archived} onChange={(e) => setArchived(e.target.checked)} />{" "}
               {t("counterparties.show_archived")}
@@ -105,10 +94,10 @@ export function CounterpartiesList({ list: of = "counterparty" }: { list?: Party
               {(list.data?.counterparties ?? []).map((card) => (
                 <tr key={card.id}>
                   <td>
-                    <Link to={companyPath(company, cardPath(of, card.id))}>{card.name}</Link>
+                    <Link to={companyPath(company, cardPath(of, card.id))}>{card.name}</Link>{" "}
+                    <RowTags tags={tagsOf(card.id)} />
                   </td>
                   <td>{t(`clients.kind_${card.kind}`)}</td>
-                  <td>{card.category}</td>
                   <td className="small muted">{card.contacts.map((c) => c.value).join(", ")}</td>
                 </tr>
               ))}
@@ -337,7 +326,7 @@ export function CounterpartyPage({ list: of = "counterparty" }: { list?: PartyLi
           style={{ flex: 1 }}
         />
       </div>
-      {investor ? null : <TagsLine kind="counterparty" id={data.id} />}
+      <TagsLine kind={investor ? "investor" : "counterparty"} id={data.id} />
       {mergedInto ? (
         <div className="alert warn">
           {t("cards.merged_banner")}{" "}

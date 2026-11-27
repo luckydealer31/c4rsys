@@ -18,6 +18,9 @@ def cmp(owner: Client) -> str:
     return public_id
 
 
+PHONE = [{"kind": "phone", "value": "+66 81 234 5678"}]
+
+
 def create(owner: Client, cmp: str, **data: Any) -> Any:
     body = {"kind": "company", "company_name": "Auto Parts Co", **data}
     body.setdefault("contacts", [{"kind": "phone", "value": "+66 81 234 5678"}])
@@ -77,22 +80,83 @@ def test_rights_are_separate(owner: Client, cmp: str) -> None:
     assert create(viewer, cmp).status_code == 403
 
 
-def test_categories_are_a_directory_of_the_company_and_filter_the_list(
-    owner: Client, cmp: str
-) -> None:
-    """Customer's decision of 15.11.2026: a category is created by setting it in a card, is
-    chosen from the list of the company afterwards and filters the list of counterparties."""
-    create(owner, cmp, company_name="Parts Co", category="Parts")
+def test_a_category_is_a_tag_and_the_lists_are_filtered_by_tags(owner: Client, cmp: str) -> None:
+    """Customer's decisions of 28.11.2026: the category of a counterparty is a tag — what is
+    named as a category is put on the card as a tag of the company; the lists of the clients,
+    the investors and the counterparties are filtered by tags; an investor carries tags too."""
+    parts = create(owner, cmp, company_name="Parts Co", category="Parts").json()["counterparty"]
     create(owner, cmp, company_name="Wash Co", category="Washing")
-    create(owner, cmp, company_name="Other Parts", category="Parts")
+    other = create(owner, cmp, company_name="Other Parts", category="parts").json()["counterparty"]
     create(owner, cmp, company_name="No Category")
-    listed = owner.get(f"/api/c/{cmp}/counterparties/categories").json()["categories"]
-    assert listed == ["Parts", "Washing"]
-    found = owner.get(f"/api/c/{cmp}/counterparties?category=Parts").json()["counterparties"]
+    assert parts["category"] == ""
+    assert owner.get(f"/api/c/{cmp}/counterparties/categories").json()["categories"] == []
+    tags = {t["name"]: t for t in owner.get(f"/api/c/{cmp}/tags").json()["tags"]}
+    assert sorted(tags) == ["Parts", "Washing"] and tags["Parts"]["count"] == 2
+    url = f"/api/c/{cmp}/counterparties"
+    found = owner.get(f"{url}?tags={tags['Parts']['id']}").json()["counterparties"]
     assert sorted(c["name"] for c in found) == ["Other Parts", "Parts Co"]
-    # The directory belongs to the company: an employee without rights on counterparties is refused.
-    clerk, _ = hire(owner, cmp, "clerk@example.com", [])
-    assert clerk.get(f"/api/c/{cmp}/counterparties/categories").status_code == 403
+    # Every chosen tag must be on the card.
+    both = f"{tags['Parts']['id']},{tags['Washing']['id']}"
+    assert owner.get(f"{url}?tags={both}").json()["counterparties"] == []
+    assert owner.get(f"{url}?tags=nonsense").status_code == 400
+    # A category given in a change of the card becomes a tag as well.
+    changed = owner.patch(
+        f"{url}/{other['id']}",
+        data={"category": "Washing", "expected_version": other["version"]},
+        content_type="application/json",
+        headers=key(),
+    )
+    assert changed.status_code == 200, changed.content
+    assert len(owner.get(f"{url}?tags={both}").json()["counterparties"]) == 1
+
+    # An investor and a client carry tags; their lists are filtered the same way.
+    investor = post(
+        owner,
+        f"/api/c/{cmp}/investors",
+        {"kind": "company", "company_name": "Capital", "contacts": PHONE},
+        key(),
+    ).json()["counterparty"]
+    post(
+        owner,
+        f"/api/c/{cmp}/investors",
+        {"kind": "company", "company_name": "Plain", "contacts": PHONE},
+        key(),
+    )
+    put = owner.put(
+        f"/api/c/{cmp}/tag-links",
+        data={"type": "investor", "id": investor["id"], "tag_ids": [tags["Parts"]["id"]]},
+        content_type="application/json",
+        headers=key(),
+    )
+    assert put.status_code == 200, put.content
+    links = owner.get(f"/api/c/{cmp}/tag-links?type=investor").json()["links"]
+    assert links == {investor["id"]: [tags["Parts"]["id"]]}
+    listed = owner.get(f"/api/c/{cmp}/investors?tags={tags['Parts']['id']}").json()
+    assert [c["name"] for c in listed["counterparties"]] == ["Capital"]
+    # The tag of the investor is not a tag of a counterparty with the same id.
+    assert (
+        investor["id"] not in owner.get(f"/api/c/{cmp}/tag-links?type=counterparty").json()["links"]
+    )
+    client = post(
+        owner,
+        f"/api/c/{cmp}/clients",
+        {"kind": "company", "company_name": "Client Co", "contacts": PHONE},
+        key(),
+    ).json()["client"]
+    post(
+        owner,
+        f"/api/c/{cmp}/clients",
+        {"kind": "company", "company_name": "Else", "contacts": PHONE},
+        key(),
+    )
+    owner.put(
+        f"/api/c/{cmp}/tag-links",
+        data={"type": "client", "id": client["id"], "tag_ids": [tags["Washing"]["id"]]},
+        content_type="application/json",
+        headers=key(),
+    )
+    listed = owner.get(f"/api/c/{cmp}/clients?tags={tags['Washing']['id']}").json()["clients"]
+    assert [c["name"] for c in listed] == ["Client Co"]
 
 
 def test_a_person_counterparty_has_a_birth_date(owner: Client, cmp: str) -> None:

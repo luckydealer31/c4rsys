@@ -144,7 +144,6 @@ def create(
         comment=data.comment,
         registration=data.registration,
         address=data.address,
-        category=data.category,
         external_id=data.external_id,
         possible_duplicate=possible_duplicate,
         provisional=provisional,
@@ -156,7 +155,19 @@ def create(
     ctx.audit(
         "counterparty.created", object_type=card.role, object_id=card.id, after=snapshot(card)
     )
+    _category_tag(ctx, card, data.category)
     return card
+
+
+def _category_tag(ctx: CommandContext, card: Counterparty, category: str) -> None:
+    """The category of a card is a tag (customer's decision of 28.11.2026): the field is not
+    kept; what an import or an older form names as the category is put on the card as a tag of
+    the company with that name."""
+    if not category.strip():
+        return
+    from c4rsys.tags import services as tags
+
+    tags.put_named(ctx, card.company_id, card.role, card.id, category)
 
 
 def _lock(company_id: UUID, counterparty_id: UUID, expected_version: int) -> Counterparty:
@@ -187,6 +198,7 @@ def update(
     card = _lock(company_id, counterparty_id, expected_version)
     before = snapshot(card)
     matched_before = duplicate_ids(card, duplicates_of)
+    _category_tag(ctx, card, str(changes.pop("category", "") or ""))
     for key, value in changes.items():
         setattr(card, key, value)
     CounterpartyData(

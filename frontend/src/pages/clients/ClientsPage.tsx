@@ -16,7 +16,7 @@ import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { CompanyTabs } from "../../layout/CompanyTabs";
 import { SectionTabs } from "../../layout/SectionTabs";
 import { useFirstTab } from "../../layout/tabOrder";
-import { TagsLine } from "../tags/Tags";
+import { RowTags, TagFilter, TagsLine, useTagsOf } from "../tags/Tags";
 import { EmployeesList, InviteForm } from "../settings/EmployeesPage";
 import { cardPath, type CardType } from "./cardLists";
 import { CounterpartiesList } from "./Counterparties";
@@ -208,9 +208,12 @@ function ClientsList() {
   const can = useCan();
   const [query, setQuery] = useState("");
   const [archived, setArchived] = useState(false);
+  // The list is filtered by tags, and the tags stand in its rows (decisions of 28.11.2026).
+  const [tags, setTags] = useState<string[]>([]);
+  const tagsOf = useTagsOf("client");
   const list = useApi<{ clients: Client[] }>(
-    ["clients", company.public_id, query, archived],
-    `/c/${company.public_id}/clients?q=${encodeURIComponent(query)}&state=${archived ? "archived" : "active"}`,
+    ["clients", company.public_id, query, archived, tags.join(",")],
+    `/c/${company.public_id}/clients?q=${encodeURIComponent(query)}&state=${archived ? "archived" : "active"}&tags=${tags.join(",")}`,
     can("client.list"),
   );
   return (
@@ -226,6 +229,7 @@ function ClientsList() {
               placeholder={t("clients.search")}
               aria-label={t("clients.search")}
             />
+            <TagFilter kind="client" chosen={tags} onChange={setTags} />
             {/* § 6.6.4: archived cards are found with the «Archive» filter. */}
             <label>
               <input type="checkbox" checked={archived} onChange={(e) => setArchived(e.target.checked)} />{" "}
@@ -239,7 +243,7 @@ function ClientsList() {
                 <tr key={client.id}>
                   <td>
                     <Link to={companyPath(company, `/clients/${client.id}`)}>{client.name || clientName(client)}</Link>{" "}
-                    <CardBadges card={client} />
+                    <CardBadges card={client} /> <RowTags tags={tagsOf(client.id)} />
                   </td>
                   <td className="small muted">{client.contacts.map((c) => c.value).join(", ")}</td>
                 </tr>
