@@ -420,7 +420,10 @@ export function EndManagementModal({
   const [reason, setReason] = useState("");
   // Copies of the company's documents the owner gets at the end of the management.
   const [passed, setPassed] = useState<string[]>([]);
-  const passable = (vehicle.card_documents ?? []).filter((d) => d.state === "active");
+  // What the owner already has a copy of is not offered again (customer's decision of 28.11.2026).
+  const passable = (vehicle.card_documents ?? []).filter(
+    (d) => d.state === "active" && !(vehicle.documents_with_owner ?? []).includes(d.id),
+  );
   const end = useVehicleCommand(vehicle, "end-management");
   const company = useCompany();
   // The owner — an investor — becomes a client. With clients alike him one of them, and only of

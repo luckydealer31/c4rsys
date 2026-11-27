@@ -110,6 +110,44 @@ def items_payload(items: list[Item]) -> list[dict[str, Any]]:
     ]
 
 
+def company_files(card: VehicleCard) -> set[UUID]:
+    """The files of the documents the company keeps for the card, not in the archive."""
+    return {d.file_id for d in card_documents.active_of(card.id) if d.file_id is not None}
+
+
+def owner_files(vehicle_id: UUID) -> set[UUID]:
+    """The files of the owner's documents of the vehicle, not in the archive."""
+    return {
+        v.file_id
+        for _, v in vehicle_documents.active_documents(vehicle_id)
+        if v.file_id is not None
+    }
+
+
+def _target_files(card: VehicleCard) -> set[UUID] | None:
+    """The files the confirmed owner already has; None — there is nobody to pass to."""
+    found = _recipient(card)
+    if found is None:
+        return None
+    return company_files(found[1]) if found[1] is not None else owner_files(card.vehicle_id)
+
+
+def new_for(items: list[Item], files: set[UUID]) -> list[Item]:
+    """A copy is not made twice (customer's decision of 28.11.2026): a document whose file the
+    receiving side already has among its documents is not passed and is not offered. A document
+    without a file is not compared — the same name and number may be another paper."""
+    return [i for i in items if i.file_id is None or i.file_id not in files]
+
+
+def already_with_owner(card: VehicleCard) -> list[str]:
+    """The documents of the card the owner already has a copy of: not offered at the end of
+    the management."""
+    files = _target_files(card)
+    if not files:
+        return []
+    return [str(d.id) for d in card_documents.active_of(card.id) if d.file_id in files]
+
+
 def _chosen(items: list[Item], ids: list[UUID]) -> list[Item]:
     by_id = {i.id: i for i in items}
     unknown = [str(i) for i in ids if i not in by_id]
@@ -136,7 +174,8 @@ def to_company(
         raise errors.business_rule("VEHICLE_DOCUMENTS_NEED_MANAGEMENT")
     items = owner_items(card.vehicle_id, user_id=owner_user_id, company_id=owner_company_id)
     source = {"owner_company": str(owner_company_id)} if owner_company_id else {"owner": "person"}
-    for item in _chosen(items, document_ids):
+    passed = new_for(_chosen(items, document_ids), company_files(card))
+    for item in passed:
         card_documents.receive(
             ctx,
             card,
@@ -149,7 +188,7 @@ def to_company(
             source=source,
             issued_by=item.issued_by,
         )
-    return len(document_ids)
+    return len(passed)
 
 
 def _recipient(card: VehicleCard) -> tuple[UUID | None, VehicleCard | None] | None:
@@ -184,7 +223,7 @@ def to_owner(ctx: CommandContext, card: VehicleCard, document_ids: list[UUID]) -
         )
         for d in card_documents.active_of(card.id)
     ]
-    chosen = _chosen(items, document_ids)
+    chosen = new_for(_chosen(items, document_ids), _target_files(card) or set())
     for item in chosen:
         if target is not None:
             card_documents.receive(

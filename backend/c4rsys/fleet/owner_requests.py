@@ -829,8 +829,12 @@ def incoming_payload(
     state = effective_state(request, now)
     documents = (
         document_transfer.items_payload(
-            document_transfer.owner_items(
-                request.vehicle_id, user_id=user_id, company_id=company_id
+            # What the company already has a copy of is not offered (decision of 28.11.2026).
+            document_transfer.new_for(
+                document_transfer.owner_items(
+                    request.vehicle_id, user_id=user_id, company_id=company_id
+                ),
+                document_transfer.company_files(request.vehicle_card),
             )
         )
         if state == State.OPEN and (user_id or company_id)

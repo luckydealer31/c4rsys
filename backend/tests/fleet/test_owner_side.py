@@ -519,6 +519,19 @@ def test_owner_passes_copies_to_the_managing_company(owner: Client, s: Scenario)
     assert later.status_code == 200, later.content
     names = [d["name"] for d in owner.get(url).json()["vehicle"]["card_documents"]]
     assert names == ["Blue Book", "Policy"]
+    # A copy is not made twice (customer's decision of 28.11.2026): the document with the file
+    # the company already has is passed again — nothing is added.
+    again = post(
+        somchai,
+        f"/api/cabinet/garage/{vhl}/documents/pass",
+        {"card_id": managers[0]["card_id"], "document_ids": [book["id"], licence["id"]]},
+        key(),
+    )
+    assert again.status_code == 200, again.content
+    names = [d["name"] for d in owner.get(url).json()["vehicle"]["card_documents"]]
+    assert names == ["Blue Book", "Policy", "Licence"]
+    # The other way too: the owner has the file of this copy, so it is not offered to him.
+    assert owner.get(url).json()["vehicle"]["documents_with_owner"] == [copy["id"]]
     # The copy is the company's own: its change does not touch the owner's document.
     changed = owner.put(
         f"{url}/card-documents/{copy['id']}",
@@ -529,9 +542,6 @@ def test_owner_passes_copies_to_the_managing_company(owner: Client, s: Scenario)
     assert changed.status_code == 200, changed.content
     own = somchai.get(f"/api/cabinet/garage/{vhl}").json()["vehicle"]["documents"]
     assert {d["name"] for d in own} == {"Blue Book", "Policy", "Licence"}
-    assert licence["id"] not in {
-        d["id"] for d in owner.get(url).json()["vehicle"]["card_documents"]
-    }
 
 
 def test_company_passes_copies_to_the_owner_at_the_end(owner: Client, s: Scenario) -> None:

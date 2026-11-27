@@ -696,6 +696,8 @@ export type Vehicle = {
   card_documents?: CardDocument[];
   /** Who gets copies of the documents at the end of the management; null — nobody. */
   documents_recipient?: "person" | "company" | null;
+  /** The documents of the card the owner already has a copy of. */
+  documents_with_owner?: string[];
   global_documents?: {
     access: "ownership" | "management" | "grant" | null;
     documents: GlobalDocument[];

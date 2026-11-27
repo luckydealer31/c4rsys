@@ -113,6 +113,8 @@ def _payload(
     body["card_documents"] = card_documents.card_payload(card)
     # Whether copies of the documents can be passed to the owner at the end of the management.
     body["documents_recipient"] = document_transfer.recipient(card)
+    # The owner already has a copy of these: they are not offered again.
+    body["documents_with_owner"] = document_transfer.already_with_owner(card)
     body["transfer_reversals"] = lifecycle.reversals_of_card(card)
     body["sold_to_profile"] = lifecycle.sold_ownership(card) is not None
     return body
