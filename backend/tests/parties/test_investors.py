@@ -166,3 +166,105 @@ def test_the_owners_named_as_counterparties_become_investors(
     assert str(owner_of(first)) == plain["id"] and owner_of(second) == copy.id
     shown = owner.get(f"/api/c/{cmp}/investors/{copy.id}/vehicles").json()
     assert [v["id"] for v in shown["vehicles"]] == [second] and shown["count"] == 1
+
+
+def test_the_end_of_the_management_makes_the_investor_a_client(owner: Client, cmp: str) -> None:
+    """Customer's decision of 27.11.2026: the vehicle becomes a client's one, so its owner
+    becomes a client with the same data, and the investor does not show the vehicle any more."""
+    location = post(owner, f"/api/c/{cmp}/locations", {"name": "Phuket"}, key()).json()["location"]
+    investor = create(
+        owner,
+        cmp,
+        kind="person",
+        company_name="",
+        first_name="Timofey",
+        last_name="Shchukin",
+        tax_number="",
+        registration_address="Phuket, Rawai 5",
+    ).json()["counterparty"]
+    body = {
+        "location_id": location["id"],
+        "odometer_unit": "km",
+        "name": "Yaris",
+        "vin": "JTDBT923771234567",
+        "relation": "managed",
+        "owner_kind": "counterparty",
+        "owner_counterparty_id": investor["id"],
+    }
+    vehicle = post(owner, f"/api/c/{cmp}/vehicles", body, key()).json()["vehicle"]
+    listed = f"/api/c/{cmp}/investors/{investor['id']}/vehicles"
+    assert owner.get(listed).json()["count"] == 1
+
+    ended = post(
+        owner,
+        f"/api/c/{cmp}/vehicles/{vehicle['id']}/end-management",
+        {"reason": "Given back", "then": "client", "expected_version": vehicle["version"]},
+        key(),
+    )
+
+    assert ended.status_code == 200, ended.content
+    after = ended.json()["vehicle"]
+    assert after["relation"] == "client" and after["owner"]["kind"] == "client"
+    client = ClientCard.objects.get(pk=after["owner"]["client"]["id"])
+    assert (client.kind, client.first_name, client.last_name) == ("person", "Timofey", "Shchukin")
+    assert client.registration_address == "Phuket, Rawai 5"
+    assert [c.value for c in client.contacts.all()] == ["+66 81 234 5678"]
+    # The card of the investor stays, without the vehicle.
+    assert Counterparty.objects.get(pk=investor["id"]).state == "active"
+    assert owner.get(listed).json() == {"vehicles": [], "count": 0}
+
+    # Taken again and ended again: the client made before is alike now — the employee chooses
+    # him, only of the clients alike, or a new card; nothing is chosen for him.
+    def again(version: int, **extra: Any) -> Any:
+        taken = post(
+            owner,
+            f"/api/c/{cmp}/vehicles/{vehicle['id']}/take-into-management",
+            {
+                "reason": "Back",
+                "location_id": location["id"],
+                "expected_version": version,
+                "owner_kind": "counterparty",
+                "owner_counterparty_id": investor["id"],
+            },
+            key(),
+        )
+        assert taken.status_code == 200, taken.content
+        url = f"/api/c/{cmp}/vehicles/{vehicle['id']}/end-management"
+        offered = owner.get(url).json()["clients"]
+        body = {
+            "reason": "Given back",
+            "then": "client",
+            "expected_version": taken.json()["vehicle"]["version"],
+            **extra,
+        }
+        return offered, post(owner, url, body, key())
+
+    offered, refused = again(after["version"])
+    assert [(c["id"], c["name"]) for c in offered] == [(str(client.id), "Shchukin Timofey")]
+    assert "phone" in offered[0]["matched"] and "name" in offered[0]["matched"]
+    assert refused.status_code == 400 and refused.json()["error"]["code"] == "CHOICE_REQUIRED"
+    stranger = post(
+        owner,
+        f"/api/c/{cmp}/clients",
+        {
+            "kind": "company",
+            "company_name": "Stranger",
+            "contacts": [{"kind": "phone", "value": "+66 80 000 0000"}],
+        },
+        key(),
+    ).json()["client"]
+    url = f"/api/c/{cmp}/vehicles/{vehicle['id']}/end-management"
+    current = owner.get(f"/api/c/{cmp}/vehicles/{vehicle['id']}").json()["vehicle"]
+    body = {"reason": "Given back", "then": "client", "expected_version": current["version"]}
+    not_alike = post(owner, url, {**body, "owner_client": stranger["id"]}, key())
+    assert not_alike.status_code == 400 and not_alike.json()["error"]["code"] == "CLIENT_UNKNOWN"
+    chosen = post(owner, url, {**body, "owner_client": str(client.id)}, key())
+    assert chosen.status_code == 200, chosen.content
+    assert chosen.json()["vehicle"]["owner"]["client"]["id"] == str(client.id)
+    assert ClientCard.objects.filter(last_name="Shchukin").count() == 1
+
+    _, anew = again(chosen.json()["vehicle"]["version"], owner_client="new")
+    assert anew.status_code == 200, anew.content
+    assert anew.json()["vehicle"]["owner"]["client"]["id"] != str(client.id)
+    assert ClientCard.objects.filter(last_name="Shchukin").count() == 2
+    assert ClientCard.objects.filter(last_name="Shchukin", possible_duplicate=True).count() == 1

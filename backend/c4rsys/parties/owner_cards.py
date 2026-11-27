@@ -13,7 +13,7 @@ from typing import Any
 from uuid import UUID
 
 from c4rsys.companies.models import Company
-from c4rsys.parties import counterparties, services
+from c4rsys.parties import counterparties, extended, services
 from c4rsys.parties.models import ClientCard, Counterparty
 from c4rsys.platform import errors
 from c4rsys.platform.commands import CommandContext
@@ -131,6 +131,60 @@ def create(
         list(new.contacts),
         possible_duplicate=bool(services.matches(company.id, new.query())),
     )
+
+
+def _contacts(investor: Counterparty) -> list[services.Contact]:
+    return [
+        services.Contact(c.kind, c.value, c.value_normalized, c.messenger)
+        for c in investor.contacts.order_by("kind", "value")
+    ]
+
+
+def clients_like(company_id: UUID, investor: Counterparty) -> list[tuple[ClientCard, list[str]]]:
+    """The clients of the company alike the investor, with what matched (§ 6.1.11): one of them
+    may be chosen as the owner when the management ends (customer's decision of 27.11.2026).
+    Only the active cards are offered."""
+    found = services.matches(
+        company_id,
+        services.MatchQuery(
+            first_name=investor.first_name,
+            last_name=investor.last_name,
+            birth_date=investor.birth_date,
+            company_name=investor.company_name,
+            contacts=tuple(_contacts(investor)),
+        ),
+    )
+    return [(c, why) for c, why in found if c.state == ClientCard.State.ACTIVE]
+
+
+def client_of_investor(ctx: CommandContext, company: Company, investor: Counterparty) -> ClientCard:
+    """The management of a vehicle is ended and it becomes a client's one: its owner becomes a
+    client with the same data as the investor had (customer's decision of 27.11.2026). The card
+    of the investor stays. The data are copied as they are, without the minimum of a new card;
+    a client alike is not merged — the new card is marked as a possible duplicate (§ 6.5.1)."""
+    contacts = _contacts(investor)
+    alike = clients_like(company.id, investor)
+    card = ClientCard.objects.create(
+        company=company,
+        kind=investor.kind,
+        first_name=investor.first_name,
+        last_name=investor.last_name,
+        middle_name=investor.middle_name,
+        birth_date=investor.birth_date,
+        company_name=investor.company_name,
+        address=investor.address,
+        possible_duplicate=bool(alike),
+        created_by_user_id=ctx.actor.user_id,
+        **{name: getattr(investor, name) for name in extended.FIELDS},
+    )
+    services.write_contacts(card, contacts)
+    ctx.audit(
+        "client.created",
+        object_type="client_card",
+        object_id=card.id,
+        after={**services.snapshot(card), "copied_from_investor": str(investor.id)},
+    )
+    return card
 
 
 def chosen(company_id: UUID, card_type: str, card_id: UUID) -> ClientCard | Counterparty:

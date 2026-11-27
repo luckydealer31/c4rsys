@@ -7,7 +7,7 @@ import { CardSettings } from "./CardSettings";
 import { apiList, cardPath, listPath, type PartyList } from "./cardLists";
 
 import { useApi } from "../../api/queries";
-import type { Counterparty } from "../../api/types";
+import type { Counterparty, Vehicle } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, IconButton, Loading } from "../../components/ui";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
@@ -20,6 +20,7 @@ import { ContractorHistoryCard, MergeCard } from "./CardExtras";
 import { DocumentsCard, Facts, MainCard, SupplierHistoryCard } from "./CardParts";
 import { LinkedDocuments } from "../documents/DocumentsPage";
 import { SupplierCard } from "../finance/Settlements";
+import { EndManagementModal } from "../vehicles/VehicleLifecycle";
 
 type Draft = {
   kind: "person" | "company";
@@ -223,27 +224,62 @@ export function InvestorPage() {
   return <CounterpartyPage list="investor" />;
 }
 
-/** The vehicles an investor gave into the management. */
+/** The window that ends the management needs the whole card of the vehicle: its version and
+ * its documents. */
+function EndFromInvestor({ id, onClose, onDone }: { id: string; onClose: () => void; onDone: () => void }) {
+  const company = useCompany();
+  const found = useApi<{ vehicle: Vehicle }>(["vehicle", company.public_id, id], `/c/${company.public_id}/vehicles/${id}`);
+  if (!found.data) return null;
+  return <EndManagementModal vehicle={found.data.vehicle} onClose={onClose} onDone={onDone} />;
+}
+
+/** The vehicles an investor gave into the management. The management of one of them is ended
+ * right here (customer's decision of 27.11.2026). */
 function InvestorVehicles({ id }: { id: string }) {
   const { t } = useTranslation();
   const company = useCompany();
+  const can = useCan();
+  const client = useQueryClient();
   const found = useApi<{ vehicles: { id: string; name: string }[]; count: number }>(
     ["investor-vehicles", company.public_id, id],
     `/c/${company.public_id}/investors/${id}/vehicles`,
   );
   const vehicles = found.data?.vehicles ?? [];
   const hidden = (found.data?.count ?? 0) - vehicles.length;
+  const [ending, setEnding] = useState<{ id: string; name: string } | null>(null);
+  const [ended, setEnded] = useState("");
   return (
     <Card>
       <div data-testid="investor-vehicles">
+        {ended ? (
+          <p className="alert ok small" data-testid="investor-vehicle-ended">
+            {t("investors.vehicle_ended", { name: ended })}
+          </p>
+        ) : null}
         {found.isLoading ? <Loading /> : null}
         {found.data && found.data.count === 0 ? <p className="muted">{t("investors.vehicles_none")}</p> : null}
         {vehicles.map((v) => (
-          <div key={v.id}>
+          <div key={v.id} className="row-actions" style={{ justifyContent: "flex-start" }}>
             <Link to={companyPath(company, `/vehicles/${v.id}`)}>{v.name}</Link>
+            {can("vehicle.relation") ? (
+              <button type="button" className="secondary small-button" onClick={() => setEnding(v)}>
+                {t("vehicles.end_management_button")}
+              </button>
+            ) : null}
           </div>
         ))}
         {hidden > 0 ? <p className="muted small">{t("investors.vehicles_hidden", { count: hidden })}</p> : null}
+        {ending ? (
+          <EndFromInvestor
+            id={ending.id}
+            onClose={() => setEnding(null)}
+            onDone={() => {
+              setEnded(ending.name);
+              setEnding(null);
+              void client.invalidateQueries({ queryKey: ["investor-vehicles", company.public_id, id] });
+            }}
+          />
+        ) : null}
       </div>
     </Card>
   );

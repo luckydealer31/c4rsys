@@ -95,6 +95,7 @@ export async function ownershipScenario(page: Page, s: Company, email: string): 
   await expect(page.getByRole("link", { name: t("investors.new_button"), exact: true })).toBeVisible();
   await page.getByRole("link", { name: /Щукин/ }).click();
   await expect(page).toHaveURL(/\/clients\/investors\//);
+  const investorUrl = page.url();
   // The card: the data and the documents; the vehicles are a tab of their own, the link with
   // the profile is in «Settings → Access» (customer's decisions of 26.11.2026).
   await expect(page.getByRole("tab", { name: t("cards.tab_settings"), exact: true })).toBeVisible();
@@ -144,7 +145,43 @@ export async function ownershipScenario(page: Page, s: Company, email: string): 
   await expect(asking.getByTestId("owner-picker")).toBeVisible();
   await expect(asking.getByTestId("owner-investor").locator("option", { hasText: "Щукин Тимофей Андреевич" })).toHaveCount(1);
   await expect(asking.getByLabel(t("vehicles.lifecycle_reason"))).toBeVisible();
-  await asking.getByRole("button", { name: t("common.cancel"), exact: true }).click();
+  await asking.getByLabel(t("vehicles.location")).selectOption({ index: 1 });
+  await asking.getByTestId("owner-investor").selectOption({ label: "Щукин Тимофей Андреевич" });
+  await asking.getByLabel(t("vehicles.lifecycle_reason")).fill("Given back into the management");
+  await asking.getByRole("button", { name: t("vehicles.take_into_management_button"), exact: true }).click();
+  await expect
+    .poll(async () => ((await ok(page, "GET", `/c/${s.cmp}/vehicles/${earlier.id}`)).vehicle as { relation: string }).relation)
+    .toBe("managed");
+  // The management of one vehicle is ended in the card of the investor as well, on the tab of
+  // his vehicles (customer's decision of 27.11.2026).
+  await page.goto(investorUrl);
+  await page.getByRole("tab", { name: t("cards.tab_vehicles"), exact: true }).click();
+  const given = page.getByTestId("investor-vehicles");
+  await expect(given).toContainText("Client Forza");
+  await given.getByRole("button", { name: t("vehicles.end_management_button"), exact: true }).click();
+  await asking.getByLabel(t("vehicles.lifecycle_reason")).fill("Ended from the card of the investor");
+  // The client made at the first end is alike the investor now: he, or a new card, is chosen,
+  // and nothing is chosen beforehand (customer's decisions of 27.11.2026).
+  const alike = asking.getByTestId("end-clients");
+  await expect(alike).toContainText("Щукин Тимофей Андреевич");
+  await expect(alike.getByRole("radio")).toHaveCount(2);
+  const endNow = asking.getByRole("button", { name: t("vehicles.end_management_button"), exact: true });
+  await expect(endNow).toBeDisabled();
+  await alike.getByRole("radio").first().check();
+  await endNow.click();
+  await expect(page.getByTestId("investor-vehicle-ended")).toContainText("Client Forza");
+  // The vehicle is not the investor's any more: its owner became a client with the same data
+  // (customer's decision of 27.11.2026).
+  await expect(given).toContainText(t("investors.vehicles_none"));
+  const passed = (await ok(page, "GET", `/c/${s.cmp}/vehicles/${earlier.id}`)).vehicle as {
+    owner: { kind: string; client?: { name: string } };
+  };
+  expect(passed.owner.kind).toBe("client");
+  expect(passed.owner.client?.name).toBe("Щукин Тимофей Андреевич");
+  await expect
+    .poll(async () => ((await ok(page, "GET", `/c/${s.cmp}/vehicles/${earlier.id}`)).vehicle as { relation: string }).relation)
+    .toBe("client");
+  await page.goto(`/c/${s.cmp}/vehicles/${earlier.id}?tab=settings&part=card`);
   await page.getByRole("button", { name: t("vehicles.delete_button"), exact: true }).click();
   await expect(asking).toContainText(t("vehicles.delete_is_archive"));
   await asking.getByRole("button", { name: t("vehicles.delete_ok"), exact: true }).click();

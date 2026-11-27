@@ -334,6 +334,7 @@ def end_management(
     then: str,
     expected_version: int,
     document_ids: list[UUID] | None = None,
+    owner_client: str = "",
 ) -> VehicleCard:
     """The vehicle returns to the owner in the accounting of relations, without a warehouse
     (§ 8.3.17). The card is archived or stays as a client vehicle of the service (PROPOSAL: the
@@ -362,6 +363,7 @@ def end_management(
         card.save(update_fields=["relation", "accounting_location", "version", "updated_at"])
         _reset_contexts(card)
         open_period(card, "management_ended", reason, ctx.actor.user_id, now)
+        owners.pass_to_client(ctx, card.company, card, owner_client)
     ctx.audit(
         "vehicle.management_ended",
         object_type="vehicle_card",

@@ -3005,7 +3005,10 @@
     "owner_investor_new": "+ New investor",
     "owner_party_label": "The new investor is",
     "ended_now_client": "The management is ended. The vehicle is a client’s one now: in the park it is on the tab “Client”.",
-    "ended_now_archive": "The management is ended. The card is moved to the archive: turn the archive on in the park."
+    "ended_owner_client": "The owner “{{name}}” is in the list of clients now.",
+    "end_clients_title": "Clients alike",
+    "end_clients_hint": "The owner of the vehicle becomes a client. Some clients are alike: choose the same person or company, or create a new client with the data of the investor. The chosen card is not changed.",
+    "end_clients_new": "Create a new client"
   },
   "warehouse": {
     "action_create": "Create",
@@ -3156,7 +3159,8 @@
     "create_title": "New investor",
     "new_button": "New investor",
     "vehicles_none": "No vehicles from this investor.",
-    "vehicles_hidden": "More vehicles at locations you have no access to: {{count}}."
+    "vehicles_hidden": "More vehicles at locations you have no access to: {{count}}.",
+    "vehicle_ended": "The management of “{{name}}” is ended. The vehicle is a client one now: in the fleet it is on the “Client” tab. The owner is in the list of clients now."
   },
   "receipts": {
     "create": "New receipt",

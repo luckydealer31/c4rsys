@@ -261,15 +261,20 @@ def restore(request: HttpRequest, cmp: str, card_id: UUID) -> JsonResponse:
     return services_run(request, "vehicle.restore", actor, payload, handler)
 
 
-@require_POST
+@require_http_methods(["GET", "POST"])
 def end_management(request: HttpRequest, cmp: str, card_id: UUID) -> JsonResponse:
     context, actor, card = _card(request, cmp, card_id)
     _require(actor, "vehicle.relation", card)
+    if request.method == "GET":
+        # What the window asks before the end: the clients alike the owner (customer's decision
+        # of 27.11.2026).
+        return JsonResponse({"clients": owners.clients_like_owner(card)})
     body = parse_json(request)
     expected_version = get_int(body, "expected_version")
     reason = get_str(body, "reason", max_length=REASON_MAX)
     then = get_str(body, "then", max_length=10, required=False) or "archive"
     documents = document_transfer.parse_ids(body.get("document_ids"))
+    owner_client = get_str(body, "owner_client", max_length=40, required=False)
 
     def handler(ctx: CommandContext) -> CommandResult:
         lifecycle.end_management(
@@ -280,6 +285,7 @@ def end_management(request: HttpRequest, cmp: str, card_id: UUID) -> JsonRespons
             then=then,
             expected_version=expected_version,
             document_ids=documents,
+            owner_client=owner_client,
         )
         return CommandResult(200, _refreshed(context.company.id, card_id))
 
@@ -289,6 +295,7 @@ def end_management(request: HttpRequest, cmp: str, card_id: UUID) -> JsonRespons
         "then": then,
         "expected_version": expected_version,
         "document_ids": sorted(str(d) for d in documents),
+        "owner_client": owner_client,
     }
     return services_run(request, "vehicle.end_management", actor, payload, handler)
 

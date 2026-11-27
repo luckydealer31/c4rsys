@@ -290,6 +290,77 @@ def declare(ctx: CommandContext, company: Company, card: VehicleCard, owner: Own
     )
 
 
+NEW_CLIENT = "new"
+
+
+def investor_of(card: VehicleCard) -> Counterparty | None:
+    """The investor declared as the owner now, or None."""
+    claim = card.owner_claims.order_by("-created_at").first()
+    if claim is None or claim.kind != VehicleOwnerClaim.Kind.COUNTERPARTY:
+        return None
+    return claim.counterparty
+
+
+def clients_like_owner(card: VehicleCard) -> list[dict[str, Any]]:
+    """The clients alike the investor that owns the vehicle: offered when the management ends,
+    so that the cards are not merged later (customer's decision of 27.11.2026)."""
+    investor = investor_of(card)
+    if investor is None:
+        return []
+    return [
+        {
+            "id": str(c.id),
+            "name": owner_cards.full_name(c),
+            "kind": c.kind,
+            "matched": why,
+        }
+        for c, why in owner_cards.clients_like(card.company_id, investor)
+    ]
+
+
+def pass_to_client(
+    ctx: CommandContext, company: Company, card: VehicleCard, choice: str = ""
+) -> None:
+    """The management is ended and the vehicle is a client's one now: its owner — an investor —
+    becomes a client, and the vehicle is not among the vehicles of the investor any more
+    (customer's decisions of 27.11.2026). With no client alike a card with the data of the
+    investor is created by itself. With clients alike the employee chooses one of them — only
+    of them — or a new card; the chosen card is not changed. An owner that is not a card of an
+    investor stays as declared."""
+    investor = investor_of(card)
+    if investor is None:
+        return
+    alike = {str(c.id): c for c, _ in owner_cards.clients_like(company.id, investor)}
+    if alike and not choice:
+        raise errors.validation_error("owner_client", code="CHOICE_REQUIRED")
+    if choice and choice != NEW_CLIENT:
+        if choice not in alike:
+            raise errors.validation_error("owner_client", code="CLIENT_UNKNOWN")
+        client = alike[choice]
+    else:
+        client = owner_cards.client_of_investor(ctx, company, investor)
+    passed = VehicleOwnerClaim.objects.create(
+        company=company,
+        vehicle_card=card,
+        kind=VehicleOwnerClaim.Kind.CLIENT,
+        client=client,
+        manual_name=owner_cards.full_name(client),
+        created_by_user_id=ctx.actor.user_id,
+    )
+    ctx.audit(
+        "vehicle.owner_declared",
+        object_type="vehicle_card",
+        object_id=card.id,
+        after={
+            "kind": passed.kind,
+            "client_id": str(client.id),
+            "claim": str(passed.id),
+            "from_investor": str(investor.id),
+            "client_chosen": choice not in ("", NEW_CLIENT),
+        },
+    )
+
+
 def is_current(card: VehicleCard, owner: Owner) -> bool:
     """Whether the latest declaration already says the same."""
     if owner.new_card is not None:
@@ -392,7 +463,13 @@ def vehicles_of_investor(company_id: UUID, card_ids: list[UUID]) -> list[UUID]:
         )
         if latest is not None and latest.counterparty_id in card_ids:
             found.append(card_id)
-    return found
+    # A vehicle whose management is ended is not the investor's any more for the company
+    # (customer's decision of 27.11.2026).
+    return list(
+        VehicleCard.objects.filter(
+            company_id=company_id, pk__in=found, relation=VehicleCard.Relation.MANAGED
+        ).values_list("id", flat=True)
+    )
 
 
 def check_rights(actor: Actor, owner: Owner) -> None:

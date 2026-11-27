@@ -403,6 +403,100 @@ export function OdometerCard({ vehicle }: { vehicle: Vehicle }) {
   );
 }
 
+/** § 8.3.17: the window that ends the management of one vehicle. It stands in the card of the
+ * vehicle and in the card of the investor, on the tab of his vehicles (customer's decision of
+ * 27.11.2026). */
+export function EndManagementModal({
+  vehicle,
+  onClose,
+  onDone,
+}: {
+  vehicle: Vehicle;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const { t } = useTranslation();
+  const refresh = useRefresh(vehicle.id);
+  const [reason, setReason] = useState("");
+  // Copies of the company's documents the owner gets at the end of the management.
+  const [passed, setPassed] = useState<string[]>([]);
+  const passable = (vehicle.card_documents ?? []).filter((d) => d.state === "active");
+  const end = useVehicleCommand(vehicle, "end-management");
+  const company = useCompany();
+  // The owner — an investor — becomes a client. With clients alike him one of them, and only of
+  // them, or a new card is chosen; nothing is chosen beforehand (customer's decisions of
+  // 27.11.2026).
+  const alike = useApi<{ clients: { id: string; name: string; kind: string; matched: string[] }[] }>(
+    ["vehicle-end-clients", company.public_id, vehicle.id, vehicle.version],
+    `/c/${company.public_id}/vehicles/${vehicle.id}/end-management`,
+  );
+  const clients = alike.data?.clients ?? [];
+  const [client, setClient] = useState("");
+  const submit = async () => {
+    // The vehicle becomes a client one and the card stays (customer's decision of 23.11.2026).
+    const body = {
+      then: "client",
+      document_ids: passed,
+      reason,
+      expected_version: vehicle.version,
+      owner_client: client,
+    };
+    if ((await end.run(body)) !== null) {
+      await refresh();
+      onDone();
+    }
+  };
+  return (
+    <Modal title={t("vehicles.end_management_button")} onClose={onClose}>
+      <Field label={t("vehicles.lifecycle_reason")}>
+        <input value={reason} onChange={(e) => setReason(e.target.value)} />
+      </Field>
+      <p className="muted small">{t("vehicles.end_management_hint")}</p>
+      {passable.length ? (
+        vehicle.documents_recipient ? (
+          <>
+            <h3>{t("vehicles.documents_pass_owner")}</h3>
+            <p className="muted small">{t("vehicles.documents_pass_owner_hint")}</p>
+            <DocumentChecklist items={passable} chosen={passed} onChange={setPassed} />
+          </>
+        ) : (
+          <p className="muted small">{t("vehicles.documents_pass_nobody")}</p>
+        )
+      ) : null}
+      {clients.length ? (
+        <div data-testid="end-clients">
+          <h3>
+            {t("vehicles.end_clients_title")} <Info text={t("vehicles.end_clients_hint")} />
+          </h3>
+          {clients.map((c) => (
+            <label key={c.id} className="check">
+              <input type="radio" name="owner-client" checked={client === c.id} onChange={() => setClient(c.id)} />
+              <span>
+                {c.name}{" "}
+                <span className="muted small">({c.matched.map((m) => t(`clients.matched_${m}`)).join(", ")})</span>
+              </span>
+            </label>
+          ))}
+          <label className="check">
+            <input type="radio" name="owner-client" checked={client === "new"} onChange={() => setClient("new")} />
+            <span>{t("vehicles.end_clients_new")}</span>
+          </label>
+        </div>
+      ) : null}
+      <ErrorMessage error={end.error} />
+      <div className="actions">
+        <button
+          type="button"
+          disabled={!reason.trim() || end.pending || !alike.data || (clients.length > 0 && !client)}
+          onClick={() => void submit()}
+        >
+          {t("vehicles.end_management_button")}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
 /** § 8.1.6, § 8.3.17, § 8.7.5–8.7.6: the relation, the end of the management, the archive and
  * the restore of the earlier card. */
 export function RelationCard({ vehicle }: { vehicle: Vehicle }) {
@@ -411,14 +505,8 @@ export function RelationCard({ vehicle }: { vehicle: Vehicle }) {
   const refresh = useRefresh(vehicle.id);
   const locations = useLocations();
   const [reason, setReason] = useState("");
-  // The vehicle becomes a client one and the card stays (customer's decision of 23.11.2026).
-  const then = "client";
   const [location, setLocation] = useState(vehicle.location_id ?? "");
-  // Copies of the company's documents the owner gets at the end of the management.
-  const [passed, setPassed] = useState<string[]>([]);
-  const passable = (vehicle.card_documents ?? []).filter((d) => d.state === "active");
   const archive = useVehicleCommand(vehicle, "archive");
-  const end = useVehicleCommand(vehicle, "end-management");
   const take = useVehicleCommand(vehicle, "take-into-management");
   // The owner — an investor — is named when the vehicle is taken into the management
   // (customer's decisions of 26.11.2026).
@@ -434,12 +522,12 @@ export function RelationCard({ vehicle }: { vehicle: Vehicle }) {
   const close = () => setAction("");
   // What became of the card after the management was ended: told at once, so that the card is
   // not looked for where it was (customer's remark of 26.11.2026).
-  const [ended, setEnded] = useState<"" | "client" | "archive">("");
+  const [ended, setEnded] = useState<"" | "client">("");
   const run = async (command: ReturnType<typeof useVehicleCommand>, body: Record<string, unknown>) => {
     if ((await command.run({ ...body, reason, expected_version: vehicle.version })) !== null) {
       setReason("");
       setAction("");
-      setEnded(command === end ? (body.then === "client" ? "client" : "archive") : "");
+      setEnded("");
       await refresh();
     }
   };
@@ -468,7 +556,8 @@ export function RelationCard({ vehicle }: { vehicle: Vehicle }) {
     <Card title={archived ? t("vehicles.restore_title") : t("vehicles.relation_title")}>
       {ended ? (
         <p className="alert ok small" data-testid="management-ended">
-          {t(ended === "client" ? "vehicles.ended_now_client" : "vehicles.ended_now_archive")}
+          {t("vehicles.ended_now_client")}
+          {vehicle.owner?.client ? ` ${t("vehicles.ended_owner_client", { name: vehicle.owner.client.name })}` : ""}
         </p>
       ) : null}
       {archived ? (
@@ -573,31 +662,14 @@ export function RelationCard({ vehicle }: { vehicle: Vehicle }) {
             </Modal>
           ) : null}
           {action === "end" ? (
-            <Modal title={t("vehicles.end_management_button")} onClose={close}>
-              {reasonField}
-              <p className="muted small">{t("vehicles.end_management_hint")}</p>
-              {passable.length ? (
-                vehicle.documents_recipient ? (
-                  <>
-                    <h3>{t("vehicles.documents_pass_owner")}</h3>
-                    <p className="muted small">{t("vehicles.documents_pass_owner_hint")}</p>
-                    <DocumentChecklist items={passable} chosen={passed} onChange={setPassed} />
-                  </>
-                ) : (
-                  <p className="muted small">{t("vehicles.documents_pass_nobody")}</p>
-                )
-              ) : null}
-              <ErrorMessage error={end.error} />
-              <div className="actions">
-                <button
-                  type="button"
-                  disabled={!reason.trim() || end.pending}
-                  onClick={() => void run(end, { then, document_ids: passed })}
-                >
-                  {t("vehicles.end_management_button")}
-                </button>
-              </div>
-            </Modal>
+            <EndManagementModal
+              vehicle={vehicle}
+              onClose={close}
+              onDone={() => {
+                setAction("");
+                setEnded("client");
+              }}
+            />
           ) : null}
         </>
       )}
