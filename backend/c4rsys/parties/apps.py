@@ -30,3 +30,15 @@ class PartiesConfig(AppConfig):
         from c4rsys.platform import userlinks
 
         userlinks.register(PartyLinks())
+        # The documents of the cards are read by the service that reads the documents of
+        # suppliers and the papers of vehicles (customer's decision of 28.11.2026).
+        from c4rsys.parties import recognition
+        from c4rsys.warehouse import recognition_anthropic as outer
+
+        if outer.available():
+            recognition.register(
+                outer.NAME,
+                lambda content, kind: outer.ask(
+                    content, kind, recognition.INSTRUCTION, recognition.SCHEMA
+                ),
+            )

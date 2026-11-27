@@ -98,7 +98,8 @@ export async function uploadFile(
     | "document_signature"
     | "vehicle_document"
     | "vehicle_paper"
-    | "expense_receipt",
+    | "expense_receipt"
+    | "party_paper",
   file: File | Blob[],
   idempotencyKey: string = crypto.randomUUID(),
 ): Promise<{ id: string }> {
@@ -151,7 +152,7 @@ async function page(file: File): Promise<Blob> {
 /** A document of one file or of several photos (customer's decision of 23.11.2026): several
  * photos are sent together and kept by the server as the pages of one document. */
 export async function uploadPages(
-  purpose: "warehouse_document" | "vehicle_paper" | "expense_receipt",
+  purpose: "warehouse_document" | "vehicle_paper" | "expense_receipt" | "party_paper",
   files: File[],
 ): Promise<{ id: string }> {
   const [only] = files;

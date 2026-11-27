@@ -439,6 +439,50 @@ test("base example from registration to closing survives a restart", async ({ pa
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Иван");
   await page.goto(`${base}/clients`);
   await expect(page.getByRole("link", { name: "Иван Петров" })).toBeVisible();
+  // A new card is filled from a photo of a document (customer's decisions of 28.11.2026): the
+  // names go into the steps, the rest is shown to be checked, the photo is kept with the card.
+  // The outer service is not asked here: its answer is put in its place.
+  await page.route("**/api/c/*/cards/recognize", (route) =>
+    route.fulfill({
+      json:
+        route.request().method() === "GET"
+          ? { available: true }
+          : {
+              kind: "person",
+              document_kind: "passport",
+              card: {
+                last_name: "SOMCHAI",
+                first_name: "JAIDEE",
+                middle_name: "",
+                birth_date: "1990-02-03",
+                registration_address: "",
+                id_document: {
+                  type: "passport",
+                  number: "AB1234567",
+                  country: "TH",
+                  issued_on: "2020-05-06",
+                  expires_on: "2030-05-06",
+                  issued_by: "MFA",
+                },
+              },
+            },
+    }),
+  );
+  await page.getByRole("link", { name: t("clients.new_button") }).click();
+  await page.locator(".paper-reading input[type=file]").setInputFiles(side("passport.png"));
+  await expect(page.getByTestId("card-read")).toContainText("AB1234567");
+  await expect(page.getByLabel(t("profile.last_name"), { exact: true })).toHaveValue("SOMCHAI");
+  await further.click();
+  await expect(page.getByLabel(t("clients.birth_date"), { exact: true })).toHaveValue("1990-02-03");
+  await further.click();
+  await contacts.locator("select").first().selectOption("phone");
+  await contacts.getByLabel(t("clients.contact_value_phone")).fill("+66 80 000 1111");
+  await page.getByRole("button", { name: t("clients.create") }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("JAIDEE");
+  await expect(page.getByRole("main")).toContainText("AB1234567");
+  await expect(page.getByTestId("card-papers")).toContainText(t("cards.paper_passport"));
+  await page.unroute("**/api/c/*/cards/recognize");
+  await page.goto(`${base}/clients`);
   // Employees: the list only; the invitation opens in a window by the button «New employee».
   await page.getByRole("tab", { name: t("clients.tab_employees") }).click();
   await expect(page.getByLabel(t("employees.target"))).toHaveCount(0);

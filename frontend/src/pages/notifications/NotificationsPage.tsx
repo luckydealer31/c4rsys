@@ -7,7 +7,7 @@ import { api } from "../../api/client";
 import { useApi } from "../../api/queries";
 import type { CompanySummary } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { Card, ErrorMessage, Field, Loading } from "../../components/ui";
+import { Card, ErrorMessage, Field, IconButton, Loading } from "../../components/ui";
 import { Icon } from "../../components/icons";
 import { useDismiss } from "../../components/useDismiss";
 import { deviceTimeZone, formatMoment } from "../../time";
@@ -92,6 +92,15 @@ export function NotificationBell() {
   );
   const items = (latest.data?.notifications ?? []).slice(0, POPUP_ROWS);
   const zone = deviceTimeZone();
+  const queryClient = useQueryClient();
+  const read = useCommand<Record<string, unknown>, { marked: number }>("/notifications/read");
+  // The user's own mark: an informational notification gets it when it is opened from here, any
+  // one — by the small button of its row (customer's decisions of 28.11.2026).
+  const markRead = async (n: CentreNotification) => {
+    if ((await read.run({ ids: [n.id] })) !== null) {
+      await queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    }
+  };
   return (
     <div className="user-menu bell-menu" ref={root}>
       <button
@@ -122,13 +131,25 @@ export function NotificationBell() {
                 </span>
               </>
             );
-            return href ? (
-              <Link key={n.id} className="menu-row bell-row" to={href} onClick={close}>
-                {body}
-              </Link>
-            ) : (
-              <div key={n.id} className="menu-row bell-row plain">
-                {body}
+            return (
+              <div key={n.id} className="bell-line" data-testid="bell-line">
+                {href ? (
+                  <Link
+                    className="menu-row bell-row"
+                    to={href}
+                    onClick={() => {
+                      close();
+                      if (n.kind === "info" && !n.read) void markRead(n);
+                    }}
+                  >
+                    {body}
+                  </Link>
+                ) : (
+                  <div className="menu-row bell-row plain">{body}</div>
+                )}
+                {n.read ? null : (
+                  <IconButton icon="check" label={t("notifications.mark_read")} onClick={() => void markRead(n)} />
+                )}
               </div>
             );
           })}

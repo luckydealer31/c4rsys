@@ -42,6 +42,9 @@ class ExtendedFields(models.Model):
     bank_details = models.TextField(blank=True, default="")
     signatory_name = models.CharField(max_length=200, blank=True, default="")
     signatory_basis = models.CharField(max_length=500, blank=True, default="")
+    # The photos of the documents the card was filled from (papers.py; customer's decision of
+    # 28.11.2026): `{file_id, kind, added_at, added_by}`.
+    papers = models.JSONField(default=list, blank=True)
 
     class Meta:
         abstract = True

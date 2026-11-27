@@ -37,6 +37,9 @@ class StoredFile(models.Model):
         # A photo of a receipt of an expense, kept with its draft (customer's decision of
         # 23.11.2026).
         EXPENSE_RECEIPT = "expense_receipt"
+        # A photo or a PDF of a document of a client, an investor or a counterparty, read to
+        # fill a new card and kept with it (customer's decision of 28.11.2026).
+        PARTY_PAPER = "party_paper"
 
     class State(models.TextChoices):
         """Decision В-8.1: an inspection video is compressed on the server after its upload; until

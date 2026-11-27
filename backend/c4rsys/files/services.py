@@ -82,7 +82,7 @@ def image_type(content: bytes) -> str:
 
 
 # Purposes that also take a PDF; others are images only.
-DOCUMENT_PURPOSES = {"warehouse_document", "vehicle_paper", "expense_receipt"}
+DOCUMENT_PURPOSES = {"warehouse_document", "vehicle_paper", "expense_receipt", "party_paper"}
 # PROPOSAL: a scanned document may be larger than a photo.
 MAX_DOCUMENT_BYTES = 10 * 1024 * 1024
 

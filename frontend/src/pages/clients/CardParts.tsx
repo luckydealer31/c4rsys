@@ -22,6 +22,7 @@ import type {
 } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, FloatField, IconButton, Loading, Modal } from "../../components/ui";
+import { FilePreview } from "../../components/FilePreview";
 import { companyPath, useCan, useCompany } from "../../layout/CompanyShell";
 import { deviceTimeZone, formatMoment } from "../../time";
 
@@ -371,6 +372,7 @@ const NO_LICENSE: DriverLicense = { number: "", country: "", issued_on: null, ex
 export function DocumentsCard({ cardType, card, onSaved }: { cardType: CardType; card: AnyCard; onSaved: () => Promise<void> }) {
   const { t } = useTranslation();
   const editable = useEditable(cardType, card);
+  const company = useCompany();
   const [editing, setEditing] = useState(false);
   const person = card.kind === "person";
   const title = t(person ? "cards.documents_title" : "cards.requisites_title");
@@ -407,6 +409,21 @@ export function DocumentsCard({ cardType, card, onSaved }: { cardType: CardType;
       <Card>
         <Head title={title} edit={editable ? { label: `${t("common.edit")}: ${title}`, onClick: () => setEditing(true) } : null} />
         {empty ? <p className="muted">{t("cards.documents_none")}</p> : <Facts rows={rows} />}
+        {(card.papers ?? []).length ? (
+          <p className="small" data-testid="card-papers">
+            <span className="muted">{t("cards.papers_title")}: </span>
+            {(card.papers ?? []).map((p, i) => (
+              <span key={p.file_id}>
+                {i ? ", " : ""}
+                <FilePreview
+                  path={`/c/${company.public_id}/${path(cardType)}/${card.id}/papers/${p.file_id}`}
+                  name={t(`cards.paper_${p.kind}`)}
+                  label={t(`cards.paper_${p.kind}`)}
+                />
+              </span>
+            ))}
+          </p>
+        ) : null}
       </Card>
       {editing ? (
         <Modal wide title={title} onClose={() => setEditing(false)}>

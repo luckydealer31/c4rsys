@@ -4,15 +4,16 @@ from datetime import date
 from typing import Any
 from uuid import UUID
 
-from django.http import HttpRequest, JsonResponse
+from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.utils import timezone
-from django.views.decorators.http import require_http_methods, require_POST
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from c4rsys.accounts.middleware import require_user
 from c4rsys.companies import access
 from c4rsys.companies import services as companies
 from c4rsys.companies.views import run_and_respond
-from c4rsys.parties import counterparties, extended, services
+from c4rsys.files import services as files
+from c4rsys.parties import counterparties, extended, papers, recognition, services
 from c4rsys.parties.models import ClientCard, ClientRestriction, Counterparty
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
@@ -55,6 +56,7 @@ def _payload(card: ClientCard, blacklisted: bool | None = None) -> dict[str, Any
         **services.snapshot(card),
         # § 6.7.1: on the blacklist of the company (a mark of a card merged into it counts).
         "blacklisted": blacklisted,
+        "papers": papers.payload(card),
     }
 
 
@@ -126,9 +128,12 @@ def client_list(request: HttpRequest, cmp: str) -> JsonResponse:
     )
     client.check_minimum()
     contacts = services.parse_contacts(data.get("contacts", []), required=True)
+    paper = papers.parse(data.get("paper"))
 
     def handler(ctx: CommandContext) -> CommandResult:
         card = services.create_client(ctx, context.company, client, contacts)
+        if paper is not None:
+            papers.attach(ctx, card, *paper)
         query = services.MatchQuery(
             first_name=client.first_name,
             last_name=client.last_name,
@@ -151,6 +156,7 @@ def client_list(request: HttpRequest, cmp: str) -> JsonResponse:
         **{key: getattr(client, key) for key in CLIENT_TEXTS},
         **extended.as_payload(client.extended),
         "contacts": [c.as_dict() for c in contacts],
+        "paper": [str(paper[0]), paper[1]] if paper else None,
     }
     return run_and_respond(request, "client.create", actor, payload, handler)
 
@@ -438,6 +444,7 @@ def _counterparty_payload(card: Counterparty) -> dict[str, Any]:
         "version": card.version,
         "name": counterparties.display_name(card),
         **counterparties.snapshot(card),
+        "papers": papers.payload(card),
     }
 
 
@@ -486,9 +493,12 @@ def counterparty_list(request: HttpRequest, cmp: str, role: str = COUNTERPARTY) 
     )
     card_data.check_minimum()
     contacts = services.parse_contacts(data.get("contacts", []), required=True)
+    paper = papers.parse(data.get("paper"))
 
     def handler(ctx: CommandContext) -> CommandResult:
         card = counterparties.create(ctx, context.company, card_data, contacts)
+        if paper is not None:
+            papers.attach(ctx, card, *paper)
         card = counterparties.get(context.company.id, card.id)
         return CommandResult(201, {"counterparty": _counterparty_payload(card)})
 
@@ -503,6 +513,7 @@ def counterparty_list(request: HttpRequest, cmp: str, role: str = COUNTERPARTY) 
         **{key: getattr(card_data, key) for key in COUNTERPARTY_TEXTS},
         **extended.as_payload(card_data.extended),
         "contacts": [c.as_dict() for c in contacts],
+        "paper": [str(paper[0]), paper[1]] if paper else None,
     }
     return run_and_respond(request, f"{role}.create", actor, payload, handler)
 
@@ -596,3 +607,53 @@ def counterparty_restore(
     request: HttpRequest, cmp: str, counterparty_id: UUID, role: str = COUNTERPARTY
 ) -> JsonResponse:
     return _counterparty_state(request, cmp, counterparty_id, False, role)
+
+
+CARD_LISTS = {"client": "client", "counterparty": COUNTERPARTY, "investor": counterparties.INVESTOR}
+
+
+@require_http_methods(["GET", "POST"])
+def card_recognize(request: HttpRequest, cmp: str) -> JsonResponse:
+    """What an outer service has read from a document of a person or a company (customer's
+    decision of 28.11.2026). Nothing is written: the answer fills the form of a new card, and
+    the employee checks it before making the card. GET — whether the reading is on."""
+    context, actor = _actor(request, cmp)
+    if request.method == "GET":
+        return JsonResponse({"available": recognition.configured()})
+    data = parse_json(request)
+    card_type = data.get("card_type")
+    if card_type not in CARD_LISTS:
+        raise errors.validation_error("card_type", code="VALUE_UNKNOWN")
+    _require(actor, f"{CARD_LISTS[card_type]}.create")
+    try:
+        file_id = UUID(str(data.get("document_id")))
+    except ValueError as exc:
+        raise errors.validation_error("document_id") from exc
+    item = files.readable(actor.user_id, file_id)
+    if (
+        item is None
+        or item.purpose != papers.PURPOSE
+        or item.uploaded_by != actor.user_id
+        or item.company_id not in (None, context.company.id)
+    ):
+        raise errors.validation_error("document_id", code="FILE_NOT_USABLE")
+    return JsonResponse(recognition.read(files.content(item), item.content_type))
+
+
+@require_GET
+def client_paper(request: HttpRequest, cmp: str, client_id: UUID, file_id: UUID) -> HttpResponse:
+    context, actor = _actor(request, cmp)
+    if not _has(actor, "client.find", "client.list"):
+        raise errors.permission_denied("client.find")
+    card = services.get_client(context.company.id, client_id)
+    return files.file_response(papers.file_of(card, file_id))
+
+
+@require_GET
+def counterparty_paper(
+    request: HttpRequest, cmp: str, counterparty_id: UUID, file_id: UUID, role: str = COUNTERPARTY
+) -> HttpResponse:
+    context, actor = _actor(request, cmp)
+    _require(actor, f"{role}.view")
+    card = counterparties.get(context.company.id, counterparty_id, role)
+    return files.file_response(papers.file_of(card, file_id))

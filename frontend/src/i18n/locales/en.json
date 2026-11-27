@@ -6517,7 +6517,16 @@
     "tab_settings": "Settings",
     "tab_vehicles": "Vehicles",
     "settings_access": "Access",
-    "settings_other": "Other"
+    "settings_other": "Other",
+    "papers_title": "Photos of documents",
+    "paper_passport": "Passport",
+    "paper_national_id": "ID card",
+    "paper_driver_license": "Driving licence",
+    "paper_company_registration": "Company registration document",
+    "paper_other": "Other document",
+    "paper_hint": "Upload a photo or a PDF of a document: a passport, an ID card, a driving licence or a registration document of a company. The system reads the name, the date of birth, the number and the dates of the document, the requisites. No card is made by this: check what was read and go through the steps to the end. The photo is kept in the card. If the document has several pages, choose all the photos at once — up to 4.",
+    "paper_read_title": "Read from the document: {{document}}",
+    "paper_read_check": "Check the name on the next steps. The rest is written to the card and can be corrected there. The photo is kept in the card."
   },
   "data_requests": {
     "title": "Updates from the profile",

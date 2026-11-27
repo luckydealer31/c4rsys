@@ -1010,7 +1010,10 @@ export type OtherDocument = {
   issued_by?: string;
   note: string;
 };
+/** A photo of a document the card was filled from (customer's decision of 28.11.2026). */
+export type CardPaper = { file_id: string; kind: string; added_at: string };
 export type ExtendedCard = {
+  papers?: CardPaper[];
   id_document: IdDocument | null;
   driver_license: DriverLicense | null;
   driving_since: string | null;

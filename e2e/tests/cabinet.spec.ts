@@ -180,6 +180,46 @@ test("a client links the card in the cabinet and sees the rental", async ({ page
   await page.goto(`${s.base}/vehicles/${managed.id}?tab=settings&part=access`);
   await expect(page.getByTestId("owner-withdrew-banner")).toBeVisible();
   await expect(page.getByTestId("owner-withdrew")).toBeVisible();
+  // The popup of the bell (customer's decisions of 28.11.2026): a notification is marked as read
+  // by the small button of its row, without opening it; an informational one — also when it is
+  // opened from here, a warning is not. The notifications are put in place of the server's.
+  const note = (id: string, kind: string) => ({
+    id,
+    company: { public_id: s.cmp, name: "Test" },
+    location: null,
+    kind,
+    event: "vehicle.owner_withdrew",
+    params: { vehicle: "Honda Forza" },
+    object_type: "vehicle",
+    object_id: managed.id,
+    state: "done",
+    created_at: "2026-11-27T10:00:00+00:00",
+    last_at: "2026-11-27T10:00:00+00:00",
+    repeats: 0,
+    read: false,
+  });
+  const marked: string[][] = [];
+  await page.route("**/api/notifications?*", (route) =>
+    route.fulfill({ json: { notifications: [note("n-info", "info"), note("n-warning", "warning")] } }),
+  );
+  await page.route("**/api/notifications/read", (route) => {
+    marked.push((route.request().postDataJSON() as { ids: string[] }).ids);
+    return route.fulfill({ json: { marked: 1 } });
+  });
+  const bell = page.getByRole("button", { name: t("notifications.title") });
+  await bell.click();
+  const lines = page.getByTestId("bell-line");
+  await expect(lines).toHaveCount(2);
+  await lines.nth(1).getByRole("button", { name: t("notifications.mark_read"), exact: true }).click();
+  await expect.poll(() => marked).toEqual([["n-warning"]]);
+  await lines.nth(1).getByRole("link").click();
+  await expect(page.getByRole("dialog", { name: t("notifications.title") })).toHaveCount(0);
+  expect(marked).toEqual([["n-warning"]]);
+  await bell.click();
+  await lines.first().getByRole("link").click();
+  await expect.poll(() => marked).toEqual([["n-warning"], ["n-info"]]);
+  await page.unroute("**/api/notifications?*");
+  await page.unroute("**/api/notifications/read");
 
   // The company interface is not served on the cabinet domain.
   await client.goto(`${s.base}/rentals`);

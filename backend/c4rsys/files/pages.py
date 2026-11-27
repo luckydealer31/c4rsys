@@ -10,7 +10,13 @@ from c4rsys.platform import errors
 
 # The largest number of photos in one document by the purpose of the file (customer's decision of
 # 23.11.2026): a paper of a vehicle — 5, a document of a supplier — 10, a receipt of an expense — 3.
-LIMITS: dict[str, int] = {"vehicle_paper": 5, "warehouse_document": 10, "expense_receipt": 3}
+LIMITS: dict[str, int] = {
+    "vehicle_paper": 5,
+    "warehouse_document": 10,
+    "expense_receipt": 3,
+    # A document of a person or of a company (28.11.2026); the number is the agent's choice.
+    "party_paper": 4,
+}
 # The markers that open the frame of a JPEG: the size of the picture follows them.
 FRAMES = {0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF}
 COLOURS = {1: "/DeviceGray", 3: "/DeviceRGB"}

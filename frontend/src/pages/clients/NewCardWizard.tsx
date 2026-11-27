@@ -4,9 +4,11 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router";
 
+import { ApiError, uploadPages } from "../../api/client";
+import { useApi } from "../../api/queries";
 import type { Client, Counterparty } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
-import { Card, ErrorMessage, Field } from "../../components/ui";
+import { Card, ErrorMessage, Field, Info } from "../../components/ui";
 import { companyPath, useCompany } from "../../layout/CompanyShell";
 import { clientName, useMatches } from "./ClientsPage";
 import { ContactsEditor, contactValid, contactsOf, phoneAndEmail, type ContactRow } from "./ContactsEditor";
@@ -23,6 +25,11 @@ type Form = {
   contacts: ContactRow[];
   comment: string;
 };
+
+/** What was read from a photo of a document: the kind of the card, which document it is and the
+ * fields of the card the creation takes (customer's decision of 28.11.2026). */
+type Reading = { kind: "person" | "company"; document_kind: string; card: Record<string, unknown> };
+const NAMES = ["last_name", "first_name", "middle_name", "birth_date", "company_name"];
 
 export function NewClientPage() {
   return <NewCardWizard cardType="client" />;
@@ -67,6 +74,56 @@ function NewCardWizard({ cardType }: { cardType: CardType }) {
   const create = useCommand<Record<string, unknown>, { client?: Client; counterparty?: Counterparty }>(
     `/c/${company.public_id}/${path}`,
   );
+  // A photo of a passport, a licence or a paper of a company fills the card: the names go into
+  // the steps, the rest is shown to be checked and is written with the card; the photo is kept
+  // with the card (customer's decisions of 28.11.2026). Nothing is made until the last step.
+  const able = useApi<{ available: boolean }>(
+    ["card-recognition", company.public_id],
+    `/c/${company.public_id}/cards/recognize`,
+  );
+  const reading = useCommand<{ document_id: string; card_type: CardType }, Reading>(
+    `/c/${company.public_id}/cards/recognize`,
+  );
+  const [uploading, setUploading] = useState(false);
+  const [refused, setRefused] = useState<ApiError | null>(null);
+  const [paper, setPaper] = useState<{ file_id: string; kind: string } | null>(null);
+  const [more, setMore] = useState<Record<string, unknown>>({});
+  const [nothing, setNothing] = useState(false);
+  async function readPaper(files: File[]) {
+    setNothing(false);
+    setRefused(null);
+    setUploading(true);
+    let id = "";
+    try {
+      id = (await uploadPages("party_paper", files)).id;
+    } catch (error) {
+      if (error instanceof ApiError) setRefused(error);
+      return;
+    } finally {
+      setUploading(false);
+    }
+    const read = await reading.run({ document_id: id, card_type: cardType });
+    if (read === null) return;
+    const text = (key: string) => (typeof read.card[key] === "string" ? (read.card[key] as string) : "");
+    const rest = Object.fromEntries(
+      Object.entries(read.card).filter(([key, value]) => !NAMES.includes(key) && value !== "" && value !== null),
+    );
+    const named = NAMES.some((key) => text(key));
+    setNothing(!named && !Object.keys(rest).length);
+    setForm({
+      ...form,
+      kind: read.kind,
+      first_name: text("first_name"),
+      last_name: text("last_name"),
+      middle_name: text("middle_name"),
+      birth_date: text("birth_date"),
+      company_name: text("company_name"),
+    });
+    setMore(rest);
+    setPaper({ file_id: id, kind: read.document_kind });
+    // To the names, to be checked.
+    setIndex(1);
+  }
   // Possible existing clients for the entered data (§ 6.1.11); the manager compares and decides.
   const matches = useMatches({ ...form, ...phoneAndEmail(form.contacts) }, cardType === "client");
 
@@ -107,6 +164,12 @@ function NewCardWizard({ cardType }: { cardType: CardType }) {
         : { kind: "company", company_name: form.company_name, contacts };
     if (form.kind === "person") body.birth_date = form.birth_date || null;
     if (cardType !== "client") body.comment = form.comment;
+    // What was read besides the names; of the kind of the card only.
+    const person = ["id_document", "driver_license", "registration_address"];
+    for (const [key, value] of Object.entries(more)) {
+      if ((form.kind === "person") === person.includes(key)) body[key] = value;
+    }
+    if (paper) body.paper = paper;
     await opened(await create.run(body));
   }
 
@@ -212,6 +275,40 @@ function NewCardWizard({ cardType }: { cardType: CardType }) {
       </p>
       <h1>{t(`${path}.create_title`)}</h1>
       <p className="muted">{t("wizard.step", { n: index + 1, total: steps.length })}</p>
+      {able.data?.available ? (
+        <div className="paper-reading">
+          <label className={`button secondary${uploading || reading.pending ? " disabled" : ""}`}>
+            {uploading || reading.pending ? t("vehicles.paper_reading") : t("vehicles.paper_read")}
+            <input
+              type="file"
+              hidden
+              multiple
+              aria-label={t("vehicles.paper_read")}
+              accept="image/png,image/jpeg,image/webp,application/pdf"
+              disabled={uploading || reading.pending}
+              onChange={(e) => {
+                const files = [...(e.target.files ?? [])];
+                e.target.value = "";
+                if (files.length) void readPaper(files);
+              }}
+            />
+          </label>
+          <Info text={t("cards.paper_hint")} />
+          {nothing ? (
+            <span className="small" role="status">
+              {t("vehicles.paper_nothing")}
+            </span>
+          ) : null}
+          <ErrorMessage error={refused ?? reading.error} />
+        </div>
+      ) : null}
+      {paper && !nothing ? (
+        <div className="alert ok small" data-testid="card-read" style={{ maxWidth: 760 }}>
+          <strong>{t("cards.paper_read_title", { document: t(`cards.paper_${paper.kind}`) })}</strong>
+          <ReadFacts values={more} />
+          <div>{t("cards.paper_read_check")}</div>
+        </div>
+      ) : null}
       <form onSubmit={next} key={step}>
         <Card title={titles[step]}>
           {content}
@@ -234,5 +331,38 @@ function NewCardWizard({ cardType }: { cardType: CardType }) {
         </Card>
       </form>
     </div>
+  );
+}
+
+/** What was read besides the names, in words: it is written with the card and is corrected in
+ * the card afterwards. */
+function ReadFacts({ values }: { values: Record<string, unknown> }) {
+  const { t } = useTranslation();
+  const lines: string[] = [];
+  const paper = (label: string, value: unknown) => {
+    if (!value || typeof value !== "object") return;
+    const d = value as Record<string, unknown>;
+    const parts = [
+      d.number,
+      d.country,
+      d.issued_on ? `${t("cards.issued_on")}: ${String(d.issued_on)}` : "",
+      d.expires_on ? `${t("cards.expires_on")}: ${String(d.expires_on)}` : "",
+      d.issued_by ? `${t("cards.issued_by")}: ${String(d.issued_by)}` : "",
+      Array.isArray(d.categories) && d.categories.length ? `${t("cards.categories_short")}: ${d.categories.join(", ")}` : "",
+    ].filter(Boolean);
+    lines.push(`${label}: ${parts.join(" · ")}`);
+  };
+  paper(t("cards.paper_passport"), values.id_document);
+  paper(t("cards.driver_license"), values.driver_license);
+  for (const key of ["registration_address", "legal_form", "registration_number", "tax_number", "country", "legal_address", "director_name"]) {
+    if (typeof values[key] === "string" && values[key]) lines.push(`${t(`cards.field_${key}`)}: ${values[key] as string}`);
+  }
+  if (!lines.length) return null;
+  return (
+    <ul style={{ margin: "4px 0" }}>
+      {lines.map((line) => (
+        <li key={line}>{line}</li>
+      ))}
+    </ul>
   );
 }

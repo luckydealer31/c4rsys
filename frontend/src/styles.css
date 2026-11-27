@@ -816,6 +816,8 @@ th.num, td.num { text-align: right; white-space: nowrap; }
 .topbar button.bell { border: 0; background: none; padding: 0; cursor: pointer; }
 .bell-panel { right: 0; top: calc(100% + 6px); width: 360px; max-width: calc(100vw - 16px); max-height: 70vh; overflow-y: auto; }
 .bell-row { flex-direction: column; align-items: flex-start; gap: 2px; min-height: 0; }
+.bell-line { display: flex; align-items: center; gap: 4px; }
+.bell-line .bell-row { flex: 1; min-width: 0; }
 .bell-row.plain { cursor: default; }
 .bell-row.plain:hover { background: transparent; }
 .bell-empty { padding: 8px 6px; margin: 0; }

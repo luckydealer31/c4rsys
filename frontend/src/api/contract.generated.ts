@@ -296,6 +296,7 @@ export const client: Client = {
   "middle_name": "",
   "name": "Ivan Petrov",
   "other_documents": [],
+  "papers": [],
   "possible_duplicate": false,
   "provisional": false,
   "registration_address": "",
