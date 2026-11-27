@@ -13,6 +13,22 @@ from c4rsys.companies.models import Company
 from c4rsys.platform.ids import uuid7
 
 
+class Party(models.Model):
+    """One person or company behind the cards of its roles — a client, an investor, a
+    counterparty (customer's decisions of 28.11.2026). It holds nothing but the tie: the data
+    stand in the cards and are kept the same (persons.py)."""
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name="+")
+    created_at = models.DateTimeField(default=now)
+
+    class Meta:
+        db_table = "party"
+
+    def __str__(self) -> str:
+        return f"party:{self.id}"
+
+
 class ExtendedFields(models.Model):
     """The extended data of a card (§ 6.2.12–6.2.13): none of them is required at creation; a
     document checks the data it needs. Person: identity document, driving licence with the
@@ -45,6 +61,11 @@ class ExtendedFields(models.Model):
     # The photos of the documents the card was filled from (papers.py; customer's decision of
     # 28.11.2026): `{file_id, kind, added_at, added_by}`.
     papers = models.JSONField(default=list, blank=True)
+    # The being the card is of (persons.py; customer's decisions of 28.11.2026): a client, an
+    # investor and a counterparty are one being with roles. Empty — the card is alone.
+    party = models.ForeignKey(
+        "parties.Party", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
 
     class Meta:
         abstract = True

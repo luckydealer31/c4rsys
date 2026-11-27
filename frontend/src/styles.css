@@ -851,6 +851,11 @@ a.tag-chip:hover { border-color: var(--tag); }
 .tag-chip.personal { background: transparent; border: 1px dashed var(--tag); border-radius: 5px; }
 .tags-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: var(--gap); }
 /* The tags of a row of a list: smaller, beside the name. */
+.person-roles { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: var(--gap); }
+.person-roles .badge.link { text-decoration: underline; }
+.person-roles .small-button { margin-left: 0; white-space: nowrap; }
+.person-roles .badge[aria-current="true"] { font-weight: 600; }
+.person-comment { flex-basis: 100%; margin: 0; }
 .tag-filter { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .tag-filter select { width: auto; }
 .tag-filter-chosen { display: inline-flex; align-items: center; gap: 4px; padding: 0 4px; min-height: 0; background: transparent; border: 0; color: var(--muted); cursor: pointer; }

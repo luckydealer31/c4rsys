@@ -322,6 +322,10 @@ def update_client(
         after={k: v for k, v in after.items() if v != before[k]},
     )
     refresh_duplicate_marks(card, matched_before, duplicates_of)
+    # The data are of the being: its other cards get them (decision of 28.11.2026).
+    from c4rsys.parties import persons
+
+    persons.sync_from(ctx, card)
     return card
 
 

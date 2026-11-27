@@ -213,9 +213,10 @@ def test_the_end_of_the_management_makes_the_investor_a_client(owner: Client, cm
     assert Counterparty.objects.get(pk=investor["id"]).state == "active"
     assert owner.get(listed).json() == {"vehicles": [], "count": 0}
 
-    # Taken again and ended again: the client made before is alike now — the employee chooses
-    # him, only of the clients alike, or a new card; nothing is chosen for him.
-    def again(version: int, **extra: Any) -> Any:
+    # The investor is a client now — one being with two roles: taken again and ended again,
+    # the vehicle goes to the same client, nothing is asked and no card is made (decisions of
+    # 28.11.2026).
+    def again(card: str, version: int, **extra: Any) -> Any:
         taken = post(
             owner,
             f"/api/c/{cmp}/vehicles/{vehicle['id']}/take-into-management",
@@ -224,7 +225,7 @@ def test_the_end_of_the_management_makes_the_investor_a_client(owner: Client, cm
                 "location_id": location["id"],
                 "expected_version": version,
                 "owner_kind": "counterparty",
-                "owner_counterparty_id": investor["id"],
+                "owner_counterparty_id": card,
             },
             key(),
         )
@@ -239,9 +240,20 @@ def test_the_end_of_the_management_makes_the_investor_a_client(owner: Client, cm
         }
         return offered, post(owner, url, body, key())
 
-    offered, refused = again(after["version"])
-    assert [(c["id"], c["name"]) for c in offered] == [(str(client.id), "Shchukin Timofey")]
-    assert "phone" in offered[0]["matched"] and "name" in offered[0]["matched"]
+    offered, same = again(investor["id"], after["version"])
+    assert offered == [] and same.status_code == 200, same.content
+    assert same.json()["vehicle"]["owner"]["client"]["id"] == str(client.id)
+    assert ClientCard.objects.filter(last_name="Shchukin").count() == 1
+    seen = owner.get(f"/api/c/{cmp}/persons?card_type=investor&card_id={investor['id']}").json()
+    assert [r["role"] for r in seen["roles"]] == ["client", "investor"]
+
+    # Another investor, alike a client that is not his: the employee chooses — that client,
+    # only of the clients alike, or a new card; nothing is chosen for him.
+    other = create(
+        owner, cmp, kind="person", company_name="", first_name="Tim", last_name="Other"
+    ).json()["counterparty"]
+    offered, refused = again(other["id"], same.json()["vehicle"]["version"])
+    assert [c["id"] for c in offered] == [str(client.id)] and offered[0]["matched"] == ["phone"]
     assert refused.status_code == 400 and refused.json()["error"]["code"] == "CHOICE_REQUIRED"
     stranger = post(
         owner,
@@ -258,13 +270,8 @@ def test_the_end_of_the_management_makes_the_investor_a_client(owner: Client, cm
     body = {"reason": "Given back", "then": "client", "expected_version": current["version"]}
     not_alike = post(owner, url, {**body, "owner_client": stranger["id"]}, key())
     assert not_alike.status_code == 400 and not_alike.json()["error"]["code"] == "CLIENT_UNKNOWN"
-    chosen = post(owner, url, {**body, "owner_client": str(client.id)}, key())
-    assert chosen.status_code == 200, chosen.content
-    assert chosen.json()["vehicle"]["owner"]["client"]["id"] == str(client.id)
-    assert ClientCard.objects.filter(last_name="Shchukin").count() == 1
-
-    _, anew = again(chosen.json()["vehicle"]["version"], owner_client="new")
+    anew = post(owner, url, {**body, "owner_client": "new"}, key())
     assert anew.status_code == 200, anew.content
-    assert anew.json()["vehicle"]["owner"]["client"]["id"] != str(client.id)
-    assert ClientCard.objects.filter(last_name="Shchukin").count() == 2
-    assert ClientCard.objects.filter(last_name="Shchukin", possible_duplicate=True).count() == 1
+    made = ClientCard.objects.get(pk=anew.json()["vehicle"]["owner"]["client"]["id"])
+    assert (made.last_name, made.possible_duplicate) == ("Other", True)
+    assert made.id != client.id

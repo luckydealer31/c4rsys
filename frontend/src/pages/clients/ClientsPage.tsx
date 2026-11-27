@@ -17,6 +17,7 @@ import { CompanyTabs } from "../../layout/CompanyTabs";
 import { SectionTabs } from "../../layout/SectionTabs";
 import { useFirstTab } from "../../layout/tabOrder";
 import { RowTags, TagFilter, TagsLine, useTagsOf } from "../tags/Tags";
+import { PersonRoles } from "./PersonRoles";
 import { EmployeesList, InviteForm } from "../settings/EmployeesPage";
 import { cardPath, type CardType } from "./cardLists";
 import { CounterpartiesList } from "./Counterparties";
@@ -468,6 +469,7 @@ export function ClientPage() {
         />
       </div>
       <TagsLine kind="client" id={data.id} />
+      <PersonRoles cardType="client" id={data.id} />
       {data.merged_into ? (
         // § 6.5.2: the duplicate leads to the main card, where new operations go.
         <div className="alert warn">

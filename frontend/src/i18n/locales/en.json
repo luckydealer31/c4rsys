@@ -1401,7 +1401,12 @@
     "owner_confirmed_locked": "The owner confirmed the management: another owner may be named after the link of his investor card with the profile is broken.",
     "owner_withdrew_consent": "The owner took back his consent to the management of this vehicle.",
     "management_not_confirmed": "The management by this company is not confirmed.",
-    "owner_withdrew_locked": "The owner took back his consent to the management: he cannot be changed in the card. End the management, then take the vehicle into the management anew with its new owner."
+    "owner_withdrew_locked": "The owner took back his consent to the management: he cannot be changed in the card. End the management, then take the vehicle into the management anew with its new owner.",
+    "party_role_taken": "This person or company already has such a role.",
+    "party_kind_differs": "A person and a company cannot be linked.",
+    "party_already_joined": "The cards are linked already.",
+    "party_alone": "The card is not linked with anything.",
+    "party_card_merged": "The card is merged into another one — link the main card."
   },
   "history": {
     "action": "Action",
@@ -1928,7 +1933,8 @@
     "documents_policy_manage": "Document requirements",
     "tasks_policy_manage": "Task policy",
     "notifications_policy_manage": "Notification rules",
-    "tags_manage": "Manage the tags of the company"
+    "tags_manage": "Manage the tags of the company",
+    "party_join": "Link the cards of one person or company (client, investor, counterparty)"
   },
   "positions": {
     "director": "Director",
@@ -6963,5 +6969,25 @@
     "add_investor": "Add an investor",
     "add_counterparty": "Add a counterparty",
     "card_made": "The card is created."
+  },
+  "persons": {
+    "roles": "Roles",
+    "role_client": "Client",
+    "role_investor": "Investor",
+    "role_counterparty": "Counterparty",
+    "role_employee": "Employee",
+    "archived": "archived",
+    "hidden_one": "and {{count}} more role you have no access to",
+    "hidden_other": "and {{count}} more roles you have no access to",
+    "join": "Link",
+    "join_this": "The same one",
+    "join_none": "There are no cards alike in the other lists.",
+    "join_hint": "If this person or company is already in another list, link the cards: the data, the documents and the tags become common. The data of this card stay — in the linked one they are replaced.",
+    "leave": "Separate this card",
+    "comment_of": "Comment ({{role}})",
+    "also": "Also",
+    "hint": "A client, an investor and a counterparty are one person or company in different roles. The name, the contacts, the documents and the tags are common: changed in one card, they change in all. The comment, the archive and the history belong to each role.",
+    "hidden_few": "and {{count}} more roles you have no access to",
+    "hidden_many": "and {{count}} more roles you have no access to"
   }
 }

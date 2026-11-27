@@ -171,6 +171,9 @@ PERMISSIONS: dict[str, str] = {
     "investor.restore": "investor",
     "investor.merge": "investor",
     "investor.split": "investor",
+    # Saying that two cards — a client, an investor, a counterparty — are of one person or
+    # company (customer's decision of 28.11.2026). In «Company administrator» (PROPOSAL).
+    "party.join": "client",
     "rental.view": "rental",
     # § 23.3.7 (block 14): the rules of the rental — issue without payment, auto-cancel of a
     # booking and the other issue rules.

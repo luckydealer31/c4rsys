@@ -10,6 +10,9 @@ urlpatterns = [
     path("c/<str:cmp>/clients/provisional", views.client_provisional),
     path("c/<str:cmp>/clients/<uuid:client_id>", views.client_detail),
     path("c/<str:cmp>/cards/recognize", views.card_recognize),
+    path("c/<str:cmp>/persons", views.person_roles),
+    path("c/<str:cmp>/persons/of-employee/<uuid:employment_id>", views.person_of_employee),
+    path("c/<str:cmp>/persons/<str:action>", views.person_action),
     path("c/<str:cmp>/clients/<uuid:client_id>/papers/<uuid:file_id>", views.client_paper),
     path(
         "c/<str:cmp>/counterparties/<uuid:counterparty_id>/papers/<uuid:file_id>",

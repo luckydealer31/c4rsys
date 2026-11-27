@@ -265,6 +265,27 @@ def set_links(
         for tag_id in added
     )
     TagLink.objects.filter(pk__in=[current[tag_id].pk for tag_id in removed]).delete()
+    # The same being in its other roles carries the same tags.
+    for other_type, other_id in _others(company_id, object_type, object_id):
+        have = set(
+            TagLink.objects.filter(
+                company_id=company_id, object_type=other_type, object_id=other_id
+            ).values_list("tag_id", flat=True)
+        )
+        TagLink.objects.bulk_create(
+            TagLink(
+                company_id=company_id,
+                tag_id=tag_id,
+                object_type=other_type,
+                object_id=other_id,
+                added_by_user_id=user_id,
+            )
+            for tag_id in added
+            if tag_id not in have
+        )
+        TagLink.objects.filter(
+            company_id=company_id, object_type=other_type, object_id=other_id, tag_id__in=removed
+        ).delete()
 
     def names(ids: set[UUID]) -> str:
         return ", ".join(sorted(tags[i].name for i in ids if tags[i].owner_user_id is None))
@@ -698,6 +719,48 @@ def names_by_object(
     for object_id, name in links.order_by("tag__name_key").values_list("object_id", "tag__name"):
         answer.setdefault(object_id, []).append(name)
     return answer
+
+
+# Records that are one being — the cards of a person as a client, an investor and a counterparty
+# (customer's decision of 28.11.2026): a tag put on one of them stands on all. The resolver
+# gives the other records of the being: (company, kind, id) -> [(kind, id)].
+_same: list[Any] = []
+
+
+def register_same(resolver: Any) -> None:
+    _same.append(resolver)
+
+
+def _others(company_id: UUID, object_type: str, object_id: UUID) -> list[tuple[str, UUID]]:
+    return [pair for resolver in _same for pair in resolver(company_id, object_type, object_id)]
+
+
+def unite(ctx: CommandContext, company_id: UUID, records: list[tuple[str, UUID]]) -> None:
+    """The records became one being: each gets the tags of the others."""
+    links = TagLink.objects.filter(company_id=company_id, tag__archived_at__isnull=True)
+    owned: dict[UUID, UUID] = {}
+    for object_type, object_id in records:
+        for tag_id, user_id in links.filter(
+            object_type=object_type, object_id=object_id
+        ).values_list("tag_id", "added_by_user_id"):
+            owned.setdefault(tag_id, user_id)
+    for object_type, object_id in records:
+        have = set(
+            links.filter(object_type=object_type, object_id=object_id).values_list(
+                "tag_id", flat=True
+            )
+        )
+        TagLink.objects.bulk_create(
+            TagLink(
+                company_id=company_id,
+                tag_id=tag_id,
+                object_type=object_type,
+                object_id=object_id,
+                added_by_user_id=user_id,
+            )
+            for tag_id, user_id in owned.items()
+            if tag_id not in have
+        )
 
 
 # Records shown on the page of a tag as another record: a unit or a lot of the warehouse — as

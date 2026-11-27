@@ -1,4 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { EmployeeCards } from "../clients/PersonRoles";
 import { DiscountLimitCard } from "../orders/Discounts";
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
@@ -215,6 +216,7 @@ export function EmployeePage() {
         ) : (
           <p className="muted small">{t("employees.no_profile")}</p>
         )}
+        <EmployeeCards employmentId={data.id} />
         {data.started_at ? (
           <p className="small">
             {t("employees.started_at")}: {formatMoment(data.started_at, company.timezone ?? "UTC", i18n.language)}

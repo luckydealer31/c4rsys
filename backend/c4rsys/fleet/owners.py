@@ -9,7 +9,7 @@ profile exists.
 
 import re
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 from uuid import UUID
 
 from c4rsys.accounts import services as accounts
@@ -17,8 +17,8 @@ from c4rsys.companies import access
 from c4rsys.companies.models import Company
 from c4rsys.fleet import owner_requests
 from c4rsys.fleet.models import VehicleCard, VehicleOwnerClaim
-from c4rsys.parties import owner_cards
-from c4rsys.parties.models import Counterparty
+from c4rsys.parties import owner_cards, persons
+from c4rsys.parties.models import ClientCard, Counterparty
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext
 
@@ -305,7 +305,8 @@ def clients_like_owner(card: VehicleCard) -> list[dict[str, Any]]:
     """The clients alike the investor that owns the vehicle: offered when the management ends,
     so that the cards are not merged later (customer's decision of 27.11.2026)."""
     investor = investor_of(card)
-    if investor is None:
+    if investor is None or persons.card_of_role(investor, persons.CLIENT) is not None:
+        # The investor is a client already: there is nothing to choose.
         return []
     return [
         {
@@ -330,15 +331,32 @@ def pass_to_client(
     investor = investor_of(card)
     if investor is None:
         return
+    # The owner is one being with roles (customer's decisions of 28.11.2026): the investor that
+    # is a client already stays that client; otherwise he gets the role — a client alike chosen
+    # by the employee is said to be the same being, or a card with the same data is made.
+    known = persons.card_of_role(investor, persons.CLIENT)
     alike = {str(c.id): c for c, _ in owner_cards.clients_like(company.id, investor)}
-    if alike and not choice:
+    client: ClientCard
+    if isinstance(known, ClientCard):
+        client = known
+        choice = ""
+    elif alike and not choice:
         raise errors.validation_error("owner_client", code="CHOICE_REQUIRED")
-    if choice and choice != NEW_CLIENT:
+    elif choice and choice != NEW_CLIENT:
         if choice not in alike:
             raise errors.validation_error("owner_client", code="CLIENT_UNKNOWN")
         client = alike[choice]
+        # The chosen card keeps its data (decision of 28.11.2026): the two become one being
+        # with the data of the client; a being that has such a role already is not touched.
+        try:
+            persons.join(ctx, client, investor)
+        except errors.ApiError:
+            pass
     else:
-        client = owner_cards.client_of_investor(ctx, company, investor)
+        client = cast("ClientCard", persons.add_role(ctx, company, investor, persons.CLIENT))
+        if alike:
+            client.possible_duplicate = True
+            client.save(update_fields=["possible_duplicate"])
     passed = VehicleOwnerClaim.objects.create(
         company=company,
         vehicle_card=card,

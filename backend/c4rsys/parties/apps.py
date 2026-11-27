@@ -16,6 +16,11 @@ class PartiesConfig(AppConfig):
         platform_search.register("client", parties_search.clients)
         platform_search.register("counterparty", parties_search.counterparty_hits)
         platform_search.register("investor", parties_search.investor_hits)
+        # A tag is of the being: its cards in the other roles carry it too (28.11.2026).
+        from c4rsys.parties import persons
+        from c4rsys.tags import services as tag_services
+
+        tag_services.register_same(persons.same_being)
         from c4rsys.notifications import rules
         from c4rsys.notifications import services as notifications
         from c4rsys.parties import notices

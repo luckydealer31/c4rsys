@@ -13,7 +13,7 @@ from c4rsys.companies import access
 from c4rsys.companies import services as companies
 from c4rsys.companies.views import run_and_respond
 from c4rsys.files import services as files
-from c4rsys.parties import counterparties, extended, papers, recognition, services
+from c4rsys.parties import counterparties, extended, papers, persons, recognition, services
 from c4rsys.parties.models import ClientCard, ClientRestriction, Counterparty
 from c4rsys.platform import errors
 from c4rsys.platform.commands import Actor, CommandContext, CommandResult
@@ -676,3 +676,88 @@ def counterparty_paper(
     _require(actor, f"{role}.view")
     card = counterparties.get(context.company.id, counterparty_id, role)
     return files.file_response(papers.file_of(card, file_id))
+
+
+def _person_card(request: HttpRequest, cmp: str, data: Any) -> tuple[Any, Actor, Any]:
+    context, actor = _actor(request, cmp)
+    role = data.get("card_type")
+    try:
+        card_id = UUID(str(data.get("card_id")))
+    except ValueError as exc:
+        raise errors.validation_error("card_id") from exc
+    if role not in persons.ROLES:
+        raise errors.validation_error("card_type", code="VALUE_UNKNOWN")
+    persons.require_view(actor, role)
+    return context, actor, persons.get(context.company.id, role, card_id)
+
+
+@require_GET
+def person_roles(request: HttpRequest, cmp: str) -> JsonResponse:
+    """The roles of the person or company behind a card (customer's decisions of 28.11.2026)."""
+    _context, actor, card = _person_card(request, cmp, request.GET)
+    return JsonResponse(persons.payload(card, actor))
+
+
+@require_GET
+def person_of_employee(request: HttpRequest, cmp: str, employment_id: UUID) -> JsonResponse:
+    """The cards of an employee as a client, an investor or a counterparty: he is one person."""
+    from c4rsys.companies import staff
+
+    context, actor = _actor(request, cmp)
+    if not _has(actor, *persons.EMPLOYEE_VIEW):
+        raise errors.permission_denied(persons.EMPLOYEE_VIEW[0])
+    employment = staff.get_employment(context.company.id, employment_id)
+    found = (
+        persons.of_employee(context.company.id, employment.user_id, actor)
+        if employment.user_id is not None
+        else []
+    )
+    return JsonResponse({"cards": found})
+
+
+@require_POST
+def person_action(request: HttpRequest, cmp: str, action: str) -> JsonResponse:
+    """`join` — the card and another one are of one being, the data of this card stay; `leave` —
+    the card is alone again; `add-role` — one more role with the same data."""
+    data = parse_json(request)
+    context, actor, card = _person_card(request, cmp, data)
+    role = persons.role_of(card)
+    payload: dict[str, Any] = {"card_type": role, "card_id": str(card.id)}
+    if action == "add-role":
+        wanted = data.get("role")
+        if wanted not in persons.ROLES:
+            raise errors.validation_error("role", code="VALUE_UNKNOWN")
+        _require(actor, f"{wanted}.create")
+        payload["role"] = wanted
+
+        def handler(ctx: CommandContext) -> CommandResult:
+            made = persons.add_role(ctx, context.company, card, wanted)
+            return CommandResult(201, {"role": wanted, "id": str(made.id)})
+
+    elif action == "join":
+        _require(actor, persons.JOIN)
+        other_role = data.get("other_type")
+        try:
+            other_id = UUID(str(data.get("other_id")))
+        except ValueError as exc:
+            raise errors.validation_error("other_id") from exc
+        if other_role not in persons.ROLES:
+            raise errors.validation_error("other_type", code="VALUE_UNKNOWN")
+        persons.require_view(actor, other_role)
+        other = persons.get(context.company.id, other_role, other_id)
+        payload.update(other_type=other_role, other_id=str(other_id))
+
+        def handler(ctx: CommandContext) -> CommandResult:
+            persons.join(ctx, card, other)
+            return CommandResult(200, persons.payload(card, actor))
+
+    elif action == "leave":
+        _require(actor, persons.JOIN)
+
+        def handler(ctx: CommandContext) -> CommandResult:
+            persons.leave(ctx, card)
+            return CommandResult(200, persons.payload(card, actor))
+
+    else:
+        raise errors.not_found()
+    return run_and_respond(request, f"party.{action.replace('-', '_')}", actor, payload, handler)

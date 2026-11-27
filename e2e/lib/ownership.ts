@@ -160,16 +160,19 @@ export async function ownershipScenario(page: Page, s: Company, email: string): 
   await expect(given).toContainText("Client Forza");
   await given.getByRole("button", { name: t("vehicles.end_management_button"), exact: true }).click();
   await asking.getByLabel(t("vehicles.lifecycle_reason")).fill("Ended from the card of the investor");
-  // The client made at the first end is alike the investor now: he, or a new card, is chosen,
-  // and nothing is chosen beforehand (customer's decisions of 27.11.2026).
-  const alike = asking.getByTestId("end-clients");
-  await expect(alike).toContainText("Щукин Тимофей Андреевич");
-  await expect(alike.getByRole("radio")).toHaveCount(2);
+  // The investor is a client already — one being with two roles (customer's decisions of
+  // 28.11.2026): nothing is asked, the vehicle goes to the same client.
+  await expect(asking.getByTestId("end-clients")).toHaveCount(0);
   const endNow = asking.getByRole("button", { name: t("vehicles.end_management_button"), exact: true });
-  await expect(endNow).toBeDisabled();
-  await alike.getByRole("radio").first().check();
+  await expect(endNow).toBeEnabled();
   await endNow.click();
   await expect(page.getByTestId("investor-vehicle-ended")).toContainText("Client Forza");
+  // The roles of the being stand in its card: the investor is a client too, and the card of
+  // the client is one step away; a role that is missing is added by a button.
+  const person = page.getByTestId("person-roles");
+  await expect(person.getByRole("link", { name: t("persons.role_client"), exact: true })).toBeVisible();
+  await expect(person.getByRole("button", { name: `+ ${t("persons.role_counterparty")}`, exact: true })).toBeVisible();
+  await expect(person.getByRole("button", { name: `+ ${t("persons.role_client")}`, exact: true })).toHaveCount(0);
   // The vehicle is not the investor's any more: its owner became a client with the same data
   // (customer's decision of 27.11.2026).
   await expect(given).toContainText(t("investors.vehicles_none"));

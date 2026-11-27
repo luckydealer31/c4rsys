@@ -15,6 +15,7 @@ import { SectionTabs } from "../../layout/SectionTabs";
 import { useFirstTab } from "../../layout/tabOrder";
 import { RowTags, TagFilter, TagsLine, useTagsOf } from "../tags/Tags";
 import { CardBadges } from "./ClientsPage";
+import { PersonRoles } from "./PersonRoles";
 import { ContactsEditor, contactsOf, type ContactRow } from "./ContactsEditor";
 import { ContractorHistoryCard, MergeCard } from "./CardExtras";
 import { DocumentsCard, Facts, MainCard, SupplierHistoryCard } from "./CardParts";
@@ -327,6 +328,7 @@ export function CounterpartyPage({ list: of = "counterparty" }: { list?: PartyLi
         />
       </div>
       <TagsLine kind={investor ? "investor" : "counterparty"} id={data.id} />
+      <PersonRoles cardType={of} id={data.id} />
       {mergedInto ? (
         <div className="alert warn">
           {t("cards.merged_banner")}{" "}
