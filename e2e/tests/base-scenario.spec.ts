@@ -219,6 +219,26 @@ test("base example from registration to closing survives a restart", async ({ pa
   await expect(page.getByText(t("miniapp.none_waiting"))).toBeVisible();
   await page.getByRole("tab", { name: t("miniapp.tab_done") }).click();
   await expect(page.getByText(t("miniapp.none_done"))).toBeVisible();
+  // A client, an investor and a counterparty are added from the window too, by a photo of a
+  // document or by hand (customer's decision of 28.11.2026); the card made is said in the menu.
+  await page.goto(`${base}/app`);
+  for (const key of ["add_client", "add_investor", "add_counterparty"]) {
+    await expect(page.getByRole("link", { name: t(`miniapp.${key}`), exact: true })).toBeVisible();
+  }
+  await page.getByRole("link", { name: t("miniapp.add_investor"), exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`${base}/clients/investors/new$`));
+  await page.goto(`${base}/app`);
+  await page.getByRole("link", { name: t("miniapp.add_client"), exact: true }).click();
+  await page.getByRole("button", { name: t("wizard.next"), exact: true }).click();
+  await page.getByLabel(t("profile.first_name"), { exact: true }).fill("Мини");
+  await page.getByLabel(t("profile.last_name"), { exact: true }).fill("Клиентов");
+  await page.getByRole("button", { name: t("wizard.next"), exact: true }).click();
+  await page.getByRole("button", { name: t("wizard.skip"), exact: true }).click();
+  await page.getByTestId("contacts-editor").locator("select").first().selectOption("phone");
+  await page.getByTestId("contacts-editor").getByLabel(t("clients.contact_value_phone")).fill("+66 80 555 0000");
+  await page.getByRole("button", { name: t("clients.create") }).click();
+  await expect(page).toHaveURL(new RegExp(`${base}/app$`));
+  await expect(page.getByRole("status")).toContainText(t("miniapp.card_made"));
   await page.goto(`/tg?to=https://example.com/#tgWebAppData=x`);
   await expect(page).not.toHaveURL(/example\.com/);
   await expect(page).toHaveURL(new RegExp(`${base}/app$`));

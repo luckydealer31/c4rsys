@@ -2924,7 +2924,7 @@
     "finance_income_one": "Income",
     "finance_expense_one": "Expense",
     "photos_from": "Inspection of {{when}}",
-    "paper_read": "Fill in from a photo of a document",
+    "paper_read": "Fill in from a photo",
     "paper_reading": "Reading the document…",
     "paper_hint": "Upload a photo or a PDF of a document of the vehicle — a registration certificate, a registration book (blue book) or another one with the data of the vehicle. The system reads the make, the model, the year, the VIN, the plate, the numbers of the units, the colour and the characteristics. No vehicle is created by that: check what was read and go through the steps to the end. If the document has two sides or several pages, choose all the photos at once — up to 5.",
     "paper_done": "The document is read. Check the data, correct it if needed and press «Create».",
@@ -6955,6 +6955,10 @@
     "none_waiting": "There are no inspections to be made.",
     "none_done": "There are no inspections made.",
     "menu": "Menu",
-    "vehicle_made": "The vehicle is created."
+    "vehicle_made": "The vehicle is created.",
+    "add_client": "Add a client",
+    "add_investor": "Add an investor",
+    "add_counterparty": "Add a counterparty",
+    "card_made": "The card is created."
   }
 }

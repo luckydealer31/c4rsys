@@ -1,5 +1,6 @@
 /** The short version of the site in the window of the Telegram bot (customer's decision of
- * 23.11.2026): only a vehicle, a delivery note and a receipt by a photo, and the inspections; the
+ * 23.11.2026): only a vehicle, a delivery note and a receipt by a photo, the inspections, and —
+ * since 28.11.2026 — a new client, investor or counterparty by a photo of a document; the
  * rest of the site — rental, service, finance, settings — is not opened from it. The mark lives
  * with the window: it is set when the window signs in and is gone when the window is closed.
  *
@@ -27,6 +28,9 @@ export function isMini(): boolean {
 const PAGES = [
   /^\/app(\/(inspections|receipts))?$/,
   /^\/vehicles\/new$/,
+  // A client, an investor and a counterparty by a photo of a document (customer's decision of
+  // 28.11.2026).
+  /^\/clients\/((investors|counterparties)\/)?new$/,
   /^\/warehouse\/receipts\/(new|[0-9a-f-]{36})$/,
   /^\/inspections\/(new|[0-9a-f-]{36}|drafts\/[^/]+)$/,
   /^\/damages\/[0-9a-f-]{36}$/,

@@ -57,13 +57,17 @@ export function MiniMenu() {
     [can("warehouse.receive"), "/warehouse/receipts/new", t("miniapp.add_invoice")],
     [true, "/app/receipts", t("miniapp.add_receipt")],
     [true, "/app/inspections", t("miniapp.inspections")],
+    // A new card, filled by a photo of a document (customer's decision of 28.11.2026).
+    [can("client.create"), "/clients/new", t("miniapp.add_client")],
+    [can("investor.create"), "/clients/investors/new", t("miniapp.add_investor")],
+    [can("counterparty.create"), "/clients/counterparties/new", t("miniapp.add_counterparty")],
   ];
   return (
     <div className="page">
       <h1>{company.display_name}</h1>
-      {done === "vehicle" ? (
+      {done === "vehicle" || done === "card" ? (
         <p className="saved-mark" role="status">
-          {t("miniapp.vehicle_made")}
+          {t(done === "vehicle" ? "miniapp.vehicle_made" : "miniapp.card_made")}
         </p>
       ) : null}
       <div className="tiles">

@@ -10,6 +10,7 @@ import type { Client, Counterparty } from "../../api/types";
 import { useCommand } from "../../api/useCommand";
 import { Card, ErrorMessage, Field, Info } from "../../components/ui";
 import { companyPath, useCompany } from "../../layout/CompanyShell";
+import { isMini } from "../../mini";
 import { clientName, useMatches } from "./ClientsPage";
 import { ContactsEditor, contactValid, contactsOf, phoneAndEmail, type ContactRow } from "./ContactsEditor";
 
@@ -252,7 +253,8 @@ function NewCardWizard({ cardType }: { cardType: CardType }) {
             <ul>
               {(matches.data ?? []).map(({ client: match, matched }) => (
                 <li key={match.id}>
-                  <Link to={cardPath(match.id)}>{clientName(match)}</Link>{" "}
+                  {/* The window of the bot does not open the cards. */}
+                  {isMini() ? clientName(match) : <Link to={cardPath(match.id)}>{clientName(match)}</Link>}{" "}
                   <span className="small">
                     ({matched.map((m) => t(`clients.matched_${m}`)).join(", ")};{" "}
                     {match.contacts.map((c) => c.value).join(", ")})
@@ -270,9 +272,11 @@ function NewCardWizard({ cardType }: { cardType: CardType }) {
   const optional = step === "birth";
   return (
     <div className="page">
-      <p>
-        <Link to={back}>← {t(`clients.tab_${path}`)}</Link>
-      </p>
+      {isMini() ? null : (
+        <p>
+          <Link to={back}>← {t(`clients.tab_${path}`)}</Link>
+        </p>
+      )}
       <h1>{t(`${path}.create_title`)}</h1>
       <p className="muted">{t("wizard.step", { n: index + 1, total: steps.length })}</p>
       {able.data?.available ? (

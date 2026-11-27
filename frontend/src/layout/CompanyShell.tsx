@@ -203,7 +203,13 @@ export function CompanyShell({ user }: { user: User }) {
               <Navigate
                 to={`/c/${cmp}/app`}
                 replace
-                state={/^\/vehicles\/[0-9a-f-]{36}$/.test(rest) ? { done: "vehicle" } : null}
+                state={
+                  /^\/vehicles\/[0-9a-f-]{36}$/.test(rest)
+                    ? { done: "vehicle" }
+                    : /^\/clients\/((investors|counterparties)\/)?[0-9a-f-]{36}$/.test(rest)
+                      ? { done: "card" }
+                      : null
+                }
               />
             ) : (
               <Outlet />
